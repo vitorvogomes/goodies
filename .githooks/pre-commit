@@ -1,23 +1,60 @@
 #!/usr/bin/env bash
-# Goodies pre-commit — bloqueia commit se gitleaks achar segredo nos arquivos staged.
+# Goodies pre-commit — hooks básicos antes de cada commit (STORY-00-01):
+#   1. gitleaks  — bloqueia segredo nos arquivos staged
+#   2. ruff      — lint dos .py staged em api/
+#   3. eslint    — lint dos .ts/.tsx staged em web/
 # Ativado por: git config core.hooksPath .githooks  (ver scripts/setup-dev.sh)
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 
-if ! command -v gitleaks >/dev/null 2>&1; then
-  echo "[pre-commit] ⚠ gitleaks não encontrado no PATH." >&2
-  echo "             Instale e rode 'scripts/setup-dev.sh'. Pulando scan por ora." >&2
-  exit 0
+fail=0
+
+# ---- 1. gitleaks (segredos) ----
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] gitleaks: escaneando arquivos staged..."
+  if gitleaks git --staged --redact --no-banner -c .gitleaks.toml; then
+    echo "[pre-commit] ✅ gitleaks: nenhum segredo detectado."
+  else
+    echo "" >&2
+    echo "[pre-commit] ❌ gitleaks detectou possível segredo. COMMIT BLOQUEADO." >&2
+    echo "             → Mova o valor para .env (gitignored) e referencie por nome." >&2
+    echo "             → Se for falso-positivo, ajuste .gitleaks.toml." >&2
+    fail=1
+  fi
+else
+  echo "[pre-commit] ⚠ gitleaks não encontrado — pulando scan. Rode scripts/setup-dev.sh." >&2
 fi
 
-echo "[pre-commit] gitleaks: escaneando arquivos staged..."
-if gitleaks git --staged --redact --no-banner -c .gitleaks.toml; then
-  echo "[pre-commit] ✅ gitleaks: nenhum segredo detectado."
-  exit 0
-else
-  echo "" >&2
-  echo "[pre-commit] ❌ gitleaks detectou possível segredo. COMMIT BLOQUEADO." >&2
-  echo "             → Mova o valor para .env (gitignored) e referencie por nome." >&2
-  echo "             → Se for falso-positivo, ajuste .gitleaks.toml." >&2
-  exit 1
+# ---- 2. ruff (lint Python em api/) ----
+mapfile -t py_files < <(git diff --cached --name-only --diff-filter=ACM -- 'api/*.py')
+if [ "${#py_files[@]}" -gt 0 ]; then
+  if command -v ruff >/dev/null 2>&1; then
+    echo "[pre-commit] ruff: ${#py_files[@]} arquivo(s) .py staged..."
+    if ruff check "${py_files[@]}"; then
+      echo "[pre-commit] ✅ ruff: ok."
+    else
+      echo "[pre-commit] ❌ ruff falhou. Rode 'ruff check api/ --fix'. COMMIT BLOQUEADO." >&2
+      fail=1
+    fi
+  else
+    echo "[pre-commit] ⚠ ruff não encontrado — pulando. Rode 'pip install -e api[dev]'." >&2
+  fi
 fi
+
+# ---- 3. eslint (lint TypeScript em web/) ----
+mapfile -t ts_files < <(git diff --cached --name-only --diff-filter=ACM -- 'web/*.ts' 'web/*.tsx')
+if [ "${#ts_files[@]}" -gt 0 ]; then
+  if [ -f web/package.json ] && command -v pnpm >/dev/null 2>&1; then
+    echo "[pre-commit] eslint: ${#ts_files[@]} arquivo(s) .ts/.tsx staged..."
+    if (cd web && pnpm lint); then
+      echo "[pre-commit] ✅ eslint: ok."
+    else
+      echo "[pre-commit] ❌ eslint falhou. Rode 'pnpm --dir web lint'. COMMIT BLOQUEADO." >&2
+      fail=1
+    fi
+  else
+    echo "[pre-commit] ⚠ web/ ou pnpm ausente — pulando eslint (front ainda não inicializado)." >&2
+  fi
+fi
+
+exit "$fail"

@@ -48,8 +48,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ---- Claude Code ----
+# ---- Claude Code / GSD ----
 .claude/session.log
+.gsd/
 
 # ---- OS / editor ----
 .DS_Store

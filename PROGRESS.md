@@ -26,7 +26,7 @@ Implement following TDD. Update PROGRESS.md when done.
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 00-01 | Criar monorepo e estrutura de pastas | [ ] | — |
+| 00-01 | Criar monorepo e estrutura de pastas | [x] | _PENDING_HASH_ |
 | 00-02 | Setup FastAPI com health check | [ ] | — |
 | 00-03 | Conectar Supabase (Postgres pool + schema users) | [ ] | — |
 | 00-04 | Conectar Redis (Upstash) | [ ] | — |
@@ -203,3 +203,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | Data | Milestone | Stories completadas | Notas |
 |---|---|---|---|
 | — | — | — | Início do desenvolvimento |
+| 2026-06-03 | m0 | STORY-00-01 | Scaffolding monorepo (api/, web/, .github/, fly.toml, pyproject, pre-commit ruff+eslint). Sem testes (TDD opcional). Também: correções no comando /story (glob de path, `skills: []` explícito). |

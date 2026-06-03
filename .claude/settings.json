@@ -40,8 +40,12 @@
     ],
     "Stop": [
       {
-        "type": "command",
-        "command": "bash -c 'echo \"[$(date +%Y-%m-%dT%H:%M)] session ended\" >> .claude/session.log 2>/dev/null; exit 0'"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"[$(date +%Y-%m-%dT%H:%M)] session ended\" >> .claude/session.log 2>/dev/null; exit 0'"
+          }
+        ]
       }
     ]
   }
