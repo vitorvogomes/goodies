@@ -1,0 +1,5 @@
+# pnpm 11 exige aprovar build scripts nativos antes de executá-los.
+# sharp: otimização de imagem do Next. unrs-resolver: resolver nativo do ESLint.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

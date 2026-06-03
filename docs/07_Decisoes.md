@@ -204,6 +204,29 @@ Cache de XIRR: Redis com TTL de 1h (não precisa ser recalculado a cada request 
 
 ---
 
+## ADR-009 — Frontend: Next.js 16 / React 19 / Tailwind v4 (atualiza ADR-001)
+
+**Data:** 2026-06-03  
+**Status:** Aceito  
+**Autor:** Vitor + Claude Code
+
+### Contexto
+ADR-001 fixou "Next.js 14" (versão atual em 2023). Em 2026, `create-next-app@latest` gera **Next.js 16 / React 19 / Tailwind v4**, e o Next 14 está sem suporte ativo.
+
+### Decisão
+Adotar **Next.js 16 (App Router) + React 19 + Tailwind v4** no `web/`. Substitui a cláusula "Next.js 14" do ADR-001 — os demais itens de stack permanecem inalterados.
+
+Implicações técnicas:
+- **Tailwind v4 é CSS-first:** tema via `@theme` em `app/globals.css` (não há `tailwind.config.ts`).
+- **Middleware → `proxy.ts`:** o arquivo `middleware.ts` foi renomeado para `proxy.ts` no Next 16 (relevante para a proteção de rota da STORY-00-07).
+- **React Compiler** habilitado (`reactCompiler: true` em `next.config.ts`).
+
+### Consequências
+- STORY-00-06 / STORY-00-07 e o EPIC-07 seguem as convenções do Next 16 (não 14).
+- Skills `next-best-practices` / `frontend-design` aplicam padrões v16 (RSC, async APIs, `proxy.ts`).
+
+---
+
 *→ [[02_Arquitetura]]*
 *→ [[01_PRD]]*
 *→ [[00_Sistema/MOCs/MOC_Vitor.html]]*

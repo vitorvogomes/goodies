@@ -55,7 +55,7 @@ seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
 | Camada | Tecnologia |
 |---|---|
 | Backend | FastAPI 0.111+ / Python 3.12 — `api/` |
-| Frontend | Next.js 14 App Router / TypeScript — `web/` |
+| Frontend | Next.js 16 App Router / TypeScript — `web/` (ADR-009) |
 | Database | Supabase (Postgres 15) via asyncpg direto (sem ORM) |
 | Cache | Redis via Upstash (`redis[asyncio]`) |
 | Scheduler | APScheduler no mesmo processo FastAPI (não Celery) |

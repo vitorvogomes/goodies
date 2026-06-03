@@ -6,8 +6,8 @@
 ---
 
 ## ADR-001 — Stack (LOCKED)
-FastAPI + Next.js 14 + Supabase (Postgres 15) + Redis (Upstash) + Fly.io + Vercel.
-**Não mudar sem ADR aprovado.**
+FastAPI + Next.js 16 + Supabase (Postgres 15) + Redis (Upstash) + Fly.io + Vercel.
+**Não mudar sem ADR aprovado.** (Frontend atualizado de Next 14 → 16 / React 19 / Tailwind v4 por ADR-009.)
 
 ## ADR-002 — XIRR é a métrica de retorno
 - Implementação: `scipy.optimize.brentq` em `api/engines/portfolio/xirr.py`
