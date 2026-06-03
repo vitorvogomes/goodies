@@ -30,7 +30,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 00-02 | Setup FastAPI com health check | [x] | 2010eae |
 | 00-03 | Conectar Supabase (Postgres pool + schema users) | [x] | d54e849 |
 | 00-04 | Conectar Redis (Upstash) | [x] | 0cb36ca |
-| 00-05 | Implementar auth JWT (login, refresh, middleware) | [x] | — |
+| 00-05 | Implementar auth JWT (login, refresh, middleware) | [x] | a8da1c9 |
 | 00-06 | Setup Next.js com TypeScript e Tailwind | [x] | ff397a2 |
 | 00-07 | Tela de login no frontend | [ ] | — |
 | 00-08-09 | GitHub Actions + Deploy Fly.io e Vercel | [ ] | — |
