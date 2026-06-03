@@ -1,17 +1,34 @@
-"""Aplicação FastAPI do Goodies — STORY-00-02.
+"""Aplicação FastAPI do Goodies — STORY-00-02 (+ 00-03/00-04: health real).
 
-Instância base + CORS + endpoint de health check. As checagens de componentes
-(Postgres em 00-03, Redis em 00-04) serão plugadas ao health via registro,
-mantendo este arquivo estável entre stories.
+Instância base + CORS + health check com checks plugáveis de componentes
+(Postgres em 00-03, Redis em 00-04). O pool asyncpg é aberto no startup (lifespan)
+e fechado no shutdown.
 """
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from health import collect_component_status
+from db.connection import check_postgres, close_pool, init_pool
+from engines.market.cache import check_redis
+from health import collect_component_status, register_component_check
 
-app = FastAPI(title="Goodies API", version=settings.version)
+# Checks incluídos no /api/v1/health (registrados no import do módulo).
+register_component_check(check_postgres)
+register_component_check(check_redis)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    await init_pool()
+    yield
+    await close_pool()
+
+
+app = FastAPI(title="Goodies API", version=settings.version, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

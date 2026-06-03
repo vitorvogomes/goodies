@@ -40,3 +40,9 @@ uvicorn==0.48.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==16.0
+
+# 00-03 — Alembic + deps (migrations rodam no release do Fly)
+alembic==1.18.4
+greenlet==3.5.1
+Mako==1.3.12
+SQLAlchemy==2.0.50

@@ -28,8 +28,8 @@ Implement following TDD. Update PROGRESS.md when done.
 |---|---|---|---|
 | 00-01 | Criar monorepo e estrutura de pastas | [x] | ac75de3 |
 | 00-02 | Setup FastAPI com health check | [x] | 2010eae |
-| 00-03 | Conectar Supabase (Postgres pool + schema users) | [ ] | — |
-| 00-04 | Conectar Redis (Upstash) | [ ] | — |
+| 00-03 | Conectar Supabase (Postgres pool + schema users) | [x] | — |
+| 00-04 | Conectar Redis (Upstash) | [x] | 0cb36ca |
 | 00-05 | Implementar auth JWT (login, refresh, middleware) | [ ] | — |
 | 00-06 | Setup Next.js com TypeScript e Tailwind | [x] | ff397a2 |
 | 00-07 | Tela de login no frontend | [ ] | — |
@@ -206,3 +206,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-03 | m0 | STORY-00-01 | Scaffolding monorepo (api/, web/, .github/, fly.toml, pyproject, pre-commit ruff+eslint). |
 | 2026-06-03 | m0 | STORY-00-02 | FastAPI + GET /api/v1/health (200), config via pydantic-settings, health check plugável (registro p/ 00-03/00-04), Dockerfile + docker-compose (Postgres+Redis), requirements pinados, teste httpx. Verificado: pytest/ruff/mypy + container 200. |
 | 2026-06-03 | m0 | STORY-00-06 | Next.js 16 + React 19 + Tailwind v4 (ADR-009, atualiza ADR-001). lib/api (fetch+Bearer+cookie), lib/auth (token em memória), types/{health,auth}, React Query v5 + next-themes (dark), tema com tokens gain/loss/warning, page→/login. Verificado: pnpm lint + build OK. |
+| 2026-06-03 | m0 | STORY-00-03/00-04 | Postgres: pool asyncpg (2–10), Alembic async + migration users (RLS), seed_admin (env, sem segredo), check_postgres. Redis: PriceCache fail-soft + check_redis (agente paralelo). Health agrega postgres+redis. 12 testes (Docker-local) + ruff + mypy. |
