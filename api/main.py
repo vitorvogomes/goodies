@@ -1,8 +1,8 @@
-"""Aplicação FastAPI do Goodies — STORY-00-02 (+ 00-03/00-04: health real).
+"""Aplicação FastAPI do Goodies — STORY-00-02 (+ 00-03/00-04 health, 00-05 auth).
 
 Instância base + CORS + health check com checks plugáveis de componentes
-(Postgres em 00-03, Redis em 00-04). O pool asyncpg é aberto no startup (lifespan)
-e fechado no shutdown.
+(Postgres em 00-03, Redis em 00-04). Auth JWT (00-05) no router /api/v1/auth.
+O pool asyncpg é aberto no startup (lifespan) e fechado no shutdown.
 """
 
 from collections.abc import AsyncIterator
@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from auth.router import router as auth_router
 from config import settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.market.cache import check_redis
@@ -37,6 +38,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/api/v1/health")

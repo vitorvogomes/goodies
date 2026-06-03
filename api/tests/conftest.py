@@ -1,7 +1,7 @@
-"""Fixtures dos testes de db — STORY-00-03.
+"""Fixtures compartilhadas — aplica migrations + pool asyncpg (Docker-local).
 
-Aplica as migrations Alembic no Postgres de teste (Docker-local) antes da sessão,
-deixando os testes self-contained (não dependem de setup manual / igual ao CI).
+Top-level: serve testes de db, auth e integração. Migrations rodam uma vez por
+sessão (idempotente), deixando os testes self-contained / iguais ao CI.
 """
 
 from pathlib import Path
@@ -13,7 +13,7 @@ from alembic.config import Config
 
 from db.connection import close_pool, get_pool, init_pool
 
-_API_DIR = Path(__file__).resolve().parents[2]
+_API_DIR = Path(__file__).resolve().parents[1]
 DEV_DSN = "postgresql://goodies:goodies@localhost:5432/goodies"
 
 

@@ -18,6 +18,7 @@ dependencies = [
     "scipy>=1.13",            # XIRR via brentq (ADR-002)
     "python-jose[cryptography]>=3.3",  # JWT custom (ADR-006)
     "passlib[bcrypt]>=1.7",            # hash de senha (ADR-006)
+    "bcrypt>=4,<5",                    # passlib 1.7.4 quebra com bcrypt 5 (00-05)
     "structlog>=24.1",        # logs estruturados (m6)
     "alembic>=1.13",          # migrations Postgres (00-03)
 ]
@@ -63,7 +64,7 @@ plugins = ["pydantic.mypy"]
 
 # asyncpg/passlib não publicam stubs (py.typed) — ignora missing imports só p/ eles.
 [[tool.mypy.overrides]]
-module = ["asyncpg.*", "passlib.*"]
+module = ["asyncpg.*", "passlib.*", "jose.*"]
 ignore_missing_imports = true
 
 # ---- pytest + pytest-asyncio ----
