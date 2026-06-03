@@ -6,6 +6,7 @@ titulo: Cálculo de prazo para metas (Reserva e LF)
 status: pendente
 estimativa: M (2-3h)
 tags: [goodies, story, analytics, metas, projecao]
+skills: [test-driven-development, systematic-debugging]  # scipy (anuidade): sem skill → conventions.md
 ---
 
 # STORY-05-09 — Prazo para Metas

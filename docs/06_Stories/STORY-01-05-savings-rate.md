@@ -6,6 +6,7 @@ titulo: Cálculo de taxa de poupança
 status: pendente
 estimativa: S (1-2h)
 tags: [goodies, story, ledger, taxa-poupanca]
+skills: [test-driven-development, api-design-principles, systematic-debugging]
 ---
 
 # STORY-01-05 — Taxa de Poupança

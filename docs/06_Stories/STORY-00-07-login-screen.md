@@ -6,6 +6,8 @@ titulo: Tela de login no frontend
 status: pendente
 estimativa: S (1-2h)
 tags: [goodies, story, foundation, login, frontend]
+skills: [next-best-practices, frontend-design, ui-ux-pro-max]  # login custom JWT — ADR-006
+skills_evitar: [supabase]
 ---
 
 # STORY-00-07 — Tela de Login

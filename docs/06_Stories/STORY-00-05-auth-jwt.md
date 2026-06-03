@@ -6,6 +6,8 @@ titulo: Implementar auth JWT (login, refresh, middleware)
 status: pendente
 estimativa: M (3-4h)
 tags: [goodies, story, foundation, auth, jwt]
+skills: [test-driven-development, api-design-principles]  # auth JWT custom — ADR-006
+skills_evitar: [supabase]
 ---
 
 # STORY-00-05 — Auth JWT

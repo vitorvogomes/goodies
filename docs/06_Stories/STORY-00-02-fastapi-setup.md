@@ -6,6 +6,7 @@ titulo: Setup FastAPI com health check
 status: pendente
 estimativa: S (1-2h)
 tags: [goodies, story, foundation, fastapi]
+skills: [test-driven-development, api-design-principles]
 ---
 
 # STORY-00-02 — Setup FastAPI com health check

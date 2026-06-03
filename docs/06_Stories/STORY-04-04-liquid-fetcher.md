@@ -6,6 +6,7 @@ titulo: Fetcher Liquid Network (L-BTC) — client dedicado
 status: pendente
 estimativa: M (2-4h) — atenção ao ADR-005
 tags: [goodies, story, market, liquid, cripto, wallet]
+skills: [test-driven-development, systematic-debugging]  # ADR-005: client dedicado, não reutilizar fetcher BTC
 ---
 
 # STORY-04-04 — Fetcher Liquid Network

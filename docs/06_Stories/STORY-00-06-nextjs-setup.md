@@ -6,6 +6,7 @@ titulo: Setup Next.js com TypeScript e Tailwind
 status: pendente
 estimativa: M (2-3h)
 tags: [goodies, story, foundation, nextjs, frontend]
+skills: [next-best-practices, frontend-design]
 ---
 
 # STORY-00-06 — Setup Next.js

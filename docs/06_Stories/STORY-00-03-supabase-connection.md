@@ -6,6 +6,7 @@ titulo: Conectar Supabase (Postgres pool + schema users)
 status: pendente
 estimativa: M (2-3h)
 tags: [goodies, story, foundation, supabase, postgres]
+skills: [test-driven-development, supabase-postgres-best-practices, supabase]  # supabase só p/ conexão Postgres — nunca auth
 ---
 
 # STORY-00-03 — Conectar Supabase

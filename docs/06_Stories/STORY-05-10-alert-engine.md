@@ -6,6 +6,7 @@ titulo: Engine de alertas — avaliação e persistência
 status: pendente
 estimativa: L (4-6h)
 tags: [goodies, story, analytics, alertas]
+skills: [test-driven-development, api-design-principles, systematic-debugging]
 ---
 
 # STORY-05-10 — Engine de Alertas

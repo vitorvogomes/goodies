@@ -6,6 +6,7 @@ titulo: Motor de rebalanceamento
 status: pendente
 estimativa: M (2-3h)
 tags: [goodies, story, portfolio, rebalanceamento]
+skills: [test-driven-development, systematic-debugging]
 ---
 
 # STORY-02-09 — Motor de Rebalanceamento

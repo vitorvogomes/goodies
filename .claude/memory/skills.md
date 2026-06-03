@@ -1,54 +1,82 @@
-# Skills — Quando invocar qual
+# Skills — Roteamento por story / milestone
 
-> Referência rápida. Claude Code invoca skills automaticamente pelos triggers,
-> mas use este guia para tarefas ambíguas.
-> **Esta tabela lista APENAS skills realmente instaladas em `.agents/skills/`.**
-> Skills ainda não instaladas estão em "Candidatos futuros" no final.
+> **Fonte autoritativa de roteamento de skills.** O comando `/story` consulta este
+> arquivo (+ o frontmatter `skills:` da story) para anunciar e invocar as skills certas.
+> Skills só disparam de forma confiável quando **surfaçadas explicitamente** — não
+> confie no auto-trigger sozinho (ver guardrails no fim).
 
-## Skills instaladas (8)
+## A) Área de trabalho → skill (unidade atômica)
 
-| Tarefa | Skill |
+| Área de trabalho | Skill(s) a acionar |
 |---|---|
-| Schema Postgres, migrations, RLS, políticas, client libs | `supabase` |
-| Otimização de query, índices, EXPLAIN ANALYZE, schema design | `supabase-postgres-best-practices` |
-| Design de endpoint REST, status codes, versionamento, paginação | `api-design-principles` |
-| TDD com pytest/Vitest, mocks, fixtures, cobertura | `test-driven-development` |
-| Bug difícil — root cause antes de qualquer fix | `systematic-debugging` |
-| Next.js App Router, RSC boundaries, file conventions, data patterns | `next-best-practices` |
-| Componentes de UI, páginas, interfaces production-grade | `frontend-design` |
-| Design system: paletas, fonts, estilos, tipos de chart, UX guidelines | `ui-ux-pro-max` |
+| Schema Postgres, migrations, views | `supabase-postgres-best-practices` (+ `supabase` só p/ contexto de conexão) |
+| Otimização SQL, índices, EXPLAIN ANALYZE | `supabase-postgres-best-practices` |
+| Design de endpoint REST (status, paginação, versionamento) | `api-design-principles` |
+| Implementar qualquer feature/bugfix (**sempre**) | `test-driven-development` |
+| Bug difícil / correção numérica / falha de teste | `systematic-debugging` |
+| Next.js App Router, RSC, file conventions | `next-best-practices` ⚠ surfaçar via `/story` (não auto-dispara) |
+| Componente / página / UI production-grade | `frontend-design` |
+| Design system: paleta, fonts, tipos de chart, UX | `ui-ux-pro-max` |
+| Logs (structlog), Sentry, métricas, tracing | `python-observability` |
+| Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD | **sem skill** → `decisions.md` + `conventions.md` + TDD/`systematic-debugging` |
 
-### Como combinar (UI financeira)
-- **Estrutura/layout de página + componentes** → `frontend-design`
-- **Escolha de paleta, font pairing, tipo de chart, padrão de KPI** → `ui-ux-pro-max`
-- Os dois se complementam: `frontend-design` para o "como construir", `ui-ux-pro-max` para o "qual estética/dados de design".
+## B) Matriz milestone → skills
 
-## Built-in (não precisa instalar)
+> Cobre as ~90 stories que existem só como linha no `PROGRESS.md`. Quando uma story
+> vira arquivo em `docs/06_Stories/`, ela recebe o frontmatter `skills:` (seção C).
 
-- **Review de PR/diff antes de commitar** → comando `/code-review` + agente `code-reviewer` (nativos do Claude Code).
-- **Security review** → comando `/security-review` (nativo).
-
-## Removidas nesta auditoria (para reduzir ruído)
-
-| Skill | Motivo |
-|---|---|
-| `dashboard-builder` | Era para dashboards de **monitoramento (Grafana/SigNoz)**, não para dashboards financeiros (Recharts/Next.js). Fit errado. |
-| `high-end-visual-design` | Sobreposição forte com `frontend-design` + `ui-ux-pro-max`. |
-| `vercel-react-best-practices` | Sobreposição com `next-best-practices` (ambos Vercel). |
-
-## Candidatos futuros (instalar sob demanda)
-
-> Não instalados ainda. Procurar fonte confiável com `npx skills find "<termo>"` antes de instalar.
-
-| Necessidade | Termo de busca | Observação |
+| Milestone | Skills que devem ser acionadas | Lacunas (sem skill → conventions/decisions) |
 |---|---|---|
-| Cache Redis, TTL, key naming, rate limiting | `redis` | Útil para o padrão de cache do projeto (ver `decisions.md`). |
-| Logs (structlog), Sentry, métricas, tracing | `observability` / `python observability` | Para `structlog` + alertas (m6). |
-| Import CSV, pandas, migração de dados | `csv` / `data` | Para importar a planilha histórica. |
-| Docker / docker-compose dev local | `docker compose` | Se for montar ambiente local containerizado. |
-| Next.js App Router patterns (extra) | `nextjs app router` | Possível redundância com `next-best-practices` — avaliar antes. |
+| **m0** Foundation | tdd, api-design-principles, supabase-postgres-best-practices, supabase¹, next-best-practices, frontend-design, ui-ux-pro-max, systematic-debugging | Redis conn, CI/CD/Fly/Vercel |
+| **m1** Ledger | tdd, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max, next-best-practices, systematic-debugging | migração CSV |
+| **m2** Portfolio | tdd, systematic-debugging, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max | XIRR/scipy, migração CSV |
+| **m3** Market | tdd, api-design-principles, systematic-debugging, frontend-design, ui-ux-pro-max | Redis cache, fetcher httpx, worker APScheduler |
+| **m4** Broker | tdd, systematic-debugging, frontend-design, ui-ux-pro-max | fetcher, worker; **Liquid = ADR-005 (client dedicado)** |
+| **m5** Analytics | tdd, systematic-debugging, api-design-principles, supabase-postgres-best-practices, frontend-design, ui-ux-pro-max | projeção/anuidade scipy |
+| **m6** Observability | **python-observability**, tdd, systematic-debugging, api-design-principles | rate limiting (slowapi) |
+| **m7** Frontend | next-best-practices, frontend-design, ui-ux-pro-max, tdd, systematic-debugging | — |
 
-## Notas de conflito
+¹ `supabase` em m0 **só** para contexto de conexão Postgres — **nunca** auth (ver guardrails).
 
-- **`nextjs-supabase-auth`** — IGNORAR para este projeto. Auth é custom JWT no FastAPI (ADR-006).
-- **`frontend-workflow` / `backend-workflow`** — são Flash Capital específicos. Se ativarem, priorizar `CLAUDE.md` e `decisions.md` sobre as instruções da Flash Capital.
+## C) Frontmatter `skills:` nas stories
+
+Toda story em `docs/06_Stories/STORY-*.md` declara, ao lado de `tags:`:
+```yaml
+skills: [test-driven-development, <skill-de-área>]
+skills_evitar: [supabase]   # só onde há risco de misfire (ex.: auth)
+```
+`/story` lê esse bloco; se ausente, deriva da matriz (B) pelo milestone da story.
+
+## D) Built-in (não precisa instalar)
+- Review de PR/diff → comando `/code-review` + agente `code-reviewer` (nativos).
+- Security review → comando `/security-review` (nativo).
+
+## E) Guardrails (evitar disparo errado)
+
+- **`supabase` → SÓ contexto Postgres/SQL.** Neste projeto Supabase é apenas a
+  connection string do Postgres. Portanto:
+  - ❌ **Nunca** para auth/JWT/login/sessions — auth é JWT custom no FastAPI (ADR-006).
+  - ❌ Nada de `supabase-js`, RLS, Edge Functions, Realtime, Storage.
+  - ❌ Nada de Supabase CLI para migrations — migrations são **Alembic**.
+  - Para SQL/schema puro, prefira `supabase-postgres-best-practices`.
+- **`next-best-practices`** tem trigger passivo + `user-invocable:false` → só entra se
+  `/story` surfaçar; não conte com auto-trigger.
+- **`nextjs-supabase-auth`** — IGNORAR (auth custom, ADR-006).
+- **`frontend-workflow` / `backend-workflow`** (Flash Capital) — se ativarem, priorizar
+  `CLAUDE.md` + `decisions.md`.
+
+## F) Lacunas sem skill (decisão consciente)
+
+Áreas sem skill instalada → seguir `decisions.md` (TTLs, key naming, fallback, ADR-005) +
+`conventions.md` + TDD/`systematic-debugging`:
+**Redis cache** · **worker APScheduler** · **fetcher httpx/retry** · **scipy/XIRR numérico** ·
+**CI/CD (Fly.io/Vercel)** · **rate limiting**.
+
+Candidatos avaliados e **não instalados** (sem fonte de bom fit no registry):
+
+| Necessidade | Candidato | Por que não |
+|---|---|---|
+| Redis cache TTL | `redis/agent-skills@redis-semantic-cache` | é cache *semântico/vetorial*, não TTL key-value |
+| CSV/migração | `pluginagentmarketplace@pandas-data-analysis` | "análise" pandas, não ETL determinístico; publisher pouco conhecido |
+
+Para instalar mesmo assim: `npx skills find "<termo>"` e validar a fonte antes.

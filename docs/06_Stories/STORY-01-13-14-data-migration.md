@@ -6,6 +6,7 @@ titulo: Migração e validação de dados históricos (FLUXO DE CAIXA)
 status: pendente
 estimativa: L (4-6h)
 tags: [goodies, story, ledger, migracao, dados]
+skills: [test-driven-development, systematic-debugging]  # CSV: sem skill → conventions.md
 ---
 
 # STORY-01-13-14 — Migração de Dados: Ledger

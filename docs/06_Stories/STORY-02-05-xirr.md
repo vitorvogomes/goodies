@@ -6,6 +6,7 @@ titulo: Implementação e testes de XIRR
 status: pendente
 estimativa: L (4-6h) — crítico, não apressar
 tags: [goodies, story, portfolio, xirr, calculo]
+skills: [test-driven-development, systematic-debugging]  # scipy/XIRR: sem skill → CLAUDE.md/decisions.md (gate crítico)
 ---
 
 # STORY-02-05 — XIRR (Extended Internal Rate of Return)

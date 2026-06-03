@@ -35,6 +35,21 @@ Referências completas: `docs/project-context.md` | `docs/` (épicos + stories)
 
 ---
 
+## Skills — ativação e guardrails
+
+Roteamento autoritativo em `.claude/memory/skills.md` (área→skill + matriz milestone→skills).
+`/story` lê o `skills:` da story (ou deriva da matriz) e **invoca** as skills certas.
+
+**Guardrail crítico — `supabase`:** neste projeto Supabase é só a connection string do
+Postgres. Use o skill `supabase` **apenas** para contexto Postgres/SQL. **Nunca** para
+auth/JWT/login (é JWT custom no FastAPI — ADR-006), nem para supabase-js/RLS/Edge Functions,
+nem para migrations (são **Alembic**). Para SQL puro, prefira `supabase-postgres-best-practices`.
+
+Lacunas sem skill (Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD):
+seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
+
+---
+
 ## Stack (não mudar sem ADR)
 
 | Camada | Tecnologia |

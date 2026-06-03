@@ -6,6 +6,7 @@ titulo: Criar monorepo e estrutura de pastas
 status: pendente
 estimativa: S (< 1h)
 tags: [goodies, story, foundation, setup]
+skills: []  # scaffolding/config — segue conventions.md; TDD opcional
 ---
 
 # STORY-00-01 — Criar monorepo e estrutura de pastas

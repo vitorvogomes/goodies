@@ -6,6 +6,7 @@ titulo: Conectar Redis (Upstash)
 status: pendente
 estimativa: S (1h)
 tags: [goodies, story, foundation, redis, cache]
+skills: [test-driven-development, systematic-debugging]  # Redis: sem skill → decisions.md (TTLs/keys)
 ---
 
 # STORY-00-04 — Conectar Redis

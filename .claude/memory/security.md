@@ -45,9 +45,9 @@
 
 ## 5. Nota sobre `LBTC_ASSET_ID`
 
-- É uma constante **pública** da Liquid Network, mas o guard do ambiente trata
-  strings de 64 hex como segredo. Por isso ela também é **env-managed**
-  (`${LBTC_ASSET_ID}` nos arquivos, valor real só no `.env`). Ver ADR-005.
+- É uma constante **pública** da Liquid Network, mas por escolha do Vitor ela
+  também é **env-managed** (`${LBTC_ASSET_ID}` nos arquivos, valor real só no
+  `.env`) — mesmo tratamento dos endereços. Ver ADR-005.
 
 ## 6. Dados financeiros
 

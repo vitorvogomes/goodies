@@ -6,6 +6,7 @@ titulo: Migração e validação de dados históricos (OPERAÇÕES)
 status: pendente
 estimativa: L (4-6h) — gate crítico: XIRR deve coincidir com Excel
 tags: [goodies, story, portfolio, migracao, xirr, validacao]
+skills: [test-driven-development, systematic-debugging]  # CSV: sem skill → conventions.md (gate crítico)
 ---
 
 # STORY-02-17-18 — Migração de Dados: Portfolio

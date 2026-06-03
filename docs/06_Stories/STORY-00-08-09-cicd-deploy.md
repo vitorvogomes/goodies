@@ -6,6 +6,7 @@ titulo: GitHub Actions + Deploy Fly.io e Vercel
 status: pendente
 estimativa: M (3-4h)
 tags: [goodies, story, foundation, cicd, deploy]
+skills: [systematic-debugging]  # CI/CD/Fly/Vercel: sem skill → conventions.md
 ---
 
 # STORY-00-08+09 — CI/CD e Deploy Inicial
