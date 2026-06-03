@@ -32,7 +32,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 00-04 | Conectar Redis (Upstash) | [x] | 0cb36ca |
 | 00-05 | Implementar auth JWT (login, refresh, middleware) | [x] | a8da1c9 |
 | 00-06 | Setup Next.js com TypeScript e Tailwind | [x] | ff397a2 |
-| 00-07 | Tela de login no frontend | [ ] | — |
+| 00-07 | Tela de login no frontend | [x] | — |
 | 00-08-09 | GitHub Actions + Deploy Fly.io e Vercel | [ ] | — |
 
 **Gate m0:** `GET /api/v1/health` → 200 com Postgres + Redis. Login funciona.
@@ -208,3 +208,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-03 | m0 | STORY-00-06 | Next.js 16 + React 19 + Tailwind v4 (ADR-009, atualiza ADR-001). lib/api (fetch+Bearer+cookie), lib/auth (token em memória), types/{health,auth}, React Query v5 + next-themes (dark), tema com tokens gain/loss/warning, page→/login. Verificado: pnpm lint + build OK. |
 | 2026-06-03 | m0 | STORY-00-03/00-04 | Postgres: pool asyncpg (2–10), Alembic async + migration users (RLS), seed_admin (env, sem segredo), check_postgres. Redis: PriceCache fail-soft + check_redis (agente paralelo). Health agrega postgres+redis. 12 testes (Docker-local) + ruff + mypy. |
 | 2026-06-03 | m0 | STORY-00-05 | Auth JWT (ADR-006): bcrypt+JWT HS256, /login /refresh /me, get_current_user, migration refresh_token_hash, gen_hermes_token. Pin bcrypt<5 (incompat passlib). 21 testes + ruff + mypy. |
+| 2026-06-03 | m0 | STORY-00-07 | Login: backend seta refresh em cookie httpOnly; front app/(auth)/login (form, loading, erro), access em memória, proxy.ts (Next 16) gating de rota, dashboard placeholder. pnpm lint+build OK; 22 testes backend. |

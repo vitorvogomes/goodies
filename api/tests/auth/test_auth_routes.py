@@ -42,6 +42,17 @@ async def test_login_success_returns_tokens(test_user):
     assert data["expires_in"] == 15 * 60
 
 
+async def test_login_sets_httponly_refresh_cookie(test_user):
+    async with _client() as client:
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": test_user["email"], "password": _PASSWORD},
+        )
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "refresh_token=" in set_cookie
+    assert "httponly" in set_cookie.lower()
+
+
 async def test_login_wrong_password_returns_401(test_user):
     async with _client() as client:
         resp = await client.post(

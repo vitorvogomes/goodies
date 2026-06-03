@@ -8,7 +8,7 @@ import uuid
 from typing import Annotated
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from jose import JWTError
 from pydantic import BaseModel
 
@@ -53,6 +53,7 @@ def _access_ttl_seconds() -> int:
 @router.post("/login", response_model=TokenResponse)
 async def login(
     body: LoginRequest,
+    response: Response,
     db: Annotated[asyncpg.Connection, Depends(get_db)],
 ) -> TokenResponse:
     row = await db.fetchrow(
@@ -68,6 +69,16 @@ async def login(
         "UPDATE users SET refresh_token_hash = $1 WHERE id = $2",
         hash_token(refresh),
         row["id"],
+    )
+    # Refresh em httpOnly cookie (ADR-006) — o proxy.ts do front usa p/ gating.
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh,
+        httponly=True,
+        samesite="lax",
+        secure=settings.environment == "production",
+        max_age=settings.jwt_refresh_ttl_days * 86400,
+        path="/",
     )
     return TokenResponse(
         access_token=access,
