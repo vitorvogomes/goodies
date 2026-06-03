@@ -1,0 +1,62 @@
+# Dev local — STORY-00-02. FastAPI + Postgres + Redis.
+# Postgres/Redis locais servem o dev de 00-03/00-04 (plano: Docker-local-first).
+# Em produção (Fly.io) usa-se Supabase + Upstash via secrets, não este compose.
+services:
+  api:
+    build:
+      context: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      # Conexões locais (00-03 Postgres / 00-04 Redis). Credenciais de dev, não secretas.
+      DATABASE_URL: postgresql://goodies:goodies@postgres:5432/goodies
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Dev: bind mount + reload. A imagem (Dockerfile) roda sem reload em produção.
+    volumes:
+      - ./api:/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: goodies
+      POSTGRES_PASSWORD: goodies
+      POSTGRES_DB: goodies
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goodies"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

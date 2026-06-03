@@ -1,0 +1,10 @@
+# Artefatos locais que não entram na imagem — STORY-00-02.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+.env

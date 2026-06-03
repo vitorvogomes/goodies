@@ -27,7 +27,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | # | Story | Status | Commit |
 |---|---|---|---|
 | 00-01 | Criar monorepo e estrutura de pastas | [x] | ac75de3 |
-| 00-02 | Setup FastAPI com health check | [ ] | — |
+| 00-02 | Setup FastAPI com health check | [x] | — |
 | 00-03 | Conectar Supabase (Postgres pool + schema users) | [ ] | — |
 | 00-04 | Conectar Redis (Upstash) | [ ] | — |
 | 00-05 | Implementar auth JWT (login, refresh, middleware) | [ ] | — |
@@ -203,4 +203,5 @@ Implement following TDD. Update PROGRESS.md when done.
 | Data | Milestone | Stories completadas | Notas |
 |---|---|---|---|
 | — | — | — | Início do desenvolvimento |
-| 2026-06-03 | m0 | STORY-00-01 | Scaffolding monorepo (api/, web/, .github/, fly.toml, pyproject, pre-commit ruff+eslint). Sem testes (TDD opcional). Também: correções no comando /story (glob de path, `skills: []` explícito). |
+| 2026-06-03 | m0 | STORY-00-01 | Scaffolding monorepo (api/, web/, .github/, fly.toml, pyproject, pre-commit ruff+eslint). |
+| 2026-06-03 | m0 | STORY-00-02 | FastAPI + GET /api/v1/health (200), config via pydantic-settings, health check plugável (registro p/ 00-03/00-04), Dockerfile + docker-compose (Postgres+Redis), requirements pinados, teste httpx. Verificado: pytest/ruff/mypy + container 200. |
