@@ -27,7 +27,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | # | Story | Status | Commit |
 |---|---|---|---|
 | 00-01 | Criar monorepo e estrutura de pastas | [x] | ac75de3 |
-| 00-02 | Setup FastAPI com health check | [x] | — |
+| 00-02 | Setup FastAPI com health check | [x] | 2010eae |
 | 00-03 | Conectar Supabase (Postgres pool + schema users) | [ ] | — |
 | 00-04 | Conectar Redis (Upstash) | [ ] | — |
 | 00-05 | Implementar auth JWT (login, refresh, middleware) | [ ] | — |
