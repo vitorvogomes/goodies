@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Goodies pre-commit — bloqueia commit se gitleaks achar segredo nos arquivos staged.
+# Ativado por: git config core.hooksPath .githooks  (ver scripts/setup-dev.sh)
+set -uo pipefail
+export PATH="$HOME/.local/bin:$PATH"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] ⚠ gitleaks não encontrado no PATH." >&2
+  echo "             Instale e rode 'scripts/setup-dev.sh'. Pulando scan por ora." >&2
+  exit 0
+fi
+
+echo "[pre-commit] gitleaks: escaneando arquivos staged..."
+if gitleaks git --staged --redact --no-banner -c .gitleaks.toml; then
+  echo "[pre-commit] ✅ gitleaks: nenhum segredo detectado."
+  exit 0
+else
+  echo "" >&2
+  echo "[pre-commit] ❌ gitleaks detectou possível segredo. COMMIT BLOQUEADO." >&2
+  echo "             → Mova o valor para .env (gitignored) e referencie por nome." >&2
+  echo "             → Se for falso-positivo, ajuste .gitleaks.toml." >&2
+  exit 1
+fi

@@ -1,0 +1,48 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff:*)",
+      "Bash(pytest:*)",
+      "Bash(mypy:*)",
+      "Bash(git:*)",
+      "Bash(pnpm:*)",
+      "Bash(alembic:*)",
+      "Bash(uvicorn:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ruff check api/ --fix --quiet 2>/dev/null; exit 0'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"git commit\"; then cd api && pytest tests/ -q --tb=no 2>/dev/null && echo \"[HOOK] Tests passed — commit OK\" || (echo \"[HOOK] Tests FAILING — commit blocked\" && exit 1); fi; exit 0'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "bash -c 'echo \"[$(date +%Y-%m-%dT%H:%M)] session ended\" >> .claude/session.log 2>/dev/null; exit 0'"
+      }
+    ]
+  }
+}

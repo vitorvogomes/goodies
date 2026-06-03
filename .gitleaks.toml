@@ -1,0 +1,28 @@
+title = "Goodies — gitleaks config"
+
+# Usa todas as regras padrão do gitleaks como base.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Falsos-positivos conhecidos do Goodies"
+
+# Caminhos que não devem ser escaneados (template público, skills de terceiros, lockfiles).
+paths = [
+  '''\.env\.example$''',
+  '''^\.agents/''',
+  '''^\.claude/skills/''',
+  '''skills-lock\.json$''',
+  '''package-lock\.json$''',
+  '''pnpm-lock\.yaml$''',
+  '''yarn\.lock$''',
+]
+
+# Strings que parecem segredo mas são placeholders/refs.
+regexes = [
+  '''\$\{[A-Z0-9_]+\}''',          # refs de env: ${WALLET_EVM_ADDRESS}, ${LBTC_ASSET_ID}
+  '''YOUR_[A-Z_]+''',              # placeholders: 0xYOUR_EVM_ADDRESS, YOUR_SOLANA_ADDRESS
+  '''your_[a-z0-9_]+''',           # placeholders: your_brapi_token
+  '''change_me[a-z0-9_]*''',       # placeholders de segredo JWT
+  '''CHANNEL_ID/TOKEN''',          # placeholder do webhook Discord
+]

@@ -1,0 +1,306 @@
+{
+  "_meta": {
+    "ultima_atualizacao": "2026-06-02",
+    "total_aplicado_referencia": 27442.59,
+    "total_atual_referencia": 28303.02,
+    "nota": "Atualizar 'custo_total' e 'quantidade' ao comprar/vender. Para TD e RF privada, atualizar 'valor_atual_base' mensalmente via corretora."
+  },
+
+  "categorias_alvo_pct": {
+    "ACOES":      10.0,
+    "ETF":        12.5,
+    "FII":        10.0,
+    "RENDA_FIXA": 50.0,
+    "APOSENTADORIA": 5.0,
+    "CRIPTO":     12.5
+  },
+
+  "ativos": [
+    {
+      "ticker": "BBAS3F",
+      "nome": "Banco do Brasil",
+      "tipo": "acao",
+      "categoria": "ACOES",
+      "quantidade": 37,
+      "custo_total": 850.68,
+      "preco_medio": 22.99
+    },
+    {
+      "ticker": "CMIG4F",
+      "nome": "Cemig",
+      "tipo": "acao",
+      "categoria": "ACOES",
+      "quantidade": 39,
+      "custo_total": 425.57,
+      "preco_medio": 10.91
+    },
+    {
+      "ticker": "PETR4F",
+      "nome": "Petrobras",
+      "tipo": "acao",
+      "categoria": "ACOES",
+      "quantidade": 18,
+      "custo_total": 577.98,
+      "preco_medio": 32.11
+    },
+    {
+      "ticker": "SOJA3F",
+      "nome": "Boa Safra",
+      "tipo": "acao",
+      "categoria": "ACOES",
+      "quantidade": 50,
+      "custo_total": 432.74,
+      "preco_medio": 8.65
+    },
+    {
+      "ticker": "ITSA4F",
+      "nome": "Itaúsa",
+      "tipo": "acao",
+      "categoria": "ACOES",
+      "quantidade": 19,
+      "custo_total": 248.07,
+      "preco_medio": 13.06
+    },
+    {
+      "ticker": "NASD11",
+      "nome": "Trend Nasdaq 100",
+      "tipo": "etf",
+      "categoria": "ETF",
+      "quantidade": 29,
+      "custo_total": 437.74,
+      "preco_medio": 15.09
+    },
+    {
+      "ticker": "ACWI11",
+      "nome": "iShares MSCI ACWI",
+      "tipo": "etf",
+      "categoria": "ETF",
+      "quantidade": 35,
+      "custo_total": 515.83,
+      "preco_medio": 14.74
+    },
+    {
+      "ticker": "GOLD11",
+      "nome": "Trend Ouro",
+      "tipo": "etf",
+      "categoria": "ETF",
+      "quantidade": 22,
+      "custo_total": 449.28,
+      "preco_medio": 20.42
+    },
+    {
+      "ticker": "ALUG11",
+      "nome": "Trend Aluguel",
+      "tipo": "etf",
+      "categoria": "ETF",
+      "quantidade": 14,
+      "custo_total": 567.91,
+      "preco_medio": 40.57
+    },
+    {
+      "ticker": "USDB11",
+      "nome": "Trend Dólar",
+      "tipo": "etf",
+      "categoria": "ETF",
+      "quantidade": 7,
+      "custo_total": 712.11,
+      "preco_medio": 101.73
+    },
+    {
+      "ticker": "KNCR11",
+      "nome": "Kinea Índices de Preços",
+      "tipo": "fii",
+      "categoria": "FII",
+      "quantidade": 7,
+      "custo_total": 734.68,
+      "preco_medio": 104.96
+    },
+    {
+      "ticker": "MXRF11",
+      "nome": "Maxi Renda",
+      "tipo": "fii",
+      "categoria": "FII",
+      "quantidade": 49,
+      "custo_total": 469.87,
+      "preco_medio": 9.59
+    },
+    {
+      "ticker": "HFOF11",
+      "nome": "Hedge Top FOFII",
+      "tipo": "fii",
+      "categoria": "FII",
+      "quantidade": 71,
+      "custo_total": 446.87,
+      "preco_medio": 6.29
+    },
+    {
+      "ticker": "BTLG11",
+      "nome": "BTG Logística",
+      "tipo": "fii",
+      "categoria": "FII",
+      "quantidade": 5,
+      "custo_total": 517.15,
+      "preco_medio": 103.43
+    },
+    {
+      "ticker": "Banco_Guanabara_CDB",
+      "nome": "CDB Banco Guanabara",
+      "tipo": "renda_fixa_privada",
+      "categoria": "RENDA_FIXA",
+      "quantidade": 1,
+      "custo_total": 200.00,
+      "valor_atual_base": 258.45,
+      "data_base": "2026-06-02",
+      "nota": "Atualizar valor_atual_base via plataforma — sem API automática"
+    },
+    {
+      "ticker": "Flash_CDB",
+      "nome": "CDB Flash",
+      "tipo": "renda_fixa_privada",
+      "categoria": "RENDA_FIXA",
+      "quantidade": 1,
+      "custo_total": 12000.00,
+      "valor_atual_base": 13207.62,
+      "data_base": "2026-06-02",
+      "nota": "Atualizar valor_atual_base via app Flash — sem API automática"
+    },
+    {
+      "ticker": "TD_Selic_2028",
+      "nome": "Tesouro Selic 2028",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro Selic 2028",
+      "fracoes": 0.01189,
+      "custo_total": 166.29,
+      "valor_atual_base": 191.10,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "TD_Selic_2029",
+      "nome": "Tesouro Selic 2029",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro Selic 2029",
+      "fracoes": 0.01187,
+      "custo_total": 165.94,
+      "valor_atual_base": 190.90,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "TD_IPCA_2029",
+      "nome": "Tesouro IPCA+ 2029",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro IPCA+ 2029",
+      "fracoes": 0.12,
+      "custo_total": 511.19,
+      "valor_atual_base": 564.02,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "TD_Pre_2032",
+      "nome": "Tesouro Prefixado 2032",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro Prefixado 2032",
+      "fracoes": 0.09,
+      "custo_total": 698.46,
+      "valor_atual_base": 724.18,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "TD_IPCA_2040",
+      "nome": "Tesouro IPCA+ 2040",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro IPCA+ com Juros Semestrais 2040",
+      "fracoes": 0.08,
+      "custo_total": 762.38,
+      "valor_atual_base": 773.02,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "TD_IPCA_2050",
+      "nome": "Tesouro IPCA+ 2050",
+      "tipo": "tesouro",
+      "categoria": "APOSENTADORIA",
+      "td_nome_api": "Tesouro IPCA+ com Juros Semestrais 2050",
+      "fracoes": 0.12,
+      "custo_total": 760.47,
+      "valor_atual_base": 771.89,
+      "data_base": "2026-06-02"
+    },
+    {
+      "ticker": "BTC",
+      "nome": "Bitcoin",
+      "tipo": "cripto",
+      "categoria": "CRIPTO",
+      "coingecko_id": "bitcoin",
+      "quantidade": 0.003,
+      "custo_total": 1579.79,
+      "preco_medio_brl": 526596.67
+    },
+    {
+      "ticker": "ETH",
+      "nome": "Ethereum",
+      "tipo": "cripto",
+      "categoria": "CRIPTO",
+      "coingecko_id": "ethereum",
+      "quantidade": 0.059,
+      "custo_total": 899.52,
+      "preco_medio_brl": 15245.25
+    },
+    {
+      "ticker": "SOL",
+      "nome": "Solana",
+      "tipo": "cripto",
+      "categoria": "CRIPTO",
+      "coingecko_id": "solana",
+      "quantidade": 0.824,
+      "custo_total": 813.29,
+      "preco_medio_brl": 986.76
+    },
+    {
+      "ticker": "PENDLE",
+      "nome": "Pendle",
+      "tipo": "cripto",
+      "categoria": "CRIPTO",
+      "coingecko_id": "pendle",
+      "quantidade": 9.979,
+      "custo_total": 69.61,
+      "preco_medio_brl": 6.97
+    },
+    {
+      "ticker": "HYPE",
+      "nome": "Hyperliquid",
+      "tipo": "cripto",
+      "categoria": "CRIPTO",
+      "coingecko_id": "hyperliquid",
+      "quantidade": 0.301,
+      "custo_total": 23.65,
+      "preco_medio_brl": 78.57
+    },
+    {
+      "ticker": "DeFi",
+      "nome": "Posição DeFi",
+      "tipo": "defi_manual",
+      "categoria": "CRIPTO",
+      "quantidade_brl": 456.96,
+      "custo_total": 446.17,
+      "valor_atual_base": 456.96,
+      "data_base": "2026-06-02",
+      "nota": "Posição em protocolo DeFi — atualizar valor_atual_base e quantidade_brl manualmente"
+    },
+    {
+      "ticker": "USDT",
+      "nome": "USD Tether",
+      "tipo": "stablecoin_brl",
+      "categoria": "CRIPTO",
+      "quantidade_brl": 963.72,
+      "custo_total": 959.35,
+      "valor_atual_base": 963.72,
+      "data_base": "2026-06-02",
+      "nota": "Valor em BRL mantido em USDT. Atualiza com variação cambial BRL/USD se quiser precisão."
+    }
+  ]
+}
