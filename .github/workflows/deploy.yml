@@ -1,0 +1,104 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: goodies
+          POSTGRES_PASSWORD: goodies
+          POSTGRES_DB: goodies
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U goodies" --health-interval 5s
+          --health-timeout 3s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- Backend (api/) ----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        working-directory: api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Ruff
+        working-directory: api
+        run: ruff check .
+      - name: Mypy (strict)
+        working-directory: api
+        env:
+          MYPYPATH: "."
+        run: >-
+          mypy main.py config.py health.py db/connection.py
+          engines/market/cache.py auth/security.py auth/dependencies.py
+          auth/router.py scripts/seed_admin.py scripts/gen_hermes_token.py
+      - name: Pytest (cobertura engines >= 80%)
+        working-directory: api
+        run: pytest tests/ --cov=engines --cov-report=term-missing --cov-fail-under=80
+
+      # ---- Frontend (web/) ----
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install web deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: ESLint
+        working-directory: web
+        run: pnpm lint
+
+  deploy-api:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency: deploy-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Fly deploy (release roda `alembic upgrade head`)
+        working-directory: api
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-web:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency: deploy-web
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+      - name: Vercel pull/build/deploy (--prod)
+        working-directory: web
+        run: |
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

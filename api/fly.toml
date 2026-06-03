@@ -1,0 +1,36 @@
+# Goodies API (FastAPI) no Fly.io — STORY-00-08-09. Deploy a partir de api/
+# (mesmo contexto do Dockerfile e do docker-compose). `flyctl deploy` daqui.
+app = "goodies-api"
+primary_region = "gru"  # São Paulo (fallback: iad)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  release_command = "alembic upgrade head"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # Gate m0: GET /api/v1/health → 200 com Postgres + Redis
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/v1/health"
+    interval = "30s"
+    timeout = "5s"
+
+[env]
+  ENV = "production"
+  API_PORT = "8000"
+
+[[vm]]
+  memory_mb = 256
+  cpu_kind = "shared"
+  cpus = 1
+
+# Segredos (DATABASE_URL, REDIS_URL, JWT_*, HERMES_*) via `fly secrets set` — NUNCA no fly.toml.
+# Lista de chaves: ver .env.example.
