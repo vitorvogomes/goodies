@@ -13,6 +13,7 @@
 - **Nomes:** snake_case para funções/variáveis, PascalCase para classes, UPPER_SNAKE para constantes
 - **Async:** todas as rotas FastAPI e queries asyncpg são `async def`
 - **DB:** asyncpg direto — sem SQLAlchemy ORM. Queries SQL explícitas em `queries.py`
+- **Inspecionar/validar o banco (dev):** `docker compose exec -T postgres psql -U goodies -d goodies -c '<SQL>'` — read-only; schema só via Alembic. Ver `docs/LOCAL_DEV.md`.
 - **Erros de API externa:** logar com structlog, retornar dado cacheado + `"stale": true`. Nunca HTTP 5xx
 
 ### Padrão de router FastAPI

@@ -109,6 +109,23 @@ cd ~/projects/goodies/web && pnpm lint && pnpm build
 
 ---
 
+## Inspecionar o banco
+
+**No VS Code (você):** SQLTools já conectado (`localhost:5432`, db `goodies`) — veja as tabelas no
+painel lateral e rode SQL no scratch `*.session.sql` (`Ctrl+E` na seleção). O schema **só** muda
+via Alembic (`docker compose exec api alembic upgrade head`), nunca criando tabela à mão.
+
+**Por linha de comando (psql no container)** — usado p/ validar migrations/dados nos gates:
+```bash
+docker compose exec -T postgres psql -U goodies -d goodies -c '\dt'        # listar tabelas
+docker compose exec -T postgres psql -U goodies -d goodies -c '\d users'   # descrever tabela
+docker compose exec -T postgres psql -U goodies -d goodies -c 'SELECT count(*) FROM users;'
+```
+Roda dentro do container (não precisa de psql no host). Inspeção é read-only por convenção —
+alterações de schema sempre via migration.
+
+---
+
 ## Encerrar
 ```bash
 docker compose down        # para os containers (mantém os dados em volume)
