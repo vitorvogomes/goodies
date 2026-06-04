@@ -46,3 +46,18 @@ async def auth_headers(pool: object) -> AsyncIterator[dict[str, str]]:
     yield {"Authorization": f"Bearer {token}"}
     async with pool.acquire() as conn:  # type: ignore[attr-defined]
         await conn.execute("DELETE FROM users WHERE id = $1", uid)
+
+
+@pytest_asyncio.fixture
+async def account(pool: object) -> AsyncIterator[str]:
+    """Cria uma conta de teste; limpa transações associadas + a conta ao fim."""
+    async with pool.acquire() as conn:  # type: ignore[attr-defined]
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, $2) RETURNING id",
+            f"acc-{uuid.uuid4().hex[:8]}",
+            "bank",
+        )
+    yield str(acc)
+    async with pool.acquire() as conn:  # type: ignore[attr-defined]
+        await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
+        await conn.execute("DELETE FROM accounts WHERE id = $1", acc)

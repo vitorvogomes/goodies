@@ -47,7 +47,8 @@ jobs:
         run: >-
           uv run mypy main.py config.py health.py db/connection.py
           engines/market/cache.py engines/ledger/accounts.py
-          engines/ledger/categories.py engines/ledger/router.py
+          engines/ledger/categories.py engines/ledger/transactions.py
+          engines/ledger/router.py
           auth/security.py auth/dependencies.py
           auth/router.py scripts/seed_admin.py scripts/gen_hermes_token.py
       - name: Pytest (cobertura engines >= 80%)
