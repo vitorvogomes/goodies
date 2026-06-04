@@ -91,6 +91,25 @@ async def test_list_filters_and_pagination(api, auth_headers, account):
     assert len(page.json()["items"]) == 2
 
 
+async def test_create_transaction_with_notes(api, auth_headers, account):
+    resp = await api.post(
+        "/api/v1/transactions",
+        json={
+            "account_id": account,
+            "date": "2099-03-10",
+            "amount": -50,
+            "category": "lazer",
+            "notes": "cinema com a namorada",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["notes"] == "cinema com a namorada"
+
+    listed = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
+    assert listed.json()["items"][0]["notes"] == "cinema com a namorada"
+
+
 async def test_update_and_delete_transaction(api, auth_headers, account):
     created = await api.post(
         "/api/v1/transactions",

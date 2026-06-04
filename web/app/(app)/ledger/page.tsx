@@ -127,7 +127,14 @@ export default function LedgerPage() {
             {(data?.items ?? []).map((tx) => (
               <tr key={tx.id} className="border-t border-border">
                 <td className="px-4 py-2.5 tabular-nums text-foreground/80">{formatDate(tx.date)}</td>
-                <td className="px-4 py-2.5 text-foreground/80">{tx.description ?? "—"}</td>
+                <td className="px-4 py-2.5 text-foreground/80">
+                  {tx.description ?? "—"}
+                  {tx.notes && (
+                    <span className="mt-0.5 block text-xs italic text-foreground/40">
+                      {tx.notes}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-foreground/60">{tx.category}</td>
                 <td className="px-4 py-2.5 text-foreground/60">{accountName(tx.account_id)}</td>
                 <td

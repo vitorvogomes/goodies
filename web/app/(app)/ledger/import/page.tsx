@@ -19,12 +19,12 @@ export default function ImportPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!accountId || !file) {
-      setError("Selecione a conta e o arquivo do extrato.");
+    if (!file) {
+      setError("Selecione o arquivo do extrato.");
       return;
     }
     importStatement.mutate(
-      { accountId, file },
+      { accountId: accountId || undefined, file },
       {
         onError: (err) =>
           setError(
@@ -48,12 +48,13 @@ export default function ImportPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <Field label="Conta" htmlFor="i-account">
+        <Field label="Conta (opcional — OFX detecta pelo nº da conta)" htmlFor="i-account">
           <Select id="i-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">Selecione…</option>
+            <option value="">Auto-detectar do arquivo</option>
             {(accounts.data ?? []).map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
+                {a.account_number ? ` (${a.account_number})` : ""}
               </option>
             ))}
           </Select>

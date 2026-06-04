@@ -111,16 +111,29 @@ def parse_statement(filename: str, content: str) -> list[StatementEntry]:
     return parse_csv(content)
 
 
+def parse_account_number(content: str) -> str | None:
+    """Extrai o ACCTID (nº da conta) do OFX BANKACCTFROM. CSV não carrega conta -> None."""
+    match = re.search(r"<ACCTID>([^\r\n<]*)", content)
+    return match.group(1).strip() if match else None
+
+
 async def import_statement(
     conn: asyncpg.Connection,
     account_id: uuid.UUID,
     entries: Sequence[StatementEntry],
     self_identifiers: Sequence[str] = (),
 ) -> ImportReport:
-    """Insere receitas/despesas (dedup por external_id); pula investimento/transferência."""
+    """Insere receitas/despesas (dedup por external_id); pula investimento/transferência.
+
+    Os números das contas cadastradas entram como identificadores de transferência
+    interna: um lançamento cujo destino/origem é uma conta própria (nº na descrição)
+    é classificado como `transfer` e não vira caixa (evita dupla contagem CPF↔CNPJ).
+    """
+    own = await conn.fetch("SELECT account_number FROM accounts WHERE account_number IS NOT NULL")
+    identifiers = [r["account_number"] for r in own] + list(self_identifiers)
     report = ImportReport()
     for entry in entries:
-        result = classify(entry, self_identifiers)
+        result = classify(entry, identifiers)
         if result.kind in ("investment", "transfer"):
             report.skipped += 1
             continue

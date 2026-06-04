@@ -25,6 +25,7 @@ export default function NewTransactionPage() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
+  const [notes, setNotes] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,7 @@ export default function NewTransactionPage() {
         amount: kind === "expense" ? -value : value,
         category,
         description: description || undefined,
+        notes: notes || undefined,
         is_recurring: isRecurring,
       },
       {
@@ -124,6 +126,16 @@ export default function NewTransactionPage() {
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+
+        <Field label="Nota/Observações (opcional)" htmlFor="t-notes">
+          <textarea
+            id="t-notes"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
           />
         </Field>
 

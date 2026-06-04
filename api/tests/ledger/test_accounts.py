@@ -47,6 +47,25 @@ async def test_update_account(api, auth_headers):
     await api.delete(f"/api/v1/accounts/{acc_id}", headers=auth_headers)
 
 
+async def test_create_account_with_number_and_duplicate_409(api, auth_headers):
+    num = f"NUM-{uuid.uuid4().hex[:8]}"
+    first = await api.post(
+        "/api/v1/accounts",
+        json={"name": "Nubank CPF", "type": "bank", "account_number": num},
+        headers=auth_headers,
+    )
+    assert first.status_code == 201
+    assert first.json()["account_number"] == num
+
+    dup = await api.post(
+        "/api/v1/accounts",
+        json={"name": "Outra", "type": "bank", "account_number": num},
+        headers=auth_headers,
+    )
+    assert dup.status_code == 409
+    await api.delete(f"/api/v1/accounts/{first.json()['id']}", headers=auth_headers)
+
+
 async def test_create_account_rejects_invalid_type(api, auth_headers):
     resp = await api.post(
         "/api/v1/accounts",

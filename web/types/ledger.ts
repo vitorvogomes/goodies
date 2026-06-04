@@ -7,12 +7,14 @@ export interface Account {
   name: string;
   type: AccountType;
   currency: string;
+  account_number: string | null;
 }
 
 export interface AccountCreate {
   name: string;
   type: AccountType;
   currency?: string;
+  account_number?: string;
 }
 
 export type CategoryKind = "income" | "expense" | "investment" | "transfer";
@@ -33,6 +35,7 @@ export interface Transaction {
   description: string | null;
   is_recurring: boolean;
   external_id: string | null;
+  notes: string | null;
 }
 
 export interface TransactionList {
@@ -49,6 +52,7 @@ export interface TransactionCreate {
   category: string;
   description?: string;
   is_recurring?: boolean;
+  notes?: string;
 }
 
 export interface TransactionFilters {

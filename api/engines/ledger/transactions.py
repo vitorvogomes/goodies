@@ -31,6 +31,7 @@ class TransactionCreate(BaseModel):
     category: str = Field(min_length=1)
     description: str | None = None
     is_recurring: bool = False
+    notes: str | None = None
 
     @field_validator("amount")
     @classmethod
@@ -47,6 +48,7 @@ class TransactionUpdate(BaseModel):
     category: str | None = Field(default=None, min_length=1)
     description: str | None = None
     is_recurring: bool | None = None
+    notes: str | None = None
 
     @field_validator("amount")
     @classmethod
@@ -65,6 +67,7 @@ class TransactionResponse(BaseModel):
     description: str | None
     is_recurring: bool
     external_id: str | None
+    notes: str | None
 
 
 class TransactionList(BaseModel):
@@ -74,7 +77,9 @@ class TransactionList(BaseModel):
     offset: int
 
 
-_COLUMNS = "id, account_id, date, amount, category, description, is_recurring, external_id"
+_COLUMNS = (
+    "id, account_id, date, amount, category, description, is_recurring, external_id, notes"
+)
 
 
 def _to_response(row: asyncpg.Record) -> TransactionResponse:
@@ -87,6 +92,7 @@ def _to_response(row: asyncpg.Record) -> TransactionResponse:
         description=row["description"],
         is_recurring=row["is_recurring"],
         external_id=row["external_id"],
+        notes=row["notes"],
     )
 
 
@@ -137,14 +143,15 @@ async def create_transaction(
     try:
         row = await db.fetchrow(
             "INSERT INTO transactions "
-            "(account_id, date, amount, category, description, is_recurring) "
-            f"VALUES ($1, $2, $3, $4, $5, $6) RETURNING {_COLUMNS}",
+            "(account_id, date, amount, category, description, is_recurring, notes) "
+            f"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {_COLUMNS}",
             body.account_id,
             body.date,
             _as_decimal(body.amount),
             body.category,
             body.description,
             body.is_recurring,
+            body.notes,
         )
     except asyncpg.ForeignKeyViolationError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
@@ -164,7 +171,8 @@ async def update_transaction(
               amount = COALESCE($4, amount),
               category = COALESCE($5, category),
               description = COALESCE($6, description),
-              is_recurring = COALESCE($7, is_recurring)
+              is_recurring = COALESCE($7, is_recurring),
+              notes = COALESCE($8, notes)
             WHERE id = $1
             """
             f" RETURNING {_COLUMNS}",
@@ -175,6 +183,7 @@ async def update_transaction(
             body.category,
             body.description,
             body.is_recurring,
+            body.notes,
         )
     except asyncpg.ForeignKeyViolationError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None

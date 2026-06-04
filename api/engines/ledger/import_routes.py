@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from auth.dependencies import get_current_user
 from config import settings
 from db.connection import get_db
-from engines.ledger.importer import import_statement, parse_statement
+from engines.ledger.importer import import_statement, parse_account_number, parse_statement
 
 router = APIRouter(prefix="/api/v1/ledger", tags=["ledger:import"])
 
@@ -35,26 +35,51 @@ def _self_identifiers() -> list[str]:
     return [s.strip() for s in settings.ledger_self_identifiers.split(",") if s.strip()]
 
 
+async def _resolve_account(
+    db: asyncpg.Connection, acctid: str | None, account_id: uuid.UUID | None
+) -> uuid.UUID:
+    """Roteia o import: OFX → conta pelo ACCTID; CSV/sem ACCTID → account_id explícito."""
+    if acctid:
+        row = await db.fetchrow("SELECT id FROM accounts WHERE account_number = $1", acctid)
+        if row is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"conta com número {acctid} não cadastrada; crie-a antes de importar",
+            )
+        resolved: uuid.UUID = row["id"]
+        if account_id is not None and account_id != resolved:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "conta selecionada difere da conta do arquivo"
+            )
+        return resolved
+    if account_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "informe a conta para arquivos sem número de conta (CSV)",
+        )
+    if not await db.fetchval("SELECT 1 FROM accounts WHERE id = $1", account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "conta não encontrada")
+    return account_id
+
+
 @router.post("/import", response_model=ImportReport)
 async def import_endpoint(
     request: Request,
     user: AuthUser,
     db: Db,
-    account_id: Annotated[uuid.UUID, Query()],
+    account_id: Annotated[uuid.UUID | None, Query()] = None,
     filename: Annotated[str, Query()] = "",
 ) -> ImportReport:
-    exists = await db.fetchval("SELECT 1 FROM accounts WHERE id = $1", account_id)
-    if not exists:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "conta não encontrada")
-
     content = (await request.body()).decode("utf-8", errors="replace")
+    target = await _resolve_account(db, parse_account_number(content), account_id)
+
     entries = parse_statement(filename, content)
     if not entries:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "nenhuma transação reconhecida no arquivo"
         )
 
-    report = await import_statement(db, account_id, entries, _self_identifiers())
+    report = await import_statement(db, target, entries, _self_identifiers())
     return ImportReport(
         parsed=len(entries),
         imported=report.imported,

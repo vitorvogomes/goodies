@@ -3,6 +3,16 @@
 import uuid
 
 
+def _ofx(acctid: str) -> str:
+    return (
+        "OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS>\n"
+        f"<BANKACCTFROM><ACCTID>{acctid}</ACCTID></BANKACCTFROM>\n<BANKTRANLIST>\n"
+        "<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20990101000000[-3:BRT]</DTPOSTED>"
+        f"<TRNAMT>500.00</TRNAMT><FITID>{uuid.uuid4().hex}</FITID><MEMO>Salario\n</STMTTRN>\n"
+        "</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>\n"
+    )
+
+
 def _csv() -> tuple[str, list[str]]:
     fids = [uuid.uuid4().hex for _ in range(3)]
     body = (
@@ -65,3 +75,33 @@ async def test_import_csv_classifies_and_dedups(api, auth_headers, account):
     # só receita+despesa viraram transações (investimento foi excluído)
     listed = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
     assert listed.json()["total"] == 2
+
+
+async def test_import_ofx_auto_routes_by_acctid(api, auth_headers, pool):
+    acctid = f"RT-{uuid.uuid4().hex[:8]}"
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type, account_number) VALUES ($1, $2, $3) RETURNING id",
+            "Rota",
+            "bank",
+            acctid,
+        )
+    # sem account_id: o endpoint roteia pelo ACCTID do arquivo
+    resp = await api.post(
+        "/api/v1/ledger/import?filename=x.ofx",
+        content=_ofx(acctid),
+        headers={**auth_headers, "Content-Type": "text/plain"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["imported"] == 1
+    listed = await api.get(f"/api/v1/transactions?account_id={acc}", headers=auth_headers)
+    assert listed.json()["total"] == 1
+
+
+async def test_import_ofx_unregistered_acctid_returns_422(api, auth_headers):
+    resp = await api.post(
+        "/api/v1/ledger/import?filename=x.ofx",
+        content=_ofx(f"NOPE-{uuid.uuid4().hex[:8]}"),
+        headers={**auth_headers, "Content-Type": "text/plain"},
+    )
+    assert resp.status_code == 422

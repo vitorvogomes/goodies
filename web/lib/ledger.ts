@@ -93,11 +93,12 @@ export function useAlerts() {
 export function useImportStatement() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ accountId, file }: { accountId: string; file: File }) => {
+    mutationFn: async ({ accountId, file }: { accountId?: string; file: File }) => {
       const text = await file.text();
       const token = getAccessToken();
+      const acct = accountId ? `&account_id=${accountId}` : "";
       const res = await fetch(
-        `${API_BASE_URL}/api/v1/ledger/import?account_id=${accountId}&filename=${encodeURIComponent(file.name)}`,
+        `${API_BASE_URL}/api/v1/ledger/import?filename=${encodeURIComponent(file.name)}${acct}`,
         {
           method: "POST",
           credentials: "include",

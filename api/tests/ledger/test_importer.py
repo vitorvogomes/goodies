@@ -5,9 +5,17 @@ extrato real de janeiro é feita via scripts/migrate_ledger.py.
 """
 
 import datetime
+import uuid
 from decimal import Decimal
 
-from engines.ledger.importer import StatementEntry, classify, parse_csv, parse_ofx
+from engines.ledger.importer import (
+    StatementEntry,
+    classify,
+    import_statement,
+    parse_account_number,
+    parse_csv,
+    parse_ofx,
+)
 
 _CSV = """Data,Valor,Identificador,Descrição
 01/01/2026,1000.00,aaa,Salário recebido
@@ -22,6 +30,11 @@ VERSION:102
 <BANKMSGSRSV1>
 <STMTTRNRS>
 <STMTRS>
+<BANKACCTFROM>
+<BANKID>0260</BANKID>
+<ACCTID>4288917-8</ACCTID>
+<ACCTTYPE>CHECKING</ACCTTYPE>
+</BANKACCTFROM>
 <BANKTRANLIST>
 <STMTTRN>
 <TRNTYPE>CREDIT</TRNTYPE>
@@ -85,6 +98,54 @@ def test_classify_income_and_expense_by_sign():
     expense = StatementEntry("b", datetime.date(2026, 1, 2), Decimal("-200"), "Pagamento de boleto")
     assert classify(income).kind == "income"
     assert classify(expense).kind == "expense"
+
+
+def test_parse_account_number_from_ofx():
+    assert parse_account_number(_OFX) == "4288917-8"
+    assert parse_account_number(_CSV) is None  # CSV não carrega a conta
+
+
+def test_classify_transfer_by_account_number():
+    # transferência cujo destino é uma conta própria (número na descrição) -> interna
+    entry = StatementEntry(
+        "z",
+        datetime.date(2026, 1, 5),
+        Decimal("-4196.34"),
+        "Transferência enviada pelo Pix - Fulano - NU PAGAMENTOS Agência: 1 Conta: 58022571-6",
+    )
+    assert classify(entry, self_identifiers=["58022571-6"]).kind == "transfer"
+    assert classify(entry).kind == "expense"  # sem o identificador, é despesa
+
+
+async def test_import_statement_excludes_inter_account_transfer(pool):
+    num_b = f"TEST-{uuid.uuid4().hex[:8]}"
+    async with pool.acquire() as conn:
+        acc_a = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, $2) RETURNING id", "A", "bank"
+        )
+        await conn.execute(
+            "INSERT INTO accounts (name, type, account_number) VALUES ($1, $2, $3)",
+            "B",
+            "bank",
+            num_b,
+        )
+        entries = [
+            StatementEntry(
+                uuid.uuid4().hex,
+                datetime.date(2099, 1, 1),
+                Decimal("-100.00"),
+                f"Transferência enviada pelo Pix - Fulano - Conta: {num_b}",
+            ),
+            StatementEntry(
+                uuid.uuid4().hex,
+                datetime.date(2099, 1, 2),
+                Decimal("-30.00"),
+                "Pagamento de boleto efetuado",
+            ),
+        ]
+        report = await import_statement(conn, acc_a, entries)
+    assert report.skipped == 1  # transferência p/ conta própria (num_b) excluída
+    assert report.imported == 1  # só a despesa real
 
 
 def test_classify_self_transfer_when_identifier_present():
