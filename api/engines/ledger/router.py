@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from engines.ledger.accounts import router as accounts_router
 from engines.ledger.cashflow import router as cashflow_router
 from engines.ledger.categories import router as categories_router
+from engines.ledger.fixed_costs import router as fixed_costs_router
 from engines.ledger.transactions import router as transactions_router
 
 router = APIRouter()
@@ -17,3 +18,4 @@ router.include_router(accounts_router)
 router.include_router(categories_router)
 router.include_router(transactions_router)
 router.include_router(cashflow_router)
+router.include_router(fixed_costs_router)
