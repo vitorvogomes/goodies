@@ -1,22 +1,24 @@
 # Rodar o Goodies localmente
 
-**Docker-local-first:** para desenvolver e validar o m0 você **não precisa** de Supabase,
-Upstash, Fly nem Vercel. Postgres e Redis vêm de containers; a API e o front rodam no host.
-Deploy (cloud) fica para depois — ver [`DEPLOY.md`](DEPLOY.md).
+**Docker-local-first:** a stack inteira de dev (Postgres + Redis + **API**) sobe via
+`docker compose` na porta **8000**. O front (Next.js) roda no host. Para desenvolver e validar
+o m0 você **não precisa** de Supabase, Upstash, Fly nem Vercel — deploy (cloud) fica para
+depois, ver [`DEPLOY.md`](DEPLOY.md).
 
 > As variáveis `UPSTASH_*`, `REDIS_URL`, `DISCORD_WEBHOOK_URL` são de produção/m6 — deixe os
-> placeholders. Localmente a API usa `localhost:5432` (Postgres) e `localhost:6379` (Redis) por
-> default, sem ler esses valores.
+> placeholders. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front
+> aponta para `http://localhost:8000`.
 
 ---
 
 ## Pré-requisitos
 - Docker + Docker Compose
-- Python 3.12 (venv em `api/.venv`)
-- Node + pnpm (via NVM). Se `pnpm` não for encontrado: `source "$NVM_DIR/nvm.sh"`.
-
-> ⚠️ A porta **8000** pode estar ocupada por outro processo na sua máquina — por isso a API
-> roda na **8001** neste guia.
+- Node + pnpm (via NVM), para o front no host. Se `pnpm` não for encontrado:
+  `source "$NVM_DIR/nvm.sh"`.
+- **(Opcional)** [uv](https://docs.astral.sh/uv/) — só para rodar a suíte/lint/types no host
+  (pytest/ruff/mypy **não** estão na imagem Docker, que carrega só as deps de runtime). O uv
+  cria a venv (`api/.venv`) e baixa o Python 3.12 sozinho.
+  Instalar: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 ---
 
@@ -25,73 +27,84 @@ Deploy (cloud) fica para depois — ver [`DEPLOY.md`](DEPLOY.md).
 ```bash
 cd ~/projects/goodies
 
-# backend: venv + dependências
-python3 -m venv api/.venv
-api/.venv/bin/pip install -r api/requirements-dev.txt
+# imagem da API (instala as deps de runtime do backend dentro da imagem)
+docker compose build
 
-# frontend: dependências
-pnpm -C web install
+# deps do frontend (host)
+( cd web && pnpm install )
+```
+
+**(Opcional) deps do backend no host — só se for rodar pytest/ruff/mypy localmente:**
+```bash
+( cd api && uv sync )          # cria api/.venv (base + grupo dev) a partir do uv.lock
 ```
 
 ---
 
 ## Rodar (cada sessão)
 
-### 1. Postgres + Redis (Docker)
+### 1. Subir a stack (Postgres + Redis + API) — Docker, porta 8000
 ```bash
 cd ~/projects/goodies
-docker compose up -d postgres redis
-docker compose ps                       # ambos "healthy"
+docker compose build && docker compose up -d   # use --build sempre que mudar deps/Dockerfile
+docker compose ps                              # postgres, redis e api "healthy"
 ```
+A API tem bind mount + `--reload`: mudanças no código `api/` recarregam sozinhas, sem rebuild
+(o rebuild só é necessário ao mudar `pyproject.toml`/`uv.lock`/`Dockerfile`).
 
-### 2. Backend — FastAPI (host, a partir de `api/`)
+### 2. Migrations + admin (primeira vez / quando o schema mudar)
 ```bash
-cd ~/projects/goodies/api
-.venv/bin/alembic upgrade head          # cria/atualiza o schema (users, refresh_token_hash)
+docker compose exec api alembic upgrade head        # cria/atualiza o schema (users, refresh_token_hash)
 
 # admin (só na primeira vez; não exponha a senha no chat/repo):
-ADMIN_EMAIL='vitor@goodies.local' ADMIN_PASSWORD='change-me' \
-  .venv/bin/python -m scripts.seed_admin
-
-.venv/bin/uvicorn main:app --reload --port 8001
+docker compose exec -e ADMIN_EMAIL='vitor@goodies.local' -e ADMIN_PASSWORD='change-me' \
+  api python -m scripts.seed_admin
 ```
-Rodando a partir de `api/`, a API usa `localhost` para Postgres/Redis automaticamente.
 
 ### 3. Frontend — Next.js (host)
 Em outro terminal:
 ```bash
 cd ~/projects/goodies/web
-echo 'NEXT_PUBLIC_API_URL=http://localhost:8001' > .env.local   # só na primeira vez
 pnpm dev                                # http://localhost:3000
 ```
+A URL da API já tem default `http://localhost:8000` (`lib/api.ts`). Só defina outra se precisar
+— em `web/.env.local` (tem precedência sobre `web/.env`):
+`echo 'NEXT_PUBLIC_API_URL=http://localhost:8000' > .env.local`.
+
+> ⚠️ `NEXT_PUBLIC_*` é **inlined no boot** do `pnpm dev`. Se trocar a URL da API (ou tiver um
+> `web/.env` antigo apontando p/ outra porta, ex.: `:8001`), **reinicie o `pnpm dev`** — senão
+> o browser continua chamando o valor velho e o login falha com "Não foi possível conectar".
+
 Abra `http://localhost:3000/login`, entre com o admin seedado → cai em `/dashboard`.
 
 ---
 
 ## Validar o m0
 
+**App no ar (não precisa de uv):**
 ```bash
 # Health (gate local): 200 com postgres+redis conectados
-curl -s http://localhost:8001/api/v1/health
+curl -s http://localhost:8000/api/v1/health
 
 # Login (tokens) e rota protegida sem token (401)
-curl -s -X POST http://localhost:8001/api/v1/auth/login \
+curl -s -X POST http://localhost:8000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"vitor@goodies.local","password":"troque-aqui"}'
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8001/api/v1/auth/me
+  -d '{"email":"vitor@goodies.local","password":"change-me"}'
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/auth/me
+```
 
-# Suíte de testes (precisa pg+redis no ar) + cobertura + lint + types
+**Suíte de testes + cobertura + lint + types (precisa do uv no host):**
+Rodam contra o Postgres/Redis do compose (expostos em `localhost:5432` / `localhost:6379`).
+```bash
 cd ~/projects/goodies/api
-.venv/bin/python -m pytest tests/ -v
-.venv/bin/python -m pytest tests/ --cov=engines --cov-report=term-missing
-.venv/bin/ruff check .
-MYPYPATH=. .venv/bin/mypy --config-file pyproject.toml \
-  main.py config.py health.py db/connection.py engines/market/cache.py \
-  auth/security.py auth/dependencies.py auth/router.py
+uv run pytest tests/ -v
+uv run pytest tests/ --cov=engines --cov-report=term-missing
+uv run ruff check .
+MYPYPATH=. uv run mypy main.py config.py health.py db/connection.py \
+  engines/market/cache.py auth/security.py auth/dependencies.py auth/router.py
 
 # Frontend
-pnpm -C ~/projects/goodies/web lint
-pnpm -C ~/projects/goodies/web build
+cd ~/projects/goodies/web && pnpm lint && pnpm build
 ```
 
 ---
@@ -104,13 +117,16 @@ docker compose down -v     # zera também o Postgres (volume pgdata)
 
 ---
 
-## Alternativa: tudo em Docker
-A API também roda em container (hot-reload via bind mount). Como a 8000 pode estar ocupada,
-ajuste a porta em `docker-compose.yml` (`- "8000:8000"` → `- "8010:8000"`) e:
+## Alternativa: backend no host (uv), só infra no Docker
+Para iterar no backend sem a imagem (ex.: anexar debugger), suba apenas Postgres+Redis no
+Docker e rode o uvicorn no host (a 8000 está livre):
 ```bash
-docker compose up -d --build
-docker compose exec api alembic upgrade head
-docker compose exec -e ADMIN_EMAIL=... -e ADMIN_PASSWORD=... api python -m scripts.seed_admin
-curl -s http://localhost:8010/api/v1/health
+cd ~/projects/goodies
+docker compose up -d postgres redis
+cd api
+uv run alembic upgrade head
+ADMIN_EMAIL='vitor@goodies.local' ADMIN_PASSWORD='change-me' uv run python -m scripts.seed_admin
+uv run uvicorn main:app --reload --port 8000
 ```
-Nesse caso, ajuste `web/.env.local` para `NEXT_PUBLIC_API_URL=http://localhost:8010`.
+Rodando a partir de `api/`, a API usa `localhost` para Postgres/Redis automaticamente. Não
+suba o serviço `api` do compose ao mesmo tempo (conflito na 8000).

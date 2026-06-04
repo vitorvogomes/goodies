@@ -47,13 +47,18 @@ goodies/
 ## Setup de desenvolvimento
 
 ```bash
-bash scripts/setup-dev.sh                       # git hooks (.githooks) + gitleaks + .env
-python3 -m venv api/.venv && api/.venv/bin/pip install -r api/requirements-dev.txt
-pnpm -C web install
+bash scripts/setup-dev.sh                       # git hooks (.githooks) + gitleaks + .env (na raiz)
+docker compose build                            # imagem da API (Postgres + Redis + API via compose)
+( cd web && pnpm install )                      # deps do front (host)
+# (opcional) deps do backend no host p/ pytest/ruff/mypy:  ( cd api && uv sync )
 ```
 
-**Rodar e validar localmente:** ver [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) — Docker para
-Postgres+Redis; API e front no host (não precisa de Supabase/Upstash/Fly/Vercel).
+Backend usa **uv** (ADR-010): `pyproject.toml` é a fonte única de dependências e `uv.lock`
+fixa as versões. Sem `requirements*.txt`.
+
+**Rodar e validar localmente:** ver [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) — stack
+(Postgres + Redis + **API**) via `docker compose` na porta **8000**; front no host (não
+precisa de Supabase/Upstash/Fly/Vercel).
 
 O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (api/) +
 **eslint** (web/) nos arquivos staged.

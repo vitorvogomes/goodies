@@ -15,8 +15,8 @@ Plataforma pessoal de controle financeiro para substituir uma planilha Google Sh
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | FastAPI 0.111+ / Python 3.12 |
-| Frontend | Next.js 14 (App Router) / TypeScript |
+| Backend | FastAPI 0.111+ / Python 3.12 (deps via uv — ADR-010) |
+| Frontend | Next.js 16 (App Router) / React 19 / TypeScript (ADR-009) |
 | Database | Supabase (Postgres 15) |
 | Cache | Redis via Upstash |
 | Backend deploy | Fly.io Hobby |

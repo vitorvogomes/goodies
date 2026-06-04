@@ -41,7 +41,7 @@ tags: [goodies, stack, tecnologia, infra]
 ### Dependências principais
 
 ```txt
-# requirements.txt
+# pyproject.toml · [project.dependencies] — fonte única, fixada por uv.lock (ADR-010). Sem requirements.txt.
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 pydantic>=2.7.0
@@ -99,10 +99,12 @@ CORS_ORIGINS="https://goodies.vercel.app"
 ### Dockerfile
 ```dockerfile
 FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.11.12 /uv /usr/local/bin/uv   # deps via uv (ADR-010)
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv PATH=/opt/venv/bin:$PATH
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev      # só runtime; fonte real em api/Dockerfile
 
 COPY . .
 
@@ -224,11 +226,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
-      - run: pytest api/tests/ --cov=api --cov-fail-under=80
+      - uses: astral-sh/setup-uv@v5      # uv provê o Python 3.12 (ADR-010)
+      - run: uv sync --frozen
+        working-directory: api
+      - run: uv run pytest tests/ --cov=engines --cov-fail-under=80
+        working-directory: api
 
   deploy-api:
     needs: test

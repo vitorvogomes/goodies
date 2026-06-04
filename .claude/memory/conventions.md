@@ -2,6 +2,8 @@
 
 ## Python (api/)
 
+- **Dependências/execução:** uv (ADR-010) — `pyproject.toml` é a fonte; `uv sync` instala,
+  `uv run ruff|mypy|pytest|uvicorn|alembic` executa (a partir de `api/`). Sem `requirements*.txt`/`pip`.
 - **Linting:** `ruff check api/ --fix` (configurado como hook automático)
 - **Type checking:** `mypy --strict` — sem `Any` sem justificativa
 - **Formatação:** ruff format (substitui black)

@@ -24,7 +24,7 @@ Este épico não entrega nenhuma feature de negócio. Entrega **infraestrutura c
 - Criação do repositório GitHub
 - Estrutura de monorepo (`api/`, `web/`, `docs/`)
 - FastAPI com Uvicorn, health check endpoint
-- Next.js 14 com App Router e TypeScript
+- Next.js 16 com App Router e TypeScript (ADR-009)
 - Supabase: projeto criado, schema inicial (tabela `users`), connection pool
 - Redis (Upstash): conta criada, conexão testada
 - JWT auth: login, refresh, middleware de autenticação

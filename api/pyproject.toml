@@ -23,7 +23,8 @@ dependencies = [
     "alembic>=1.13",          # migrations Postgres (00-03)
 ]
 
-[project.optional-dependencies]
+# Dev/test tools (PEP 735) — instalados por padrão no `uv sync`; excluídos com `--no-dev` (imagem).
+[dependency-groups]
 dev = [
     "ruff>=0.5",
     "mypy>=1.10",
@@ -32,13 +33,10 @@ dev = [
     "pytest-cov>=5.0",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-# api/ é a raiz; cada engine/módulo é um pacote top-level (sem pacote "api")
-packages = ["engines", "workers", "hermes", "auth", "db"]
+# App roda a partir do código-fonte (cwd = /app, pythonpath="."), não como wheel instalado.
+# uv gerencia só o ambiente (.venv) + deps; não builda nem instala o projeto. (ADR-010)
+[tool.uv]
+package = false
 
 # ---- Ruff: lint + format (substitui black) — conventions.md ----
 [tool.ruff]

@@ -227,6 +227,32 @@ Implicações técnicas:
 
 ---
 
+## ADR-010 — Backend: gestão de dependências com uv (pyproject + uv.lock)
+
+**Data:** 2026-06-03  
+**Status:** Aceito  
+**Autor:** Vitor + Claude Code
+
+### Contexto
+A STORY-00-02 criou `requirements.txt` (runtime, pip freeze) + `requirements-dev.txt`, **além** do `pyproject.toml` — que já declarava `[project.dependencies]` e o grupo dev. A lista de dependências ficava em duas fontes mantidas à mão, sujeitas a divergir; o `pyproject` servia só como metadado + config de ferramentas.
+
+### Decisão
+Adotar **[uv](https://docs.astral.sh/uv/)** como gerenciador de dependências do backend (`api/`):
+- `pyproject.toml` é a **fonte única** das deps — runtime em `[project.dependencies]`, ferramentas em `[dependency-groups].dev` (PEP 735).
+- `uv.lock` (commitado) fixa as versões exatas — a reprodutibilidade que o `requirements.txt` dava.
+- `[tool.uv] package = false`: a app roda a partir do código-fonte (`pythonpath="."`); uv gerencia só a venv (`api/.venv`) + deps, sem buildar/instalar wheel (removidos `[build-system]`/hatchling).
+- `requirements.txt` e `requirements-dev.txt` **removidos**.
+
+Comandos: `uv sync` (base+dev), `uv sync --no-dev` (só runtime, imagem), `uv run <cmd>` (pytest/ruff/mypy/uvicorn/alembic). uv também provê o Python 3.12.
+
+### Consequências
+- **Dockerfile** copia o binário `uv` da imagem oficial e roda `uv sync --frozen --no-dev` numa venv em `/opt/venv` (fora de `/app`, p/ não ser sombreada pelo bind mount do compose).
+- **CI** (`deploy.yml`) usa `astral-sh/setup-uv` + `uv sync --frozen` + `uv run ...` (dispensa `setup-python`).
+- **pre-commit** roda ruff via `uv run --project api ruff`.
+- Docs (`README`, `docs/LOCAL_DEV.md`, `docs/03_Stack.md`) atualizados. Substitui a cláusula da STORY-00-02 sobre `requirements*.txt`; o restante da stack (ADR-001) é inalterado — uv é tooling, não troca de framework.
+
+---
+
 *→ [[02_Arquitetura]]*
 *→ [[01_PRD]]*
 *→ [[00_Sistema/MOCs/MOC_Vitor.html]]*

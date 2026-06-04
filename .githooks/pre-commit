@@ -28,16 +28,23 @@ fi
 # ---- 2. ruff (lint Python em api/) ----
 mapfile -t py_files < <(git diff --cached --name-only --diff-filter=ACM -- 'api/*.py')
 if [ "${#py_files[@]}" -gt 0 ]; then
-  if command -v ruff >/dev/null 2>&1; then
+  # uv gerencia o ruff em api/.venv (ADR-010); fallback p/ ruff global se existir.
+  ruff_cmd=()
+  if command -v uv >/dev/null 2>&1; then
+    ruff_cmd=(uv run --frozen --project api ruff)
+  elif command -v ruff >/dev/null 2>&1; then
+    ruff_cmd=(ruff)
+  fi
+  if [ "${#ruff_cmd[@]}" -gt 0 ]; then
     echo "[pre-commit] ruff: ${#py_files[@]} arquivo(s) .py staged..."
-    if ruff check "${py_files[@]}"; then
+    if "${ruff_cmd[@]}" check "${py_files[@]}"; then
       echo "[pre-commit] ✅ ruff: ok."
     else
-      echo "[pre-commit] ❌ ruff falhou. Rode 'ruff check api/ --fix'. COMMIT BLOQUEADO." >&2
+      echo "[pre-commit] ❌ ruff falhou. Rode 'uv run -p api ruff check api/ --fix'. COMMIT BLOQUEADO." >&2
       fail=1
     fi
   else
-    echo "[pre-commit] ⚠ ruff não encontrado — pulando. Rode 'pip install -e api[dev]'." >&2
+    echo "[pre-commit] ⚠ ruff/uv não encontrados — pulando. Rode 'uv sync' em api/." >&2
   fi
 fi
 

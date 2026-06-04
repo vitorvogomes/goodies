@@ -44,6 +44,16 @@ via service token. Hermes não faz login.
 Cache Redis TTL 1h. Invalidar cache ao inserir nova operação em `asset_operations`.
 Sem função PL/pgSQL para XIRR.
 
+## ADR-009 — Frontend Next.js 16 / React 19 / Tailwind v4
+Atualiza a cláusula "Next 14" do ADR-001. Tailwind v4 é CSS-first (`@theme` em `globals.css`,
+sem `tailwind.config.ts`); middleware → `proxy.ts`; React Compiler on. Ver `docs/07_Decisoes.md`.
+
+## ADR-010 — Deps do backend com uv (não pip/requirements)
+`pyproject.toml` é a **fonte única** (runtime em `[project.dependencies]`, ferramentas em
+`[dependency-groups].dev`); `uv.lock` fixa versões. `[tool.uv] package=false` → app roda do
+código-fonte (`pythonpath="."`), sem build de wheel. **Sem `requirements*.txt`/`pip`.**
+Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. Dockerfile/CI usam uv.
+
 ---
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)

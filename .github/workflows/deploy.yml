@@ -27,29 +27,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ---- Backend (api/) ----
-      - uses: actions/setup-python@v5
+      # ---- Backend (api/) — deps via uv (ADR-010); uv provê o Python 3.12 ----
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-      - name: Install backend deps
+          version: "0.11.12"
+          enable-cache: true
+          cache-dependency-glob: "api/uv.lock"
+      - name: Install backend deps (uv sync)
         working-directory: api
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen
       - name: Ruff
         working-directory: api
-        run: ruff check .
+        run: uv run ruff check .
       - name: Mypy (strict)
         working-directory: api
         env:
           MYPYPATH: "."
         run: >-
-          mypy main.py config.py health.py db/connection.py
+          uv run mypy main.py config.py health.py db/connection.py
           engines/market/cache.py auth/security.py auth/dependencies.py
           auth/router.py scripts/seed_admin.py scripts/gen_hermes_token.py
       - name: Pytest (cobertura engines >= 80%)
         working-directory: api
-        run: pytest tests/ --cov=engines --cov-report=term-missing --cov-fail-under=80
+        run: uv run pytest tests/ --cov=engines --cov-report=term-missing --cov-fail-under=80
 
       # ---- Frontend (web/) ----
       - uses: pnpm/action-setup@v4
