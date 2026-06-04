@@ -51,7 +51,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-06 | Projeção de caixa 30/60/90 dias | [x] | afb2a9f |
 | 01-07 | CRUD de custos fixos | [x] | da7da3f |
 | 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | eb78d02 |
-| 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | — |
+| 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | 4f4a161 |
 | 01-10 | Frontend — lista de transações + filtros | [ ] | — |
 | 01-11 | Frontend — formulário de nova transação | [ ] | — |
 | 01-12 | Frontend — dashboard de caixa | [ ] | — |
