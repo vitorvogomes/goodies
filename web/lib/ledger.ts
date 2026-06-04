@@ -1,0 +1,87 @@
+"use client";
+
+// Hooks React Query do Ledger (m1) — wrappers sobre apiFetch.
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { apiFetch } from "@/lib/api";
+import type {
+  Account,
+  Alert,
+  CashflowProjection,
+  Category,
+  CategoryKind,
+  MonthlySummary,
+  TransactionCreate,
+  TransactionFilters,
+  TransactionList,
+} from "@/types/ledger";
+
+export function useAccounts() {
+  return useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => apiFetch<Account[]>("/api/v1/accounts"),
+  });
+}
+
+export function useCategories(kind?: CategoryKind) {
+  return useQuery({
+    queryKey: ["categories", kind ?? "all"],
+    queryFn: () =>
+      apiFetch<Category[]>(`/api/v1/categories${kind ? `?kind=${kind}` : ""}`),
+  });
+}
+
+function buildQuery(filters: TransactionFilters): string {
+  const params = new URLSearchParams();
+  if (filters.account_id) params.set("account_id", filters.account_id);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.limit != null) params.set("limit", String(filters.limit));
+  if (filters.offset != null) params.set("offset", String(filters.offset));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export function useTransactions(filters: TransactionFilters) {
+  return useQuery({
+    queryKey: ["transactions", filters],
+    queryFn: () => apiFetch<TransactionList>(`/api/v1/transactions${buildQuery(filters)}`),
+  });
+}
+
+export function useCreateTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TransactionCreate) =>
+      apiFetch<unknown>("/api/v1/transactions", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
+  });
+}
+
+export function useMonthlySummaries() {
+  return useQuery({
+    queryKey: ["cashflow", "summary"],
+    queryFn: () => apiFetch<MonthlySummary[]>("/api/v1/cashflow/summary"),
+  });
+}
+
+export function useProjection() {
+  return useQuery({
+    queryKey: ["cashflow", "projection"],
+    queryFn: () => apiFetch<CashflowProjection>("/api/v1/cashflow/projection"),
+  });
+}
+
+export function useAlerts() {
+  return useQuery({
+    queryKey: ["cashflow", "alerts"],
+    queryFn: () => apiFetch<Alert[]>("/api/v1/cashflow/alerts"),
+  });
+}
