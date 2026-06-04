@@ -110,6 +110,28 @@ async def test_create_transaction_with_notes(api, auth_headers, account):
     assert listed.json()["items"][0]["notes"] == "cinema com a namorada"
 
 
+async def test_list_returns_filtered_totals(api, auth_headers, account):
+    for p in [
+        {"date": "2099-11-01", "amount": 1000, "category": "Salário"},
+        {"date": "2099-11-02", "amount": -200, "category": "alimentação"},
+        {"date": "2099-11-03", "amount": -50, "category": "transporte"},
+    ]:
+        await api.post(
+            "/api/v1/transactions", json={"account_id": account, **p}, headers=auth_headers
+        )
+
+    full = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
+    assert full.json()["total_income"] == 1000.0
+    assert full.json()["total_expense"] == 250.0
+
+    # os totais respeitam os filtros
+    food = await api.get(
+        f"/api/v1/transactions?account_id={account}&category=alimentação", headers=auth_headers
+    )
+    assert food.json()["total_income"] == 0.0
+    assert food.json()["total_expense"] == 200.0
+
+
 async def test_update_and_delete_transaction(api, auth_headers, account):
     created = await api.post(
         "/api/v1/transactions",

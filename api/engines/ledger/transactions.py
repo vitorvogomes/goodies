@@ -75,6 +75,8 @@ class TransactionList(BaseModel):
     total: int
     limit: int
     offset: int
+    total_income: float  # soma das receitas do conjunto filtrado (não só da página)
+    total_expense: float  # soma das despesas (magnitude) do conjunto filtrado
 
 
 _COLUMNS = (
@@ -118,8 +120,15 @@ async def list_transactions(
         "AND ($3::date IS NULL OR date >= $3) "
         "AND ($4::date IS NULL OR date <= $4)"
     )
-    total = await db.fetchval(
-        f"SELECT count(*) FROM transactions {where}", account_id, category, from_, to
+    agg = await db.fetchrow(
+        "SELECT count(*) AS total, "
+        "COALESCE(SUM(amount) FILTER (WHERE amount > 0), 0) AS income, "
+        "COALESCE(SUM(-amount) FILTER (WHERE amount < 0), 0) AS expense "
+        f"FROM transactions {where}",
+        account_id,
+        category,
+        from_,
+        to,
     )
     rows = await db.fetch(
         f"SELECT {_COLUMNS} FROM transactions {where} "
@@ -132,7 +141,12 @@ async def list_transactions(
         offset,
     )
     return TransactionList(
-        items=[_to_response(r) for r in rows], total=total, limit=limit, offset=offset
+        items=[_to_response(r) for r in rows],
+        total=agg["total"],
+        limit=limit,
+        offset=offset,
+        total_income=float(agg["income"]),
+        total_expense=float(agg["expense"]),
     )
 
 

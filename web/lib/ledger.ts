@@ -13,6 +13,7 @@ import type {
   CategoryKind,
   ImportReport,
   MonthlySummary,
+  Transaction,
   TransactionCreate,
   TransactionFilters,
   TransactionList,
@@ -59,6 +60,21 @@ export function useCreateTransaction() {
       apiFetch<unknown>("/api/v1/transactions", {
         method: "POST",
         body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
+  });
+}
+
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<TransactionCreate> }) =>
+      apiFetch<Transaction>(`/api/v1/transactions/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(patch),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });

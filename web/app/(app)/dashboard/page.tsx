@@ -69,6 +69,14 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="font-mono text-2xl font-semibold text-foreground">Dashboard</h1>
 
+      {projection.data && (
+        <Stat
+          label="Saldo Acumulado"
+          value={formatBRL(projection.data.current_balance)}
+          tone={projection.data.current_balance < 0 ? "loss" : "gain"}
+        />
+      )}
+
       {summaries.isLoading && <p className="text-foreground/50">Carregando…</p>}
       {summaries.isError && <p className="text-loss">Erro ao carregar o resumo.</p>}
       {summaries.data && !latest && (
@@ -85,10 +93,6 @@ export default function DashboardPage() {
           {projection.isLoading && <p className="text-foreground/50">Carregando…</p>}
           {projection.data && (
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-foreground/60">Saldo atual</span>
-                <span className="tabular-nums">{formatBRL(projection.data.current_balance)}</span>
-              </div>
               {projection.data.projections.map((p) => (
                 <div key={p.days} className="flex justify-between text-sm">
                   <span className="text-foreground/60">{p.days} dias</span>

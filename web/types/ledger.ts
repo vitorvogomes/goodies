@@ -43,6 +43,8 @@ export interface TransactionList {
   total: number;
   limit: number;
   offset: number;
+  total_income: number;
+  total_expense: number;
 }
 
 export interface TransactionCreate {
