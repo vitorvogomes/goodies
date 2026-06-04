@@ -17,7 +17,7 @@ portfólio e análise de retorno.
 | Camada | Tecnologia |
 |---|---|
 | Backend | FastAPI 0.111+ / Python 3.12 — `api/` |
-| Frontend | Next.js 14 (App Router) / TypeScript — `web/` |
+| Frontend | Next.js 16 (App Router) / TypeScript — `web/` |
 | Database | Supabase (Postgres 15) via asyncpg direto (sem ORM) |
 | Cache | Redis (Upstash) — `redis[asyncio]` |
 | Scheduler | APScheduler no processo FastAPI (não Celery) |
@@ -39,7 +39,7 @@ goodies/
 ├── web/              # frontend Next.js (app · components · lib)
 ├── docs/             # brief, PRD, arquitetura, épicos e stories
 ├── .github/workflows # CI/CD (STORY-00-08-09)
-├── fly.toml          # placeholder de deploy da API
+├── docker-compose.yml # dev local (Postgres + Redis + API)
 ├── CLAUDE.md         # regras do projeto p/ o Claude Code
 └── PROGRESS.md       # rastreador de stories entre sessões
 ```
@@ -47,11 +47,13 @@ goodies/
 ## Setup de desenvolvimento
 
 ```bash
-bash scripts/setup-dev.sh        # git hooks (.githooks) + gitleaks + .env
-cp .env.example .env             # preencha com valores reais (fica no .gitignore)
-pip install -e "api[dev]"        # FastAPI + ferramentas (ruff, mypy, pytest)
-# front (a partir da STORY-00-06): pnpm --dir web install
+bash scripts/setup-dev.sh                       # git hooks (.githooks) + gitleaks + .env
+python3 -m venv api/.venv && api/.venv/bin/pip install -r api/requirements-dev.txt
+pnpm -C web install
 ```
+
+**Rodar e validar localmente:** ver [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) — Docker para
+Postgres+Redis; API e front no host (não precisa de Supabase/Upstash/Fly/Vercel).
 
 O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (api/) +
 **eslint** (web/) nos arquivos staged.
@@ -68,6 +70,8 @@ O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (a
 | [`docs/07_Decisoes.md`](docs/07_Decisoes.md) | ADRs |
 | [`docs/08_Contexto_Financeiro.md`](docs/08_Contexto_Financeiro.md) | Contexto financeiro do Vitor |
 | [`docs/05_Epicos/`](docs/05_Epicos/) · [`docs/06_Stories/`](docs/06_Stories/) | Épicos e stories |
+| [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) | Como rodar localmente |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploy (Fly.io + Vercel) |
 
 ## Segurança
 
