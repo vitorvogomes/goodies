@@ -45,9 +45,9 @@ Implement following TDD. Update PROGRESS.md when done.
 |---|---|---|---|
 | 01-01 | Schema de banco (accounts, transactions, fixed_costs, monthly_summary view) | [x] | 81a1a51 |
 | 01-02 | CRUD de contas e categorias | [x] | 9d588d8 |
-| 01-03 | CRUD de transações com validação | [x] | — |
-| 01-04 | Cálculo de saldo running e resumo mensal | [ ] | — |
-| 01-05 | Cálculo de taxa de poupança | [ ] | — |
+| 01-03 | CRUD de transações com validação | [x] | c8bfdd5 |
+| 01-04 | Cálculo de saldo running e resumo mensal | [x] | — |
+| 01-05 | Cálculo de taxa de poupança | [x] | — |
 | 01-06 | Projeção de caixa 30/60/90 dias | [ ] | — |
 | 01-07 | CRUD de custos fixos | [ ] | — |
 | 01-08 | Alertas de vencimento e categoria acima de 120% | [ ] | — |
@@ -214,3 +214,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-03 | m1 | STORY-01-01 | Schema ledger: migration `0003_ledger` (accounts, transactions [+`external_id` c/ índice único parcial p/ dedup Nubank/FITID], fixed_costs, view `monthly_summary`, RLS). Pivô: fonte = extrato Nubank (OFX/CSV) via frontend; gate jun/2026 = 55,48%; alertas compute-on-read (ver plano + memória). 3 testes de schema; suite 25/25; cobertura engines 91% + ruff. Branch `m1-ledger`. |
 | 2026-06-03 | m1 | STORY-01-02 | CRUD de contas e categorias. Engine multi-arquivo: `engines/ledger/{accounts,categories,router}.py` (montado no main.py). Migration `0004_categories` (tabela configurável + seed: receitas Flash/Betuel/Salário/Extra, despesas BR, investment/transfer p/ classificação Nubank). DELETE de conta com transações → 409; categoria duplicada → 409; filtro `?kind=`. +11 testes (14 ledger); suite 36/36; cobertura engines 91%; ruff+mypy ok (ledger incluído no mypy do CI). |
 | 2026-06-04 | m1 | STORY-01-03 | CRUD de transações (`engines/ledger/transactions.py`): GET paginado c/ filtros `from/to/category/account_id` (envelope items+total), POST/PUT/DELETE. Validação: amount≠0 (422), conta inexistente → 422 (FK), 404 em update/delete inexistente. NUMERIC(15,2) via Decimal(str()). +6 testes; suite 42/42; cobertura engines 92%; ruff+mypy ok. |
+| 2026-06-04 | m1 | STORY-01-04/05 | Cashflow (`engines/ledger/cashflow.py`): GET /cashflow (saldo running via window SUM, filtros account/from/to) + GET /cashflow/summary (view monthly_summary; `?month=YYYY-MM` → mês único, 404 sem dados, 422 receita zero). Taxa de poupança validada (10000/-4500 → 55%). +6 testes; suite 48/48; cobertura engines 93%; ruff+mypy ok. Nota: import (01-13-14) NÃO grava investment/transfer como transação p/ a taxa não distorcer. |
