@@ -55,9 +55,9 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-10 | Frontend — lista de transações + filtros | [x] | 870a2ae |
 | 01-11 | Frontend — formulário de nova transação | [x] | 442e81e |
 | 01-12 | Frontend — dashboard de caixa | [x] | eecc831 |
-| 01-13-14 | Migração + validação CSV (FLUXO DE CAIXA) | [ ] | — |
+| 01-13-14 | Migração + validação extrato Nubank (OFX/CSV) | [~] | — |
 
-**Gate m1:** taxa de poupança junho/2026 bate com planilha (±0,1%).
+**Gate m1:** taxa de poupança junho/2026 == 55,48% (±0,1pp). PENDENTE: subir o export Nubank de jun/2026 em `files/nubank/`, importar e validar. Backend+frontend de import prontos e validados com janeiro (63 entradas; income 6 / investment 16 / expense 41).
 
 ---
 
@@ -223,3 +223,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m1 | STORY-01-10 | Frontend lista de transações `(app)/ledger`: filtros (conta/categoria/intervalo) + paginação (limit 50), tabela com valor colorido gain/loss, estados loading/erro/vazio. Reusa hooks `useTransactions/useAccounts/useCategories`. Verificado: npm lint + build OK (rota /ledger). |
 | 2026-06-04 | m1 | STORY-01-11 | Frontend formulário `(app)/ledger/new`: tipo (receita/despesa) + valor positivo (sinal aplicado no envio), conta, data (default hoje), categoria filtrada por kind, descrição, recorrente. Validação client + 422 do backend; sucesso → /ledger via `useCreateTransaction`. Verificado: npm lint + build OK (rota /ledger/new). |
 | 2026-06-04 | m1 | STORY-01-12 | Frontend dashboard `(app)/dashboard`: cards de resumo do mês (receita/despesa/saldo/taxa de poupança), projeção 30/60/90 + saldo atual, alertas, e tendência de poupança (barras CSS, sem libs). Reusa `useMonthlySummaries/useProjection/useAlerts`. Verificado: npm lint + build OK (6 rotas). Frontend do m1 completo. |
+| 2026-06-04 | m1 | STORY-01-13-14 [~] | Import Nubank: `engines/ledger/importer.py` (parse OFX 1.0.2 SGML + CSV, classificação configurável, dedup por external_id/FITID — investimento/transferência NÃO viram caixa), endpoint `POST /api/v1/ledger/import` (corpo cru, sem python-multipart), `scripts/migrate_ledger.py` (dry-run/--apply), front `(app)/ledger/import`. Setting `ledger_self_identifiers` (PII no .env) p/ transferência interna. +9 testes (unit parsers/classify + endpoint idempotente); suite 78/78; cobertura engines 94.51%; ruff+mypy(22) ok. Validado no extrato real de jan/2026: 63 entradas, income 6/investment 16/expense 41. **Gate jun/2026 PENDENTE do arquivo de junho.** |

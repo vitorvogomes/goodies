@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     hermes_service_token_secret: str = _DEV_SECRETS["hermes_service_token_secret"]
     hermes_token_ttl_days: int = 90
 
+    # Import Nubank (STORY-01-13-14): nomes/CPF do próprio usuário (separados por
+    # vírgula) p/ marcar transferências entre contas próprias como "transferência
+    # interna" (fora do caixa). Vazio = sem detecção. Definir no .env (PII).
+    ledger_self_identifiers: str = ""
+
     @field_validator("database_url", mode="before")
     @classmethod
     def _fallback_database_url(cls, v: object) -> object:

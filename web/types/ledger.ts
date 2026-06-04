@@ -89,3 +89,11 @@ export interface Alert {
   message: string;
   data: Record<string, string | number>;
 }
+
+export interface ImportReport {
+  parsed: number;
+  imported: number;
+  duplicates: number;
+  skipped: number;
+  errors: number;
+}

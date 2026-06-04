@@ -50,9 +50,10 @@ jobs:
           engines/ledger/categories.py engines/ledger/transactions.py
           engines/ledger/cashflow.py engines/ledger/fixed_costs.py
           engines/ledger/service.py engines/ledger/alerts.py
+          engines/ledger/importer.py engines/ledger/import_routes.py
           engines/ledger/router.py hermes/router.py
-          auth/security.py auth/dependencies.py
-          auth/router.py scripts/seed_admin.py scripts/gen_hermes_token.py
+          auth/security.py auth/dependencies.py auth/router.py
+          scripts/seed_admin.py scripts/gen_hermes_token.py scripts/migrate_ledger.py
       - name: Pytest (cobertura engines >= 80%)
         working-directory: api
         run: uv run pytest tests/ --cov=engines --cov-report=term-missing --cov-fail-under=80

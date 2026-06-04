@@ -14,6 +14,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/ledger", label: "Transações" },
   { href: "/ledger/new", label: "Nova transação" },
+  { href: "/ledger/import", label: "Importar extrato" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

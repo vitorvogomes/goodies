@@ -3,13 +3,15 @@
 // Hooks React Query do Ledger (m1) — wrappers sobre apiFetch.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiFetch } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 import type {
   Account,
   Alert,
   CashflowProjection,
   Category,
   CategoryKind,
+  ImportReport,
   MonthlySummary,
   TransactionCreate,
   TransactionFilters,
@@ -83,5 +85,35 @@ export function useAlerts() {
   return useQuery({
     queryKey: ["cashflow", "alerts"],
     queryFn: () => apiFetch<Alert[]>("/api/v1/cashflow/alerts"),
+  });
+}
+
+// Import de extrato: corpo cru (texto do arquivo) — apiFetch força JSON, então
+// usamos fetch direto com o Bearer em memória.
+export function useImportStatement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ accountId, file }: { accountId: string; file: File }) => {
+      const text = await file.text();
+      const token = getAccessToken();
+      const res = await fetch(
+        `${API_BASE_URL}/api/v1/ledger/import?account_id=${accountId}&filename=${encodeURIComponent(file.name)}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "text/plain",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: text,
+        },
+      );
+      if (!res.ok) throw new ApiError(res.status, `Import failed with ${res.status}`);
+      return (await res.json()) as ImportReport;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
   });
 }
