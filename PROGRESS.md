@@ -54,7 +54,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | 4f4a161 |
 | 01-10 | Frontend — lista de transações + filtros | [x] | 870a2ae |
 | 01-11 | Frontend — formulário de nova transação | [x] | 442e81e |
-| 01-12 | Frontend — dashboard de caixa | [x] | — |
+| 01-12 | Frontend — dashboard de caixa | [x] | eecc831 |
 | 01-13-14 | Migração + validação CSV (FLUXO DE CAIXA) | [ ] | — |
 
 **Gate m1:** taxa de poupança junho/2026 bate com planilha (±0,1%).
