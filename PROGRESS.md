@@ -52,7 +52,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-07 | CRUD de custos fixos | [x] | da7da3f |
 | 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | eb78d02 |
 | 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | 4f4a161 |
-| 01-10 | Frontend — lista de transações + filtros | [ ] | — |
+| 01-10 | Frontend — lista de transações + filtros | [x] | — |
 | 01-11 | Frontend — formulário de nova transação | [ ] | — |
 | 01-12 | Frontend — dashboard de caixa | [ ] | — |
 | 01-13-14 | Migração + validação CSV (FLUXO DE CAIXA) | [ ] | — |
@@ -220,3 +220,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m1 | STORY-01-08 | Alertas compute-on-read. Lógica pura em `engines/ledger/service.py` (today injetado): vencimento ≤5 dias (próxima ocorrência do due_day, clamp fim de mês) + categoria >120% da média dos 3 meses anteriores. Endpoint `GET /cashflow/alerts` (`engines/ledger/alerts.py`). Sem persistir (active_alerts fica p/ m5). +7 testes; suite 63/63; cobertura engines 94.75%; ruff+mypy ok. |
 | 2026-06-04 | m1 | STORY-01-09 | Endpoints Hermes (`hermes/router.py`): POST /hermes/expenses e /income. Auth service token scope=hermes (secret próprio; `decode_hermes_token` no security.py) — 401 sem/ inválido, 403 escopo errado, token de usuário rejeitado. amount positivo no request, sinal aplicado pelo endpoint (despesa negativa). conta inexistente → 422. +6 testes; suite 69/69; cobertura engines 94.75%; ruff+mypy ok. |
 | 2026-06-04 | m1 | FE-0 (fundação) | Frontend: `types/ledger.ts`, `lib/format.ts` (BRL/%/data/mês pt-BR), `lib/ledger.ts` (hooks React Query: accounts/categories/transactions/summary/projection/alerts + mutation), `components/ui.tsx` (Button/Input/Select/Field/Card), `components/AppShell.tsx` (sidebar + gate de auth). Route group `(app)` com layout; dashboard movido p/ `(app)/dashboard`. Sem deps novas. Verificado: npm lint + build OK. Limitação: reload duro perde token em memória → cai p/ /login (refresh-on-load via cookie é melhoria de auth futura). |
+| 2026-06-04 | m1 | STORY-01-10 | Frontend lista de transações `(app)/ledger`: filtros (conta/categoria/intervalo) + paginação (limit 50), tabela com valor colorido gain/loss, estados loading/erro/vazio. Reusa hooks `useTransactions/useAccounts/useCategories`. Verificado: npm lint + build OK (rota /ledger). |
