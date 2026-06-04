@@ -26,6 +26,8 @@ async def test_create_and_list_account(api, auth_headers):
     assert listed.status_code == 200
     assert any(a["id"] == body["id"] for a in listed.json())
 
+    await api.delete(f"/api/v1/accounts/{body['id']}", headers=auth_headers)
+
 
 async def test_update_account(api, auth_headers):
     created = await api.post(
@@ -41,6 +43,8 @@ async def test_update_account(api, auth_headers):
     )
     assert updated.status_code == 200
     assert updated.json()["type"] == "broker"
+
+    await api.delete(f"/api/v1/accounts/{acc_id}", headers=auth_headers)
 
 
 async def test_create_account_rejects_invalid_type(api, auth_headers):
