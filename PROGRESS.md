@@ -53,8 +53,8 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | eb78d02 |
 | 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | 4f4a161 |
 | 01-10 | Frontend — lista de transações + filtros | [x] | 870a2ae |
-| 01-11 | Frontend — formulário de nova transação | [x] | — |
-| 01-12 | Frontend — dashboard de caixa | [ ] | — |
+| 01-11 | Frontend — formulário de nova transação | [x] | 442e81e |
+| 01-12 | Frontend — dashboard de caixa | [x] | — |
 | 01-13-14 | Migração + validação CSV (FLUXO DE CAIXA) | [ ] | — |
 
 **Gate m1:** taxa de poupança junho/2026 bate com planilha (±0,1%).
@@ -222,3 +222,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m1 | FE-0 (fundação) | Frontend: `types/ledger.ts`, `lib/format.ts` (BRL/%/data/mês pt-BR), `lib/ledger.ts` (hooks React Query: accounts/categories/transactions/summary/projection/alerts + mutation), `components/ui.tsx` (Button/Input/Select/Field/Card), `components/AppShell.tsx` (sidebar + gate de auth). Route group `(app)` com layout; dashboard movido p/ `(app)/dashboard`. Sem deps novas. Verificado: npm lint + build OK. Limitação: reload duro perde token em memória → cai p/ /login (refresh-on-load via cookie é melhoria de auth futura). |
 | 2026-06-04 | m1 | STORY-01-10 | Frontend lista de transações `(app)/ledger`: filtros (conta/categoria/intervalo) + paginação (limit 50), tabela com valor colorido gain/loss, estados loading/erro/vazio. Reusa hooks `useTransactions/useAccounts/useCategories`. Verificado: npm lint + build OK (rota /ledger). |
 | 2026-06-04 | m1 | STORY-01-11 | Frontend formulário `(app)/ledger/new`: tipo (receita/despesa) + valor positivo (sinal aplicado no envio), conta, data (default hoje), categoria filtrada por kind, descrição, recorrente. Validação client + 422 do backend; sucesso → /ledger via `useCreateTransaction`. Verificado: npm lint + build OK (rota /ledger/new). |
+| 2026-06-04 | m1 | STORY-01-12 | Frontend dashboard `(app)/dashboard`: cards de resumo do mês (receita/despesa/saldo/taxa de poupança), projeção 30/60/90 + saldo atual, alertas, e tendência de poupança (barras CSS, sem libs). Reusa `useMonthlySummaries/useProjection/useAlerts`. Verificado: npm lint + build OK (6 rotas). Frontend do m1 completo. |
