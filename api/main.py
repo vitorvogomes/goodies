@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.router import router as auth_router
 from config import settings
 from db.connection import check_postgres, close_pool, init_pool
+from engines.ledger.router import router as ledger_router
 from engines.market.cache import check_redis
 from health import collect_component_status, register_component_check
 
@@ -40,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(ledger_router)
 
 
 @app.get("/api/v1/health")

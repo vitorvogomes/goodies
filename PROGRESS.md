@@ -43,8 +43,8 @@ Implement following TDD. Update PROGRESS.md when done.
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 01-01 | Schema de banco (accounts, transactions, fixed_costs, monthly_summary view) | [x] | — |
-| 01-02 | CRUD de contas e categorias | [ ] | — |
+| 01-01 | Schema de banco (accounts, transactions, fixed_costs, monthly_summary view) | [x] | 81a1a51 |
+| 01-02 | CRUD de contas e categorias | [x] | — |
 | 01-03 | CRUD de transações com validação | [ ] | — |
 | 01-04 | Cálculo de saldo running e resumo mensal | [ ] | — |
 | 01-05 | Cálculo de taxa de poupança | [ ] | — |
@@ -212,3 +212,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-03 | m0 | STORY-00-08-09 | [~] CI/CD: .github/workflows/deploy.yml (test→deploy-api→deploy-web), api/fly.toml (release alembic, vm 256, gru). Deploy real + gate de produção PENDENTE de provisionamento cloud manual — ver docs/DEPLOY.md. |
 | 2026-06-03 | m0 | — (consolidação) | uv (ADR-010): pyproject = fonte única + uv.lock, removidos requirements*.txt; Dockerfile/CI/pre-commit/docs migrados. Runbook local docker-na-8000 (docs/LOCAL_DEV.md) após liberar a 8000 (processo hermes órfão). Fix login web: NEXT_PUBLIC_API_URL 8001→8000. Refs Next16/uv em project-context/EPIC-00/.claude. Verificado: `uv run` 22 testes/91% + ruff + mypy; Docker /health pg+redis connected, login E2E. |
 | 2026-06-03 | m1 | STORY-01-01 | Schema ledger: migration `0003_ledger` (accounts, transactions [+`external_id` c/ índice único parcial p/ dedup Nubank/FITID], fixed_costs, view `monthly_summary`, RLS). Pivô: fonte = extrato Nubank (OFX/CSV) via frontend; gate jun/2026 = 55,48%; alertas compute-on-read (ver plano + memória). 3 testes de schema; suite 25/25; cobertura engines 91% + ruff. Branch `m1-ledger`. |
+| 2026-06-03 | m1 | STORY-01-02 | CRUD de contas e categorias. Engine multi-arquivo: `engines/ledger/{accounts,categories,router}.py` (montado no main.py). Migration `0004_categories` (tabela configurável + seed: receitas Flash/Betuel/Salário/Extra, despesas BR, investment/transfer p/ classificação Nubank). DELETE de conta com transações → 409; categoria duplicada → 409; filtro `?kind=`. +11 testes (14 ledger); suite 36/36; cobertura engines 91%; ruff+mypy ok (ledger incluído no mypy do CI). |
