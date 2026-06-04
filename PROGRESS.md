@@ -50,8 +50,8 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-05 | Cálculo de taxa de poupança | [x] | 97aed78 |
 | 01-06 | Projeção de caixa 30/60/90 dias | [x] | afb2a9f |
 | 01-07 | CRUD de custos fixos | [x] | da7da3f |
-| 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | — |
-| 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [ ] | — |
+| 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | eb78d02 |
+| 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | — |
 | 01-10 | Frontend — lista de transações + filtros | [ ] | — |
 | 01-11 | Frontend — formulário de nova transação | [ ] | — |
 | 01-12 | Frontend — dashboard de caixa | [ ] | — |
@@ -218,3 +218,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m1 | STORY-01-07 | CRUD custos fixos (`engines/ledger/fixed_costs.py`): GET (filtro `?active=`)/POST/PUT/DELETE em `/api/v1/fixed-costs`. Validação: amount>0, due_day 1-31 (422), 404 em update/delete inexistente. +6 testes; suite 54/54; ruff+mypy ok. |
 | 2026-06-04 | m1 | STORY-01-06 | Projeção de caixa (`/cashflow/projection` em cashflow.py): saldo atual + receita recorrente (is_recurring & amount>0) − custos fixos ativos, escalado p/ 30/60/90d; `?account_id` opcional. Fixture autouse `_clean_fixed_costs` blinda a tabela global entre testes. +2 testes; suite 56/56; cobertura engines 94%; ruff+mypy ok. |
 | 2026-06-04 | m1 | STORY-01-08 | Alertas compute-on-read. Lógica pura em `engines/ledger/service.py` (today injetado): vencimento ≤5 dias (próxima ocorrência do due_day, clamp fim de mês) + categoria >120% da média dos 3 meses anteriores. Endpoint `GET /cashflow/alerts` (`engines/ledger/alerts.py`). Sem persistir (active_alerts fica p/ m5). +7 testes; suite 63/63; cobertura engines 94.75%; ruff+mypy ok. |
+| 2026-06-04 | m1 | STORY-01-09 | Endpoints Hermes (`hermes/router.py`): POST /hermes/expenses e /income. Auth service token scope=hermes (secret próprio; `decode_hermes_token` no security.py) — 401 sem/ inválido, 403 escopo errado, token de usuário rejeitado. amount positivo no request, sinal aplicado pelo endpoint (despesa negativa). conta inexistente → 422. +6 testes; suite 69/69; cobertura engines 94.75%; ruff+mypy ok. |
