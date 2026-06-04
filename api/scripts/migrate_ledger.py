@@ -22,6 +22,7 @@ from db.connection import close_pool, get_pool, init_pool
 from engines.ledger.importer import (
     ImportReport,
     StatementEntry,
+    _load_rules,
     classify,
     import_statement,
     parse_account_number,
@@ -48,7 +49,8 @@ async def run(
                 "SELECT account_number FROM accounts WHERE account_number IS NOT NULL"
             )
             identifiers = [r["account_number"] for r in own] + list(self_ids)
-            kinds: Counter[str] = Counter(classify(e, identifiers).kind for e in entries)
+            rules = await _load_rules(conn)
+            kinds: Counter[str] = Counter(classify(e, rules, identifiers).kind for e in entries)
             print(
                 f"arquivo: {name}  conta(ACCTID): {acctid or '—'}  "
                 f"entradas: {len(entries)}  classificação: {dict(kinds)}"
@@ -73,7 +75,7 @@ async def run(
             report: ImportReport = await import_statement(conn, target, entries, self_ids)
             print(
                 f"importadas: {report.imported}  duplicadas: {report.duplicates}  "
-                f"puladas(invest/transf): {report.skipped}  erros: {report.errors}"
+                f"erros: {report.errors}"
             )
     finally:
         await close_pool()

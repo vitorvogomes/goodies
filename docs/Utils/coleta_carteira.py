@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-coleta_carteira.py — Snapshot diário da carteira do Vitor
+coleta_carteira.py - Snapshot diário da carteira do Vitor
 Executado pelo Hermes Agent via cron job (dias úteis ~18h)
 
 Fontes de dados:
@@ -11,7 +11,7 @@ Fontes de dados:
 
 Saída:
   - snapshots/<YYYY-MM-DD>.json   → dados brutos
-  - ../../02_Notas/Economia/Portfolio_Snapshot_<data>.md  → relatório legível
+  - ../../01_Inbox/Economia/Portfolio_Snapshot_<data>.md  → relatório legível
   - stdout → resumo para o Discord (Hermes captura e posta)
 
 Dependências: pip install requests
@@ -25,15 +25,17 @@ import requests
 from datetime import datetime, date
 from pathlib import Path
 
-# ─── Config ────────────────────────────────────────────────────────────────
-
+# ─── Config (paths via env - código no Linux, vault no Windows) ─────────────
+# VAULT (Windows/OneDrive, via mount WSL): LÊ posicao.json e ESCREVE o .md de snapshot.
+# PORTFOLIO_HOME (Linux): snapshots brutos (.json) e logs - dado de máquina NÃO vai
+# pro vault. Assim o OneDrive só recebe texto legível.
 VAULT = Path(os.environ.get(
     "OBSIDIAN_VAULT_PATH",
     "/mnt/c/Users/Vitor/OneDrive/Documents/Vault_Vitor"
 ))
-PORTFOLIO_DIR = VAULT / "04_Projetos" / "Portfolio"
-POSICAO_FILE  = PORTFOLIO_DIR / "posicao.json"
-SNAPSHOTS_DIR = PORTFOLIO_DIR / "snapshots"
+HOME_DIR      = Path(os.environ.get("PORTFOLIO_HOME", str(Path.home() / "hermes-portfolio")))
+POSICAO_FILE  = VAULT / "04_Projetos" / "Goodies" / "Utils" / "posicao.json"
+SNAPSHOTS_DIR = HOME_DIR / "snapshots"
 
 # BRAPI: sem token funciona para uso pessoal básico (rate limit ~15 req/min)
 # Para uso estável: cadastre em https://brapi.dev e adicione token em ~/.hermes/.env
@@ -44,55 +46,39 @@ BRAPI_URL    = "https://brapi.dev/api/quote"
 CG_URL       = "https://api.coingecko.com/api/v3/simple/price"
 TD_URL       = "https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/component/publicarea/BizContent/data.offlineFile"
 
-HEADERS = {"User-Agent": "Vitor-Portfolio-Tracker/1.0"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"}
 
 
 # ─── Coleta B3 ────────────────────────────────────────────────────────────
 
 def fetch_b3_prices(tickers: list) -> dict:
     """
-    Retorna {ticker_sem_F: {preco, variacao_dia}} via BRAPI.dev.
-    Ações fracionárias têm sufixo F (BBAS3F) — remove para consultar API.
+    Retorna {ticker_original: {preco, variacao_dia}} via BRAPI.dev.
+    Plano free do BRAPI aceita 1 ticker por requisicao -> consulta em loop.
+    Acoes fracionarias tem sufixo F (BBAS3F) -> remove para consultar a API.
     """
-    if not tickers:
-        return {}
-
-    # Limpa sufixo F; mantém mapeamento original → limpo
-    ticker_map = {}
-    for t in tickers:
-        clean = t[:-1] if t.endswith("F") and t[-2].isdigit() else t
-        ticker_map[t] = clean
-
-    tickers_clean = list(set(ticker_map.values()))
-    tickers_str = ",".join(tickers_clean)
-
-    url = f"{BRAPI_URL}/{tickers_str}"
-    params = {}
-    if BRAPI_TOKEN:
-        params["token"] = BRAPI_TOKEN
-
-    try:
-        resp = requests.get(url, params=params, headers=HEADERS, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        print(f"⚠️  BRAPI erro: {e}", file=sys.stderr)
-        return {}
-
-    result = {}
-    for item in data.get("results", []):
-        symbol = item.get("symbol", "")
-        result[symbol] = {
-            "preco":        item.get("regularMarketPrice"),
-            "variacao_dia": item.get("regularMarketChangePercent", 0),
-            "nome":         item.get("shortName", ""),
-        }
-
-    # Mapeia de volta para tickers originais (com ou sem F)
     final = {}
-    for original, clean in ticker_map.items():
-        if clean in result:
-            final[original] = result[clean]
+    for t in tickers:
+        clean = t[:-1] if (t.endswith("F") and len(t) >= 2 and t[-2].isdigit()) else t
+        params = {}
+        if BRAPI_TOKEN:
+            params["token"] = BRAPI_TOKEN
+        try:
+            resp = requests.get(f"{BRAPI_URL}/{clean}", params=params,
+                                headers=HEADERS, timeout=20)
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+        except Exception as e:
+            print(f"\u26a0\ufe0f  BRAPI {clean}: {e}", file=sys.stderr)
+            time.sleep(0.4); continue
+        if results:
+            it = results[0]
+            final[t] = {
+                "preco":        it.get("regularMarketPrice"),
+                "variacao_dia": it.get("regularMarketChangePercent", 0),
+                "nome":         it.get("shortName", ""),
+            }
+        time.sleep(0.4)
     return final
 
 
@@ -120,7 +106,7 @@ def fetch_cripto_prices(ativos_cripto: list) -> dict:
     }
 
     try:
-        # CoinGecko free tier: 30 req/min — sem problema para uso pessoal
+        # CoinGecko free tier: 30 req/min - sem problema para uso pessoal
         resp = requests.get(CG_URL, params=params, headers=HEADERS, timeout=20)
         resp.raise_for_status()
         data = resp.json()
@@ -142,34 +128,30 @@ def fetch_cripto_prices(ativos_cripto: list) -> dict:
 
 def fetch_td_prices() -> dict:
     """
-    Retorna {nome_titulo: {preco_compra, preco_venda}} via API pública do TD.
-    A API retorna todos os títulos disponíveis para compra; para os vencidos
-    ou sem negociação, o preço vem do 'untrRedVal' (resgate).
+    {nome_titulo: {preco_venda, vencimento}} via tesourodireto.com.br com headers
+    de navegador. Se falhar, apenas avisa e retorna {} -> o script usa
+    valor_atual_base. Sem download pesado.
     """
+    hdr = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm",
+        "Origin": "https://www.tesourodireto.com.br",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+    }
     try:
-        resp = requests.get(TD_URL, headers=HEADERS, timeout=20)
+        resp = requests.get(TD_URL, headers=hdr, timeout=25)
         resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        print(f"⚠️  Tesouro Direto API erro: {e}", file=sys.stderr)
-        return {}
-
-    result = {}
-    try:
-        bonds = data["response"]["TrsrBdTradgList"]
-        for bond in bonds:
+        out = {}
+        for bond in resp.json()["response"]["TrsrBdTradgList"]:
             b = bond.get("TrsrBd", {})
-            name = b.get("nm", "")
-            if name:
-                result[name] = {
-                    "preco_compra": b.get("untrInvstmtVal"),  # investidor paga
-                    "preco_venda":  b.get("untrRedVal"),       # investidor recebe
-                    "vencimento":   b.get("mtrtyDt", ""),
-                }
-    except (KeyError, TypeError) as e:
-        print(f"⚠️  TD parse erro: {e}", file=sys.stderr)
-
-    return result
+            nm = b.get("nm", "")
+            if nm:
+                out[nm] = {"preco_venda": b.get("untrRedVal"), "vencimento": b.get("mtrtyDt", "")}
+        return out
+    except Exception as e:
+        print(f"\u26a0\ufe0f  Tesouro nao coletado nesta varredura ({e}) - usando valor_atual_base", file=sys.stderr)
+        return {}
 
 
 # ─── Calcula posição ──────────────────────────────────────────────────────
@@ -197,7 +179,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
         valor_atual   = a.get("valor_atual_base", custo)  # fallback
         fonte         = "base"
 
-        # — B3 —
+        # - B3 -
         if tipo in ("acao", "etf", "fii"):
             info = b3_prices.get(ticker, {})
             preco_atual = info.get("preco")
@@ -206,7 +188,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
                 valor_atual = preco_atual * a["quantidade"]
                 fonte = "brapi"
 
-        # — Cripto —
+        # - Cripto -
         elif tipo == "cripto":
             info = cripto_prices.get(ticker, {})
             preco_atual  = info.get("preco_brl")
@@ -215,7 +197,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
                 valor_atual = preco_atual * a["quantidade"]
                 fonte = "coingecko"
 
-        # — Tesouro Direto —
+        # - Tesouro Direto -
         elif tipo == "tesouro":
             td_nome = a.get("td_nome_api", "")
             # Tenta match exato, depois parcial
@@ -230,7 +212,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
                 valor_atual  = preco_atual * a["fracoes"]
                 fonte = "tesouro_direto"
 
-        # — RF privada, DeFi, stablecoin → valor estático —
+        # - RF privada, DeFi, stablecoin → valor estático -
         else:
             if tipo == "stablecoin_brl":
                 valor_atual = a.get("quantidade_brl", custo)
@@ -259,7 +241,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
             "fonte":         fonte,
         })
 
-    # — Totais por categoria —
+    # - Totais por categoria -
     for atv in resultado["ativos"]:
         cat = atv["categoria"]
         if cat not in resultado["categorias"]:
@@ -269,7 +251,7 @@ def calcular_portfolio(posicao: dict, b3_prices: dict, cripto_prices: dict, td_p
 
     total = resultado["total_atual"]
 
-    # — Alertas de desvio de alocação —
+    # - Alertas de desvio de alocação -
     for cat, alvo_pct in cat_alvo.items():
         vals = resultado["categorias"].get(cat, {})
         atual_pct = (vals.get("valor_atual", 0) / total * 100) if total > 0 else 0
@@ -306,7 +288,7 @@ def gerar_relatorio_md(r: dict) -> str:
         "tags: [portfolio, snapshot, economia]",
         "---",
         "",
-        f"# Portfolio Snapshot — {now}",
+        f"# Portfolio Snapshot - {now}",
         "",
         f"| | |",
         f"|---|---|",
@@ -346,7 +328,7 @@ def gerar_relatorio_md(r: dict) -> str:
         linhas += ["", f"## {cat}", "", "| Ativo | Qtd | Valor Atual | Rend R$ | Rend % | Var Dia |", "|---|---|---|---|---|---|"]
         for a in ativos_cat:
             rs = "+" if a["rendimento"] >= 0 else ""
-            vd = f"{a['variacao_dia']:+.2f}%" if a["variacao_dia"] is not None else "—"
+            vd = f"{a['variacao_dia']:+.2f}%" if a["variacao_dia"] is not None else "-"
             qtd = f"{a['quantidade']:.4f}" if isinstance(a["quantidade"], float) and a["quantidade"] < 1 else str(a["quantidade"])
             linhas.append(
                 f"| {a['ticker']} | {qtd} | R$ {a['valor_atual']:,.2f} | "
@@ -365,7 +347,7 @@ def gerar_resumo_discord(r: dict) -> str:
     now  = r["data"]
 
     linhas = [
-        f"**{icon} Portfolio — {now}**",
+        f"**{icon} Portfolio - {now}**",
         f"Valor atual: **R$ {r['total_atual']:,.2f}** | {s}R$ {r['total_rendimento']:,.2f} ({s}{r['total_rendimento_pct']:.2f}%)",
         "",
     ]
@@ -407,8 +389,12 @@ def gerar_resumo_discord(r: dict) -> str:
 
 def main():
     print("📂 Carregando posição...", file=sys.stderr)
-    with open(POSICAO_FILE, encoding="utf-8") as f:
-        posicao = json.load(f)
+    try:
+        with open(POSICAO_FILE, encoding="utf-8") as f:
+            posicao = json.load(f)
+    except Exception as e:
+        print(f"❌ coleta_carteira: não li posicao.json ({e}). Vault montado? Caminho: {POSICAO_FILE}")
+        sys.exit(1)
 
     ativos_b3     = [a for a in posicao["ativos"] if a["tipo"] in ("acao", "etf", "fii")]
     ativos_cripto = [a for a in posicao["ativos"] if a["tipo"] == "cripto"]
@@ -427,24 +413,36 @@ def main():
     print("🧮 Calculando portfolio...", file=sys.stderr)
     resultado = calcular_portfolio(posicao, b3_prices, cripto_prices, td_prices)
 
-    # Salva snapshot JSON
-    SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-    snap_file = SNAPSHOTS_DIR / f"{date.today().isoformat()}.json"
-    with open(snap_file, "w", encoding="utf-8") as f:
-        json.dump(resultado, f, ensure_ascii=False, indent=2)
-    print(f"💾 Snapshot: {snap_file}", file=sys.stderr)
+    # Salva snapshot JSON bruto no LINUX (não polui o vault)
+    try:
+        SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+        snap_file = SNAPSHOTS_DIR / f"{date.today().isoformat()}.json"
+        with open(snap_file, "w", encoding="utf-8") as f:
+            json.dump(resultado, f, ensure_ascii=False, indent=2)
+        print(f"💾 Snapshot: {snap_file}", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️  Snapshot bruto nao salvo ({e}) - segue mesmo assim.", file=sys.stderr)
 
-    # Salva relatório Markdown no vault
-    notas_dir = VAULT / "02_Notas" / "Economia"
-    notas_dir.mkdir(parents=True, exist_ok=True)
-    md_file = notas_dir / f"Portfolio_Snapshot_{date.today().isoformat()}.md"
-    with open(md_file, "w", encoding="utf-8") as f:
-        f.write(gerar_relatorio_md(resultado))
-    print(f"📝 Relatório: {md_file}", file=sys.stderr)
+    # Salva relatorio Markdown no VAULT (texto legivel)
+    try:
+        notas_dir = VAULT / "01_Inbox" / "Economia"
+        notas_dir.mkdir(parents=True, exist_ok=True)
+        md_file = notas_dir / f"Portfolio_Snapshot_{date.today().isoformat()}.md"
+        with open(md_file, "w", encoding="utf-8") as f:
+            f.write(gerar_relatorio_md(resultado))
+        print(f"📝 Relatorio: {md_file}", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️  Relatorio nao salvo no vault ({e}) - segue o resumo abaixo.", file=sys.stderr)
 
-    # Resumo para o Discord (stdout — Hermes captura)
+    # Resumo para o Discord (stdout - Hermes captura e posta)
     print("\n" + gerar_resumo_discord(resultado))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"❌ coleta_carteira falhou: {e}")
+        sys.exit(1)

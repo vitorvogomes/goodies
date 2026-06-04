@@ -20,18 +20,21 @@ async def test_cashflow_requires_auth(api):
 
 
 async def test_summary_savings_rate_for_month(api, auth_headers, account):
-    # receita 10000, despesa 4500 -> taxa 55% (STORY-01-05).
+    # receita 10000, consumo 4500 -> poupança 55% (B); investimento 2000 -> taxa 20% (A).
     await _post_tx(api, auth_headers, account, "2099-07-01", 10000, "Salário")
     await _post_tx(api, auth_headers, account, "2099-07-15", -4500, "alimentação")
+    await _post_tx(api, auth_headers, account, "2099-07-20", -2000, "Toro (B3)")
 
     resp = await api.get("/api/v1/cashflow/summary?month=2099-07", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["month"] == "2099-07"
     assert body["total_income"] == 10000.0
-    assert body["total_expense"] == 4500.0
+    assert body["total_expense"] == 4500.0  # investimento não conta como consumo
     assert body["net_cashflow"] == 5500.0
-    assert abs(body["savings_rate"] - 55.0) < 0.01
+    assert abs(body["savings_rate"] - 55.0) < 0.01  # poupança inalterada pelo investimento
+    assert body["total_invested"] == 2000.0
+    assert abs(body["investment_rate"] - 20.0) < 0.01
 
 
 async def test_summary_zero_income_returns_error(api, auth_headers, account):
@@ -80,6 +83,19 @@ async def test_by_category_groups_and_percentages(api, auth_headers, account):
     expense = body["expense"]
     assert expense[0]["category"] == "alimentação"
     assert abs(sum(r["pct"] for r in expense) - 100.0) < 0.05
+
+
+async def test_by_category_includes_investment_section(api, auth_headers, account):
+    # investimento entra na 3ª seção (não em gastos); a categoria é o destino.
+    await _post_tx(api, auth_headers, account, "2099-12-01", 5000, "Salário")
+    await _post_tx(api, auth_headers, account, "2099-12-05", -1000, "Toro (B3)")
+
+    resp = await api.get("/api/v1/cashflow/by-category?month=2099-12", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["investment_total"] == 1000.0
+    assert "Toro (B3)" in {r["category"] for r in body["investment"]}
+    assert "Toro (B3)" not in {r["category"] for r in body["expense"]}
 
 
 async def test_by_category_all_time_when_no_month(api, auth_headers, account):

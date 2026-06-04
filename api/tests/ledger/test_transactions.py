@@ -24,7 +24,37 @@ async def test_create_transaction(api, auth_headers, account):
     body = resp.json()
     assert body["amount"] == -123.45
     assert body["category"] == "alimentação"
+    assert body["kind"] == "expense"  # derivado da categoria semeada
     assert body["is_recurring"] is False
+
+
+async def test_create_derives_investment_kind_from_category(api, auth_headers, account):
+    resp = await api.post(
+        "/api/v1/transactions",
+        json={"account_id": account, "date": "2099-03-11", "amount": -500, "category": "Toro (B3)"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["kind"] == "investment"  # categoria de destino é investimento
+    listed = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
+    assert listed.json()["total_invested"] == 500.0
+    assert listed.json()["total_expense"] == 0.0  # não conta como consumo
+
+
+async def test_create_with_explicit_kind_overrides(api, auth_headers, account):
+    resp = await api.post(
+        "/api/v1/transactions",
+        json={
+            "account_id": account,
+            "date": "2099-03-12",
+            "amount": 300,
+            "category": "categoria-livre",
+            "kind": "investment",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["kind"] == "investment"
 
 
 async def test_create_rejects_zero_amount(api, auth_headers, account):

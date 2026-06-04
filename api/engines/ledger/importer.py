@@ -31,16 +31,22 @@ class Classification:
     category: str
 
 
+@dataclass(frozen=True)
+class MatchRule:
+    """Regra de classificação configurável (vem de categories.match_patterns)."""
+
+    category: str
+    kind: str
+    patterns: tuple[str, ...]
+
+
 @dataclass
 class ImportReport:
     imported: int = 0
     duplicates: int = 0
-    skipped: int = 0  # investimento + transferência interna (não viram caixa)
+    skipped: int = 0  # legado: nada é pulado agora (grava-se tudo, classificado por kind)
     errors: int = 0
 
-
-# Palavras-chave de movimentos que NÃO são consumo/receita (RDB, caixinha, resgates).
-_INVESTMENT_KW = ("aplicação", "aplicacao", "rdb", "dinheiro guardado", "resgate")
 
 _TRNTAG = re.compile(r"<STMTTRN>(.*?)</STMTTRN>", re.DOTALL)
 
@@ -93,15 +99,37 @@ def parse_csv(content: str) -> list[StatementEntry]:
     return entries
 
 
-def classify(entry: StatementEntry, self_identifiers: Sequence[str] = ()) -> Classification:
+def classify(
+    entry: StatementEntry,
+    rules: Sequence[MatchRule] = (),
+    self_identifiers: Sequence[str] = (),
+) -> Classification:
+    """Classifica um lançamento: regra de destino (maior pattern vence) > transferência
+    interna (conta própria na descrição) > fallback por sinal (receita/despesa)."""
     desc = entry.description.lower()
-    if any(kw in desc for kw in _INVESTMENT_KW):
-        return Classification("investment", "Aplicação")
+    best: MatchRule | None = None
+    best_len = 0
+    for rule in rules:
+        for pattern in rule.patterns:
+            p = pattern.lower()
+            if p and p in desc and len(p) > best_len:
+                best, best_len = rule, len(p)
+    if best is not None:
+        return Classification(best.kind, best.category)
     if "transfer" in desc and any(s.lower() in desc for s in self_identifiers):
         return Classification("transfer", "Transferência interna")
     if entry.amount > 0:
         return Classification("income", "outros")
     return Classification("expense", "outros")
+
+
+async def _load_rules(conn: asyncpg.Connection) -> list[MatchRule]:
+    """Carrega as regras de classificação das categorias ativas com patterns."""
+    rows = await conn.fetch(
+        "SELECT name, kind, match_patterns FROM categories "
+        "WHERE is_active AND array_length(match_patterns, 1) IS NOT NULL"
+    )
+    return [MatchRule(r["name"], r["kind"], tuple(r["match_patterns"])) for r in rows]
 
 
 def parse_statement(filename: str, content: str) -> list[StatementEntry]:
@@ -123,31 +151,32 @@ async def import_statement(
     entries: Sequence[StatementEntry],
     self_identifiers: Sequence[str] = (),
 ) -> ImportReport:
-    """Insere receitas/despesas (dedup por external_id); pula investimento/transferência.
+    """Grava todos os lançamentos com o `kind` classificado (dedup por external_id).
 
-    Os números das contas cadastradas entram como identificadores de transferência
-    interna: um lançamento cujo destino/origem é uma conta própria (nº na descrição)
-    é classificado como `transfer` e não vira caixa (evita dupla contagem CPF↔CNPJ).
+    Investimento e transferência interna TAMBÉM são gravados (consertam o saldo); o
+    relatório (view monthly_summary) é que decide o que é consumo via `kind`. Os
+    números das contas cadastradas entram como identificadores de transferência
+    interna: um lançamento cuja origem/destino é uma conta própria (nº na descrição)
+    vira `transfer` e fica fora da receita/despesa (evita dupla contagem CPF↔CNPJ).
     """
     own = await conn.fetch("SELECT account_number FROM accounts WHERE account_number IS NOT NULL")
     identifiers = [r["account_number"] for r in own] + list(self_identifiers)
+    rules = await _load_rules(conn)
     report = ImportReport()
     for entry in entries:
-        result = classify(entry, identifiers)
-        if result.kind in ("investment", "transfer"):
-            report.skipped += 1
-            continue
+        result = classify(entry, rules, identifiers)
         try:
             inserted = await conn.fetchval(
                 "INSERT INTO transactions "
-                "(account_id, date, amount, category, description, external_id) "
-                "VALUES ($1, $2, $3, $4, $5, $6) "
+                "(account_id, date, amount, category, kind, description, external_id) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7) "
                 "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
                 "RETURNING id",
                 account_id,
                 entry.date,
                 entry.amount,
                 result.category,
+                result.kind,
                 entry.description,
                 entry.external_id,
             )

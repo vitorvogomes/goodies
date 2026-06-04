@@ -42,8 +42,10 @@ const INLINE_INPUT =
 
 // ---------------------------------------------------------------- Breakdown
 
-function BreakdownRow({ row, tone }: { row: CategoryBreakdownRow; tone: "gain" | "loss" }) {
-  const bar = tone === "gain" ? "bg-gain/70" : "bg-loss/70";
+type Tone = "gain" | "loss" | "invest";
+
+function BreakdownRow({ row, tone }: { row: CategoryBreakdownRow; tone: Tone }) {
+  const bar = tone === "gain" ? "bg-gain/70" : tone === "loss" ? "bg-loss/70" : "bg-accent/70";
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between text-sm">
@@ -72,10 +74,11 @@ function BreakdownSection({
   title: string;
   rows: CategoryBreakdownRow[];
   total: number;
-  tone: "gain" | "loss";
+  tone: Tone;
   note?: string;
 }) {
-  const totalColor = tone === "gain" ? "text-gain" : "text-loss";
+  const totalColor =
+    tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-accent";
   return (
     <Card>
       <div className="mb-4 flex items-baseline justify-between">
@@ -125,7 +128,7 @@ function CategoryBreakdownCard() {
       {breakdown.isLoading && <p className="text-foreground/50">Carregando…</p>}
       {breakdown.isError && <p className="text-loss">Erro ao carregar o breakdown.</p>}
       {data && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <BreakdownSection
             title="Receitas"
             rows={data.income}
@@ -133,11 +136,18 @@ function CategoryBreakdownCard() {
             tone="gain"
           />
           <BreakdownSection
-            title="Gastos"
+            title="Gastos (consumo)"
             rows={data.expense}
             total={data.expense_total}
             tone="loss"
-            note="Investimentos e transferências internas não entram no fluxo de caixa."
+            note="Só consumo entra na taxa de poupança. Transferências internas ficam de fora."
+          />
+          <BreakdownSection
+            title="Investimentos"
+            rows={data.investment}
+            total={data.investment_total}
+            tone="invest"
+            note="Saem do saldo mas não são consumo. O ativo é detalhado no Portfolio (m2)."
           />
         </div>
       )}
@@ -158,11 +168,20 @@ function CategoryRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cat.name);
+  const [editingPat, setEditingPat] = useState(false);
+  const [patDraft, setPatDraft] = useState("");
 
   function commitName() {
     setEditing(false);
     const v = draft.trim();
     if (v && v !== cat.name) onUpdate(cat.id, { name: v });
+  }
+
+  function commitPatterns() {
+    setEditingPat(false);
+    const next = patDraft.split(",").map((s) => s.trim()).filter(Boolean);
+    if (next.join("|") !== cat.match_patterns.join("|"))
+      onUpdate(cat.id, { match_patterns: next });
   }
 
   return (
@@ -210,6 +229,33 @@ function CategoryRow({
         </select>
       </td>
       <td className="px-3 py-2">
+        {editingPat ? (
+          <input
+            autoFocus
+            value={patDraft}
+            onChange={(e) => setPatDraft(e.target.value)}
+            onBlur={commitPatterns}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitPatterns();
+              if (e.key === "Escape") setEditingPat(false);
+            }}
+            placeholder="rdb, corretora, ..."
+            className={INLINE_INPUT}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setPatDraft(cat.match_patterns.join(", "));
+              setEditingPat(true);
+            }}
+            className="cursor-text text-left text-xs text-foreground/50 hover:text-foreground"
+          >
+            {cat.match_patterns.length ? cat.match_patterns.join(", ") : "—"}
+          </button>
+        )}
+      </td>
+      <td className="px-3 py-2">
         <button
           type="button"
           onClick={() => onUpdate(cat.id, { is_active: !cat.is_active })}
@@ -244,16 +290,21 @@ function CategoryManager() {
 
   const [name, setName] = useState("");
   const [kind, setKind] = useState<CategoryKind>("expense");
+  const [patterns, setPatterns] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function add() {
     const trimmed = name.trim();
     if (!trimmed) return;
     setError(null);
+    const match_patterns = patterns.split(",").map((s) => s.trim()).filter(Boolean);
     create.mutate(
-      { name: trimmed, kind },
+      { name: trimmed, kind, match_patterns },
       {
-        onSuccess: () => setName(""),
+        onSuccess: () => {
+          setName("");
+          setPatterns("");
+        },
         onError: (e) =>
           setError(
             e instanceof ApiError && e.status === 409
@@ -289,6 +340,12 @@ function CategoryManager() {
             ))}
           </Select>
         </div>
+        <Input
+          placeholder="Padrões (auto-import): rdb, corretora…"
+          value={patterns}
+          onChange={(e) => setPatterns(e.target.value)}
+          className="max-w-xs"
+        />
         <Button onClick={add} disabled={create.isPending}>
           Adicionar
         </Button>
@@ -301,6 +358,7 @@ function CategoryManager() {
             <tr>
               <th className="px-3 py-2 font-medium">Nome</th>
               <th className="px-3 py-2 font-medium">Tipo</th>
+              <th className="px-3 py-2 font-medium">Padrões (auto-import)</th>
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2" />
             </tr>
@@ -308,7 +366,7 @@ function CategoryManager() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-foreground/40">
+                <td colSpan={5} className="px-3 py-6 text-center text-foreground/40">
                   Nenhuma categoria.
                 </td>
               </tr>

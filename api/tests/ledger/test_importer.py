@@ -9,6 +9,7 @@ import uuid
 from decimal import Decimal
 
 from engines.ledger.importer import (
+    MatchRule,
     StatementEntry,
     classify,
     import_statement,
@@ -16,6 +17,12 @@ from engines.ledger.importer import (
     parse_csv,
     parse_ofx,
 )
+
+# Regras inline (espelham o seed de categories.match_patterns na migration 0006).
+_RULES = [
+    MatchRule("Caixinha/RDB Nubank", "investment", ("rdb", "aplicação", "aplicacao", "resgate")),
+    MatchRule("Toro (B3)", "investment", ("toro", "corretora de titulos")),
+]
 
 _CSV = """Data,Valor,Identificador,Descrição
 01/01/2026,1000.00,aaa,Salário recebido
@@ -88,9 +95,30 @@ def test_parse_ofx():
     assert by_id["ccc"].amount == Decimal("-2130.00")
 
 
-def test_classify_investment_excluded_from_cash():
+def test_classify_investment_by_rule():
     e = StatementEntry("ccc", datetime.date(2026, 1, 3), Decimal("-2130.00"), "Aplicação RDB")
-    assert classify(e).kind == "investment"
+    assert classify(e, _RULES).kind == "investment"
+    assert classify(e, _RULES).category == "Caixinha/RDB Nubank"
+    # sem regras carregadas, cai no fallback por sinal (despesa)
+    assert classify(e).kind == "expense"
+
+
+def test_classify_brokerage_deposit_is_investment():
+    # Pix p/ corretora (mesmo CNPJ Toro/Santander) é investimento, não consumo.
+    e = StatementEntry(
+        "t",
+        datetime.date(2026, 6, 1),
+        Decimal("-579.00"),
+        "Transferência enviada pelo Pix - SANTANDER CORRETORA DE TITULOS E VALORES MOBILIARIOS",
+    )
+    assert classify(e, _RULES).kind == "investment"
+    assert classify(e, _RULES).category == "Toro (B3)"
+
+
+def test_classify_redemption_positive_is_investment_not_income():
+    # "Resgate RDB" é positivo (volta p/ a conta) mas é movimento de investimento.
+    e = StatementEntry("r", datetime.date(2026, 1, 10), Decimal("1000.00"), "Resgate RDB")
+    assert classify(e, _RULES).kind == "investment"
 
 
 def test_classify_income_and_expense_by_sign():
@@ -117,7 +145,7 @@ def test_classify_transfer_by_account_number():
     assert classify(entry).kind == "expense"  # sem o identificador, é despesa
 
 
-async def test_import_statement_excludes_inter_account_transfer(pool):
+async def test_import_statement_records_transfer_with_kind(pool):
     num_b = f"TEST-{uuid.uuid4().hex[:8]}"
     async with pool.acquire() as conn:
         acc_a = await conn.fetchval(
@@ -144,8 +172,13 @@ async def test_import_statement_excludes_inter_account_transfer(pool):
             ),
         ]
         report = await import_statement(conn, acc_a, entries)
-    assert report.skipped == 1  # transferência p/ conta própria (num_b) excluída
-    assert report.imported == 1  # só a despesa real
+        kinds = {
+            r["kind"]
+            for r in await conn.fetch("SELECT kind FROM transactions WHERE account_id = $1", acc_a)
+        }
+    assert report.skipped == 0  # nada é pulado: grava-se tudo, classificado por kind
+    assert report.imported == 2  # transferência interna + despesa, ambas gravadas
+    assert kinds == {"transfer", "expense"}  # a transferência fica fora de receita/despesa
 
 
 def test_classify_self_transfer_when_identifier_present():

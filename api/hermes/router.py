@@ -59,16 +59,17 @@ class HermesResult(BaseModel):
 
 
 async def _insert(
-    db: asyncpg.Connection, body: HermesEntry, signed_amount: float
+    db: asyncpg.Connection, body: HermesEntry, signed_amount: float, kind: str
 ) -> HermesResult:
     try:
         row = await db.fetchrow(
-            "INSERT INTO transactions (account_id, date, amount, category, description) "
-            "VALUES ($1, $2, $3, $4, $5) RETURNING id, date, amount, category",
+            "INSERT INTO transactions (account_id, date, amount, category, kind, description) "
+            "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, date, amount, category",
             body.account_id,
             body.date,
             Decimal(str(signed_amount)),
             body.category,
+            kind,
             body.description,
         )
     except asyncpg.ForeignKeyViolationError:
@@ -83,9 +84,9 @@ async def _insert(
 
 @router.post("/expenses", response_model=HermesResult, status_code=status.HTTP_201_CREATED)
 async def register_expense(body: HermesEntry, principal: Hermes, db: Db) -> HermesResult:
-    return await _insert(db, body, -body.amount)
+    return await _insert(db, body, -body.amount, "expense")
 
 
 @router.post("/income", response_model=HermesResult, status_code=status.HTTP_201_CREATED)
 async def register_income(body: HermesEntry, principal: Hermes, db: Db) -> HermesResult:
-    return await _insert(db, body, body.amount)
+    return await _insert(db, body, body.amount, "income")

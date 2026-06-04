@@ -24,17 +24,20 @@ export interface Category {
   name: string;
   kind: CategoryKind;
   is_active: boolean;
+  match_patterns: string[];
 }
 
 export interface CategoryCreate {
   name: string;
   kind: CategoryKind;
+  match_patterns?: string[];
 }
 
 export interface CategoryUpdate {
   name?: string;
   kind?: CategoryKind;
   is_active?: boolean;
+  match_patterns?: string[];
 }
 
 export interface FixedCost {
@@ -64,8 +67,10 @@ export interface CategoryBreakdown {
   month: string | null;
   income_total: number;
   expense_total: number;
+  investment_total: number;
   income: CategoryBreakdownRow[];
   expense: CategoryBreakdownRow[];
+  investment: CategoryBreakdownRow[];
 }
 
 export interface Transaction {
@@ -74,6 +79,7 @@ export interface Transaction {
   date: string;
   amount: number;
   category: string;
+  kind: CategoryKind;
   description: string | null;
   is_recurring: boolean;
   external_id: string | null;
@@ -87,6 +93,7 @@ export interface TransactionList {
   offset: number;
   total_income: number;
   total_expense: number;
+  total_invested: number;
 }
 
 export interface TransactionCreate {
@@ -94,6 +101,7 @@ export interface TransactionCreate {
   date: string;
   amount: number;
   category: string;
+  kind?: CategoryKind;
   description?: string;
   is_recurring?: boolean;
   notes?: string;
@@ -114,6 +122,8 @@ export interface MonthlySummary {
   total_expense: number;
   net_cashflow: number;
   savings_rate: number;
+  total_invested: number;
+  investment_rate: number;
 }
 
 export interface ProjectionPoint {

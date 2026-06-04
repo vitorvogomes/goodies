@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.ledger.categories import CategoryKind
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["ledger:transactions"])
 
@@ -29,6 +30,7 @@ class TransactionCreate(BaseModel):
     date: datetime.date
     amount: float
     category: str = Field(min_length=1)
+    kind: CategoryKind | None = None  # omitido → derivado da categoria (ou do sinal)
     description: str | None = None
     is_recurring: bool = False
     notes: str | None = None
@@ -46,6 +48,7 @@ class TransactionUpdate(BaseModel):
     date: datetime.date | None = None
     amount: float | None = None
     category: str | None = Field(default=None, min_length=1)
+    kind: CategoryKind | None = None
     description: str | None = None
     is_recurring: bool | None = None
     notes: str | None = None
@@ -64,6 +67,7 @@ class TransactionResponse(BaseModel):
     date: str
     amount: float
     category: str
+    kind: str
     description: str | None
     is_recurring: bool
     external_id: str | None
@@ -75,12 +79,13 @@ class TransactionList(BaseModel):
     total: int
     limit: int
     offset: int
-    total_income: float  # soma das receitas do conjunto filtrado (não só da página)
-    total_expense: float  # soma das despesas (magnitude) do conjunto filtrado
+    total_income: float  # soma das receitas (kind=income) do conjunto filtrado
+    total_expense: float  # soma das despesas/consumo (kind=expense, magnitude)
+    total_invested: float  # aportes líquidos (kind=investment, magnitude)
 
 
 _COLUMNS = (
-    "id, account_id, date, amount, category, description, is_recurring, external_id, notes"
+    "id, account_id, date, amount, category, kind, description, is_recurring, external_id, notes"
 )
 
 
@@ -91,11 +96,27 @@ def _to_response(row: asyncpg.Record) -> TransactionResponse:
         date=row["date"].isoformat(),
         amount=float(row["amount"]),
         category=row["category"],
+        kind=row["kind"],
         description=row["description"],
         is_recurring=row["is_recurring"],
         external_id=row["external_id"],
         notes=row["notes"],
     )
+
+
+async def _resolve_kind(
+    db: asyncpg.Connection, category: str | None, amount: float | None, explicit: str | None
+) -> str | None:
+    """kind explícito > kind da categoria escolhida > fallback por sinal (None se indeterminado)."""
+    if explicit is not None:
+        return explicit
+    if category is not None:
+        kind = await db.fetchval("SELECT kind FROM categories WHERE name = $1", category)
+        if kind is not None:
+            return str(kind)
+    if amount is not None:
+        return "income" if amount > 0 else "expense"
+    return None
 
 
 def _as_decimal(amount: float | None) -> Decimal | None:
@@ -122,8 +143,9 @@ async def list_transactions(
     )
     agg = await db.fetchrow(
         "SELECT count(*) AS total, "
-        "COALESCE(SUM(amount) FILTER (WHERE amount > 0), 0) AS income, "
-        "COALESCE(SUM(-amount) FILTER (WHERE amount < 0), 0) AS expense "
+        "COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0) AS income, "
+        "COALESCE(SUM(-amount) FILTER (WHERE kind = 'expense'), 0) AS expense, "
+        "COALESCE(SUM(-amount) FILTER (WHERE kind = 'investment'), 0) AS invested "
         f"FROM transactions {where}",
         account_id,
         category,
@@ -147,6 +169,7 @@ async def list_transactions(
         offset=offset,
         total_income=float(agg["income"]),
         total_expense=float(agg["expense"]),
+        total_invested=float(agg["invested"]),
     )
 
 
@@ -154,15 +177,17 @@ async def list_transactions(
 async def create_transaction(
     body: TransactionCreate, user: AuthUser, db: Db
 ) -> TransactionResponse:
+    kind = await _resolve_kind(db, body.category, body.amount, body.kind)
     try:
         row = await db.fetchrow(
             "INSERT INTO transactions "
-            "(account_id, date, amount, category, description, is_recurring, notes) "
-            f"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {_COLUMNS}",
+            "(account_id, date, amount, category, kind, description, is_recurring, notes) "
+            f"VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {_COLUMNS}",
             body.account_id,
             body.date,
             _as_decimal(body.amount),
             body.category,
+            kind,
             body.description,
             body.is_recurring,
             body.notes,
@@ -176,6 +201,8 @@ async def create_transaction(
 async def update_transaction(
     transaction_id: uuid.UUID, body: TransactionUpdate, user: AuthUser, db: Db
 ) -> TransactionResponse:
+    # Troca de categoria conhecida re-deriva o kind; edição só de valor preserva (kind=None).
+    kind = await _resolve_kind(db, body.category, None, body.kind)
     try:
         row = await db.fetchrow(
             """
@@ -186,7 +213,8 @@ async def update_transaction(
               category = COALESCE($5, category),
               description = COALESCE($6, description),
               is_recurring = COALESCE($7, is_recurring),
-              notes = COALESCE($8, notes)
+              notes = COALESCE($8, notes),
+              kind = COALESCE($9, kind)
             WHERE id = $1
             """
             f" RETURNING {_COLUMNS}",
@@ -198,6 +226,7 @@ async def update_transaction(
             body.description,
             body.is_recurring,
             body.notes,
+            kind,
         )
     except asyncpg.ForeignKeyViolationError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None

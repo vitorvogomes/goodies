@@ -4,8 +4,15 @@ Lê variáveis de ambiente (e `.env` em dev). Valores ausentes usam os defaults
 abaixo. Em produção (Fly.io) as variáveis vêm de secrets, não de arquivo `.env`.
 """
 
+from pathlib import Path
+
 from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# O `.env` (e o `.env.example`) ficam no raiz do repo, não em api/. Resolvemos o
+# caminho absoluto p/ que `uv run` a partir de api/ leia o arquivo certo. Em
+# produção (Fly.io/Docker) o arquivo não existe → cai p/ env vars + defaults.
+_ROOT_ENV = Path(__file__).resolve().parent.parent / ".env"
 
 _DEV_DATABASE_URL = "postgresql://goodies:goodies@localhost:5432/goodies"
 _DEV_SECRETS = {
@@ -16,7 +23,7 @@ _DEV_SECRETS = {
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_ROOT_ENV), extra="ignore")
 
     environment: str = "development"
     version: str = "0.1.0"

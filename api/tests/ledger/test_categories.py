@@ -17,6 +17,35 @@ async def test_categories_seeded(api, auth_headers):
     assert by_name["Flash Capital"]["kind"] == "income"
 
 
+async def test_investment_destinations_seeded(api, auth_headers):
+    resp = await api.get("/api/v1/categories?kind=investment", headers=auth_headers)
+    assert resp.status_code == 200
+    by_name = {c["name"]: c for c in resp.json()}
+    assert "Toro (B3)" in by_name
+    assert "Caixinha/RDB Nubank" in by_name
+    assert "rdb" in by_name["Caixinha/RDB Nubank"]["match_patterns"]
+
+
+async def test_category_match_patterns_roundtrip(api, auth_headers):
+    name = f"dest-{uuid.uuid4().hex[:8]}"
+    created = await api.post(
+        "/api/v1/categories",
+        json={"name": name, "kind": "investment", "match_patterns": ["foo", "bar"]},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    assert created.json()["match_patterns"] == ["foo", "bar"]
+    cid = created.json()["id"]
+
+    updated = await api.put(
+        f"/api/v1/categories/{cid}",
+        json={"match_patterns": ["baz"]},
+        headers=auth_headers,
+    )
+    assert updated.json()["match_patterns"] == ["baz"]
+    await api.delete(f"/api/v1/categories/{cid}", headers=auth_headers)
+
+
 async def test_filter_categories_by_kind(api, auth_headers):
     resp = await api.get("/api/v1/categories?kind=income", headers=auth_headers)
     assert resp.status_code == 200

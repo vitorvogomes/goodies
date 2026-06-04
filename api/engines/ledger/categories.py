@@ -26,12 +26,14 @@ Db = Annotated[asyncpg.Connection, Depends(get_db)]
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1)
     kind: CategoryKind
+    match_patterns: list[str] = []  # substrings p/ auto-classificar o import (destinos)
 
 
 class CategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
     kind: CategoryKind | None = None
     is_active: bool | None = None
+    match_patterns: list[str] | None = None
 
 
 class CategoryResponse(BaseModel):
@@ -39,11 +41,16 @@ class CategoryResponse(BaseModel):
     name: str
     kind: str
     is_active: bool
+    match_patterns: list[str]
 
 
 def _to_response(row: asyncpg.Record) -> CategoryResponse:
     return CategoryResponse(
-        id=str(row["id"]), name=row["name"], kind=row["kind"], is_active=row["is_active"]
+        id=str(row["id"]),
+        name=row["name"],
+        kind=row["kind"],
+        is_active=row["is_active"],
+        match_patterns=list(row["match_patterns"]),
     )
 
 
@@ -56,7 +63,7 @@ async def list_categories(
 ) -> list[CategoryResponse]:
     rows = await db.fetch(
         """
-        SELECT id, name, kind, is_active FROM categories
+        SELECT id, name, kind, is_active, match_patterns FROM categories
         WHERE ($1::text IS NULL OR kind = $1)
           AND ($2::boolean IS NULL OR is_active = $2)
         ORDER BY kind, name
@@ -71,10 +78,11 @@ async def list_categories(
 async def create_category(body: CategoryCreate, user: AuthUser, db: Db) -> CategoryResponse:
     try:
         row = await db.fetchrow(
-            "INSERT INTO categories (name, kind) VALUES ($1, $2) "
-            "RETURNING id, name, kind, is_active",
+            "INSERT INTO categories (name, kind, match_patterns) VALUES ($1, $2, $3) "
+            "RETURNING id, name, kind, is_active, match_patterns",
             body.name,
             body.kind,
+            body.match_patterns,
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "categoria já existe") from None
@@ -91,14 +99,16 @@ async def update_category(
             UPDATE categories SET
               name = COALESCE($2, name),
               kind = COALESCE($3, kind),
-              is_active = COALESCE($4, is_active)
+              is_active = COALESCE($4, is_active),
+              match_patterns = COALESCE($5, match_patterns)
             WHERE id = $1
-            RETURNING id, name, kind, is_active
+            RETURNING id, name, kind, is_active, match_patterns
             """,
             category_id,
             body.name,
             body.kind,
             body.is_active,
+            body.match_patterns,
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "categoria já existe") from None

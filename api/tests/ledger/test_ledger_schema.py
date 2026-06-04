@@ -24,29 +24,39 @@ async def _make_account(conn: asyncpg.Connection) -> uuid.UUID:
 
 
 async def test_monthly_summary_savings_rate(pool):
-    # receita 10000, despesa 4500 -> taxa de poupança 55% (fórmula da STORY-01-05).
+    # receita 10000, consumo 4500 -> poupança 55% (B); investimento 2000 -> taxa 20% (A).
+    # O investimento reduz o saldo (não some), mas NÃO entra no consumo nem na poupança.
     async with pool.acquire() as conn:
         acc = await _make_account(conn)
         await conn.executemany(
-            "INSERT INTO transactions (account_id, date, amount, category) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO transactions (account_id, date, amount, category, kind) "
+            "VALUES ($1, $2, $3, $4, $5)",
             [
-                (acc, date(2099, 1, 5), 10000, "income"),
-                (acc, date(2099, 1, 20), -4500, "food"),
+                (acc, date(2099, 1, 5), 10000, "income", "income"),
+                (acc, date(2099, 1, 20), -4500, "food", "expense"),
+                (acc, date(2099, 1, 25), -2000, "Toro (B3)", "investment"),
             ],
         )
         row = await conn.fetchrow(
-            "SELECT total_income, total_expense, net_cashflow, savings_rate "
+            "SELECT total_income, total_expense, net_cashflow, savings_rate, "
+            "total_invested, investment_rate "
             "FROM monthly_summary WHERE month = date_trunc('month', $1::date)",
             date(2099, 1, 1),
+        )
+        balance = await conn.fetchval(
+            "SELECT SUM(amount) FROM transactions WHERE account_id = $1", acc
         )
         await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
         await conn.execute("DELETE FROM accounts WHERE id = $1", acc)
 
     assert row is not None
     assert float(row["total_income"]) == 10000.0
-    assert float(row["total_expense"]) == 4500.0
+    assert float(row["total_expense"]) == 4500.0  # só consumo; investimento fora
     assert float(row["net_cashflow"]) == 5500.0
     assert abs(float(row["savings_rate"]) - 55.0) < 0.01
+    assert float(row["total_invested"]) == 2000.0
+    assert abs(float(row["investment_rate"]) - 20.0) < 0.01
+    assert float(balance) == 3500.0  # saldo reflete o investimento que saiu da conta
 
 
 async def test_transactions_external_id_unique_allows_nulls(pool):

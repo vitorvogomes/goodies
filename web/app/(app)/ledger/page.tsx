@@ -13,9 +13,17 @@ import {
   useTransactions,
   useUpdateTransaction,
 } from "@/lib/ledger";
-import type { Transaction, TransactionCreate } from "@/types/ledger";
+import type { CategoryKind, Transaction, TransactionCreate } from "@/types/ledger";
 
 const LIMIT = 50;
+
+// Cor do valor pelo tipo (não pelo sinal): investimento/transferência não são "perda".
+const KIND_COLOR: Record<CategoryKind, string> = {
+  income: "text-gain",
+  expense: "text-loss",
+  investment: "text-accent",
+  transfer: "text-foreground/50",
+};
 
 function TransactionRow({
   tx,
@@ -91,11 +99,7 @@ function TransactionRow({
         </select>
       </td>
       <td className="px-4 py-2.5 text-foreground/60">{accountName(tx.account_id)}</td>
-      <td
-        className={`px-4 py-2.5 text-right tabular-nums ${
-          tx.amount < 0 ? "text-loss" : "text-gain"
-        }`}
-      >
+      <td className={`px-4 py-2.5 text-right tabular-nums ${KIND_COLOR[tx.kind]}`}>
         {formatBRL(tx.amount)}
       </td>
     </tr>

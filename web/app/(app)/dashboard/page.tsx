@@ -19,15 +19,17 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "ga
 
 function SummaryCards({ month }: { month: MonthlySummary }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Stat label="Receita do mês" value={formatBRL(month.total_income)} tone="gain" />
       <Stat label="Despesa do mês" value={formatBRL(month.total_expense)} tone="loss" />
+      <Stat label="Investido no mês" value={formatBRL(month.total_invested)} />
       <Stat
         label="Saldo do mês"
         value={formatBRL(month.net_cashflow)}
         tone={month.net_cashflow < 0 ? "loss" : "gain"}
       />
       <Stat label="Taxa de poupança" value={formatPercent(month.savings_rate)} tone="gain" />
+      <Stat label="Taxa de investimento" value={formatPercent(month.investment_rate)} tone="gain" />
     </div>
   );
 }

@@ -57,8 +57,8 @@ async def test_import_csv_classifies_and_dedups(api, auth_headers, account):
     assert first.status_code == 200
     r = first.json()
     assert r["parsed"] == 3
-    assert r["imported"] == 2  # receita + despesa
-    assert r["skipped"] == 1  # Aplicação RDB (investimento, fora do caixa)
+    assert r["imported"] == 3  # receita + despesa + investimento (Aplicação RDB)
+    assert r["skipped"] == 0  # nada é pulado: grava-se tudo, classificado por kind
     assert r["duplicates"] == 0
 
     # idempotência: reimportar o mesmo arquivo não duplica
@@ -69,12 +69,13 @@ async def test_import_csv_classifies_and_dedups(api, auth_headers, account):
     )
     r2 = again.json()
     assert r2["imported"] == 0
-    assert r2["duplicates"] == 2
-    assert r2["skipped"] == 1
+    assert r2["duplicates"] == 3
+    assert r2["skipped"] == 0
 
-    # só receita+despesa viraram transações (investimento foi excluído)
+    # todas as 3 linhas viraram transações (incl. a aplicação, com kind=investment)
     listed = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
-    assert listed.json()["total"] == 2
+    assert listed.json()["total"] == 3
+    assert listed.json()["total_invested"] == 2130.0
 
 
 async def test_import_ofx_auto_routes_by_acctid(api, auth_headers, pool):

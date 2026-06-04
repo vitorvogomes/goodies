@@ -4,9 +4,11 @@ GET /cashflow            -> lançamentos com saldo running (window SUM).
 GET /cashflow/summary    -> resumo mensal (view monthly_summary). Com ?month=YYYY-MM
                             retorna um único mês; 404 se sem dados; 422 se receita=0.
 
-savings_rate = (receita - despesa)/receita * 100 (ja calculado na view). Nota: a
-view trata QUALQUER amount<0 como despesa — o import (01-13-14) NÃO grava
-investimento/transferência interna como transação, senão a taxa distorce.
+savings_rate = (receita - despesa_consumo)/receita * 100 (B, gate jun/2026=55,48%),
+já calculado na view kind-aware: despesa = só kind=expense (consumo). A view também
+expõe investment_rate = investido_líquido/receita (A) e total_invested. ATENÇÃO:
+net_cashflow = receita - despesa (numerador da poupança), NÃO a variação de saldo —
+o saldo real é o running_balance abaixo (SUM de TODAS as linhas, inclusive investimento).
 """
 
 import datetime
@@ -26,7 +28,8 @@ AuthUser = Annotated[dict[str, str], Depends(get_current_user)]
 Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 _SUMMARY_SELECT = (
-    "SELECT month, total_income, total_expense, net_cashflow, savings_rate FROM monthly_summary"
+    "SELECT month, total_income, total_expense, net_cashflow, savings_rate, "
+    "total_invested, investment_rate FROM monthly_summary"
 )
 
 
@@ -35,7 +38,9 @@ class MonthlySummary(BaseModel):
     total_income: float
     total_expense: float
     net_cashflow: float
-    savings_rate: float
+    savings_rate: float  # (B) (receita-despesa)/receita
+    total_invested: float  # aportes líquidos do mês (kind=investment)
+    investment_rate: float  # (A) investido/receita
 
 
 class CashflowEntry(BaseModel):
@@ -55,6 +60,8 @@ def _summary(row: asyncpg.Record) -> MonthlySummary:
         total_expense=float(row["total_expense"]),
         net_cashflow=float(row["net_cashflow"]),
         savings_rate=round(float(row["savings_rate"]), 2),
+        total_invested=float(row["total_invested"]),
+        investment_rate=round(float(row["investment_rate"]), 2),
     )
 
 
@@ -134,8 +141,10 @@ class CategoryBreakdown(BaseModel):
     month: str | None
     income_total: float
     expense_total: float
+    investment_total: float  # magnitude bruta dos aportes/resgates por destino
     income: list[CategoryBreakdownRow]
     expense: list[CategoryBreakdownRow]
+    investment: list[CategoryBreakdownRow]
 
 
 @router.get("/by-category")
@@ -144,9 +153,9 @@ async def by_category(
     db: Db,
     month: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
 ) -> CategoryBreakdown:
-    # Agrupa por categoria + lado (sinal do amount). % por seção via window function;
-    # NULLIF evita divisão por zero. month opcional -> acumulado. Empty -> 200 vazio
-    # (um breakdown de "nada" é significativo, ao contrário do savings rate).
+    # Agrupa por categoria + kind (receita/consumo/investimento; transfer fica de fora).
+    # % por seção via window function; NULLIF evita divisão por zero. month opcional ->
+    # acumulado. Empty -> 200 vazio (um breakdown de "nada" é significativo).
     first: datetime.date | None = None
     nxt: datetime.date | None = None
     if month is not None:
@@ -157,13 +166,12 @@ async def by_category(
     rows = await db.fetch(
         """
         WITH grouped AS (
-          SELECT category,
-                 CASE WHEN amount > 0 THEN 'income' ELSE 'expense' END AS side,
-                 SUM(ABS(amount)) AS total
+          SELECT category, kind AS side, SUM(ABS(amount)) AS total
           FROM transactions
-          WHERE ($1::date IS NULL OR date >= $1)
+          WHERE kind IN ('income', 'expense', 'investment')
+            AND ($1::date IS NULL OR date >= $1)
             AND ($2::date IS NULL OR date <  $2)
-          GROUP BY category, side
+          GROUP BY category, kind
         )
         SELECT category, side, total,
                ROUND(100 * total / NULLIF(SUM(total) OVER (PARTITION BY side), 0), 2) AS pct
@@ -174,11 +182,13 @@ async def by_category(
         nxt,
     )
 
-    income: list[CategoryBreakdownRow] = []
-    expense: list[CategoryBreakdownRow] = []
+    buckets: dict[str, list[CategoryBreakdownRow]] = {
+        "income": [],
+        "expense": [],
+        "investment": [],
+    }
     for r in rows:
-        bucket = income if r["side"] == "income" else expense
-        bucket.append(
+        buckets[r["side"]].append(
             CategoryBreakdownRow(
                 category=r["category"],
                 total=float(r["total"]),
@@ -187,10 +197,12 @@ async def by_category(
         )
     return CategoryBreakdown(
         month=month,
-        income_total=round(sum((r.total for r in income), 0.0), 2),
-        expense_total=round(sum((r.total for r in expense), 0.0), 2),
-        income=income,
-        expense=expense,
+        income_total=round(sum((r.total for r in buckets["income"]), 0.0), 2),
+        expense_total=round(sum((r.total for r in buckets["expense"]), 0.0), 2),
+        investment_total=round(sum((r.total for r in buckets["investment"]), 0.0), 2),
+        income=buckets["income"],
+        expense=buckets["expense"],
+        investment=buckets["investment"],
     )
 
 

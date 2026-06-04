@@ -1,7 +1,8 @@
 "use client";
 
 // STORY-01-11 — formulário de nova transação. O usuário escolhe tipo (receita/
-// despesa) + valor positivo; o sinal é aplicado no envio (backend: + receita, − despesa).
+// despesa/investimento) + valor positivo; o sinal é aplicado no envio (receita +,
+// despesa/aporte −). O kind vai explícito p/ o backend não depender só da categoria.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
@@ -19,7 +20,7 @@ export default function NewTransactionPage() {
   const accounts = useAccounts();
   const createTransaction = useCreateTransaction();
 
-  const [kind, setKind] = useState<"expense" | "income">("expense");
+  const [kind, setKind] = useState<"expense" | "income" | "investment">("expense");
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState(today());
   const [amount, setAmount] = useState("");
@@ -43,8 +44,9 @@ export default function NewTransactionPage() {
       {
         account_id: accountId,
         date,
-        amount: kind === "expense" ? -value : value,
+        amount: kind === "income" ? value : -value, // receita +, despesa/aporte −
         category,
+        kind,
         description: description || undefined,
         notes: notes || undefined,
         is_recurring: isRecurring,
@@ -71,12 +73,13 @@ export default function NewTransactionPage() {
             id="t-kind"
             value={kind}
             onChange={(e) => {
-              setKind(e.target.value as "expense" | "income");
+              setKind(e.target.value as "expense" | "income" | "investment");
               setCategory("");
             }}
           >
             <option value="expense">Despesa</option>
             <option value="income">Receita</option>
+            <option value="investment">Investimento (aporte)</option>
           </Select>
         </Field>
 
