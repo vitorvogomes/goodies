@@ -56,7 +56,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-11 | Frontend — formulário de nova transação | [x] | 442e81e |
 | 01-12 | Frontend — dashboard de caixa | [x] | eecc831 |
 | 01-13-14 | Migração + validação extrato Nubank (OFX/CSV) | [~] | — |
-| 01-15 | Frontend — análise por categoria + gestão de categorias + custos recorrentes | [x] | 3474135 |
+| 01-15 | Frontend — análise por categoria + gestão de categorias + custos recorrentes | [x] | d757eaf |
 
 **Gate m1:** taxa de poupança junho/2026 == 55,48% (±0,1pp). PENDENTE: subir o export Nubank de jun/2026 em `files/nubank/`, importar e validar. Backend+frontend de import prontos e validados com janeiro (63 entradas; income 6 / investment 16 / expense 41).
 
