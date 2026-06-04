@@ -124,6 +124,76 @@ async def summary(
     return _summary(row)
 
 
+class CategoryBreakdownRow(BaseModel):
+    category: str
+    total: float  # magnitude (sempre positivo)
+    pct: float  # % do total da própria seção; 0 se a seção estiver vazia
+
+
+class CategoryBreakdown(BaseModel):
+    month: str | None
+    income_total: float
+    expense_total: float
+    income: list[CategoryBreakdownRow]
+    expense: list[CategoryBreakdownRow]
+
+
+@router.get("/by-category")
+async def by_category(
+    user: AuthUser,
+    db: Db,
+    month: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
+) -> CategoryBreakdown:
+    # Agrupa por categoria + lado (sinal do amount). % por seção via window function;
+    # NULLIF evita divisão por zero. month opcional -> acumulado. Empty -> 200 vazio
+    # (um breakdown de "nada" é significativo, ao contrário do savings rate).
+    first: datetime.date | None = None
+    nxt: datetime.date | None = None
+    if month is not None:
+        year, mon = int(month[:4]), int(month[5:7])
+        first = datetime.date(year, mon, 1)
+        nxt = datetime.date(year + mon // 12, mon % 12 + 1, 1)
+
+    rows = await db.fetch(
+        """
+        WITH grouped AS (
+          SELECT category,
+                 CASE WHEN amount > 0 THEN 'income' ELSE 'expense' END AS side,
+                 SUM(ABS(amount)) AS total
+          FROM transactions
+          WHERE ($1::date IS NULL OR date >= $1)
+            AND ($2::date IS NULL OR date <  $2)
+          GROUP BY category, side
+        )
+        SELECT category, side, total,
+               ROUND(100 * total / NULLIF(SUM(total) OVER (PARTITION BY side), 0), 2) AS pct
+        FROM grouped
+        ORDER BY side, total DESC
+        """,
+        first,
+        nxt,
+    )
+
+    income: list[CategoryBreakdownRow] = []
+    expense: list[CategoryBreakdownRow] = []
+    for r in rows:
+        bucket = income if r["side"] == "income" else expense
+        bucket.append(
+            CategoryBreakdownRow(
+                category=r["category"],
+                total=float(r["total"]),
+                pct=float(r["pct"]) if r["pct"] is not None else 0.0,
+            )
+        )
+    return CategoryBreakdown(
+        month=month,
+        income_total=round(sum((r.total for r in income), 0.0), 2),
+        expense_total=round(sum((r.total for r in expense), 0.0), 2),
+        income=income,
+        expense=expense,
+    )
+
+
 class ProjectionPoint(BaseModel):
     days: int
     fixed_income: float

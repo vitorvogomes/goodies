@@ -26,6 +26,48 @@ export interface Category {
   is_active: boolean;
 }
 
+export interface CategoryCreate {
+  name: string;
+  kind: CategoryKind;
+}
+
+export interface CategoryUpdate {
+  name?: string;
+  kind?: CategoryKind;
+  is_active?: boolean;
+}
+
+export interface FixedCost {
+  id: string;
+  name: string;
+  amount: number;
+  due_day: number;
+  category: string;
+  is_active: boolean;
+}
+
+export interface FixedCostCreate {
+  name: string;
+  amount: number;
+  due_day: number;
+  category: string;
+  is_active?: boolean;
+}
+
+export interface CategoryBreakdownRow {
+  category: string;
+  total: number;
+  pct: number;
+}
+
+export interface CategoryBreakdown {
+  month: string | null;
+  income_total: number;
+  expense_total: number;
+  income: CategoryBreakdownRow[];
+  expense: CategoryBreakdownRow[];
+}
+
 export interface Transaction {
   id: string;
   account_id: string;

@@ -10,7 +10,12 @@ import type {
   Alert,
   CashflowProjection,
   Category,
+  CategoryBreakdown,
+  CategoryCreate,
   CategoryKind,
+  CategoryUpdate,
+  FixedCost,
+  FixedCostCreate,
   ImportReport,
   MonthlySummary,
   Transaction,
@@ -31,6 +36,101 @@ export function useCategories(kind?: CategoryKind) {
     queryKey: ["categories", kind ?? "all"],
     queryFn: () =>
       apiFetch<Category[]>(`/api/v1/categories${kind ? `?kind=${kind}` : ""}`),
+  });
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CategoryCreate) =>
+      apiFetch<Category>("/api/v1/categories", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: CategoryUpdate }) =>
+      apiFetch<Category>(`/api/v1/categories/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/categories/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useCategoryBreakdown(month?: string) {
+  return useQuery({
+    queryKey: ["cashflow", "by-category", month ?? "all"],
+    queryFn: () =>
+      apiFetch<CategoryBreakdown>(
+        `/api/v1/cashflow/by-category${month ? `?month=${month}` : ""}`,
+      ),
+  });
+}
+
+export function useFixedCosts(active?: boolean) {
+  return useQuery({
+    queryKey: ["fixed-costs", active ?? "all"],
+    queryFn: () =>
+      apiFetch<FixedCost[]>(
+        `/api/v1/fixed-costs${active != null ? `?active=${active}` : ""}`,
+      ),
+  });
+}
+
+export function useCreateFixedCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: FixedCostCreate) =>
+      apiFetch<FixedCost>("/api/v1/fixed-costs", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixed-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
+  });
+}
+
+export function useUpdateFixedCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<FixedCostCreate> }) =>
+      apiFetch<FixedCost>(`/api/v1/fixed-costs/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixed-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
+  });
+}
+
+export function useDeleteFixedCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/fixed-costs/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixed-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    },
   });
 }
 

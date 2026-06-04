@@ -53,6 +53,54 @@ async def test_summary_list_contains_month(api, auth_headers, account):
     assert "2099-07" in months
 
 
+async def test_by_category_requires_auth(api):
+    resp = await api.get("/api/v1/cashflow/by-category")
+    assert resp.status_code == 401
+
+
+async def test_by_category_groups_and_percentages(api, auth_headers, account):
+    # receitas: FLASH 7091 + BETUEL 1614 (total 8705); gastos: 1000 + 500 (total 1500).
+    await _post_tx(api, auth_headers, account, "2099-11-01", 7091, "FLASH")
+    await _post_tx(api, auth_headers, account, "2099-11-02", 1614, "BETUEL")
+    await _post_tx(api, auth_headers, account, "2099-11-10", -1000, "alimentação")
+    await _post_tx(api, auth_headers, account, "2099-11-12", -500, "transporte")
+
+    resp = await api.get("/api/v1/cashflow/by-category?month=2099-11", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["month"] == "2099-11"
+    assert body["income_total"] == 8705.0
+    assert body["expense_total"] == 1500.0
+
+    income = body["income"]
+    assert [r["category"] for r in income] == ["FLASH", "BETUEL"]  # ordenado por total desc
+    assert abs(income[0]["pct"] - 81.46) < 0.05
+    assert abs(sum(r["pct"] for r in income) - 100.0) < 0.05
+
+    expense = body["expense"]
+    assert expense[0]["category"] == "alimentação"
+    assert abs(sum(r["pct"] for r in expense) - 100.0) < 0.05
+
+
+async def test_by_category_all_time_when_no_month(api, auth_headers, account):
+    await _post_tx(api, auth_headers, account, "2099-11-01", 1234, "FLASH")
+    resp = await api.get("/api/v1/cashflow/by-category", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["month"] is None
+    assert "FLASH" in {r["category"] for r in body["income"]}
+
+
+async def test_by_category_empty_month_returns_empty_200(api, auth_headers):
+    resp = await api.get("/api/v1/cashflow/by-category?month=2099-02", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["income"] == []
+    assert body["expense"] == []
+    assert body["income_total"] == 0.0
+    assert body["expense_total"] == 0.0
+
+
 async def test_cashflow_running_balance(api, auth_headers, account):
     await _post_tx(api, auth_headers, account, "2099-10-01", 1000, "Salário")
     await _post_tx(api, auth_headers, account, "2099-10-05", -200, "alimentação")

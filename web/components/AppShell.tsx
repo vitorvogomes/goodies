@@ -12,6 +12,7 @@ import { getAccessToken } from "@/lib/auth";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/analise-ledger", label: "Análise" },
   { href: "/ledger", label: "Transações" },
   { href: "/ledger/new", label: "Nova transação" },
   { href: "/ledger/import", label: "Importar extrato" },
