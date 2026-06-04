@@ -48,6 +48,20 @@ async def auth_headers(pool: object) -> AsyncIterator[dict[str, str]]:
         await conn.execute("DELETE FROM users WHERE id = $1", uid)
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_fixed_costs(pool: object) -> AsyncIterator[None]:
+    """Remove custos fixos criados no teste (fixed_costs é global). Teardown roda
+    mesmo se um assert falhar, evitando poluir projeção/alertas de outros testes."""
+    async with pool.acquire() as conn:  # type: ignore[attr-defined]
+        before = [r["id"] for r in await conn.fetch("SELECT id FROM fixed_costs")]
+    yield
+    async with pool.acquire() as conn:  # type: ignore[attr-defined]
+        if before:
+            await conn.execute("DELETE FROM fixed_costs WHERE id <> ALL($1::uuid[])", before)
+        else:
+            await conn.execute("DELETE FROM fixed_costs")
+
+
 @pytest_asyncio.fixture
 async def account(pool: object) -> AsyncIterator[str]:
     """Cria uma conta de teste; limpa transações associadas + a conta ao fim."""

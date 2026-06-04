@@ -48,8 +48,8 @@ Implement following TDD. Update PROGRESS.md when done.
 | 01-03 | CRUD de transações com validação | [x] | c8bfdd5 |
 | 01-04 | Cálculo de saldo running e resumo mensal | [x] | 97aed78 |
 | 01-05 | Cálculo de taxa de poupança | [x] | 97aed78 |
-| 01-06 | Projeção de caixa 30/60/90 dias | [ ] | — |
-| 01-07 | CRUD de custos fixos | [x] | — |
+| 01-06 | Projeção de caixa 30/60/90 dias | [x] | — |
+| 01-07 | CRUD de custos fixos | [x] | da7da3f |
 | 01-08 | Alertas de vencimento e categoria acima de 120% | [ ] | — |
 | 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [ ] | — |
 | 01-10 | Frontend — lista de transações + filtros | [ ] | — |
@@ -216,3 +216,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m1 | STORY-01-03 | CRUD de transações (`engines/ledger/transactions.py`): GET paginado c/ filtros `from/to/category/account_id` (envelope items+total), POST/PUT/DELETE. Validação: amount≠0 (422), conta inexistente → 422 (FK), 404 em update/delete inexistente. NUMERIC(15,2) via Decimal(str()). +6 testes; suite 42/42; cobertura engines 92%; ruff+mypy ok. |
 | 2026-06-04 | m1 | STORY-01-04/05 | Cashflow (`engines/ledger/cashflow.py`): GET /cashflow (saldo running via window SUM, filtros account/from/to) + GET /cashflow/summary (view monthly_summary; `?month=YYYY-MM` → mês único, 404 sem dados, 422 receita zero). Taxa de poupança validada (10000/-4500 → 55%). +6 testes; suite 48/48; cobertura engines 93%; ruff+mypy ok. Nota: import (01-13-14) NÃO grava investment/transfer como transação p/ a taxa não distorcer. |
 | 2026-06-04 | m1 | STORY-01-07 | CRUD custos fixos (`engines/ledger/fixed_costs.py`): GET (filtro `?active=`)/POST/PUT/DELETE em `/api/v1/fixed-costs`. Validação: amount>0, due_day 1-31 (422), 404 em update/delete inexistente. +6 testes; suite 54/54; ruff+mypy ok. |
+| 2026-06-04 | m1 | STORY-01-06 | Projeção de caixa (`/cashflow/projection` em cashflow.py): saldo atual + receita recorrente (is_recurring & amount>0) − custos fixos ativos, escalado p/ 30/60/90d; `?account_id` opcional. Fixture autouse `_clean_fixed_costs` blinda a tabela global entre testes. +2 testes; suite 56/56; cobertura engines 94%; ruff+mypy ok. |

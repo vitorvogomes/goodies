@@ -122,3 +122,58 @@ async def summary(
             },
         )
     return _summary(row)
+
+
+class ProjectionPoint(BaseModel):
+    days: int
+    fixed_income: float
+    fixed_expenses: float
+    projected_balance: float
+
+
+class CashflowProjection(BaseModel):
+    current_balance: float
+    monthly_income: float
+    monthly_expenses: float
+    projections: list[ProjectionPoint]
+
+
+@router.get("/projection")
+async def projection(
+    user: AuthUser,
+    db: Db,
+    account_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> CashflowProjection:
+    # Saldo atual = soma de todas as transações (opc. por conta). Receita recorrente
+    # mensal = is_recurring & amount>0. Despesa fixa mensal = custos fixos ativos.
+    current_balance = await db.fetchval(
+        "SELECT COALESCE(SUM(amount), 0) FROM transactions "
+        "WHERE ($1::uuid IS NULL OR account_id = $1)",
+        account_id,
+    )
+    monthly_income = await db.fetchval(
+        "SELECT COALESCE(SUM(amount), 0) FROM transactions "
+        "WHERE is_recurring AND amount > 0 AND ($1::uuid IS NULL OR account_id = $1)",
+        account_id,
+    )
+    monthly_expenses = await db.fetchval(
+        "SELECT COALESCE(SUM(amount), 0) FROM fixed_costs WHERE is_active"
+    )
+    cb = float(current_balance)
+    mi = float(monthly_income)
+    me = float(monthly_expenses)
+    points = [
+        ProjectionPoint(
+            days=days,
+            fixed_income=round(mi * (days // 30), 2),
+            fixed_expenses=round(me * (days // 30), 2),
+            projected_balance=round(cb + (mi - me) * (days // 30), 2),
+        )
+        for days in (30, 60, 90)
+    ]
+    return CashflowProjection(
+        current_balance=round(cb, 2),
+        monthly_income=round(mi, 2),
+        monthly_expenses=round(me, 2),
+        projections=points,
+    )
