@@ -125,6 +125,81 @@ async def upsert_price(
     return dict(row) if row else {}
 
 
+# --------------------------------------------------------------------------- #
+# Posições (STORY-02-07)
+# --------------------------------------------------------------------------- #
+def _dca_price(ops: Sequence[Any]) -> float:
+    """Preco medio ponderado de compra/aporte (custo / quantidade)."""
+    qty = sum(
+        float(o["quantidade"]) for o in ops if o["tipo"] in _INFLOW_TIPOS
+    )
+    cost = sum(
+        float(o["quantidade"]) * float(o["valor_unitario"])
+        for o in ops
+        if o["tipo"] in _INFLOW_TIPOS
+    )
+    return cost / qty if qty else 0.0
+
+
+async def calculate_positions(
+    conn: asyncpg.Connection, user_id: str
+) -> list[dict[str, Any]]:
+    """Posicao atual por ativo, valorada com preco manual (asset_prices).
+
+    Inclui apenas ativos com quantidade liquida > 0 (posicoes abertas).
+    Sem preco -> valor_atual/resultado null e stale=true (ADR-004).
+    """
+    ops = await conn.fetch(
+        """
+        SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario
+        FROM asset_operations
+        WHERE user_id = $1
+        """,
+        user_id,
+    )
+    prices = await fetch_prices(conn)
+
+    by_asset: dict[str, list[Any]] = defaultdict(list)
+    category_of: dict[str, str] = {}
+    for op in ops:
+        by_asset[op["asset_symbol"]].append(op)
+        category_of[op["asset_symbol"]] = op["asset_category"]
+
+    positions: list[dict[str, Any]] = []
+    for sym, aops in by_asset.items():
+        qty_net = net_quantity(aops)
+        if qty_net <= 0:
+            continue
+        preco_medio = _dca_price(aops)
+        custo_total = preco_medio * qty_net
+        price = prices.get(sym)
+        valor_atual: float | None = None
+        resultado: float | None = None
+        resultado_pct: float | None = None
+        stale = True
+        if price is not None:
+            valor_atual = qty_net * price
+            resultado = valor_atual - custo_total
+            resultado_pct = resultado / custo_total * 100 if custo_total else 0.0
+            stale = False
+        positions.append(
+            {
+                "asset_symbol": sym,
+                "asset_category": category_of[sym],
+                "quantidade_net": qty_net,
+                "preco_medio": preco_medio,
+                "custo_total": custo_total,
+                "preco_atual": price,
+                "valor_atual": valor_atual,
+                "resultado": resultado,
+                "resultado_pct": resultado_pct,
+                "stale": stale,
+            }
+        )
+    positions.sort(key=lambda p: str(p["asset_symbol"]))
+    return positions
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 

@@ -46,3 +46,12 @@ async def get_portfolio_xirr(
 ) -> dict[str, Any]:
     """XIRR consolidado, por categoria e por ativo (taxa anualizada decimal)."""
     return await service.calculate_portfolio_xirr(db, user["id"])
+
+
+@router.get("/positions")
+async def get_positions(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Posições atuais por ativo, valoradas com preço manual."""
+    return await service.calculate_positions(db, user["id"])
