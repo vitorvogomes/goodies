@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from auth.dependencies import get_current_user
@@ -64,3 +64,13 @@ async def get_allocation(
 ) -> dict[str, Any]:
     """Alocação atual vs meta por categoria + desvio em pontos percentuais."""
     return await service.calculate_allocation(db, user["id"])
+
+
+@router.get("/rebalancing")
+async def get_rebalancing(
+    amount: float = Query(..., ge=0),
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Sugestão de aporte (nunca vende): distribui `amount` por desvio negativo."""
+    return await service.calculate_rebalancing(db, user["id"], amount)

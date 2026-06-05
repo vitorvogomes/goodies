@@ -242,6 +242,66 @@ async def calculate_allocation(
     return {"total": total, "categories": categories}
 
 
+# --------------------------------------------------------------------------- #
+# Rebalanceamento (STORY-02-09)
+# --------------------------------------------------------------------------- #
+def suggest_rebalancing(
+    value_by_cat: dict[str, float],
+    target_map: dict[str, float],
+    contribution: float,
+) -> dict[str, float]:
+    """Distribui `contribution` para as categorias abaixo do alvo (nunca vende).
+
+    Pseudocodigo da Arquitetura secao 7: gap = meta% * (total+aporte) - valor_atual;
+    so categorias com gap positivo recebem aporte, proporcional ao gap.
+    Retorna {} quando nao ha gap positivo (tudo no alvo/acima) ou aporte <= 0.
+    """
+    if contribution <= 0:
+        return {}
+    total = sum(value_by_cat.values()) + contribution
+    gaps = {
+        cat: pct / 100 * total - value_by_cat.get(cat, 0.0)
+        for cat, pct in target_map.items()
+    }
+    positive = {cat: gap for cat, gap in gaps.items() if gap > 0}
+    total_gap = sum(positive.values())
+    if total_gap <= 0:
+        return {}
+    return {cat: contribution * gap / total_gap for cat, gap in positive.items()}
+
+
+async def calculate_rebalancing(
+    conn: asyncpg.Connection, user_id: str, contribution: float
+) -> dict[str, Any]:
+    """Sugestao de aporte dado um valor de entrada, com contexto de alocacao."""
+    alloc = await calculate_allocation(conn, user_id)
+    cats = alloc["categories"]
+    value_by_cat = {c["category"]: float(c["valor_atual"]) for c in cats}
+    target_map = {
+        c["category"]: float(c["pct_meta"])
+        for c in cats
+        if c["pct_meta"] is not None
+    }
+    suggestions = suggest_rebalancing(value_by_cat, target_map, contribution)
+
+    result: dict[str, Any] = {
+        "contribution": contribution,
+        "suggestions": suggestions,
+        "current_allocation": {c["category"]: c["pct_atual"] for c in cats},
+        "target_allocation": target_map,
+        "deviations_pp": {
+            c["category"]: c["desvio_pp"]
+            for c in cats
+            if c["desvio_pp"] is not None
+        },
+    }
+    if not suggestions:
+        result["message"] = (
+            "Todas as categorias estao no alvo ou acima — nenhum aporte sugerido."
+        )
+    return result
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 
