@@ -119,6 +119,30 @@ async def list_asset_operations(
     )
 
 
+@router.get("/dca")
+async def list_dca_all(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """List DCA (preço médio ponderado) for all assets."""
+    user_id = user["id"]
+    return await operations.calculate_dca_all(db, user_id)
+
+
+@router.get("/dca/{asset_symbol}")
+async def get_dca_by_asset(
+    asset_symbol: str,
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Get DCA for a specific asset (404 if no compra/aporte ops)."""
+    user_id = user["id"]
+    result = await operations.calculate_dca_by_asset(db, user_id, asset_symbol)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return result
+
+
 @router.get("/{operation_id}")
 async def get_asset_operation(
     operation_id: str,

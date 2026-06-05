@@ -212,3 +212,59 @@ async def delete_operation(
         user_id,
     )
     return bool(result != "DELETE 0")
+
+
+async def calculate_dca_by_asset(
+    conn: asyncpg.Connection, user_id: str, asset_symbol: str
+) -> dict[str, Any] | None:
+    """
+    Calculate DCA (preço médio ponderado) for a single asset.
+
+    Only includes 'compra' and 'aporte' tipos in calculation.
+    Excludes 'venda', 'resgate', 'dividendo', 'juros'.
+
+    Returns:
+        Dict with asset_symbol, preco_medio, quantidade_total.
+        None if no compra/aporte operations exist.
+    """
+    query = """
+        SELECT
+            asset_symbol,
+            SUM(quantidade * valor_unitario) / SUM(quantidade) AS preco_medio,
+            SUM(quantidade) AS quantidade_total
+        FROM asset_operations
+        WHERE user_id = $1
+          AND asset_symbol = $2
+          AND tipo IN ('compra', 'aporte')
+        GROUP BY asset_symbol
+    """
+    row = await conn.fetchrow(query, user_id, asset_symbol)
+    if row is None or row["preco_medio"] is None:
+        return None
+    return dict(row)
+
+
+async def calculate_dca_all(
+    conn: asyncpg.Connection, user_id: str
+) -> list[dict[str, Any]]:
+    """
+    Calculate DCA for all assets with compra/aporte operations.
+
+    Returns:
+        List of dicts with asset_symbol, asset_category,
+        preco_medio, quantidade_total. Empty list if no operations.
+    """
+    query = """
+        SELECT
+            asset_symbol,
+            asset_category,
+            SUM(quantidade * valor_unitario) / SUM(quantidade) AS preco_medio,
+            SUM(quantidade) AS quantidade_total
+        FROM asset_operations
+        WHERE user_id = $1
+          AND tipo IN ('compra', 'aporte')
+        GROUP BY asset_symbol, asset_category
+        ORDER BY asset_symbol
+    """
+    rows = await conn.fetch(query, user_id)
+    return [dict(row) for row in rows]
