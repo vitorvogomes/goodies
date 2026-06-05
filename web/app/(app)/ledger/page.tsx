@@ -89,10 +89,10 @@ function TransactionRow({
         <select
           value={tx.category}
           onChange={(e) => onSave(tx.id, { category: e.target.value })}
-          className="cursor-pointer rounded border-0 bg-transparent py-0.5 text-foreground/60 outline-none hover:text-foreground focus:ring-1 focus:ring-accent/40"
+          className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-foreground/80 outline-none transition hover:border-accent/40 focus:border-accent focus:ring-2 focus:ring-accent/40"
         >
           {options.map((name) => (
-            <option key={name} value={name}>
+            <option key={name} value={name} className="bg-background text-foreground">
               {name}
             </option>
           ))}

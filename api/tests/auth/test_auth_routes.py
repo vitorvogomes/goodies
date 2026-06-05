@@ -5,7 +5,7 @@ import uuid
 import httpx
 import pytest_asyncio
 
-from auth.security import hash_password
+from auth.security import hash_password, hash_token
 from main import app
 
 _PASSWORD = "correct-horse-battery"
@@ -99,3 +99,45 @@ async def test_refresh_returns_new_access_and_rejects_invalid(test_user):
     assert ok.status_code == 200
     assert ok.json()["access_token"]
     assert bad.status_code == 401
+
+
+async def test_refresh_via_cookie_returns_new_access(test_user):
+    """Browser não lê o cookie httpOnly: o refresh deve funcionar só com o cookie."""
+    async with _client() as client:
+        await client.post(
+            "/api/v1/auth/login",
+            json={"email": test_user["email"], "password": _PASSWORD},
+        )
+        # O cookie de refresh está no jar do client; refresh SEM body usa o cookie.
+        resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 200
+    assert resp.json()["access_token"]
+
+
+async def test_refresh_without_token_returns_401(pool):
+    """Sem cookie e sem body → 401 (não 422)."""
+    async with _client() as client:
+        resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+
+
+async def test_refresh_rotates_cookie_and_db_hash(pool, test_user):
+    async with _client() as client:
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={"email": test_user["email"], "password": _PASSWORD},
+        )
+        first_refresh = login.json()["refresh_token"]
+        resp = await client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": first_refresh}
+        )
+    assert resp.status_code == 200
+    # Rotação: novo cookie setado na resposta.
+    assert "refresh_token=" in resp.headers.get("set-cookie", "")
+    # O hash no DB mudou (não é mais o do primeiro refresh).
+    async with pool.acquire() as conn:
+        stored = await conn.fetchval(
+            "SELECT refresh_token_hash FROM users WHERE id = $1",
+            uuid.UUID(test_user["id"]),
+        )
+    assert stored != hash_token(first_refresh)

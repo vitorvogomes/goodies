@@ -5,6 +5,8 @@
 
 /* Paleta Goodies — dark-only no MVP (ADR-009, next-themes defaultTheme="dark"). */
 :root {
+  /* Controles nativos (popup de <option>, date picker, scrollbar) em tema escuro. */
+  color-scheme: dark;
   --background: #0a0a0b;
   --foreground: #e8e8ea;
   --muted: #16161a;

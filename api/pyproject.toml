@@ -21,6 +21,7 @@ dependencies = [
     "bcrypt>=4,<5",                    # passlib 1.7.4 quebra com bcrypt 5 (00-05)
     "structlog>=24.1",        # logs estruturados (m6)
     "alembic>=1.13",          # migrations Postgres (00-03)
+    "openpyxl>=3.1",
 ]
 
 # Dev/test tools (PEP 735) — instalados por padrão no `uv sync`; excluídos com `--no-dev` (imagem).

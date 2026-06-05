@@ -126,6 +126,62 @@ async def test_asset_operations_quantidade_positive(
 
 
 @pytest.mark.asyncio
+async def test_asset_prices_table_exists(pool: Any) -> None:
+    """asset_prices table must exist (0008 — manual prices for m2)."""
+    result = await pool.fetchval(
+        """
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'asset_prices'
+        """
+    )
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_asset_prices_columns(pool: Any) -> None:
+    """asset_prices must have all required columns."""
+    columns = await pool.fetch(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'asset_prices'
+        ORDER BY column_name
+        """
+    )
+    column_names = {col["column_name"] for col in columns}
+    required = {
+        "ticker",
+        "price_brl",
+        "price_usd",
+        "source",
+        "is_manual",
+        "fetched_at",
+    }
+    assert required <= column_names
+
+
+@pytest.mark.asyncio
+async def test_asset_prices_ticker_pk_upsert(pool: Any) -> None:
+    """asset_prices ticker is PK — second insert same ticker must conflict."""
+    await pool.execute(
+        "INSERT INTO asset_prices (ticker, price_brl, source) VALUES ($1, $2, $3)",
+        "TEST_PK",
+        10.0,
+        "manual",
+    )
+    try:
+        with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+            await pool.execute(
+                "INSERT INTO asset_prices (ticker, price_brl, source) "
+                "VALUES ($1, $2, $3)",
+                "TEST_PK",
+                20.0,
+                "manual",
+            )
+    finally:
+        await pool.execute("DELETE FROM asset_prices WHERE ticker = $1", "TEST_PK")
+
+
+@pytest.mark.asyncio
 async def test_portfolio_targets_table_exists(pool: Any) -> None:
     """portfolio_targets table must exist."""
     result = await pool.fetchval(

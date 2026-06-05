@@ -6,6 +6,7 @@ O refresh token é guardado no banco como SHA-256 (hash, não o token).
 """
 
 import hashlib
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -34,7 +35,14 @@ def create_access_token(subject: str, scope: str = "user") -> str:
 
 def create_refresh_token(subject: str) -> str:
     expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_ttl_days)
-    payload = {"sub": subject, "type": "refresh", "exp": expire}
+    # jti único por emissão: garante que a rotação sempre gera um token distinto
+    # (mesmo no mesmo segundo) e permite revogação por hash no DB.
+    payload = {
+        "sub": subject,
+        "type": "refresh",
+        "exp": expire,
+        "jti": uuid.uuid4().hex,
+    }
     return str(jwt.encode(payload, settings.jwt_refresh_secret_key, algorithm=_ALGORITHM))
 
 
