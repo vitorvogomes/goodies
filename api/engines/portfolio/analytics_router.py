@@ -95,3 +95,12 @@ async def get_ir_estimate(
 ) -> dict[str, Any]:
     """Estimativa de IR por categoria de renda variável (ganho x alíquota)."""
     return await service.estimate_ir(db, user["id"])
+
+
+@router.get("/ir-crypto")
+async def get_ir_crypto(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Consolidação mensal de vendas de cripto + alerta de 80% do limite."""
+    return await service.calculate_crypto_ir_monthly(db, user["id"])

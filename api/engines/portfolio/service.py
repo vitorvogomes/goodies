@@ -410,6 +410,84 @@ async def estimate_ir(conn: asyncpg.Connection, user_id: str) -> dict[str, Any]:
     return {"total_ir": total_ir, "categories": categories}
 
 
+# --------------------------------------------------------------------------- #
+# IR cripto: consolidacao mensal + alerta 80% (STORY-02-12)
+# --------------------------------------------------------------------------- #
+_CRYPTO_EXEMPTION = 35000.0  # isencao mensal de vendas de cripto (BR)
+_CRYPTO_ALERT = 28000.0  # 80% do limite -> alerta
+_CRYPTO_IR_RATE = 0.15
+
+
+async def calculate_crypto_ir_monthly(
+    conn: asyncpg.Connection, user_id: str
+) -> dict[str, Any]:
+    """Consolida vendas de cripto por mes; sinaliza isencao e alerta de 80%.
+
+    - total_vendas/mes = soma(quantidade * valor_unitario) de tipo=venda (Cripto).
+    - isento quando total_vendas < R$ 35.000; alerta quando > R$ 28.000 (80%).
+    - ir_estimado: 0 se isento; senao max(0, ganho) * 15%. O ganho usa o preco
+      medio (DCA) do ativo como base de custo -- estimativa para m2.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT asset_symbol, tipo, quantidade, valor_unitario, data_operacao
+        FROM asset_operations
+        WHERE user_id = $1 AND asset_category = 'Cripto'
+        """,
+        user_id,
+    )
+
+    # Preco medio (DCA) por simbolo a partir de compra/aporte
+    inflow_qty: dict[str, float] = defaultdict(float)
+    inflow_cost: dict[str, float] = defaultdict(float)
+    for row in rows:
+        if row["tipo"] in _INFLOW_TIPOS:
+            qty = float(row["quantidade"])
+            inflow_qty[row["asset_symbol"]] += qty
+            inflow_cost[row["asset_symbol"]] += qty * float(row["valor_unitario"])
+    preco_medio = {
+        s: (inflow_cost[s] / inflow_qty[s] if inflow_qty[s] else 0.0)
+        for s in inflow_qty
+    }
+
+    months: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"total_vendas": 0.0, "ganho": 0.0}
+    )
+    for row in rows:
+        if row["tipo"] != "venda":
+            continue
+        qty = float(row["quantidade"])
+        val = float(row["valor_unitario"])
+        month = row["data_operacao"].strftime("%Y-%m")
+        pm = preco_medio.get(row["asset_symbol"], 0.0)
+        months[month]["total_vendas"] += qty * val
+        months[month]["ganho"] += qty * (val - pm)
+
+    meses: list[dict[str, Any]] = []
+    for month in sorted(months):
+        total_vendas = months[month]["total_vendas"]
+        ganho = months[month]["ganho"]
+        isento = total_vendas < _CRYPTO_EXEMPTION
+        alerta = total_vendas > _CRYPTO_ALERT
+        ir_estimado = 0.0 if isento else max(0.0, ganho) * _CRYPTO_IR_RATE
+        meses.append(
+            {
+                "mes": month,
+                "total_vendas": total_vendas,
+                "ganho": ganho,
+                "isento": isento,
+                "alerta": alerta,
+                "ir_estimado": ir_estimado,
+            }
+        )
+
+    return {
+        "limite_isencao": _CRYPTO_EXEMPTION,
+        "alerta_threshold": _CRYPTO_ALERT,
+        "meses": meses,
+    }
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 
