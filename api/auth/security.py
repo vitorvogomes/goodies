@@ -50,6 +50,14 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
     return payload
 
 
+def decode_hermes_token(token: str) -> dict[str, Any]:
+    """Valida o Hermes service token (secret próprio — STORY-01-09 / ADR-006/007)."""
+    payload: dict[str, Any] = jwt.decode(
+        token, settings.hermes_service_token_secret, algorithms=[_ALGORITHM]
+    )
+    return payload
+
+
 def hash_token(token: str) -> str:
     """SHA-256 do refresh token p/ guardar em users.refresh_token_hash."""
     return hashlib.sha256(token.encode()).hexdigest()
