@@ -200,6 +200,48 @@ async def calculate_positions(
     return positions
 
 
+# --------------------------------------------------------------------------- #
+# Alocacao atual vs meta (STORY-02-08)
+# --------------------------------------------------------------------------- #
+async def calculate_allocation(
+    conn: asyncpg.Connection, user_id: str
+) -> dict[str, Any]:
+    """Alocacao atual (valor de mercado) vs meta por categoria + desvio em pp.
+
+    Categorias = uniao das categorias com posicao e das metas seedadas.
+    `pct_meta`/`desvio_pp` ficam null para categorias sem meta definida.
+    """
+    positions = await calculate_positions(conn, user_id)
+    target_rows = await conn.fetch(
+        "SELECT category, target_pct FROM portfolio_targets WHERE user_id = $1",
+        user_id,
+    )
+    target_map = {row["category"]: float(row["target_pct"]) for row in target_rows}
+
+    value_by_cat: dict[str, float] = defaultdict(float)
+    for pos in positions:
+        if pos["valor_atual"] is not None:
+            value_by_cat[pos["asset_category"]] += float(pos["valor_atual"])
+    total = sum(value_by_cat.values())
+
+    categories: list[dict[str, Any]] = []
+    for cat in sorted(set(value_by_cat) | set(target_map)):
+        valor = value_by_cat.get(cat, 0.0)
+        pct_atual = valor / total * 100 if total else 0.0
+        pct_meta = target_map.get(cat)
+        desvio_pp = pct_atual - pct_meta if pct_meta is not None else None
+        categories.append(
+            {
+                "category": cat,
+                "valor_atual": valor,
+                "pct_atual": pct_atual,
+                "pct_meta": pct_meta,
+                "desvio_pp": desvio_pp,
+            }
+        )
+    return {"total": total, "categories": categories}
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 
