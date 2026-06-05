@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
 from config import settings
-from db import init_pool, close_pool
+from db.connection import close_pool, init_pool
 from engines.portfolio.targets import PORTFOLIO_TARGETS, seed_targets
 
 
@@ -23,9 +23,8 @@ async def main() -> None:
 
     try:
         await init_pool(settings.database_url)
-        pool = init_pool.__pool__
 
-        from db import get_pool
+        from db.connection import get_pool
 
         pool = get_pool()
 

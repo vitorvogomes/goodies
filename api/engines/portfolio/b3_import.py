@@ -98,6 +98,50 @@ def _to_date(value: Any) -> date:
     return parse_date(str(value))
 
 
+# Abas de "Posição" do relatório consolidado -> preço unitário atual por ticker.
+# (ticker_col, price_col, qty_col): se qty_col != None, preço = valor/quantidade.
+_POSITION_SHEETS: dict[str, tuple[str, str, str | None]] = {
+    "Posição - Ações": ("Código de Negociação", "Preço de Fechamento", None),
+    "Posição - ETF": ("Código de Negociação", "Preço de Fechamento", None),
+    "Posição - Fundos": ("Código de Negociação", "Preço de Fechamento", None),
+    "Posição - Tesouro Direto": ("Produto", "Valor Atualizado", "Quantidade"),
+}
+
+
+def parse_b3_position_prices(
+    sheets: dict[str, Sequence[Sequence[Any]]],
+) -> dict[str, float]:
+    """Extrai preço unitário atual por ticker das abas 'Posição' do consolidado.
+
+    `sheets`: nome da aba -> linhas (incluindo cabeçalho). Linhas de 'Total'/vazias
+    são ignoradas. Tesouro Direto: preço = Valor Atualizado / Quantidade.
+    """
+    prices: dict[str, float] = {}
+    for sheet, (tcol, pcol, qcol) in _POSITION_SHEETS.items():
+        rows = sheets.get(sheet)
+        if not rows:
+            continue
+        header = [str(h) for h in rows[0]]
+        ti = header.index(tcol) if tcol in header else None
+        pi = header.index(pcol) if pcol in header else None
+        qi = header.index(qcol) if qcol and qcol in header else None
+        if ti is None or pi is None:
+            continue
+        for row in rows[1:]:
+            tick = row[ti] if ti < len(row) else None
+            if not tick or str(tick).strip().lower().startswith("total"):
+                continue
+            ticker = str(tick).strip()
+            price = _to_float(row[pi]) if pi < len(row) else None
+            if qi is not None:
+                qty = _to_float(row[qi]) if qi < len(row) else None
+                if price is not None and qty:
+                    price = price / qty
+            if price is not None:
+                prices[ticker] = price
+    return prices
+
+
 def parse_b3_movimentacao(rows: Sequence[Sequence[Any]]) -> list[dict[str, Any]]:
     """Converte linhas de dados da aba Movimentação em operações canônicas.
 

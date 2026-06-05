@@ -25,7 +25,10 @@ import openpyxl
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
-from engines.portfolio.b3_import import parse_b3_movimentacao
+from engines.portfolio.b3_import import (
+    parse_b3_movimentacao,
+    parse_b3_position_prices,
+)
 from engines.portfolio.migration import import_operations
 
 _SHEET = "Movimentação"
@@ -40,11 +43,33 @@ def _read_movimentacao(path: str) -> list[tuple]:
     return rows[1:]  # descarta cabeçalho
 
 
+def _read_snapshot_prices(path: str) -> dict[str, float]:
+    wb = openpyxl.load_workbook(path, data_only=True)
+    sheets = {
+        name: list(wb[name].iter_rows(values_only=True))
+        for name in wb.sheetnames
+    }
+    return parse_b3_position_prices(sheets)
+
+
+def _opt(flag: str) -> str | None:
+    if flag in sys.argv:
+        i = sys.argv.index(flag)
+        if i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    return None
+
+
 def main() -> None:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    snapshot = _opt("--snapshot")
+    args = [
+        a
+        for i, a in enumerate(sys.argv[1:], start=1)
+        if not a.startswith("--") and sys.argv[i - 1] != "--snapshot"
+    ]
     commit = "--commit" in sys.argv
     if not args:
-        print("Uso: import_b3.py <xlsx...> [--commit]")
+        print("Uso: import_b3.py <xlsx...> [--snapshot <xlsx>] [--commit]")
         sys.exit(2)
 
     paths: list[str] = []
@@ -91,14 +116,26 @@ def main() -> None:
                 print("[erro] Nenhum usuário no banco.")
                 sys.exit(1)
             user_id = str(admin["id"])
-            report = await import_operations(conn, user_id, all_ops, broker_default="Toro/B3")
+            report = await import_operations(
+                conn, user_id, all_ops, broker_default="Toro/B3"
+            )
+            n_prices = 0
+            if snapshot:
+                prices = _read_snapshot_prices(snapshot)
+                for ticker, price in prices.items():
+                    await service.upsert_price(conn, ticker, price, source="b3")
+                n_prices = len(prices)
             await service.invalidate_xirr_cache(user_id)
             xirr = await service.calculate_portfolio_xirr(conn, user_id)
         await close_pool()
         print(f"\nUsuário: {admin['email']}")
         print(f"Importadas: {report['imported']} | Já existentes: {report['skipped']}")
+        print(f"Preços semeados (snapshot): {n_prices}")
         c = xirr["consolidated"]
-        print("XIRR consolidado: " + (f"{c * 100:.2f}% a.a." if c is not None else "indefinido"))
+        print(
+            "XIRR consolidado: "
+            + (f"{c * 100:.2f}% a.a." if c is not None else "indefinido")
+        )
 
     asyncio.run(_run())
     print("=" * 70)

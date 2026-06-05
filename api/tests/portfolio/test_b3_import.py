@@ -7,6 +7,7 @@ from engines.portfolio.b3_import import (
     b3_category,
     map_movimentacao,
     parse_b3_movimentacao,
+    parse_b3_position_prices,
     parse_produto,
 )
 
@@ -108,3 +109,29 @@ class TestParseMovimentacao:
         jcp = next(o for o in ops if o["tipo"] == "juros")
         assert div["asset_symbol"] == "MXRF11"
         assert jcp["asset_symbol"] == "PETR4"
+
+
+class TestPositionPrices:
+    def test_stock_uses_preco_fechamento(self) -> None:
+        sheets = {
+            "Posição - Ações": [
+                ("Produto", "Código de Negociação", "Quantidade",
+                 "Preço de Fechamento", "Valor Atualizado"),
+                ("BBAS3 - BCO BRASIL", "BBAS3", 37, 20.3, 751.1),
+                ("", "", "", "", "Total"),  # linha de total ignorada
+            ],
+        }
+        prices = parse_b3_position_prices(sheets)
+        assert abs(prices["BBAS3"] - 20.3) < 0.001
+        assert "Total" not in prices
+
+    def test_tesouro_price_is_value_over_qty(self) -> None:
+        sheets = {
+            "Posição - Tesouro Direto": [
+                ("Produto", "Quantidade", "Valor Atualizado"),
+                ("Tesouro IPCA+ 2029", 0.15, 564.02),
+            ],
+        }
+        prices = parse_b3_position_prices(sheets)
+        # 564.02 / 0.15 = 3760.13
+        assert abs(prices["Tesouro IPCA+ 2029"] - 564.02 / 0.15) < 0.01
