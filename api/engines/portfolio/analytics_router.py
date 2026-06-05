@@ -8,7 +8,8 @@ Note: B008 (Depends in defaults) é padrão FastAPI e seguro aqui.
 from __future__ import annotations
 
 # ruff: noqa: B008
-from typing import Any
+from datetime import date
+from typing import Annotated, Any
 
 import asyncpg
 from fastapi import APIRouter, Depends, Query
@@ -74,3 +75,14 @@ async def get_rebalancing(
 ) -> dict[str, Any]:
     """Sugestão de aporte (nunca vende): distribui `amount` por desvio negativo."""
     return await service.calculate_rebalancing(db, user["id"], amount)
+
+
+@router.get("/income")
+async def get_income(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+) -> dict[str, Any]:
+    """Rendimentos (dividendo/juros) por ativo/categoria, separados do capital."""
+    return await service.calculate_income(db, user["id"], date_from, date_to)

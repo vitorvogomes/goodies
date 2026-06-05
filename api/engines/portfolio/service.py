@@ -302,6 +302,64 @@ async def calculate_rebalancing(
     return result
 
 
+# --------------------------------------------------------------------------- #
+# Rendimentos: dividendos / juros (STORY-02-10)
+# --------------------------------------------------------------------------- #
+async def calculate_income(
+    conn: asyncpg.Connection,
+    user_id: str,
+    data_from: date | None = None,
+    data_to: date | None = None,
+) -> dict[str, Any]:
+    """Rendimentos (tipo dividendo/juros), separados de ganho de capital.
+
+    Valor de cada rendimento = quantidade * valor_unitario. Opcionalmente filtra
+    por periodo [data_from, data_to].
+    """
+    query = """
+        SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario
+        FROM asset_operations
+        WHERE user_id = $1 AND tipo IN ('dividendo', 'juros')
+    """
+    params: list[Any] = [user_id]
+    idx = 2
+    if data_from is not None:
+        query += f" AND data_operacao >= ${idx}"
+        params.append(data_from)
+        idx += 1
+    if data_to is not None:
+        query += f" AND data_operacao <= ${idx}"
+        params.append(data_to)
+        idx += 1
+
+    rows = await conn.fetch(query, *params)
+
+    by_asset: dict[str, float] = defaultdict(float)
+    by_category: dict[str, float] = defaultdict(float)
+    by_type: dict[str, float] = defaultdict(float)
+    category_of: dict[str, str] = {}
+    total = 0.0
+    for row in rows:
+        value = float(row["quantidade"]) * float(row["valor_unitario"])
+        by_asset[row["asset_symbol"]] += value
+        category_of[row["asset_symbol"]] = row["asset_category"]
+        by_category[row["asset_category"]] += value
+        by_type[row["tipo"]] += value
+        total += value
+
+    return {
+        "total": total,
+        "by_asset": [
+            {"asset_symbol": s, "asset_category": category_of[s], "total": t}
+            for s, t in sorted(by_asset.items())
+        ],
+        "by_category": [
+            {"asset_category": c, "total": t} for c, t in sorted(by_category.items())
+        ],
+        "by_type": dict(by_type),
+    }
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 
