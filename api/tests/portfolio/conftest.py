@@ -42,4 +42,7 @@ async def auth_headers(pool: object) -> AsyncIterator[dict[str, str]]:
     yield {"Authorization": f"Bearer {token}"}
     async with pool.acquire() as conn:  # type: ignore[attr-defined]
         await conn.execute("DELETE FROM asset_operations WHERE user_id = $1", uid)
+        # asset_prices is global (keyed by ticker, no user_id) — wipe between tests
+        # to keep per-user isolation. Sequential test execution makes this safe.
+        await conn.execute("DELETE FROM asset_prices")
         await conn.execute("DELETE FROM users WHERE id = $1", uid)

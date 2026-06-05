@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from auth.dependencies import get_current_user
 from db.connection import get_db
 
-from . import operations
+from . import operations, service
 
 router = APIRouter(prefix="/api/v1/asset-operations", tags=["portfolio"])
 
@@ -85,6 +85,7 @@ async def create_asset_operation(
             notes=body.notes,
             external_id=body.external_id,
         )
+        await service.invalidate_xirr_cache(user_id)
         return result
     except asyncpg.CheckViolationError as exc:
         raise HTTPException(
@@ -184,6 +185,7 @@ async def update_asset_operation(
         )
         if not result:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        await service.invalidate_xirr_cache(user_id)
         return result
     except asyncpg.CheckViolationError as exc:
         raise HTTPException(
@@ -208,3 +210,4 @@ async def delete_asset_operation(
     deleted = await operations.delete_operation(db, user_id, operation_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    await service.invalidate_xirr_cache(user_id)

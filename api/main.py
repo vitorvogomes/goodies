@@ -16,6 +16,7 @@ from config import settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.ledger.router import router as ledger_router
 from engines.market.cache import check_redis
+from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.router import router as portfolio_router
 from health import collect_component_status, register_component_check
 from hermes.router import router as hermes_router
@@ -45,6 +46,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(portfolio_router)
+app.include_router(portfolio_analytics_router)
 app.include_router(hermes_router)
 
 
