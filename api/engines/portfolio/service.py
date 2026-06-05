@@ -360,6 +360,56 @@ async def calculate_income(
     }
 
 
+# --------------------------------------------------------------------------- #
+# Estimativa de IR — renda variavel (STORY-02-11)
+# --------------------------------------------------------------------------- #
+# Aliquotas de IR sobre ganho de capital por categoria de RV (estimativa).
+# Cripto e tratada separadamente (STORY-02-12); RF/Tesouro usam tabela regressiva.
+_IR_ALIQUOTAS: dict[str, float] = {
+    "Ações Nacionais": 0.15,
+    "ETFs": 0.15,
+    "FIIs": 0.20,
+}
+
+
+async def estimate_ir(conn: asyncpg.Connection, user_id: str) -> dict[str, Any]:
+    """Estimativa de IR por categoria de RV: max(0, ganho) * aliquota.
+
+    So considera posicoes com preco conhecido (valor_atual). Categorias fora do
+    mapa de aliquotas (RF, Aposentadoria, Cripto) nao entram nesta estimativa.
+    """
+    positions = await calculate_positions(conn, user_id)
+
+    valor_by_cat: dict[str, float] = defaultdict(float)
+    custo_by_cat: dict[str, float] = defaultdict(float)
+    for pos in positions:
+        cat = pos["asset_category"]
+        if cat in _IR_ALIQUOTAS and pos["valor_atual"] is not None:
+            valor_by_cat[cat] += float(pos["valor_atual"])
+            custo_by_cat[cat] += float(pos["custo_total"])
+
+    categories: list[dict[str, Any]] = []
+    total_ir = 0.0
+    for cat in sorted(valor_by_cat):
+        valor_atual = valor_by_cat[cat]
+        custo_total = custo_by_cat[cat]
+        ganho = valor_atual - custo_total
+        aliquota = _IR_ALIQUOTAS[cat]
+        ir_estimado = max(0.0, ganho) * aliquota
+        total_ir += ir_estimado
+        categories.append(
+            {
+                "category": cat,
+                "valor_atual": valor_atual,
+                "custo_total": custo_total,
+                "ganho": ganho,
+                "aliquota": aliquota,
+                "ir_estimado": ir_estimado,
+            }
+        )
+    return {"total_ir": total_ir, "categories": categories}
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 

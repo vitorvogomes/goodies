@@ -86,3 +86,12 @@ async def get_income(
 ) -> dict[str, Any]:
     """Rendimentos (dividendo/juros) por ativo/categoria, separados do capital."""
     return await service.calculate_income(db, user["id"], date_from, date_to)
+
+
+@router.get("/ir-estimate")
+async def get_ir_estimate(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Estimativa de IR por categoria de renda variável (ganho x alíquota)."""
+    return await service.estimate_ir(db, user["id"])
