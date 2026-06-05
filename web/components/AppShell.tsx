@@ -2,12 +2,13 @@
 
 // Shell da área autenticada (m1): sidebar + gate de acesso.
 // O access token vive em memória (ADR-006); num reload duro ele se perde, então
-// caímos p/ /login. (Refresh-on-load via cookie httpOnly é melhoria de auth futura.)
+// tentamos renová-lo pelo cookie httpOnly de refresh antes de cair no /login.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { cn } from "@/components/ui";
+import { refreshAccessToken } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 
 const NAV = [
@@ -28,11 +29,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // O access token vive só em memória no cliente (pós-mount); a checagem precisa
-    // acontecer aqui. setState no effect é intencional neste gate de auth.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (getAccessToken()) setReady(true);
-    else router.replace("/login");
+    // O access token vive só em memória (pós-mount). Se sumiu (reload duro),
+    // tenta renovar pelo cookie httpOnly de refresh antes de redirecionar.
+    let active = true;
+    (async () => {
+      if (getAccessToken()) {
+        if (active) setReady(true);
+        return;
+      }
+      const refreshed = await refreshAccessToken();
+      if (!active) return;
+      if (refreshed) setReady(true);
+      else router.replace("/login");
+    })();
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   if (!ready) {
