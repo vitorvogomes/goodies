@@ -37,7 +37,10 @@ async def set_manual_price(
     db: asyncpg.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     """Define/atualiza o preço manual de um ativo (upsert)."""
-    return await service.upsert_price(db, asset_symbol, body.price_brl)
+    result = await service.upsert_price(db, asset_symbol, body.price_brl)
+    # O XIRR consolidado depende do preço atual → invalida o cache (ADR-008).
+    await service.invalidate_xirr_cache(user["id"])
+    return result
 
 
 @router.get("/xirr")

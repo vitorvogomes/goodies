@@ -467,7 +467,8 @@ async def calculate_crypto_ir_monthly(
     for month in sorted(months):
         total_vendas = months[month]["total_vendas"]
         ganho = months[month]["ganho"]
-        isento = total_vendas < _CRYPTO_EXEMPTION
+        # Isenção legal: vendas mensais ATÉ R$ 35.000 (inclusive) são isentas.
+        isento = total_vendas <= _CRYPTO_EXEMPTION
         alerta = total_vendas > _CRYPTO_ALERT
         ir_estimado = 0.0 if isento else max(0.0, ganho) * _CRYPTO_IR_RATE
         meses.append(

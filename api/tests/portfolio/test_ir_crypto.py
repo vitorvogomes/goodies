@@ -85,6 +85,19 @@ class TestCryptoIR:
         assert abs(float(m["ir_estimado"]) - 3000.0) < 0.01
 
     @pytest.mark.asyncio
+    async def test_exactly_35k_is_exempt(
+        self, api: AsyncClient, auth_headers: dict
+    ) -> None:
+        """Boundary: vendas == R$ 35.000 são ISENTAS (limite inclusivo)."""
+        await _op(api, auth_headers, "compra", 2.0, 20000.0, "2026-01-05")
+        await _op(api, auth_headers, "venda", 1.0, 35000.0, "2026-05-10")
+        resp = await api.get("/api/v1/portfolio/ir-crypto", headers=auth_headers)
+        m = _month(resp.json(), "2026-05")
+        assert abs(float(m["total_vendas"]) - 35000.0) < 0.01
+        assert m["isento"] is True
+        assert float(m["ir_estimado"]) == 0.0
+
+    @pytest.mark.asyncio
     async def test_thresholds_reported(
         self, api: AsyncClient, auth_headers: dict
     ) -> None:

@@ -14,7 +14,9 @@ export default function RebalancingPage() {
   const { data, isLoading, isError } = useRebalancing(amount);
 
   function apply() {
-    const value = Number(draft.replace(",", "."));
+    const raw = draft.trim();
+    if (raw === "") return; // campo vazio: ignora (Number("")===0)
+    const value = Number(raw.replace(",", "."));
     if (Number.isFinite(value) && value >= 0) setAmount(value);
   }
 

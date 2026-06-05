@@ -15,8 +15,10 @@ function PriceCell({ pos }: { pos: Position }) {
 
   function commit() {
     setEditing(false);
-    const value = Number(draft.replace(",", "."));
-    if (Number.isFinite(value) && value !== pos.preco_atual) {
+    const raw = draft.trim();
+    if (raw === "") return; // campo vazio: não sobrescreve o preço (Number("")===0)
+    const value = Number(raw.replace(",", "."));
+    if (Number.isFinite(value) && value >= 0 && value !== pos.preco_atual) {
       setPrice.mutate({ symbol: pos.asset_symbol, price: value });
     }
   }
