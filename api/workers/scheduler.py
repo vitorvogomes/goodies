@@ -53,7 +53,7 @@ def build_scheduler() -> AsyncIOScheduler:
     )
     scheduler.add_job(
         _job_price_crypto,
-        CronTrigger(hour="*/2"),
+        CronTrigger(hour="*/2", timezone="America/Sao_Paulo"),
         id="price_crypto",
         name="price_crypto",
     )

@@ -52,6 +52,18 @@ def price_cache_key(cache_type: str, ticker: str) -> str:
     return f"price:{cache_type}:{ticker}"
 
 
+async def invalidate_price_cache(ticker: str) -> None:
+    """Remove o ticker do cache Redis após uma escrita manual (manual sempre vence).
+
+    O preço manual é gravado no Postgres, mas a leitura (`get_price`) consulta o Redis
+    primeiro pela `cache_type` da categoria — sem isto, um preço de mercado cacheado
+    mascararia o override manual em `/market` por até o TTL. Apaga as 3 chaves candidatas
+    (só uma existe); fail-soft.
+    """
+    for cache_type in ("b3", "crypto", "tesouro"):
+        await _cache.delete(price_cache_key(cache_type, ticker))
+
+
 def _is_stale(is_manual: bool, source: str, fetched_at: datetime, now: datetime) -> bool:
     """Manual nunca envelhece (autoritativo); de mercado, envelhece após o TTL do tipo."""
     if is_manual:

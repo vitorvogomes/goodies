@@ -55,4 +55,7 @@ async def set_manual_price(
 ) -> PriceOut:
     """Define/atualiza o preço manual de um ticker (is_manual=True; sempre vence)."""
     await portfolio_service.upsert_price(db, ticker, body.price_brl)
+    # Invalida o cache Redis para o override manual não ficar mascarado por um preço
+    # de mercado cacheado (manual sempre vence; ver invalidate_price_cache).
+    await service.invalidate_price_cache(ticker)
     return PriceOut(**await service.get_price(db, ticker))

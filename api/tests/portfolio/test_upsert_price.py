@@ -70,6 +70,25 @@ async def test_manual_always_overwrites_worker(pool: Any, portfolio_user: dict) 
 
 
 @pytest.mark.asyncio
+async def test_manual_brl_edit_preserves_existing_usd(
+    pool: Any, portfolio_user: dict
+) -> None:
+    """Edição manual só de BRL não apaga o price_usd já gravado (ex.: cripto)."""
+    async with pool.acquire() as conn:
+        await service.upsert_price(
+            conn, "BTCX", 350000.0, price_usd=65000.0, source="coingecko", is_manual=False
+        )
+        # override manual de BRL, sem informar USD
+        await service.upsert_price(conn, "BTCX", 360000.0)
+        row = await conn.fetchrow(
+            "SELECT price_brl, price_usd FROM asset_prices WHERE ticker = 'BTCX'"
+        )
+    assert float(row["price_brl"]) == 360000.0
+    assert row["price_usd"] is not None
+    assert float(row["price_usd"]) == 65000.0  # USD preservado
+
+
+@pytest.mark.asyncio
 async def test_upsert_invalidates_xirr_cache_of_holder(
     pool: Any, portfolio_user: dict
 ) -> None:

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Destrava o pricing automático: marca is_manual=false nos preços de ativos cotáveis
-por fonte de mercado (B3 via BRAPI), para o worker do Market Engine poder refrescá-los.
+"""Destrava o pricing automático: marca is_manual=false nos preços de ativos com fonte
+de mercado (B3 via BRAPI + Tesouro via Tesouro Transparente), para o worker do Market
+Engine poder refrescá-los.
 
-Os preços B3 foram semeados com is_manual=true por uma versão antiga do import_b3; o
-chokepoint upsert_price (precedência §3.4) impede o worker de sobrescrever linha manual.
-Este script faz o flip one-time. Preços genuinamente manuais (Flash/RF/caixinhas/CDB e
-Tesouro — enquanto o fetcher não é validado em prod) NÃO são tocados.
+Os preços B3/Tesouro foram semeados com is_manual=true por uma versão antiga do import_b3;
+o chokepoint upsert_price (precedência §3.4) impede o worker de sobrescrever linha manual.
+Este script faz o flip one-time. Só os preços genuinamente manuais (Flash-Debênture +
+caixinhas/CDB Nubank, sem fonte de mercado) permanecem is_manual=true.
 
 Uso (banco curado local):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \

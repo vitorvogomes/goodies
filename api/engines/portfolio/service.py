@@ -134,7 +134,8 @@ async def upsert_price(
         VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (ticker) DO UPDATE
           SET price_brl = EXCLUDED.price_brl,
-              price_usd = EXCLUDED.price_usd,
+              -- só sobrescreve USD quando um novo é fornecido (manual BRL não apaga o USD)
+              price_usd = COALESCE(EXCLUDED.price_usd, asset_prices.price_usd),
               source = EXCLUDED.source,
               is_manual = EXCLUDED.is_manual,
               fetched_at = now()
@@ -184,13 +185,11 @@ async def calculate_positions(
         """,
         user_id,
     )
-    prices = await fetch_prices(conn)
-    # is_manual por ticker: o front bloqueia a edição de preço quando False (capturado
-    # automaticamente via Market Engine). Sem linha de preço → tratado como manual.
-    manual_map = {
-        r["ticker"]: r["is_manual"]
-        for r in await conn.fetch("SELECT ticker, is_manual FROM asset_prices")
-    }
+    # Preço + is_manual numa só varredura de asset_prices. is_manual: o front bloqueia a
+    # edição quando False (capturado via Market Engine); sem linha → tratado como manual.
+    price_rows = await conn.fetch("SELECT ticker, price_brl, is_manual FROM asset_prices")
+    prices = {r["ticker"]: float(r["price_brl"]) for r in price_rows}
+    manual_map = {r["ticker"]: r["is_manual"] for r in price_rows}
 
     by_asset: dict[str, list[Any]] = defaultdict(list)
     category_of: dict[str, str] = {}

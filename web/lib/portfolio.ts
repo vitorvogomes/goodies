@@ -71,6 +71,10 @@ export function useSetManualPrice() {
         method: "POST",
         body: JSON.stringify({ price_brl: price }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolio"] }),
+    onSuccess: () => {
+      // o preço alimenta tanto as posições quanto a tela de preços (/market)
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      queryClient.invalidateQueries({ queryKey: ["market"] });
+    },
   });
 }
