@@ -53,6 +53,26 @@ class Settings(BaseSettings):
     # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).
     evaluation_date: date | None = None
 
+    # ---- Market Engine (m3) — fetchers de preço ----
+    brapi_token: str = ""  # BRAPI (B3) — https://brapi.dev
+    coingecko_api_key: str = ""  # CoinGecko (cripto)
+    # symbol (UPPER) -> id CoinGecko. Em config, não hardcoded (CLAUDE.md). Override
+    # via env COINGECKO_IDS (JSON). Estende conforme a carteira cripto cresce (m4).
+    coingecko_ids: dict[str, str] = {
+        "BTC": "bitcoin",
+        "ETH": "ethereum",
+        "SOL": "solana",
+        "ARB": "arbitrum",
+        "HYPE": "hyperliquid",
+        "USDT": "tether",
+        "USDC": "usd-coin",
+    }
+    # TTLs de cache de preço (segundos) — CLAUDE.md: B3=4h, Cripto=2h, Tesouro=6h, XIRR=1h.
+    ttl_b3: int = 14400
+    ttl_crypto: int = 7200
+    ttl_tesouro: int = 21600
+    ttl_xirr: int = 3600
+
     @field_validator("evaluation_date", mode="before")
     @classmethod
     def _empty_evaluation_date(cls, v: object) -> object:

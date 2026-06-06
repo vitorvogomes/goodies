@@ -35,7 +35,7 @@ _OUTFLOW_TIPOS = ("venda", "resgate")
 # Rendimentos — entram no XIRR como caixa positivo, mas não alteram quantidade
 _INCOME_TIPOS = ("dividendo", "juros")
 
-_XIRR_TTL_SECONDS = 3600  # 1h (ADR-008)
+_XIRR_TTL_SECONDS = settings.ttl_xirr  # 1h (ADR-008), configurável
 
 _cache = PriceCache()
 

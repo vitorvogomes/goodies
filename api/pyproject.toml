@@ -32,6 +32,7 @@ dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
+    "respx>=0.21",
 ]
 
 # App roda a partir do código-fonte (cwd = /app, pythonpath="."), não como wheel instalado.
