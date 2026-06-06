@@ -16,7 +16,7 @@ import httpx
 
 from config import settings
 
-from .base import PriceQuote, with_retry
+from .base import PriceQuote, with_client
 
 _BASE_URL = "https://brapi.dev/api/quote"
 _SOURCE = "brapi"
@@ -49,20 +49,19 @@ class BrapiFetcher:
             return {}
         # símbolo original -> símbolo BRAPI (sem F); um PETR4F e um PETR4 colapsam.
         norm = {s: _strip_fractional(s) for s in symbols}
+        # client reusado em todos os tickers (1-ticker/req); injetado em with_client p/
+        # não ser fechado a cada iteração. fechado uma vez no finally se for próprio.
         client = self._client or httpx.AsyncClient()
         by_symbol: dict[str, float] = {}
         try:
             for ticker in sorted(set(norm.values())):
 
-                async def _one(t: str = ticker) -> Any:
-                    return await self._request(client, t)
+                async def _req(c: httpx.AsyncClient, t: str = ticker) -> Any:
+                    return await self._request(c, t)  # t=ticker fixa o valor da iteração
 
                 try:
-                    data = await with_retry(
-                        _one,
-                        attempts=4,  # 1 tentativa + 3 retries (backoff 1s/2s/4s)
-                        sleep=self._sleep,
-                    )
+                    # client injetado: with_client não o fecha entre tickers
+                    data = await with_client(_req, client=client, sleep=self._sleep)
                 except Exception:
                     continue  # fail-soft por ticker: um erro não derruba os demais
                 for item in data.get("results", []) if isinstance(data, dict) else []:

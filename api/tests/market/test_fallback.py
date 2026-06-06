@@ -113,6 +113,48 @@ async def test_redis_down_falls_back_to_postgres(pool: Any, monkeypatch: Any) ->
 
 
 @pytest.mark.asyncio
+async def test_list_user_prices_batches_cache_pg_missing(
+    pool: Any, portfolio_user: dict[str, Any]
+) -> None:
+    """list_user_prices (batch) devolve a MESMA estrutura do antigo loop de get_price:
+    cache-hit (fresco), só-Postgres (staleness por TTL) e ausente (null/stale)."""
+    uid = portfolio_user["user_id"]
+    cache = PriceCache()
+    async with pool.acquire() as conn:
+        for sym in ("MKT_AAA", "MKT_BBB", "MKT_CCC"):
+            await conn.execute(
+                "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
+                "asset_category, tipo, quantidade, valor_unitario, data_operacao) "
+                "VALUES ($1, 'Test', $2, 'Ações Nacionais', 'compra', 1, 1, '2026-01-01')",
+                uid,
+                sym,
+            )
+    # B: só Postgres (1h < TTL); A: cache-hit; C: sem preço
+    await _insert_price(
+        pool, "MKT_BBB", source="brapi", is_manual=False, fetched_at=_NOW - timedelta(hours=1)
+    )
+    await cache.set(
+        service.price_cache_key("b3", "MKT_AAA"),
+        {"price_brl": 99.0, "price_usd": None, "source": "brapi",
+         "fetched_at": "2026-06-06T11:00:00+00:00"},
+        300,
+    )
+    try:
+        async with pool.acquire() as conn:
+            out = await service.list_user_prices(conn, uid, now=_NOW)
+        by = {p["ticker"]: p for p in out}
+        assert by["MKT_AAA"]["price_brl"] == 99.0 and by["MKT_AAA"]["stale"] is False
+        assert by["MKT_BBB"]["price_brl"] == 10.0 and by["MKT_BBB"]["stale"] is False
+        assert by["MKT_CCC"]["price_brl"] is None and by["MKT_CCC"]["stale"] is True
+        assert set(by["MKT_AAA"]) == {
+            "ticker", "price_brl", "price_usd", "source",
+            "is_manual", "stale", "last_updated",
+        }
+    finally:
+        await cache.delete(service.price_cache_key("b3", "MKT_AAA"))
+
+
+@pytest.mark.asyncio
 async def test_cache_aside_write_populates_both(pool: Any) -> None:
     cache = PriceCache()
     async with pool.acquire() as conn:

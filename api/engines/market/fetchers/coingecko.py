@@ -16,7 +16,7 @@ import httpx
 
 from config import settings
 
-from .base import PriceQuote, with_retry
+from .base import PriceQuote, with_client
 
 _BASE_URL = "https://api.coingecko.com/api/v3/simple/price"
 _SOURCE = "coingecko"
@@ -44,18 +44,14 @@ class CoinGeckoFetcher:
         if not sym_to_id:
             return {}
         ids_param = ",".join(sorted(set(sym_to_id.values())))
-        client = self._client or httpx.AsyncClient()
         try:
-            data = await with_retry(
-                lambda: self._request(client, ids_param),
-                attempts=4,
+            data = await with_client(
+                lambda c: self._request(c, ids_param),
+                client=self._client,
                 sleep=self._sleep,
             )
         except Exception:
             return {}  # fail-soft: cache agressivo (worker mantém o valor anterior)
-        finally:
-            if self._client is None:
-                await client.aclose()
 
         out: dict[str, PriceQuote] = {}
         for sym, cid in sym_to_id.items():

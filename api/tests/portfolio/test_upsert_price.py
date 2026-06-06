@@ -107,3 +107,31 @@ async def test_upsert_invalidates_xirr_cache_of_holder(
         assert await cache.get(key) is not None
         await service.upsert_price(conn, "CACHEX", 6.0, source="brapi", is_manual=False)
         assert await cache.get(key) is None
+
+
+@pytest.mark.asyncio
+async def test_upsert_same_price_keeps_xirr_cache(
+    pool: Any, portfolio_user: dict
+) -> None:
+    """Worker re-rodando com o MESMO preço NÃO invalida o XIRR (§debito m3 #3): o cache
+    de XIRR (TTL 1h) raramente sobreviveria à cadência cripto (*/2h) se flushasse sempre."""
+    uid = portfolio_user["user_id"]
+    cache = PriceCache()
+    key = f"xirr:consolidated:{uid}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
+            "asset_category, tipo, quantidade, valor_unitario, data_operacao) "
+            "VALUES ($1, 'Test', 'SAMEX', 'Ações Nacionais', 'compra', 10, 5, $2)",
+            uid,
+            date(2026, 1, 1),
+        )
+        await service.upsert_price(conn, "SAMEX", 7.0, source="brapi", is_manual=False)
+        # prima o cache DEPOIS do baseline (esse 1º upsert já teria invalidado)
+        await cache.set(key, {"consolidated": 0.1}, 3600)
+        # mesmo preço → cache preservado
+        await service.upsert_price(conn, "SAMEX", 7.0, source="brapi", is_manual=False)
+        assert await cache.get(key) is not None
+        # preço diferente → invalida
+        await service.upsert_price(conn, "SAMEX", 7.5, source="brapi", is_manual=False)
+        assert await cache.get(key) is None

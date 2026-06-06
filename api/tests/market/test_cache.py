@@ -73,6 +73,31 @@ async def test_set_and_delete_fail_soft_when_unreachable() -> None:
     await bad_cache.delete("test:cache:whatever")
 
 
+async def test_mget_returns_values_in_order(cache: PriceCache) -> None:
+    k1 = f"test:cache:{uuid.uuid4().hex}"
+    k2 = f"test:cache:{uuid.uuid4().hex}"
+    missing = f"test:cache:{uuid.uuid4().hex}"
+    try:
+        await cache.set(k1, {"price_brl": 1.0}, ttl_seconds=30)
+        await cache.set(k2, {"price_brl": 2.0}, ttl_seconds=30)
+        # ordem preservada; chave ausente vira None (mesma posição)
+        out = await cache.mget([k1, missing, k2])
+        assert out == [{"price_brl": 1.0}, None, {"price_brl": 2.0}]
+    finally:
+        await cache.delete(k1)
+        await cache.delete(k2)
+
+
+async def test_mget_empty_keys_returns_empty(cache: PriceCache) -> None:
+    assert await cache.mget([]) == []
+
+
+async def test_mget_fail_soft_returns_all_none_when_unreachable() -> None:
+    bad_cache = PriceCache(redis_url=UNREACHABLE_URL)
+    # Redis indisponível → lista de None do mesmo tamanho (fail-soft, ADR-004)
+    assert await bad_cache.mget(["a", "b", "c"]) == [None, None, None]
+
+
 async def test_check_redis_connected() -> None:
     name, status = await check_redis()
     assert name == "redis"

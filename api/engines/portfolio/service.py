@@ -128,8 +128,11 @@ async def upsert_price(
     `price_usd` é opcional (só CoinGecko fornece). Retorna a linha gravada, ou `{}`
     quando a escrita foi ignorada pela precedência is_manual.
     """
+    # CTE `prev` lê o preço anterior no mesmo statement (snapshot do início) p/ só
+    # invalidar o XIRR quando price_brl/price_usd realmente mudar (§debito m3 #3).
     row = await conn.fetchrow(
         """
+        WITH prev AS (SELECT price_brl, price_usd FROM asset_prices WHERE ticker = $1)
         INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, fetched_at)
         VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (ticker) DO UPDATE
@@ -140,7 +143,9 @@ async def upsert_price(
               is_manual = EXCLUDED.is_manual,
               fetched_at = now()
           WHERE asset_prices.is_manual = false OR EXCLUDED.is_manual = true
-        RETURNING ticker, price_brl, price_usd, source, is_manual, fetched_at
+        RETURNING ticker, price_brl, price_usd, source, is_manual, fetched_at,
+                  (SELECT price_brl FROM prev) AS prev_brl,
+                  (SELECT price_usd FROM prev) AS prev_usd
         """,
         ticker,
         price_brl,
@@ -148,9 +153,18 @@ async def upsert_price(
         source,
         is_manual,
     )
-    if row is not None:
+    if row is None:
+        return {}  # escrita ignorada pela precedência is_manual
+    # comparação exata em Decimal (já arredondado pelo numeric); linha nova → prev None → mudou
+    changed = (
+        row["prev_brl"] is None
+        or row["price_brl"] != row["prev_brl"]
+        or row["price_usd"] != row["prev_usd"]
+    )
+    if changed:
         await _invalidate_xirr_for_ticker(conn, ticker)
-    return dict(row) if row else {}
+    cols = ("ticker", "price_brl", "price_usd", "source", "is_manual", "fetched_at")
+    return {k: row[k] for k in cols}
 
 
 # --------------------------------------------------------------------------- #

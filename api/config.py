@@ -66,6 +66,8 @@ class Settings(BaseSettings):
         "HYPE": "hyperliquid",
         "USDT": "tether",
         "USDC": "usd-coin",
+        # L-BTC (Liquid, ADR-005) vale 1:1 com BTC → reusa o caminho de preço do m3.
+        "L-BTC": "bitcoin",
     }
     # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
     # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
@@ -79,6 +81,23 @@ class Settings(BaseSettings):
     # Workers de preço (APScheduler no processo FastAPI). Desligar via env em ambientes
     # onde o cron não deve rodar (ex.: scripts pontuais). Não inicia sob testes.
     enable_scheduler: bool = True
+
+    # ---- Broker Integration (m4) — wallet scan + Binance + benchmark ----
+    # Chaves/endereços vêm do .env (PII/segredos — gitignored; placeholders no .env.example).
+    # Vazios caem em defaults; os fetchers de wallet ficam no-op sem credencial.
+    etherscan_api_key: str = ""  # ETH/ARB/HYPE — https://etherscan.io (V2 multichain)
+    solscan_api_key: str = ""  # SOL/SPL — https://solscan.io
+    binance_api_key: str = ""  # Binance spot+earn — CRON ONLY, assinado HMAC-SHA256
+    binance_api_secret: str = ""
+    wallet_evm_address: str = ""  # endereço EVM escaneado pela Etherscan
+    wallet_sol_address: str = ""  # endereço Solana escaneado pela Solscan
+    wallet_liquid_address: str = ""  # endereço Liquid escaneado pela Blockstream
+    # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
+    liquid_base_url: str = "https://blockstream.info/liquid/api"
+    lbtc_asset_id: str = ""  # constante pública L-BTC (64 hex) — valor no .env
+    # TTLs de cache (segundos): wallet scan = 4h; benchmark CDI/IPCA = 24h.
+    ttl_wallet: int = 14400
+    ttl_benchmark: int = 86400
 
     @field_validator("evaluation_date", mode="before")
     @classmethod

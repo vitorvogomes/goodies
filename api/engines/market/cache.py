@@ -51,6 +51,18 @@ class PriceCache:
         # decode_responses=True => Redis devolve str (não bytes) em get/set.
         self._client: redis.Redis = redis.from_url(self._url, decode_responses=True)
 
+    @staticmethod
+    def _decode(raw: object) -> CacheValue | None:
+        """Desserializa um valor cru do Redis (str|None) → dict, ou None (fail-soft)."""
+        if not isinstance(raw, str | bytes | bytearray):
+            return None  # ausente (None) ou tipo inesperado
+        try:
+            data: CacheValue = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning("redis_get_decode_failed", error=str(exc))
+            return None
+        return data
+
     async def get(self, key: str) -> CacheValue | None:
         """Devolve o dict JSON cacheado, ou None se ausente/erro (fail-soft)."""
         try:
@@ -58,14 +70,22 @@ class PriceCache:
         except Exception as exc:  # falha de conexão/timeout do Redis
             logger.warning("redis_get_failed", key=key, error=str(exc))
             return None
-        if raw is None:
-            return None
+        return self._decode(raw)
+
+    async def mget(self, keys: list[str]) -> list[CacheValue | None]:
+        """Busca várias chaves numa ida só (substitui N gets no `list_user_prices`).
+
+        Preserva a ordem de `keys`; chave ausente/indecodificável vira None na mesma
+        posição. Fail-soft: Redis fora → lista de None do mesmo tamanho (nunca levanta).
+        """
+        if not keys:
+            return []
         try:
-            data: CacheValue = json.loads(raw)
-        except (json.JSONDecodeError, TypeError) as exc:
-            logger.warning("redis_get_decode_failed", key=key, error=str(exc))
-            return None
-        return data
+            raws = await self._client.mget(keys)
+        except Exception as exc:
+            logger.warning("redis_mget_failed", error=str(exc))
+            return [None] * len(keys)
+        return [self._decode(r) for r in raws]
 
     async def set(self, key: str, data: CacheValue, ttl_seconds: int) -> None:
         """Serializa `data` em JSON e grava com TTL. Fail-soft: não levanta."""

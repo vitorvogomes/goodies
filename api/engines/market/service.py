@@ -84,36 +84,21 @@ def _missing(ticker: str) -> dict[str, Any]:
     }
 
 
-async def get_price(
-    conn: asyncpg.Connection,
-    ticker: str,
-    *,
-    category: str | None = None,
-    now: datetime | None = None,
-) -> dict[str, Any]:
-    """Preço corrente do ticker pela cadeia Redis → Postgres → null/stale. Nunca levanta."""
-    now = now or datetime.now(tz=UTC)
-    cache_type = cache_type_for_category(category)
-    if cache_type is not None:
-        hit = await _cache.get(price_cache_key(cache_type, ticker))
-        if hit is not None:  # presente no Redis ⇒ dentro do TTL ⇒ fresco
-            return {
-                "ticker": ticker,
-                "price_brl": hit.get("price_brl"),
-                "price_usd": hit.get("price_usd"),
-                "source": hit.get("source"),
-                "is_manual": False,
-                "stale": False,
-                "last_updated": hit.get("fetched_at"),
-            }
+def _from_cache_hit(ticker: str, hit: dict[str, Any]) -> dict[str, Any]:
+    """Preço a partir de um hit no Redis: presente ⇒ dentro do TTL ⇒ fresco."""
+    return {
+        "ticker": ticker,
+        "price_brl": hit.get("price_brl"),
+        "price_usd": hit.get("price_usd"),
+        "source": hit.get("source"),
+        "is_manual": False,
+        "stale": False,
+        "last_updated": hit.get("fetched_at"),
+    }
 
-    row = await conn.fetchrow(
-        "SELECT price_brl, price_usd, source, is_manual, fetched_at "
-        "FROM asset_prices WHERE ticker = $1",
-        ticker,
-    )
-    if row is None:
-        return _missing(ticker)
+
+def _from_pg_row(ticker: str, row: Any, now: datetime) -> dict[str, Any]:
+    """Preço a partir de uma linha de asset_prices (staleness por TTL/is_manual)."""
     fetched_at: datetime = row["fetched_at"]
     return {
         "ticker": ticker,
@@ -126,19 +111,75 @@ async def get_price(
     }
 
 
+async def get_price(
+    conn: asyncpg.Connection,
+    ticker: str,
+    *,
+    category: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Preço corrente do ticker pela cadeia Redis → Postgres → null/stale. Nunca levanta."""
+    now = now or datetime.now(tz=UTC)
+    cache_type = cache_type_for_category(category)
+    if cache_type is not None:
+        hit = await _cache.get(price_cache_key(cache_type, ticker))
+        if hit is not None:
+            return _from_cache_hit(ticker, hit)
+
+    row = await conn.fetchrow(
+        "SELECT price_brl, price_usd, source, is_manual, fetched_at "
+        "FROM asset_prices WHERE ticker = $1",
+        ticker,
+    )
+    if row is None:
+        return _missing(ticker)
+    return _from_pg_row(ticker, row, now)
+
+
 async def list_user_prices(
     conn: asyncpg.Connection, user_id: str, *, now: datetime | None = None
 ) -> list[dict[str, Any]]:
-    """Preço corrente de todos os tickers que o usuário detém (via fallback)."""
+    """Preço corrente de todos os tickers do usuário (mesma cadeia de fallback do
+    `get_price`, mas em LOTE: 1 SELECT `ticker = ANY($1)` + 1 Redis MGET, em vez de
+    N idas por ticker). A carteira cresce no m4 (cripto/wallets) → evita o N+1 (§debito m3 #2).
+    """
+    now = now or datetime.now(tz=UTC)
     rows = await conn.fetch(
         "SELECT DISTINCT asset_symbol, asset_category FROM asset_operations "
         "WHERE user_id = $1 ORDER BY asset_symbol",
         user_id,
     )
-    return [
-        await get_price(conn, r["asset_symbol"], category=r["asset_category"], now=now)
-        for r in rows
+    if not rows:
+        return []
+    tickers = [r["asset_symbol"] for r in rows]
+    category_of = {r["asset_symbol"]: r["asset_category"] for r in rows}
+
+    # 1 SELECT em lote (substitui o fetchrow por ticker do get_price)
+    pg = {
+        r["ticker"]: r
+        for r in await conn.fetch(
+            "SELECT ticker, price_brl, price_usd, source, is_manual, fetched_at "
+            "FROM asset_prices WHERE ticker = ANY($1)",
+            tickers,
+        )
+    }
+    # 1 Redis MGET só nos tickers com fonte de mercado (cache_type != None)
+    typed = [
+        (t, ct) for t in tickers if (ct := cache_type_for_category(category_of[t])) is not None
     ]
+    hits = await _cache.mget([price_cache_key(ct, t) for t, ct in typed])
+    cached = {t: v for (t, _ct), v in zip(typed, hits, strict=True) if v is not None}
+
+    out: list[dict[str, Any]] = []
+    for ticker in tickers:
+        hit = cached.get(ticker)
+        if hit is not None:
+            out.append(_from_cache_hit(ticker, hit))
+        elif (row := pg.get(ticker)) is not None:
+            out.append(_from_pg_row(ticker, row, now))
+        else:
+            out.append(_missing(ticker))
+    return out
 
 
 async def cache_aside_write(

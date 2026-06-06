@@ -135,6 +135,17 @@ Procedimento + débito: `docs/12_Gate_M3_Market.md`, `docs/13_Debito_Tecnico_m3.
 
 ## Milestone m4 — Broker Integration
 
+> **B0 (fundação / débito m3 — `docs/13`) — feito antes dos fetchers de wallet.** (1) `with_client`
+> em `engines/market/fetchers/base.py` (scaffold client próprio-ou-injetado + `with_retry`,
+> re-raise; fail-soft fica no call site) — brapi/coingecko/treasury religados, comportamento
+> preservado. (2) `market.service.list_user_prices` deixou de ser N+1: 1 `SELECT ticker = ANY($1)`
+> + 1 Redis `MGET` (novo `PriceCache.mget`); builders `_from_cache_hit`/`_from_pg_row` partilhados
+> com `get_price`. (3) `portfolio.service.upsert_price` só invalida o cache de XIRR quando
+> `price_brl`/`price_usd` realmente muda (CTE `prev`, comparação Decimal). Config front-load:
+> Settings ganhou etherscan/solscan/binance + endereços de wallet + `liquid_base_url`/`lbtc_asset_id`
+> + `ttl_wallet`/`ttl_benchmark`; `coingecko_ids += L-BTC→bitcoin` (ADR-005 1:1). **Suite 308→317
+> verde**; ruff + mypy strict ok. (Os fetchers de wallet não tocam mais `config.py`/`.env.example`.)
+
 | # | Story | Status | Commit |
 |---|---|---|---|
 | 04-01 | Schema wallet_positions + worker scaffold | [ ] | — |

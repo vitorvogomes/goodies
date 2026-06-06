@@ -21,7 +21,7 @@ from collections.abc import Awaitable, Callable, Sequence
 
 import httpx
 
-from .base import PriceQuote, with_retry
+from .base import PriceQuote, with_client
 
 _CSV_URL = (
     "https://www.tesourotransparente.gov.br/ckan/dataset/"
@@ -77,16 +77,15 @@ class TreasuryFetcher:
                 wanted[parsed] = s
         if not wanted:
             return {}
-        client = self._client or httpx.AsyncClient(follow_redirects=True)
         try:
-            text = await with_retry(
-                lambda: self._download(client), attempts=4, sleep=self._sleep
+            text = await with_client(
+                self._download,
+                client=self._client,
+                sleep=self._sleep,
+                factory=lambda: httpx.AsyncClient(follow_redirects=True),
             )
         except Exception:
             return {}  # fail-soft: fonte indisponível → nada
-        finally:
-            if self._client is None:
-                await client.aclose()
         return self._parse(text, wanted)
 
     async def _download(self, client: httpx.AsyncClient) -> str:

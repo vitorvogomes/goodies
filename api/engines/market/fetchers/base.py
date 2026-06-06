@@ -14,6 +14,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+import httpx
+
 
 @dataclass(frozen=True)
 class PriceQuote:
@@ -51,3 +53,28 @@ async def with_retry[T](
             if i < attempts - 1:
                 await sleep(base_delay * (2**i))
     raise last if last is not None else RuntimeError("with_retry: attempts must be >= 1")
+
+
+async def with_client[T](
+    do_request: Callable[[httpx.AsyncClient], Awaitable[T]],
+    *,
+    client: httpx.AsyncClient | None = None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    attempts: int = 4,
+    factory: Callable[[], httpx.AsyncClient] = httpx.AsyncClient,
+) -> T:
+    """Scaffold comum dos fetchers: client próprio-ou-injetado + `with_retry`.
+
+    Cria um `httpx.AsyncClient` (via `factory`) quando nenhum é injetado e o fecha no
+    fim; um client injetado pertence ao chamador e NÃO é fechado (permite reusar uma
+    única conexão por vários requests, ex.: BRAPI 1-ticker/req). **Re-levanta** na
+    exaustão — a política de fail-soft (`return {}` / `[]` / `continue`) fica em cada
+    call site, pois os fetchers de wallet (m4) devolvem saldos, não `PriceQuote`.
+    """
+    owned = client is None
+    cli = client if client is not None else factory()
+    try:
+        return await with_retry(lambda: do_request(cli), attempts=attempts, sleep=sleep)
+    finally:
+        if owned:
+            await cli.aclose()
