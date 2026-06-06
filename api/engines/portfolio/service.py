@@ -113,6 +113,7 @@ async def upsert_price(
     ticker: str,
     price_brl: float,
     *,
+    price_usd: float | None = None,
     source: str = "manual",
     is_manual: bool = True,
 ) -> dict[str, Any]:
@@ -124,14 +125,16 @@ async def upsert_price(
     de fato ocorre, invalida o cache de XIRR de todos os usuários que detêm o ticker
     (ADR-008) — o worker chama esta função direto, sem passar pelo router.
 
-    Retorna a linha gravada, ou `{}` quando a escrita foi ignorada pela precedência.
+    `price_usd` é opcional (só CoinGecko fornece). Retorna a linha gravada, ou `{}`
+    quando a escrita foi ignorada pela precedência is_manual.
     """
     row = await conn.fetchrow(
         """
-        INSERT INTO asset_prices (ticker, price_brl, source, is_manual, fetched_at)
-        VALUES ($1, $2, $3, $4, now())
+        INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, fetched_at)
+        VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (ticker) DO UPDATE
           SET price_brl = EXCLUDED.price_brl,
+              price_usd = EXCLUDED.price_usd,
               source = EXCLUDED.source,
               is_manual = EXCLUDED.is_manual,
               fetched_at = now()
@@ -140,6 +143,7 @@ async def upsert_price(
         """,
         ticker,
         price_brl,
+        price_usd,
         source,
         is_manual,
     )

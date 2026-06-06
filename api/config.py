@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     ttl_tesouro: int = 21600
     ttl_xirr: int = 3600
 
+    # Workers de preço (APScheduler no processo FastAPI). Desligar via env em ambientes
+    # onde o cron não deve rodar (ex.: scripts pontuais). Não inicia sob testes.
+    enable_scheduler: bool = True
+
     @field_validator("evaluation_date", mode="before")
     @classmethod
     def _empty_evaluation_date(cls, v: object) -> object:

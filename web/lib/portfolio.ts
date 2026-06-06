@@ -67,8 +67,8 @@ export function useSetManualPrice() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ symbol, price }: { symbol: string; price: number }) =>
-      apiFetch<unknown>(`/api/v1/portfolio/prices/${symbol}`, {
-        method: "PUT",
+      apiFetch<unknown>(`/api/v1/market/prices/${symbol}`, {
+        method: "POST",
         body: JSON.stringify({ price_brl: price }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolio"] }),

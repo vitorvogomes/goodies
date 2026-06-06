@@ -51,8 +51,8 @@ class TestXIRREndpoint:
             headers=auth_headers,
         )
         # Manual current price 11.00 → current value 1100 → XIRR ~10%
-        await api.put(
-            "/api/v1/portfolio/prices/PETR4",
+        await api.post(
+            "/api/v1/market/prices/PETR4",
             json={"price_brl": 11.00},
             headers=auth_headers,
         )
@@ -125,8 +125,8 @@ class TestXIRREndpoint:
                 },
                 headers=auth_headers,
             )
-            await api.put(
-                f"/api/v1/portfolio/prices/{sym}",
+            await api.post(
+                f"/api/v1/market/prices/{sym}",
                 json={"price_brl": 11.00},
                 headers=auth_headers,
             )

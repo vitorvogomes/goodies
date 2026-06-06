@@ -42,8 +42,8 @@ class TestPositions:
     ) -> None:
         """Buy 100 @ 10, current price 12 → result +200 (20%)."""
         await _buy(api, auth_headers, "PETR4", 100.0, 10.0)
-        await api.put(
-            "/api/v1/portfolio/prices/PETR4",
+        await api.post(
+            "/api/v1/market/prices/PETR4",
             json={"price_brl": 12.0},
             headers=auth_headers,
         )
@@ -81,8 +81,8 @@ class TestPositions:
         """Buy 100 @ 10, sell 40 @ 15 → net 60, DCA still 10."""
         await _buy(api, auth_headers, "ITSA4", 100.0, 10.0)
         await _buy(api, auth_headers, "ITSA4", 40.0, 15.0, tipo="venda")
-        await api.put(
-            "/api/v1/portfolio/prices/ITSA4",
+        await api.post(
+            "/api/v1/market/prices/ITSA4",
             json={"price_brl": 12.0},
             headers=auth_headers,
         )
@@ -113,8 +113,8 @@ class TestPositions:
             api, auth_headers, "Flash_CDB", 1.0, 12000.0,
             tipo="aporte", category="Renda Fixa",
         )
-        await api.put(
-            "/api/v1/portfolio/prices/Flash_CDB",
+        await api.post(
+            "/api/v1/market/prices/Flash_CDB",
             json={"price_brl": 13207.62},
             headers=auth_headers,
         )
