@@ -105,7 +105,10 @@ Proibido reutilizar fetcher Bitcoin mainchain.
 
 ```
 Keys: {engine}:{type}:{identifier}  →  price:b3:PETR4 | price:crypto:BTC | xirr:consolidated
-TTLs: B3=4h | Cripto=2h | Tesouro=6h | Wallet=4h | Benchmark=24h | XIRR=1h
+TTLs: B3=26h | Cripto=2h | Tesouro=26h | Wallet=4h | Benchmark=24h | XIRR=1h
+      (B3/Tesouro = cadência DIÁRIA por causa do free-tier: BRAPI grátis 1.000 req/mês [1
+       ativo/req, sem batch] → price_b3 1×/dia útil 19h BRT; Tesouro publica 1×/dia útil.
+       Preço manual: is_manual=true → nunca expira/stale; worker não sobrescreve. ADR-012.)
 Fallback: Redis → Postgres (asset_prices) → manual → {"value": null, "stale": true}
 NUNCA retornar HTTP 5xx por falha de API externa.
 ```

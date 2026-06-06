@@ -146,8 +146,8 @@ web/
 
 | Worker | Schedule | O que faz |
 |---|---|---|
-| `price_b3` | Cron: dias úteis 9h–18h, a cada 4h | Fetcha BRAPI → salva Redis |
-| `price_crypto` | Cron: todo dia, a cada 2h | Fetcha CoinGecko + Binance → salva Redis |
+| `price_b3` | Cron: **1×/dia útil 19h BRT** (free-tier BRAPI 1k req/mês) | BRAPI (B3) + Tesouro Transparente (Tesouro) → Postgres+Redis |
+| `price_crypto` | Cron: todo dia, a cada 2h | CoinGecko → Postgres+Redis (Binance é m4) |
 | `wallet_scan` | Cron: todo dia 8h, 14h, 20h | Etherscan + Solscan + Liquid → salva `wallet_positions` |
 | `benchmark_daily` | Cron: todo dia 22h | BCB (CDI/IPCA) + yfinance (IBOV) → salva `benchmark_data` |
 | `alert_eval` | Cron: todo dia 8h | Avalia todos os alertas, salva `active_alerts` |
