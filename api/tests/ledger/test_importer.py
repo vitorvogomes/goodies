@@ -18,9 +18,15 @@ from engines.ledger.importer import (
     parse_ofx,
 )
 
-# Regras inline (espelham o seed de categories.match_patterns na migration 0006).
+# Regras inline (espelham categories.match_patterns após a migration 0009: caixinha
+# = investment net — aplicação E resgate caem em investment; a categoria income
+# 'Resgate' foi neutralizada, então não aparece aqui).
 _RULES = [
-    MatchRule("Caixinha/RDB Nubank", "investment", ("rdb", "aplicação", "aplicacao", "resgate")),
+    MatchRule(
+        "Caixinha/RDB Nubank",
+        "investment",
+        ("rdb", "aplicação", "resgate rdb", "nu reserva imediata", "dinheiro guardado"),
+    ),
     MatchRule("Toro (B3)", "investment", ("toro", "corretora de titulos")),
 ]
 
@@ -121,6 +127,32 @@ def test_classify_redemption_positive_is_investment_not_income():
     assert classify(e, _RULES).kind == "investment"
 
 
+def test_classify_caixinha_app_and_redemption_both_investment():
+    # Política caixinha=investment net: aplicação (saída) E resgate (entrada) → investment.
+    app = StatementEntry(
+        "a", datetime.date(2026, 1, 5), Decimal("-500.00"), "Aplicação RDB - Caixinha Turbo"
+    )
+    redemption = StatementEntry(
+        "b", datetime.date(2026, 1, 20), Decimal("480.00"), "Resgate RDB - Caixinha Turbo"
+    )
+    assert classify(app, _RULES).kind == "investment"
+    assert classify(app, _RULES).category == "Caixinha/RDB Nubank"
+    assert classify(redemption, _RULES).kind == "investment"
+    assert classify(redemption, _RULES).category == "Caixinha/RDB Nubank"
+
+
+def test_classify_nu_reserva_fundo_redemption_is_investment():
+    # Resgate de fundo (Nu Reserva Imediata) NÃO tem 'caixinha'/'rdb' na descrição —
+    # o anchor 'nu reserva imediata' garante investment (não receita) no import futuro.
+    e = StatementEntry(
+        "c",
+        datetime.date(2025, 7, 18),
+        Decimal("2844.50"),
+        "Resgate Fundo - Nu Reserva Imediata - Resp. Ltda  - Caixinha Reserva",
+    )
+    assert classify(e, _RULES).kind == "investment"
+
+
 def test_classify_income_and_expense_by_sign():
     income = StatementEntry("a", datetime.date(2026, 1, 1), Decimal("1000"), "Salário recebido")
     expense = StatementEntry("b", datetime.date(2026, 1, 2), Decimal("-200"), "Pagamento de boleto")
@@ -183,7 +215,9 @@ async def test_import_statement_records_transfer_with_kind(pool):
 
 def test_classify_self_transfer_when_identifier_present():
     e = StatementEntry(
-        "d", datetime.date(2026, 1, 3), Decimal("905.60"),
+        "d",
+        datetime.date(2026, 1, 3),
+        Decimal("905.60"),
         "Transferência recebida pelo Pix - FULANO DE TAL - BANCO X",
     )
     assert classify(e, self_identifiers=["FULANO DE TAL"]).kind == "transfer"

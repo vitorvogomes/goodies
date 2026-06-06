@@ -54,6 +54,20 @@ sem `tailwind.config.ts`); middleware → `proxy.ts`; React Compiler on. Ver `do
 código-fonte (`pythonpath="."`), sem build de wheel. **Sem `requirements*.txt`/`pip`.**
 Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. Dockerfile/CI usam uv.
 
+## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
+Decidido na faxina pré-m3 (2026-06-06). Ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
+- **Aplicação E resgate de caixinha são `kind='investment'`** (o resgate volta positivo e neta o
+  `total_invested`). Resgate de caixinha **nunca** é `income` — inflaria a taxa de poupança.
+- Reclassificação de linhas curadas é **in-place/idempotente** (`api/scripts/reclassify_caixinhas.py`).
+  **NÃO rodar `scripts/reset_ledger.py`** no banco curado — apagaria a curadoria. A migration
+  `0009` cuida só das regras de import **futuro**.
+- Caixinhas/CDB Nubank são ativos `asset_category='Renda Fixa'` (registro config-driven em
+  `engines/portfolio/caixinhas.py`; **Reserva** já listada, `enabled=False` até criar). Valoração
+  pós-fixada via `rf_cdi.py` com `settings.cdi_anual` (env `CDI_ANUAL`, provisório até o m5/BCB) —
+  cobre o ADR-004 (`is_manual=true`, worker m3 não sobrescreve).
+- **Santander = conta externa:** Pix do próprio nome vindos do Santander (~R$32k em `income/Extra`)
+  contam como receita/despesa externa — **não** transferência interna (decisão reafirmada).
+
 ---
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)

@@ -23,7 +23,16 @@ ciclo do worker **sem erro por 48h**; dashboard mostra valor de mercado atual se
 - `.env` com **`BRAPI_TOKEN`** e **`COINGECKO_API_KEY`** (placeholders sincronizados em `.env.example`).
 - Dev roda via **docker compose** (Postgres + Redis + API na porta 8000; dados em volume).
 
-✅ Suite: **222 testes verdes**, cobertura 93%, mypy `--strict` limpo.
+✅ Suite: **241 testes verdes**, mypy limpo (atualizado pela faxina pré-m3).
+
+✅ **Faxina pré-m3 já feita (2026-06-06, ADR-011)** — ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`:
+- Resgates de caixinha = `investment` net (não receita) → taxa de poupança real. `reclassify_caixinhas.py`
+  (in-place). **NÃO rodar `reset_ledger`** no banco curado.
+- Caixinhas (Snow Trip, Turbo) + CDB Guanabara são ativos `Renda Fixa` (`rf_cdi.py` + `caixinhas.py` +
+  seeds; preço `is_manual`). `settings.cdi_anual` (env `CDI_ANUAL`) provisório → **o m5 troca pela
+  série do BCB sem mexer no `rf_cdi`**. Patrimônio R$37,2k; XIRR consolidado 13,8%.
+- Resolve o débito §3.12. O B0 abaixo (chokepoint `upsert_price`, precedência `is_manual`) já tem
+  os preços RF `is_manual=true` (Flash, caixinhas, CDB) como caso de teste real.
 
 ---
 
@@ -67,8 +76,9 @@ silenciosamente. Estes itens viram as **primeiras stories do m3 (B0 — fundaç�
 
 > Itens menores (rastrear, não bloqueiam): §2.2 `refresh_token` no body do login, §2.3
 > assert de `type` no token, §3.6 import do front bypassa o 401, §3.7 "primeiro usuário"
-> hardcoded em 5 scripts, §3.8 DCA duplicado, §3.9 scripts sem teste / `b3_import` 76%,
-> §3.10 Flash dias-corridos vs úteis, §3.12 dados incompletos (Guanabara/Caixinha/cripto).
+> hardcoded em 5 scripts (agora 7 — +2 seeds de caixinha), §3.8 DCA duplicado, §3.9 scripts sem
+> teste / `b3_import` 76%, §3.10 Flash dias-corridos vs úteis, ~~§3.12 dados incompletos~~ →
+> **resolvido (Guanabara/Caixinha); resta cripto (m4) + CDI real (m5)**.
 
 ---
 

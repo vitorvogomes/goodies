@@ -141,11 +141,13 @@ não o XIRR contra uma célula `=XIRR` do Excel (a planilha não tem XIRR único
 mudar qualquer preço no m3. **Fix:** capturar o XIRR de referência como fixture versionada e
 automatizar a comparação.
 
-### ⚪ 3.12 Dados de carteira incompletos (Guanabara, Caixinha, cripto)
-O XIRR "consolidado" exclui CDB Guanabara (R$ 200, sem data de aporte), Caixinha/RDB e cripto
-(m4). Quando m3/m4 trouxerem essas categorias, o consolidado dará um salto descontínuo; o
-baseline atual (15,25%) não será comparável. **Fix:** documentar a coexistência manual×automático
-e completar os dados quando as fontes existirem.
+### 🟢 3.12 Dados de carteira incompletos (Guanabara, Caixinha, cripto) — PARCIALMENTE RESOLVIDO (pré-m3, 2026-06-06)
+O XIRR "consolidado" excluía CDB Guanabara, Caixinha/RDB e cripto. **Resolvido na faxina pré-m3**
+(ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`): Caixinha/RDB (Snow Trip, Turbo) e CDB
+Guanabara agora são ativos `Renda Fixa` (datas/valores derivados das `transactions`; valoração
+`rf_cdi` com `settings.cdi_anual` provisório até o m5/BCB). Consolidado passou a **13,8%**
+(baseline 15,25% não é mais comparável — esperado). **Resta:** cripto (m4) e refino do CDI real
+no m5. Caveat Turbo (conta-corrente disfarçada) superestima ~+20% — usar saldo manual se preciso.
 
 ---
 
