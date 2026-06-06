@@ -153,6 +153,9 @@ async def test_list_returns_filtered_totals(api, auth_headers, account):
     full = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
     assert full.json()["total_income"] == 1000.0
     assert full.json()["total_expense"] == 250.0
+    # sem transferências: total_transfer/transfer_count zerados (regressão)
+    assert full.json()["total_transfer"] == 0.0
+    assert full.json()["transfer_count"] == 0
 
     # os totais respeitam os filtros
     food = await api.get(
@@ -160,6 +163,27 @@ async def test_list_returns_filtered_totals(api, auth_headers, account):
     )
     assert food.json()["total_income"] == 0.0
     assert food.json()["total_expense"] == 200.0
+
+
+async def test_list_returns_transfer_totals(api, auth_headers, account):
+    # duas pernas de transferência interna que se cancelam (saída -300 / entrada +300)
+    for p in [
+        {"date": "2099-12-01", "amount": -300, "category": "transf-saída", "kind": "transfer"},
+        {"date": "2099-12-02", "amount": 300, "category": "transf-entrada", "kind": "transfer"},
+    ]:
+        r = await api.post(
+            "/api/v1/transactions", json={"account_id": account, **p}, headers=auth_headers
+        )
+        assert r.status_code == 201
+
+    listed = await api.get(f"/api/v1/transactions?account_id={account}", headers=auth_headers)
+    body = listed.json()
+    assert body["transfer_count"] == 2
+    assert body["total_transfer"] == 0.0  # pernas se cancelam
+    # transferência não conta como receita/despesa/investimento
+    assert body["total_income"] == 0.0
+    assert body["total_expense"] == 0.0
+    assert body["total_invested"] == 0.0
 
 
 async def test_update_and_delete_transaction(api, auth_headers, account):

@@ -1,7 +1,7 @@
 "use client";
 
 // STORY-02-14 — histórico de operações com filtros (tipo, ativo, período).
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Field, Input, Select } from "@/components/ui";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -39,6 +39,12 @@ export default function HistoryPage() {
     data_to: to || undefined,
   });
 
+  // Total discreto do conjunto filtrado (Σ qtd×preço) — soma a coluna "Total".
+  const total = useMemo(
+    () => (data ?? []).reduce((s, op) => s + op.quantidade * op.valor_unitario, 0),
+    [data],
+  );
+
   return (
     <div className="space-y-6">
       <h1 className="font-mono text-2xl font-semibold text-foreground">
@@ -71,6 +77,15 @@ export default function HistoryPage() {
           <Input id="f-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </Field>
       </div>
+
+      {/* total discreto do conjunto filtrado */}
+      {data && data.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-x-5 gap-y-1 text-xs text-foreground/50">
+          <span>
+            Total <span className="tabular-nums text-foreground/70">{formatBRL(total)}</span>
+          </span>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-border">
         <table className="w-full text-sm">

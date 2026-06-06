@@ -23,7 +23,13 @@ ciclo do worker **sem erro por 48h**; dashboard mostra valor de mercado atual se
 - `.env` com **`BRAPI_TOKEN`** e **`COINGECKO_API_KEY`** (placeholders sincronizados em `.env.example`).
 - Dev roda via **docker compose** (Postgres + Redis + API na porta 8000; dados em volume).
 
-✅ Suite: **241 testes verdes**, mypy limpo (atualizado pela faxina pré-m3).
+✅ Suite: **243 testes verdes**, mypy limpo (faxina pré-m3 + polimento de UI 2026-06-06).
+
+✅ **Polimento de UI (2026-06-06, pós-faxina)** — só apresentação, não muda o escopo do m3:
+aba "Histórico" no menu + total filtrado; **Posições agrupadas por categoria com subtotais**;
+e em `/ledger` a barra de totais ficou adaptativa (Investido + Transferências). Para isso
+`GET /api/v1/transactions` agora também devolve `total_transfer` + `transfer_count` (a tela de
+preços do m3 — STORY-03-11 — pode reusar o mesmo padrão de barra discreta/`formatBRL`).
 
 ✅ **Faxina pré-m3 já feita (2026-06-06, ADR-011)** — ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`:
 - Resgates de caixinha = `investment` net (não receita) → taxa de poupança real. `reclassify_caixinhas.py`

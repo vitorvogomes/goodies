@@ -82,6 +82,8 @@ class TransactionList(BaseModel):
     total_income: float  # soma das receitas (kind=income) do conjunto filtrado
     total_expense: float  # soma das despesas/consumo (kind=expense, magnitude)
     total_invested: float  # aportes líquidos (kind=investment, magnitude)
+    total_transfer: float  # soma líquida (com sinal) das transferências (kind=transfer) — ≈0
+    transfer_count: int  # nº de lançamentos kind=transfer no conjunto filtrado
 
 
 _COLUMNS = (
@@ -145,7 +147,9 @@ async def list_transactions(
         "SELECT count(*) AS total, "
         "COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0) AS income, "
         "COALESCE(SUM(-amount) FILTER (WHERE kind = 'expense'), 0) AS expense, "
-        "COALESCE(SUM(-amount) FILTER (WHERE kind = 'investment'), 0) AS invested "
+        "COALESCE(SUM(-amount) FILTER (WHERE kind = 'investment'), 0) AS invested, "
+        "COALESCE(SUM(amount) FILTER (WHERE kind = 'transfer'), 0) AS transfer_net, "
+        "COUNT(*) FILTER (WHERE kind = 'transfer') AS transfer_count "
         f"FROM transactions {where}",
         account_id,
         category,
@@ -170,6 +174,8 @@ async def list_transactions(
         total_income=float(agg["income"]),
         total_expense=float(agg["expense"]),
         total_invested=float(agg["invested"]),
+        total_transfer=float(agg["transfer_net"]),
+        transfer_count=int(agg["transfer_count"]),
     )
 
 

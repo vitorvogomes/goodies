@@ -94,6 +94,8 @@ export interface TransactionList {
   total_income: number;
   total_expense: number;
   total_invested: number;
+  total_transfer: number;
+  transfer_count: number;
 }
 
 export interface TransactionCreate {

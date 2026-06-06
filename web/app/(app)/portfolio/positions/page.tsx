@@ -1,7 +1,7 @@
 "use client";
 
 // STORY-02-13 — tabela de posições com valor atual (preço manual em m2).
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { Button, Input } from "@/components/ui";
 import { formatBRL, formatPercent } from "@/lib/format";
@@ -72,6 +72,30 @@ export default function PositionsPage() {
   const totalCusto = (data ?? []).reduce((s, p) => s + p.custo_total, 0);
   const totalResult = totalAtual - totalCusto;
 
+  // Agrupa por categoria com subtotais (valor atual + resultado). Mantém a ordem
+  // alfabética das linhas (backend já ordena por símbolo); grupos por maior posição.
+  const groups = useMemo(() => {
+    const map = new Map<string, Position[]>();
+    for (const p of data ?? []) {
+      const arr = map.get(p.asset_category) ?? [];
+      arr.push(p);
+      map.set(p.asset_category, arr);
+    }
+    return [...map.entries()]
+      .map(([category, rows]) => {
+        const subtotalAtual = rows.reduce((s, p) => s + (p.valor_atual ?? 0), 0);
+        const subtotalCusto = rows.reduce((s, p) => s + p.custo_total, 0);
+        return {
+          category,
+          rows,
+          subtotalAtual,
+          subtotalCusto,
+          subtotalResult: subtotalAtual - subtotalCusto,
+        };
+      })
+      .sort((a, b) => b.subtotalAtual - a.subtotalAtual);
+  }, [data]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -133,34 +157,82 @@ export default function PositionsPage() {
                 </td>
               </tr>
             )}
-            {(data ?? []).map((pos) => (
-              <tr key={pos.asset_symbol} className="border-t border-border">
-                <td className="px-4 py-2.5 font-medium text-foreground/90">
-                  {pos.asset_symbol}
-                  {pos.stale && (
-                    <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">
-                      sem preço
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-foreground/60">{pos.asset_category}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                  {pos.quantidade_net}
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                  {formatBRL(pos.preco_medio)}
-                </td>
-                <td className="px-4 py-2.5 text-right text-foreground/80">
-                  <PriceCell pos={pos} />
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                  {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <ResultCell pos={pos} />
-                </td>
-              </tr>
-            ))}
+            {!isLoading &&
+              !isError &&
+              groups.map((g) => (
+                <Fragment key={g.category}>
+                  {/* cabeçalho da categoria */}
+                  <tr className="border-t border-border bg-muted/50">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-2 text-xs font-medium uppercase tracking-wide text-foreground/60"
+                    >
+                      {g.category}
+                    </td>
+                  </tr>
+
+                  {/* ativos da categoria */}
+                  {g.rows.map((pos) => (
+                    <tr key={pos.asset_symbol} className="border-t border-border">
+                      <td className="px-4 py-2.5 font-medium text-foreground/90">
+                        {pos.asset_symbol}
+                        {pos.stale && (
+                          <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">
+                            sem preço
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-foreground/60">{pos.asset_category}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
+                        {pos.quantidade_net}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
+                        {formatBRL(pos.preco_medio)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-foreground/80">
+                        <PriceCell pos={pos} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
+                        {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <ResultCell pos={pos} />
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* subtotal da categoria */}
+                  <tr className="border-t border-border bg-muted/30">
+                    <td
+                      colSpan={5}
+                      className="px-4 py-2 text-right text-xs font-medium text-foreground/60"
+                    >
+                      Subtotal {g.category}
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium tabular-nums text-foreground/80">
+                      {formatBRL(g.subtotalAtual)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {g.subtotalCusto > 0 ? (
+                        <span
+                          className={`font-medium tabular-nums ${
+                            g.subtotalResult < 0 ? "text-loss" : "text-gain"
+                          }`}
+                        >
+                          {formatBRL(g.subtotalResult)}{" "}
+                          <span className="text-xs">
+                            ({formatPercent((g.subtotalResult / g.subtotalCusto) * 100)})
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="font-medium tabular-nums text-foreground/80">
+                          {formatBRL(g.subtotalResult)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                </Fragment>
+              ))}
           </tbody>
         </table>
       </div>

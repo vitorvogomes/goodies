@@ -193,21 +193,39 @@ export default function LedgerPage() {
         </Field>
       </div>
 
-      {/* totais discretos do conjunto filtrado */}
+      {/* totais discretos do conjunto filtrado — cada métrica só quando relevante */}
       {data && total > 0 && (
         <div className="flex flex-wrap justify-end gap-x-5 gap-y-1 text-xs text-foreground/50">
-          <span>
-            Receita <span className="tabular-nums text-gain">{formatBRL(data.total_income)}</span>
-          </span>
-          <span>
-            Despesa <span className="tabular-nums text-loss">{formatBRL(data.total_expense)}</span>
-          </span>
-          <span>
-            Líquido{" "}
-            <span className={`tabular-nums ${net < 0 ? "text-loss" : "text-gain"}`}>
-              {formatBRL(net)}
+          {data.total_income > 0 && (
+            <span>
+              Receita <span className="tabular-nums text-gain">{formatBRL(data.total_income)}</span>
             </span>
-          </span>
+          )}
+          {data.total_expense > 0 && (
+            <span>
+              Despesa <span className="tabular-nums text-loss">{formatBRL(data.total_expense)}</span>
+            </span>
+          )}
+          {data.total_invested !== 0 && (
+            <span>
+              Investido{" "}
+              <span className="tabular-nums text-accent">{formatBRL(data.total_invested)}</span>
+            </span>
+          )}
+          {data.transfer_count > 0 && (
+            <span>
+              Transferências{" "}
+              <span className="tabular-nums text-foreground/50">{formatBRL(data.total_transfer)}</span>
+            </span>
+          )}
+          {(data.total_income > 0 || data.total_expense > 0) && (
+            <span>
+              Líquido{" "}
+              <span className={`tabular-nums ${net < 0 ? "text-loss" : "text-gain"}`}>
+                {formatBRL(net)}
+              </span>
+            </span>
+          )}
         </div>
       )}
 

@@ -19,6 +19,7 @@ const NAV = [
   { href: "/ledger/import", label: "Importar extrato" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/portfolio/positions", label: "Posições" },
+  { href: "/portfolio/history", label: "Histórico" },
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
 ];
