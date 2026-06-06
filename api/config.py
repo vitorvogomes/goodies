@@ -4,6 +4,7 @@ Lê variáveis de ambiente (e `.env` em dev). Valores ausentes usam os defaults
 abaixo. Em produção (Fly.io) as variáveis vêm de secrets, não de arquivo `.env`.
 """
 
+from datetime import date
 from pathlib import Path
 
 from pydantic import ValidationInfo, field_validator
@@ -46,6 +47,19 @@ class Settings(BaseSettings):
     # Valoração pós-fixada (pré-m3): CDI anual de referência (fração) p/ caixinhas/CDB
     # do Nubank (engines.portfolio.rf_cdi). Provisório — o m5 importa a série do BCB.
     cdi_anual: float = 0.1065
+
+    # Data de avaliação única (§3.1): "hoje" do XIRR/valoração. Vazio/ausente → data
+    # corrente. Fixar via env EVALUATION_DATE=YYYY-MM-DD p/ reproduzir o gate ou gerar
+    # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).
+    evaluation_date: date | None = None
+
+    @field_validator("evaluation_date", mode="before")
+    @classmethod
+    def _empty_evaluation_date(cls, v: object) -> object:
+        # .env de dev pode trazer EVALUATION_DATE= (vazio) → data corrente (None).
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
     @field_validator("database_url", mode="before")
     @classmethod

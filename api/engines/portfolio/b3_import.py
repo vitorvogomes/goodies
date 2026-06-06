@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
+from .constants import AssetCategory
 from .migration import operation_hash, parse_date
 
 # Universo conhecido do portfólio (desambigua ETF x FII, ambos terminam em 11).
@@ -40,17 +41,23 @@ def parse_produto(produto: str) -> str:
 
 
 def b3_category(ticker: str) -> str:
-    """Categoria canônica do ticker (casa com portfolio_targets/asset_category)."""
+    """FALLBACK de categoria (allowlist + heurística de sufixo).
+
+    Só deve ser usado quando o ticker NÃO está no mapa derivado das abas 'Posição'
+    (`parse_b3_categories`) — ex.: ativo totalmente vendido, sem linha de posição.
+    A heurística de sufixo ('11' -> FII) é ambígua (ETFs também terminam em 11), por
+    isso o mapa das abas tem precedência em `parse_b3_movimentacao`.
+    """
     if ticker.startswith("Tesouro"):
-        return "Aposentadoria"
+        return AssetCategory.APOSENTADORIA
     if ticker in _ETF:
-        return "ETFs"
+        return AssetCategory.ETFS
     if ticker in _FII:
-        return "FIIs"
+        return AssetCategory.FIIS
     if ticker in _ACOES:
-        return "Ações Nacionais"
+        return AssetCategory.ACOES
     # fallback: 11 = fundo listado; demais = ação
-    return "FIIs" if ticker.endswith("11") else "Ações Nacionais"
+    return AssetCategory.FIIS if ticker.endswith("11") else AssetCategory.ACOES
 
 
 def map_movimentacao(entrada_saida: str, movimentacao: str) -> str | None:
@@ -142,11 +149,52 @@ def parse_b3_position_prices(
     return prices
 
 
-def parse_b3_movimentacao(rows: Sequence[Sequence[Any]]) -> list[dict[str, Any]]:
+# Aba 'Posição' -> categoria canônica (as abas já separam Ações/ETF/Fundos/Tesouro).
+_SHEET_CATEGORY: dict[str, str] = {
+    "Posição - Ações": AssetCategory.ACOES,
+    "Posição - ETF": AssetCategory.ETFS,
+    "Posição - Fundos": AssetCategory.FIIS,
+    "Posição - Tesouro Direto": AssetCategory.APOSENTADORIA,
+}
+
+
+def parse_b3_categories(
+    sheets: dict[str, Sequence[Sequence[Any]]],
+) -> dict[str, str]:
+    """Mapeia ticker -> categoria canônica a partir das abas 'Posição' do consolidado.
+
+    Fonte robusta (vs. heurística de sufixo): cada aba já separa a classe do ativo.
+    Reutilizada pela rotina de import (`scripts/import_b3.py`) e pelo worker do
+    Market Engine (m3) para classificar com segurança qualquer ticker novo.
+    """
+    cats: dict[str, str] = {}
+    for sheet, category in _SHEET_CATEGORY.items():
+        rows = sheets.get(sheet)
+        if not rows:
+            continue
+        tcol = _POSITION_SHEETS[sheet][0]
+        header = [str(h) for h in rows[0]]
+        ti = header.index(tcol) if tcol in header else None
+        if ti is None:
+            continue
+        for row in rows[1:]:
+            tick = row[ti] if ti < len(row) else None
+            if not tick or str(tick).strip().lower().startswith("total"):
+                continue
+            cats[parse_produto(str(tick))] = category
+    return cats
+
+
+def parse_b3_movimentacao(
+    rows: Sequence[Sequence[Any]],
+    category_map: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """Converte linhas de dados da aba Movimentação em operações canônicas.
 
     `rows` NÃO deve incluir o cabeçalho. Linhas que não representam cashflow
-    (ou sem quantidade/preço válidos) são descartadas.
+    (ou sem quantidade/preço válidos) são descartadas. `category_map` (derivado das
+    abas 'Posição' via `parse_b3_categories`) tem precedência sobre a heurística
+    `b3_category` — evita que um ETF novo terminando em 11 vire FII.
     """
     ops: list[dict[str, Any]] = []
     for row in rows:
@@ -170,10 +218,11 @@ def parse_b3_movimentacao(rows: Sequence[Sequence[Any]]) -> list[dict[str, Any]]
         ticker = parse_produto(str(produto))
         data_operacao = _to_date(data)
         total = valor_total if valor_total is not None else quantidade * valor_unitario
+        category = (category_map or {}).get(ticker) or b3_category(ticker)
         ops.append(
             {
                 "asset_symbol": ticker,
-                "asset_category": b3_category(ticker),
+                "asset_category": category,
                 "tipo": tipo,
                 "quantidade": quantidade,
                 "valor_unitario": valor_unitario,

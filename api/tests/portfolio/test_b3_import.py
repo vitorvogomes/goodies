@@ -6,6 +6,7 @@ from datetime import date
 from engines.portfolio.b3_import import (
     b3_category,
     map_movimentacao,
+    parse_b3_categories,
     parse_b3_movimentacao,
     parse_b3_position_prices,
     parse_produto,
@@ -48,6 +49,58 @@ class TestCategory:
         assert b3_category("MXRF11") == "FIIs"
         assert b3_category("ACWI11") == "ETFs"
         assert b3_category("Tesouro IPCA+ 2040") == "Aposentadoria"
+
+
+# Abas 'Posição' de exemplo (cabeçalho + 1 linha), para a derivação de categoria.
+_POS_SHEETS = {
+    "Posição - Ações": [
+        ("Código de Negociação", "Preço de Fechamento"),
+        ("PETR4", 30.0),
+    ],
+    "Posição - ETF": [
+        ("Código de Negociação", "Preço de Fechamento"),
+        ("XPTO11", 99.0),  # ETF NOVO, fora do allowlist e terminando em 11
+    ],
+    "Posição - Fundos": [
+        ("Código de Negociação", "Preço de Fechamento"),
+        ("MXRF11", 10.0),
+    ],
+    "Posição - Tesouro Direto": [
+        ("Produto", "Quantidade", "Valor Atualizado"),
+        ("Tesouro IPCA+ 2040", 0.1, 177.0),
+    ],
+}
+
+
+class TestSheetCategories:
+    """§3.3: categoria derivada das abas 'Posição' (robusta vs heurística de sufixo)."""
+
+    def test_derives_from_position_sheets(self) -> None:
+        cats = parse_b3_categories(_POS_SHEETS)
+        assert cats["PETR4"] == "Ações Nacionais"
+        assert cats["XPTO11"] == "ETFs"  # a heurística erraria (FIIs)
+        assert cats["MXRF11"] == "FIIs"
+        assert cats["Tesouro IPCA+ 2040"] == "Aposentadoria"
+
+    def test_heuristic_misclassifies_new_etf_in_11(self) -> None:
+        # documenta o risco: sem o mapa, um ETF novo em 11 cai no fallback -> FIIs
+        assert b3_category("XPTO11") == "FIIs"
+
+    def test_movimentacao_map_wins_over_heuristic(self) -> None:
+        rows = [
+            ("Credito", "20/05/2026", "Transferência - Liquidação",
+             "XPTO11 - NOVO ETF", "TORO", 1, 100.0, 100.0),
+        ]
+        ops = parse_b3_movimentacao(rows, category_map={"XPTO11": "ETFs"})
+        assert ops[0]["asset_category"] == "ETFs"
+
+    def test_movimentacao_without_map_uses_heuristic(self) -> None:
+        rows = [
+            ("Credito", "20/05/2026", "Transferência - Liquidação",
+             "XPTO11 - NOVO ETF", "TORO", 1, 100.0, 100.0),
+        ]
+        ops = parse_b3_movimentacao(rows)
+        assert ops[0]["asset_category"] == "FIIs"  # fallback
 
 
 class TestMapMovimentacao:

@@ -3,13 +3,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from .constants import AssetCategory
+
 PORTFOLIO_TARGETS = [
-    {"category": "Ações Nacionais", "target_pct": 10.0},
-    {"category": "Aposentadoria", "target_pct": 12.5},
-    {"category": "Cripto", "target_pct": 5.0},
-    {"category": "ETFs", "target_pct": 12.5},
-    {"category": "FIIs", "target_pct": 10.0},
-    {"category": "Renda Fixa", "target_pct": 50.0},
+    {"category": AssetCategory.ACOES, "target_pct": 10.0},
+    {"category": AssetCategory.APOSENTADORIA, "target_pct": 12.5},
+    {"category": AssetCategory.CRIPTO, "target_pct": 5.0},
+    {"category": AssetCategory.ETFS, "target_pct": 12.5},
+    {"category": AssetCategory.FIIS, "target_pct": 10.0},
+    {"category": AssetCategory.RENDA_FIXA, "target_pct": 50.0},
 ]
 
 

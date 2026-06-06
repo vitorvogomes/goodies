@@ -23,22 +23,24 @@ from typing import Any
 
 import asyncpg
 
-# Categoria da planilha (upper, sem acento) -> categoria canônica
+from .constants import AssetCategory
+
+# Categoria da planilha (upper, sem acento) -> categoria canônica (SSOT em constants.py)
 CATEGORY_MAP: dict[str, str] = {
-    "ACOES": "Ações Nacionais",
-    "ACAO": "Ações Nacionais",
-    "ACOESNACIONAIS": "Ações Nacionais",
-    "ETF": "ETFs",
-    "ETFS": "ETFs",
-    "FII": "FIIs",
-    "FIIS": "FIIs",
-    "RENDAFIXA": "Renda Fixa",
-    "RENDA_FIXA": "Renda Fixa",
-    "RF": "Renda Fixa",
-    "APOSENTADORIA": "Aposentadoria",
-    "TESOURO": "Aposentadoria",
-    "CRIPTO": "Cripto",
-    "CRYPTO": "Cripto",
+    "ACOES": AssetCategory.ACOES,
+    "ACAO": AssetCategory.ACOES,
+    "ACOESNACIONAIS": AssetCategory.ACOES,
+    "ETF": AssetCategory.ETFS,
+    "ETFS": AssetCategory.ETFS,
+    "FII": AssetCategory.FIIS,
+    "FIIS": AssetCategory.FIIS,
+    "RENDAFIXA": AssetCategory.RENDA_FIXA,
+    "RENDA_FIXA": AssetCategory.RENDA_FIXA,
+    "RF": AssetCategory.RENDA_FIXA,
+    "APOSENTADORIA": AssetCategory.APOSENTADORIA,
+    "TESOURO": AssetCategory.APOSENTADORIA,
+    "CRIPTO": AssetCategory.CRIPTO,
+    "CRYPTO": AssetCategory.CRIPTO,
 }
 
 TIPO_MAP: dict[str, str] = {

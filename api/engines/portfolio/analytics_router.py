@@ -36,11 +36,12 @@ async def set_manual_price(
     user: dict[str, str] = Depends(get_current_user),
     db: asyncpg.Connection = Depends(get_db),
 ) -> dict[str, Any]:
-    """Define/atualiza o preço manual de um ativo (upsert)."""
-    result = await service.upsert_price(db, asset_symbol, body.price_brl)
-    # O XIRR consolidado depende do preço atual → invalida o cache (ADR-008).
-    await service.invalidate_xirr_cache(user["id"])
-    return result
+    """Define/atualiza o preço manual de um ativo (upsert).
+
+    A invalidação do cache de XIRR (ADR-008) agora é feita dentro de `upsert_price`
+    (chokepoint §3.4), cobrindo também o worker do Market Engine.
+    """
+    return await service.upsert_price(db, asset_symbol, body.price_brl)
 
 
 @router.get("/xirr")

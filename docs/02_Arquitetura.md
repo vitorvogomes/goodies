@@ -217,6 +217,24 @@ CREATE TABLE fixed_costs (
 ```
 
 #### `asset_operations`
+
+> ⚠️ **Reconciliação com a implementação real (m2 / §3.5 do débito).** O schema abaixo é o
+> *projeto* original; a migração **`0007_portfolio`** divergiu e é a fonte de verdade:
+> - Colunas reais: **`asset_symbol`** (não `ticker`), **`asset_category`** (não `category`,
+>   e os valores são as 6 categorias canônicas de `engines/portfolio/constants.py`:
+>   "Ações Nacionais", "ETFs", "FIIs", "Renda Fixa", "Aposentadoria", "Cripto"), **`tipo`**
+>   (não `op_type`, com CHECK `compra|venda|dividendo|juros|aporte|resgate`),
+>   `quantidade` (NOT NULL, CHECK > 0), `valor_unitario` (NOT NULL, CHECK >= 0),
+>   `data_operacao`, `external_id` (dedup), `user_id` (RLS). **Não existe `total_amount`** — o
+>   valor é `quantidade * valor_unitario`, com o sinal do cashflow derivado de `tipo`
+>   (`service.signed_amount`).
+> - **Não existem `models.py` nem `queries.py`** no `engines/portfolio/` — as queries são SQL
+>   inline em `service.py`/`operations.py` (asyncpg direto, ADR sem ORM) e as respostas dos
+>   endpoints ainda são `dict[str, Any]` (contrato Pydantic tipado nasce no Market Engine m3).
+> - **Não existe a VIEW `positions`** — posições, alocação e XIRR são calculados em Python
+>   (`service.calculate_positions` / `calculate_allocation` / `calculate_portfolio_xirr`).
+> - `asset_prices` é **global** (PK `ticker`, sem `user_id`); ver a seção `asset_prices`.
+
 ```sql
 CREATE TABLE asset_operations (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -236,7 +254,10 @@ CREATE INDEX idx_asset_ops_date ON asset_operations(date);
 CREATE INDEX idx_asset_ops_category ON asset_operations(category);
 ```
 
-**Nota XIRR:** o cálculo de XIRR usa `(date, total_amount)` de cada operação. Compras: `total_amount` negativo (saída de caixa). Vendas e rendimentos: positivo (entrada de caixa). Posição atual: entrada na data de hoje com valor de mercado.
+**Nota XIRR:** o cálculo de XIRR usa `(data_operacao, sinal)` de cada operação (ver caixa acima:
+não há `total_amount`). Compras/aportes: saída de caixa (negativo). Vendas/resgates/rendimentos:
+entrada (positivo). Posição atual: entrada na **data de avaliação** (`service.eval_date`, §3.1)
+com valor de mercado — **excluindo** posições abertas sem preço (§2.1).
 
 #### `portfolio_targets`
 ```sql
