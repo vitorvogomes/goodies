@@ -91,22 +91,33 @@ Implement following TDD. Update PROGRESS.md when done.
 
 ## Milestone m3 — Market Data
 
+> **B0 (fundação / pré-requisitos do code-review m2) — 2026-06-06, commit 70c456b.** SSOT de
+> categorias (`engines/portfolio/constants.py`), `upsert_price` chokepoint (precedência is_manual
+> + invalidação de cache XIRR), XIRR com preço parcial, data de avaliação única
+> (`settings.evaluation_date`), categoria B3 das abas Posição, docs reconciliadas. +20 testes.
+
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 03-01 | Schema asset_prices + interface de cache Redis | [ ] | — |
-| 03-02 | Fetcher BRAPI.dev (B3) com retry | [ ] | — |
-| 03-03 | Fetcher CoinGecko (cripto) | [ ] | — |
-| 03-04 | Fetcher Tesouro Direto com matching flexível | [ ] | — |
-| 03-05 | Worker price_b3 (cron dias úteis 4h) | [ ] | — |
-| 03-06 | Worker price_crypto (cron 2h) | [ ] | — |
-| 03-07 | Lógica de fallback (Redis → Postgres → manual) | [ ] | — |
-| 03-08 | Endpoint de update manual de preço | [ ] | — |
-| 03-09 | Endpoints de leitura de preços | [ ] | — |
-| 03-10 | Portfolio Engine usando preços do Market Engine | [ ] | — |
-| 03-11 | Frontend — tela de preços com staleness indicator | [ ] | — |
-| 03-12 | Testes de integração dos fetchers (mocks) | [ ] | — |
+| 03-01 | Schema asset_prices + interface de cache Redis | [x] (já existia; verificado) | 70c456b |
+| 03-02 | Fetcher BRAPI.dev (B3) com retry | [x] | 43dae7b |
+| 03-03 | Fetcher CoinGecko (cripto) | [x] | 43dae7b |
+| 03-04 | Fetcher Tesouro Direto com matching flexível | [x] | 43dae7b |
+| 03-05 | Worker price_b3 (cron dias úteis 4h) | [x] | 3ed7d7d |
+| 03-06 | Worker price_crypto (cron 2h) | [x] | 3ed7d7d |
+| 03-07 | Lógica de fallback (Redis → Postgres → manual) | [x] | 3ed7d7d |
+| 03-08 | Endpoint de update manual de preço | [x] | 3ed7d7d |
+| 03-09 | Endpoints de leitura de preços | [x] | 3ed7d7d |
+| 03-10 | Portfolio Engine usando preços do Market Engine | [x] | 3ed7d7d |
+| 03-11 | Frontend — tela de preços com staleness indicator | [x] | (B5) |
+| 03-12 | Testes de integração dos fetchers (mocks) | [x] | (B5) |
 
 **Gate m3:** preços atualizando sem erro por 48h.
+**Status m3: 12/12 código ✅ — gate operacional (48h) PENDENTE.** Suite 243→303 verde; ruff+mypy ok.
+Fetchers validados ao vivo: **BRAPI e CoinGecko OK**; **Tesouro 403 no sandbox (WAF/IP)** — validar no
+ambiente do Vitor. Endpoints migrados de `/portfolio/prices` → **`/api/v1/market/*`** (front incluso).
+Procedimento do gate 48h em `docs/12_Gate_M3_Market.md`. **Pré-condição:** os preços B3 atuais foram
+semeados com `is_manual=true` (import_b3 antigo) → o worker não os refresca; re-rodar
+`scripts/import_b3.py --snapshot ... --commit` (agora grava `is_manual=false`) para destravar.
 
 > **Faxina pré-m3 (2026-06-06) — feita antes de iniciar as stories.** Coerência Nubank↔Portfólio
 > (`docs/11_...`): resgates de caixinha = `investment` net (não receita) → taxa de poupança real;
@@ -254,3 +265,4 @@ Implement following TDD. Update PROGRESS.md when done.
 | 2026-06-04 | m2 | **Fase A — backend 02-06→02-12** | **Batch de 7 stories de cálculo do Portfolio Engine.** Migração `0008_asset_prices` (preço manual p/ valoração m2, upsert por ticker; compatível c/ Market Engine m3). Novo `engines/portfolio/service.py` (orquestração + funções puras) e `analytics_router.py` (prefix `/api/v1/portfolio`). **02-06** XIRR por ativo/categoria/consolidado (cashflows ADR-002, posição atual = qtd_net × preço; cache Redis `xirr:consolidated:{user_id}` TTL 1h + invalidação ADR-008). **02-07** posições valoradas (qtd_net, DCA, custo, valor atual, resultado, stale ADR-004) + `scripts/seed_asset_prices.py` (10 preços do posicao.json). **02-08** alocação atual vs meta + desvio_pp (fixture `portfolio_user` com targets). **02-09** rebalanceamento (`suggest_rebalancing` Arquitetura §7, nunca vende). **02-10** rendimentos dividendo/juros separados do capital (filtro período). **02-11** IR RV (Ações/ETF 0.15, FIIs 0.20; prejuízo→0). **02-12** IR cripto mensal (isenção 35k, alerta 28k=80%, ganho via DCA). +33 testes (test_xirr_endpoint, test_positions, test_allocation, test_rebalancing, test_income, test_ir_estimate, test_ir_crypto); **suite 190/190 verde**, portfolio cov 97%; ruff+mypy strict. Commits b8c8c0e→e4a1c59. **Próximo: Fase B (gate 02-17-18) — precisa do CSV real da aba OPERAÇÕES + XIRR do Excel.** |
 | 2026-06-06 | pré-m3 | **Faxina de coerência Nubank↔Portfólio (ADR-011)** | Antes de iniciar o m3. **WI-1:** resgates de caixinha deixam de ser `income/Resgate` e viram `investment` net (`api/scripts/reclassify_caixinhas.py`, in-place idempotente, 50 movidos) — tira ~R$32k de receita fantasma; taxa de poupança real (jan 51,8%→28,8%, abr 32,8%→17,9%); saldo invariante R$3.427,97. Migration `0009` (regras de import futuro; categoria `Resgate` aposentada). **WI-2:** `engines/portfolio/rf_cdi.py` (valoração % CDI) + `engines/portfolio/caixinhas.py` (registro config-driven; Reserva já listada `enabled=False`) + `scripts/seed_caixinhas.py`/`seed_cdb_guanabara.py` — Snow Trip (100% CDI, R$10,8k), Turbo (115%, R$776, cap 5k), CDB Guanabara (117,5%, R$200) viram ativos Renda Fixa (ops derivadas das `transactions`, preço `is_manual`). Patrimônio **R$24,2k→R$37,2k**; Renda Fixa **+20,6pp** sobre meta; XIRR consolidado **13,8%**. `CDI_ANUAL` no `.env`/config (provisório até m5/BCB). **WI-3:** só os anchors de caixinha (patterns conservadores descartados a pedido). **Santander = externo** (reafirmado; ~R$32k `income/Extra` ficam receita). Resolve débito §3.12. Doc `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`. **Guardrail: NÃO rodar `reset_ledger` no banco curado.** +20 testes (suite **241 verde**); ruff + mypy ok. |
 | 2026-06-06 | pré-m3 | **Ajustes de UI (usabilidade pré-m3)** | Polimento antes do m3. **Histórico:** nova aba no menu (`web/components/AppShell.tsx`, entre Posições e Alocação) — antes só acessível pelo card; + total discreto que segue os filtros (Σ qtd×preço, `useMemo` client-side) em `portfolio/history`. **Transações:** `GET /api/v1/transactions` passa a agregar `total_transfer` (net, com sinal) + `transfer_count` sobre o mesmo WHERE (`engines/ledger/transactions.py`; `TransactionList` +2 campos, espelhados em `web/types/ledger.ts`); barra de totais em `/ledger` virou **adaptativa** — mostra **Investido** ao filtrar investimento e **Transferências ≈ R$0,00** (confirma que internas se cancelam; net≠0 = perna órfã / filtro de conta pegando um lado só). **Posições:** tabela agrupada por categoria com **subtotais** (valor atual + resultado/%) em `portfolio/positions` (`useMemo` + `Fragment`, grupos por maior posição). Item "juntar Rebalanceamento na Alocação" **descartado a pedido** (abas mantidas separadas; `targets.py`/`portfolio_targets` intactos). +1 teste (transferências); **suite 243 verde**; ruff + mypy(transactions) ok; `npm run build` (TS ok, 15 rotas) + lint limpos. |
+| 2026-06-06 | m3 | **Market Engine — B0..B5 (12/12 código)** | **B0 (commit 70c456b):** 6 pré-requisitos do code-review m2 — SSOT de categorias (`engines/portfolio/constants.py`, `AssetCategory` StrEnum + frozensets B3/Cripto/Tesouro; religados targets/migration/service/caixinhas/b3_import); `upsert_price` chokepoint (precedência `is_manual`: worker nunca sobrescreve manual; invalidação de cache XIRR por-holder movida p/ dentro); XIRR com preço parcial (exclui posição aberta sem preço; fechada permanece); data de avaliação única (`settings.evaluation_date`+`service.eval_date`, threadada em XIRR/validate_xirr/seeds); categoria B3 das abas "Posição -" (`parse_b3_categories`, ETF-em-11 não vira FII); docs/02 reconciliada + casing docs/09. **B1 (43dae7b):** fetchers `engines/market/fetchers/` (base: `PriceFetcher`/`PriceQuote`/`with_retry` 1s/2s/4s; BRAPI 1-ticker/req [plano grátis], strip F; CoinGecko BRL+USD, mapa em config; Tesouro matching flexível + headers). respx dev-dep. Smoke ao vivo: **BRAPI+CoinGecko OK; Tesouro 403 no sandbox**. **B2-B4 (3ed7d7d):** fallback `engines/market/service.py` (Redis→Postgres→null/stale; `cache_aside_write`), router `/api/v1/market/*` + Pydantic (`PriceOut`); **migração total** `PUT /portfolio/prices`→`POST /market/prices` (testes + front); workers `workers/price_workers.py` (`run_price_b3`=B3+Tesouro, `run_price_crypto`) + `scheduler.py` (cron dias úteis 9-18/4h e */2h) ligado no lifespan (guard `environment!=test`+`enable_scheduler`). **B5:** front `web/app/(app)/market` (tela de Preços + staleness, nav "Preços"); testes de integração (worker→endpoints, API-down→stale, nunca 5xx). CI mypy expandido p/ market+workers. **Suite 243→303 verde; ruff+mypy ok; `npm run build` 16 rotas.** **Gate 48h operacional pendente** (ver `docs/12_Gate_M3_Market.md`; pré-condição: re-import B3 p/ `is_manual=false`). |

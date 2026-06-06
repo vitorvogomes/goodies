@@ -46,7 +46,14 @@ jobs:
           MYPYPATH: "."
         run: >-
           uv run mypy main.py config.py health.py db/connection.py
-          engines/market/cache.py engines/ledger/accounts.py
+          engines/market/cache.py engines/market/service.py
+          engines/market/router.py engines/market/models.py
+          engines/market/fetchers/base.py engines/market/fetchers/brapi.py
+          engines/market/fetchers/coingecko.py engines/market/fetchers/treasury.py
+          workers/price_workers.py workers/scheduler.py
+          engines/portfolio/constants.py engines/portfolio/service.py
+          engines/portfolio/b3_import.py engines/portfolio/analytics_router.py
+          engines/ledger/accounts.py
           engines/ledger/categories.py engines/ledger/transactions.py
           engines/ledger/cashflow.py engines/ledger/fixed_costs.py
           engines/ledger/service.py engines/ledger/alerts.py
