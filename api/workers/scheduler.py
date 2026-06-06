@@ -1,12 +1,18 @@
 """APScheduler do Market Engine (ADR-003: no processo FastAPI, não Celery).
 
-`build_scheduler()` registra dois jobs cron (CLAUDE.md):
-- price_b3: dias úteis, 9-18h a cada 4h (09/13/17h) — B3 + Tesouro.
+`build_scheduler()` registra dois jobs cron:
+- price_b3: **1x/dia útil, 19:00 America/Sao_Paulo** (após o fechamento da B3) — B3+Tesouro.
 - price_crypto: a cada 2h, todo dia.
 
-Os jobs pegam o pool vivo via `get_pool()` no momento do disparo (o pool é aberto no
-lifespan antes do `scheduler.start()`). `coalesce/max_instances=1` evitam empilhar
-execuções; combinado com a idempotência dos workers, re-disparos convergem.
+**Free-tier (importante):** o BRAPI grátis permite **1.000 requisições/mês** e **1 ativo por
+requisição** (sem batch). Com ~16 tickers, 1x/dia útil ≈ 350/mês (folgado); 3x/dia estouraria
+o limite. Por isso a cadência B3 é diária (preço de fechamento basta p/ XIRR/posições) — o
+`ttl_b3` (≈26h) é dimensionado p/ a janela diária. CoinGecko demo: 10k/mês, 1 call/run (batch
+de ids) → */2h é trivial. Desvia do default "4h" do CLAUDE.md por causa do limite do free-tier.
+
+Os jobs pegam o pool vivo via `get_pool()` no disparo (pool aberto no lifespan antes do
+`scheduler.start()`). `coalesce/max_instances=1` evitam empilhar; com a idempotência dos
+workers, re-disparos convergem.
 """
 from __future__ import annotations
 
@@ -38,7 +44,10 @@ def build_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(job_defaults=_JOB_DEFAULTS)
     scheduler.add_job(
         _job_price_b3,
-        CronTrigger(day_of_week="mon-fri", hour="9-18/4"),
+        # 1x/dia útil após o fechamento (free-tier BRAPI: 1.000 req/mês, 1 ativo/req).
+        CronTrigger(
+            day_of_week="mon-fri", hour=19, minute=0, timezone="America/Sao_Paulo"
+        ),
         id="price_b3",
         name="price_b3",
     )

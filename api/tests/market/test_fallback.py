@@ -72,11 +72,11 @@ async def test_postgres_hit_fresh_within_ttl(pool: Any) -> None:
 @pytest.mark.asyncio
 async def test_postgres_hit_stale_past_ttl(pool: Any) -> None:
     await _insert_price(
-        pool, "MKT_OLD", source="brapi", is_manual=False, fetched_at=_NOW - timedelta(hours=9)
+        pool, "MKT_OLD", source="brapi", is_manual=False, fetched_at=_NOW - timedelta(hours=30)
     )
     async with pool.acquire() as conn:
         out = await service.get_price(conn, "MKT_OLD", category="Ações Nacionais", now=_NOW)
-    assert out["stale"] is True  # 9h > TTL B3 (4h)
+    assert out["stale"] is True  # 30h > TTL B3 (26h, cadência diária free-tier)
 
 
 @pytest.mark.asyncio

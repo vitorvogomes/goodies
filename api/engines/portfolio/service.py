@@ -185,6 +185,12 @@ async def calculate_positions(
         user_id,
     )
     prices = await fetch_prices(conn)
+    # is_manual por ticker: o front bloqueia a edição de preço quando False (capturado
+    # automaticamente via Market Engine). Sem linha de preço → tratado como manual.
+    manual_map = {
+        r["ticker"]: r["is_manual"]
+        for r in await conn.fetch("SELECT ticker, is_manual FROM asset_prices")
+    }
 
     by_asset: dict[str, list[Any]] = defaultdict(list)
     category_of: dict[str, str] = {}
@@ -221,6 +227,8 @@ async def calculate_positions(
                 "resultado": resultado,
                 "resultado_pct": resultado_pct,
                 "stale": stale,
+                # sem preço ainda → editável (manual); com preço de mercado → bloqueado
+                "is_manual": manual_map.get(sym, True),
             }
         )
     positions.sort(key=lambda p: str(p["asset_symbol"]))

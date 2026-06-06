@@ -141,5 +141,5 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)
     assert "day_of_week='mon-fri'" in b3
-    assert "hour='9-18/4'" in b3
+    assert "hour='19'" in b3  # 1x/dia útil após fechamento (free-tier BRAPI)
     assert "hour='*/2'" in str(jobs["price_crypto"].trigger)

@@ -15,16 +15,19 @@ Vitor e observar 48h sem exceção.
    vazio → cai para `redis://localhost:6379/0` (docker local).
 2. **`enable_scheduler=true`** (default) e **`environment != "test"`**. Sob `uvicorn`/docker o
    lifespan inicia o `AsyncIOScheduler` (jobs `price_b3` e `price_crypto`).
-3. **Destravar o refresh de B3** (importante): os preços B3 atuais do banco curado foram
-   semeados com `is_manual=true` (versão antiga do `import_b3`). Pela precedência §3.4, o worker
-   (`is_manual=false`) **não sobrescreve** linha manual. Para o worker poder refrescá-los, re-rodar
-   o import (agora grava `is_manual=false`):
+3. **Destravar o refresh de B3** (importante): os preços B3 atuais foram semeados com
+   `is_manual=true` (versão antiga do `import_b3`). Pela precedência §3.4 o worker (`is_manual=false`)
+   **não sobrescreve** linha manual — então re-rodar `import_b3` **não basta** (também é bloqueado).
+   O flip é feito por um script dedicado, idempotente (só toca os tickers cotáveis Ações/ETFs/FIIs):
    ```
    DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-     uv run python ../scripts/import_b3.py "<relatorio>.xlsx" --snapshot "<consolidado>.xlsx" --commit
+     uv run python ../scripts/enable_market_pricing.py            # dry-run
+   DATABASE_URL=... uv run python ../scripts/enable_market_pricing.py --commit
    ```
-   Preços genuinamente manuais (Flash/caixinhas/CDB Guanabara, `nubank-cdi`/`manual`) permanecem
-   `is_manual=true` e **nunca** são tocados pelo worker — comportamento desejado.
+   Preços genuinamente manuais (Flash/caixinhas/CDB Guanabara `nubank-cdi`/`flash-pre`, e Tesouro
+   enquanto o fetcher não roda em prod) permanecem `is_manual=true` e **nunca** são tocados pelo
+   worker — comportamento desejado. **Executado em 2026-06-06:** 14 tickers B3 destravados + worker
+   rodado ao vivo → 16/16 cotados via BRAPI (`is_manual=false`).
 
 > ⚠️ **Guardrail:** NÃO rodar `scripts/reset_ledger.py` no banco curado (ADR-011).
 
@@ -34,8 +37,13 @@ Vitor e observar 48h sem exceção.
 
 | Worker | Cron | Cobre | TTL cache |
 |---|---|---|---|
-| `price_b3` | dias úteis, 9–18h a cada 4h (09/13/17h) | Ações/ETFs/FIIs (BRAPI) + Tesouro | 4h / 6h |
+| `price_b3` | **1×/dia útil, 19:00 America/Sao_Paulo** (após fechamento) | Ações/ETFs/FIIs (BRAPI) + Tesouro | 26h / 6h |
 | `price_crypto` | a cada 2h, todo dia | Cripto (CoinGecko) | 2h |
+
+**Limites free-tier (revisado):** BRAPI grátis = **1.000 req/mês, 1 ativo/req** (sem batch) →
+~16 tickers × 1×/dia útil ≈ **350/mês** (3×/dia estouraria). `ttl_b3=26h` p/ o preço de
+fechamento não aparecer "desatualizado" durante o dia. CoinGecko demo = **10k/mês**, 1 call/run
+(batch de ids) → */2h trivial. (PETR4 é um dos 4 tickers-teste ilimitados do BRAPI — bônus menor.)
 
 Cache key `price:{tipo}:{ticker}`; fallback Redis → Postgres `asset_prices` → null/stale.
 Falha de API externa nunca vira 5xx (fail-soft); o símbolo é omitido e o valor anterior fica.

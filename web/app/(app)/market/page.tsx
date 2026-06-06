@@ -14,25 +14,36 @@ function fmtWhen(iso: string | null): string {
     : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
+// 4 estados visualmente distintos sobre 3 conceitos: não encontrado | manual | via API.
 function StatusBadge({ p }: { p: Price }) {
+  const base = "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs";
   if (p.price_brl == null) {
-    return (
-      <span className="rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">sem preço</span>
-    );
+    return <span className={`${base} bg-loss/15 text-loss`}>✕ não encontrado</span>;
   }
   if (p.is_manual) {
-    return (
-      <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground/60">manual</span>
-    );
+    return <span className={`${base} bg-accent/15 text-accent`}>✎ manual</span>;
   }
   if (p.stale) {
-    return (
-      <span className="rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">
-        desatualizado
-      </span>
-    );
+    return <span className={`${base} bg-warning/15 text-warning`}>⟳ via API · desatualizado</span>;
   }
-  return <span className="rounded bg-gain/15 px-1.5 py-0.5 text-xs text-gain">atualizado</span>;
+  return <span className={`${base} bg-gain/15 text-gain`}>↻ via API</span>;
+}
+
+function Legend() {
+  const item = (cls: string, label: string) => (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`h-2 w-2 rounded-full ${cls}`} />
+      {label}
+    </span>
+  );
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground/50">
+      {item("bg-gain", "via API (atual)")}
+      {item("bg-warning", "via API (desatualizado)")}
+      {item("bg-accent", "manual (você definiu)")}
+      {item("bg-loss", "não encontrado")}
+    </div>
+  );
 }
 
 export default function MarketPricesPage() {
@@ -50,18 +61,21 @@ export default function MarketPricesPage() {
       </div>
 
       {prices.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-x-5 gap-y-1 text-xs text-foreground/50">
-          <span>
-            Ativos <span className="tabular-nums text-foreground/70">{prices.length}</span>
-          </span>
-          <span>
-            Sem preço/desatualizados{" "}
-            <span
-              className={`tabular-nums ${staleCount > 0 ? "text-warning" : "text-foreground/70"}`}
-            >
-              {staleCount}
+        <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+          <Legend />
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground/50">
+            <span>
+              Ativos <span className="tabular-nums text-foreground/70">{prices.length}</span>
             </span>
-          </span>
+            <span>
+              Sem preço/desatualizados{" "}
+              <span
+                className={`tabular-nums ${staleCount > 0 ? "text-warning" : "text-foreground/70"}`}
+              >
+                {staleCount}
+              </span>
+            </span>
+          </div>
         </div>
       )}
 
