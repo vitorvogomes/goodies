@@ -24,8 +24,9 @@ import asyncpg
 
 from config import settings
 
-# Categorias cotáveis via BRAPI (Tesouro fica de fora até o fetcher ser validado em prod).
-_CATEGORIES = ["Ações Nacionais", "ETFs", "FIIs"]
+# Categorias com fonte de mercado: Ações/ETFs/FIIs (BRAPI) + Aposentadoria (Tesouro
+# Transparente CSV). Renda Fixa (caixinhas/Flash/CDB) e Cripto (m4) ficam de fora.
+_CATEGORIES = ["Ações Nacionais", "ETFs", "FIIs", "Aposentadoria"]
 _SELECT_TICKERS = (
     "SELECT DISTINCT asset_symbol FROM asset_operations WHERE asset_category = ANY($1::text[])"
 )

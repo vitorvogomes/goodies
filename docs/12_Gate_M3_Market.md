@@ -24,10 +24,11 @@ Vitor e observar 48h sem exceção.
      uv run python ../scripts/enable_market_pricing.py            # dry-run
    DATABASE_URL=... uv run python ../scripts/enable_market_pricing.py --commit
    ```
-   Preços genuinamente manuais (Flash/caixinhas/CDB Guanabara `nubank-cdi`/`flash-pre`, e Tesouro
-   enquanto o fetcher não roda em prod) permanecem `is_manual=true` e **nunca** são tocados pelo
-   worker — comportamento desejado. **Executado em 2026-06-06:** 14 tickers B3 destravados + worker
-   rodado ao vivo → 16/16 cotados via BRAPI (`is_manual=false`).
+   Só os preços genuinamente manuais (Flash-Debênture `flash-pre`; caixinhas + CDB Guanabara
+   `nubank-cdi`) permanecem `is_manual=true` e **nunca** são tocados pelo worker — comportamento
+   desejado. **Executado em 2026-06-06:** B3 + Tesouro (Aposentadoria) destravados + worker rodado
+   ao vivo → **23/23 cotados via API** (`is_manual=false`); restam **4 manuais** (caixinhas + CDB
+   + debênture), exatamente o esperado.
 
 > ⚠️ **Guardrail:** NÃO rodar `scripts/reset_ledger.py` no banco curado (ADR-011).
 
@@ -37,13 +38,17 @@ Vitor e observar 48h sem exceção.
 
 | Worker | Cron | Cobre | TTL cache |
 |---|---|---|---|
-| `price_b3` | **1×/dia útil, 19:00 America/Sao_Paulo** (após fechamento) | Ações/ETFs/FIIs (BRAPI) + Tesouro | 26h / 6h |
+| `price_b3` | **1×/dia útil, 19:00 America/Sao_Paulo** (após fechamento) | Ações/ETFs/FIIs (BRAPI) + Tesouro | 26h |
 | `price_crypto` | a cada 2h, todo dia | Cripto (CoinGecko) | 2h |
 
-**Limites free-tier (revisado):** BRAPI grátis = **1.000 req/mês, 1 ativo/req** (sem batch) →
-~16 tickers × 1×/dia útil ≈ **350/mês** (3×/dia estouraria). `ttl_b3=26h` p/ o preço de
-fechamento não aparecer "desatualizado" durante o dia. CoinGecko demo = **10k/mês**, 1 call/run
-(batch de ids) → */2h trivial. (PETR4 é um dos 4 tickers-teste ilimitados do BRAPI — bônus menor.)
+**Fontes e limites free-tier (revisado):**
+- **B3 (BRAPI):** grátis = **1.000 req/mês, 1 ativo/req** (sem batch) → ~16 tickers × 1×/dia útil
+  ≈ **350/mês** (3×/dia estouraria). `ttl_b3=26h` p/ o fechamento não aparecer "desatualizado".
+  (PETR4 é um dos 4 tickers-teste ilimitados do BRAPI — bônus menor.)
+- **Tesouro (Tesouro Transparente CSV):** open data do Tesouro Nacional (CKAN), **sem auth, sem
+  WAF, sem quota**; preço de fechamento por dia útil. CSV ~14MB baixado 1×/dia (parse single-pass).
+  Substituiu a API oficial do Tesouro Direto (atrás de Cloudflare → 403 headless). `ttl_tesouro=26h`.
+- **Cripto (CoinGecko demo):** **10k/mês**, 1 call/run (batch de ids) → */2h trivial.
 
 Cache key `price:{tipo}:{ticker}`; fallback Redis → Postgres `asset_prices` → null/stale.
 Falha de API externa nunca vira 5xx (fail-soft); o símbolo é omitido e o valor anterior fica.
@@ -55,11 +60,10 @@ Falha de API externa nunca vira 5xx (fail-soft); o símbolo é omitido e o valor
 - **Suite de integração:** `uv run pytest tests/market/ -q` (workers → Postgres/Redis → endpoints,
   precedência is_manual, API-down → stale). Cadência do scheduler coberta sem viajar no tempo.
 - **Smoke ao vivo dos fetchers** (precisa rede + tokens):
-  - BRAPI: `BrapiFetcher().fetch(["PETR4"])` → preço ≠ vazio. **OK no sandbox.**
-  - CoinGecko: `CoinGeckoFetcher().fetch(["BTC"])` → BRL+USD. **OK no sandbox.**
-  - Tesouro: `TreasuryFetcher().fetch(["Tesouro Selic 2029"])` → preço. **403 no sandbox (WAF/IP);
-    validar no ambiente do Vitor.** A API exige cabeçalhos de navegador (já enviados); se ainda 403,
-    é bloqueio de IP do datacenter.
+  - BRAPI: `BrapiFetcher().fetch(["PETR4"])` → preço ≠ vazio. **OK.**
+  - CoinGecko: `CoinGeckoFetcher().fetch(["BTC"])` → BRL+USD. **OK.**
+  - Tesouro: `TreasuryFetcher().fetch(["Tesouro Selic 2029"])` → preço (via Tesouro Transparente
+    CSV). **OK** (6/6 títulos casados ao vivo em 2026-06-06).
 - **Disparo manual imediato** (sem esperar o cron): registrar um job com `next_run_time=now`, ou
   chamar o corpo direto:
   ```python

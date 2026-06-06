@@ -67,12 +67,13 @@ class Settings(BaseSettings):
         "USDT": "tether",
         "USDC": "usd-coin",
     }
-    # TTLs de cache de preço (segundos). Cripto=2h, Tesouro=6h, XIRR=1h (CLAUDE.md).
-    # B3=26h: a cotação B3 é buscada 1x/dia útil (limite free-tier BRAPI 1.000 req/mês),
-    # então o preço de fechamento NÃO deve aparecer "desatualizado" durante o dia.
+    # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
+    # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
+    # 1.000 req/mês; Tesouro Transparente publica preço de fechamento 1x/dia útil),
+    # então o preço do dia NÃO deve aparecer "desatualizado" durante o dia.
     ttl_b3: int = 93600
     ttl_crypto: int = 7200
-    ttl_tesouro: int = 21600
+    ttl_tesouro: int = 93600
     ttl_xirr: int = 3600
 
     # Workers de preço (APScheduler no processo FastAPI). Desligar via env em ambientes

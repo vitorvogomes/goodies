@@ -1,57 +1,63 @@
-"""Fetcher Tesouro Direto — STORY-03-04. API pública (sem chave).
+"""Fetcher Tesouro Direto — STORY-03-04. Fonte: Tesouro Transparente (open data).
 
-`GET .../service/api/treasury/bond/list` devolve a lista de títulos com nome e preço
-unitário de resgate. Matching FLEXÍVEL por nome (normaliza acento/caixa/espaços), pois
-o ticker do portfólio ("Tesouro IPCA+ 2040") pode diferir levemente da grafia da API.
-Fail-soft: API fora / sem casamento → símbolo omitido. TTL de cache (6h) é do worker.
+A API oficial do Tesouro Direto fica atrás de um desafio JS do Cloudflare (403 headless),
+então usamos o CSV público "Preços e Taxas dos Títulos Públicos" do Tesouro Transparente
+(CKAN do Tesouro Nacional): sem auth, sem WAF, sem quota, atualizado por dia útil; uso livre
+citando a fonte.
+
+CSV `;`-separado (latin-1), colunas:
+  Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;
+  PU Compra Manha;PU Venda Manha;PU Base Manha
+Para cada ticker "Tesouro <Tipo> <AAAA>" casa (Tipo Titulo exato, ano do vencimento) na
+Data Base mais recente e devolve o PU de venda (resgate). Fail-soft: erro/sem casamento →
+símbolo omitido. O CSV (~14MB, histórico) é baixado 1x/dia pelo worker; o parse é single-pass
+e de baixa memória (só os símbolos pedidos são guardados).
 """
 from __future__ import annotations
 
 import asyncio
-import unicodedata
+import re
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any
 
 import httpx
 
 from .base import PriceQuote, with_retry
 
-_BASE_URL = (
-    "https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/"
-    "service/api/treasury/bond/list"
+_CSV_URL = (
+    "https://www.tesourotransparente.gov.br/ckan/dataset/"
+    "df56aa42-484a-4a59-8184-7676580c81e3/resource/"
+    "796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv"
 )
 _SOURCE = "tesouro"
-
-# A API pública do Tesouro bloqueia clientes sem cabeçalhos de navegador (403).
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "pt-BR,pt;q=0.9",
-    "Referer": "https://www.tesourodireto.com.br/titulos/precos-e-taxas.htm",
-}
+_TICKER_RE = re.compile(r"^\s*(Tesouro\s+.+?)\s+(\d{4})\s*$")
+_DateT = tuple[int, int, int]
 
 
-def _norm(name: str) -> str:
-    """Normaliza p/ casamento: sem acento, minúsculo, espaços colapsados."""
-    nfkd = unicodedata.normalize("NFKD", name)
-    no_accent = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return " ".join(no_accent.lower().split())
+def _parse_ticker(symbol: str) -> tuple[str, int] | None:
+    """'Tesouro IPCA+ 2040' → ('Tesouro IPCA+', 2040)."""
+    m = _TICKER_RE.match(symbol)
+    if not m:
+        return None
+    return " ".join(m.group(1).split()), int(m.group(2))
 
 
-def _unit_price(bond: dict[str, Any]) -> float | None:
-    """Preço unitário de resgate (valor atual da posição); cai p/ o de investimento."""
-    for key in ("untrRedVal", "untrInvstmtVal"):
-        val = bond.get(key)
-        if val is not None:
-            return float(val)
-    return None
+def _br_float(s: str) -> float | None:
+    try:
+        return float(s.strip().replace(".", "").replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _br_date(s: str) -> _DateT | None:
+    try:
+        d, mth, y = s.split("/")
+        return int(y), int(mth), int(d)
+    except ValueError:
+        return None
 
 
 class TreasuryFetcher:
-    """Cota Tesouro Direto. `client`/`sleep` injetáveis para teste."""
+    """Cota Tesouro Direto pelo CSV do Tesouro Transparente. `client`/`sleep` injetáveis."""
 
     def __init__(
         self,
@@ -63,52 +69,55 @@ class TreasuryFetcher:
         self._sleep = sleep
 
     async def fetch(self, symbols: Sequence[str]) -> dict[str, PriceQuote]:
-        if not symbols:
+        # (Tipo, ano) → símbolo original pedido
+        wanted: dict[tuple[str, int], str] = {}
+        for s in symbols:
+            parsed = _parse_ticker(s)
+            if parsed is not None:
+                wanted[parsed] = s
+        if not wanted:
             return {}
-        client = self._client or httpx.AsyncClient()
+        client = self._client or httpx.AsyncClient(follow_redirects=True)
         try:
-            data = await with_retry(
-                lambda: self._request(client), attempts=4, sleep=self._sleep
+            text = await with_retry(
+                lambda: self._download(client), attempts=4, sleep=self._sleep
             )
         except Exception:
-            return {}  # fail-soft: API indisponível → nada
+            return {}  # fail-soft: fonte indisponível → nada
         finally:
             if self._client is None:
                 await client.aclose()
+        return self._parse(text, wanted)
 
-        # nome normalizado -> preço unitário
-        by_name: dict[str, float] = {}
-        bonds = (
-            data.get("response", {}).get("TrsrBdTradgList", [])
-            if isinstance(data, dict)
-            else []
-        )
-        for item in bonds:
-            bond = item.get("TrsrBd", {}) if isinstance(item, dict) else {}
-            name = bond.get("nm")
-            price = _unit_price(bond)
-            if name and price is not None:
-                by_name[_norm(str(name))] = price
-
-        out: dict[str, PriceQuote] = {}
-        for sym in symbols:
-            price = self._match(sym, by_name)
-            if price is not None:
-                out[sym] = PriceQuote(price_brl=price, price_usd=None, source=_SOURCE)
-        return out
+    async def _download(self, client: httpx.AsyncClient) -> str:
+        resp = await client.get(_CSV_URL, timeout=60.0)
+        resp.raise_for_status()
+        return resp.content.decode("latin-1", errors="replace")
 
     @staticmethod
-    def _match(symbol: str, by_name: dict[str, float]) -> float | None:
-        key = _norm(symbol)
-        if key in by_name:
-            return by_name[key]
-        # casamento flexível: nome da API contém o ticker (ou vice-versa)
-        for name, price in by_name.items():
-            if key in name or name in key:
-                return price
-        return None
-
-    async def _request(self, client: httpx.AsyncClient) -> Any:
-        resp = await client.get(_BASE_URL, headers=_HEADERS, timeout=15.0)
-        resp.raise_for_status()
-        return resp.json()
+    def _parse(text: str, wanted: dict[tuple[str, int], str]) -> dict[str, PriceQuote]:
+        # single-pass: por símbolo, guarda o PU da maior Data Base vista.
+        latest: dict[str, tuple[_DateT, float]] = {}
+        for line in text.splitlines():
+            p = line.split(";")
+            if len(p) < 8:
+                continue
+            base = _br_date(p[2])
+            venc = _br_date(p[1])
+            if base is None or venc is None:
+                continue  # cabeçalho / linha inválida
+            sym = wanted.get((" ".join(p[0].split()), venc[0]))
+            if sym is None:
+                continue
+            pu = _br_float(p[6])  # PU Venda Manha (resgate)
+            if pu is None:
+                pu = _br_float(p[7])  # fallback PU Base Manha
+            if pu is None:
+                continue
+            prev = latest.get(sym)
+            if prev is None or base > prev[0]:
+                latest[sym] = (base, pu)
+        return {
+            sym: PriceQuote(price_brl=pu, price_usd=None, source=_SOURCE)
+            for sym, (_base, pu) in latest.items()
+        }
