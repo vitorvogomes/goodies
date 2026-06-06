@@ -34,6 +34,7 @@ export interface Position {
   resultado: number | null;
   resultado_pct: number | null;
   stale: boolean;
+  is_manual: boolean; // false = preço capturado via Market Engine (edição bloqueada)
 }
 
 export interface AllocationCategory {

@@ -26,6 +26,7 @@ from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
 from engines.portfolio.b3_import import (
+    parse_b3_categories,
     parse_b3_movimentacao,
     parse_b3_position_prices,
 )
@@ -43,13 +44,9 @@ def _read_movimentacao(path: str) -> list[tuple]:
     return rows[1:]  # descarta cabeçalho
 
 
-def _read_snapshot_prices(path: str) -> dict[str, float]:
+def _read_sheets(path: str) -> dict[str, list[tuple]]:
     wb = openpyxl.load_workbook(path, data_only=True)
-    sheets = {
-        name: list(wb[name].iter_rows(values_only=True))
-        for name in wb.sheetnames
-    }
-    return parse_b3_position_prices(sheets)
+    return {name: list(wb[name].iter_rows(values_only=True)) for name in wb.sheetnames}
 
 
 def _opt(flag: str) -> str | None:
@@ -80,10 +77,18 @@ def main() -> None:
     print("IMPORT B3 — aba Movimentação")
     print("=" * 70)
 
+    # Categorias derivadas das abas 'Posição' do snapshot (precedem a heurística).
+    snapshot_sheets: dict[str, list[tuple]] | None = None
+    category_map: dict[str, str] | None = None
+    if snapshot:
+        snapshot_sheets = _read_sheets(snapshot)
+        category_map = parse_b3_categories(snapshot_sheets)
+        print(f"\nCategorias derivadas das abas Posição: {len(category_map)} tickers")
+
     all_ops = []
     for path in paths:
         rows = _read_movimentacao(path)
-        ops = parse_b3_movimentacao(rows)
+        ops = parse_b3_movimentacao(rows, category_map)
         all_ops.extend(ops)
         print(f"\n{Path(path).name}: {len(rows)} linhas -> {len(ops)} operações")
 
@@ -120,10 +125,13 @@ def main() -> None:
                 conn, user_id, all_ops, broker_default="Toro/B3"
             )
             n_prices = 0
-            if snapshot:
-                prices = _read_snapshot_prices(snapshot)
+            if snapshot_sheets is not None:
+                prices = parse_b3_position_prices(snapshot_sheets)
                 for ticker, price in prices.items():
-                    await service.upsert_price(conn, ticker, price, source="b3")
+                    # preço de mercado (B3) -> is_manual=False: o worker m3 pode refrescar
+                    await service.upsert_price(
+                        conn, ticker, price, source="b3", is_manual=False
+                    )
                 n_prices = len(prices)
             await service.invalidate_xirr_cache(user_id)
             xirr = await service.calculate_portfolio_xirr(conn, user_id)

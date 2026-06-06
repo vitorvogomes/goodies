@@ -39,7 +39,7 @@ O Ledger Engine classifica **saídas de caixa para investimento** com `kind=inve
 
 **Regra:** se o m1 grava `category = 'Toro (B3)'` e o ativo em m2 é `PETR4`, o link semântico é:
 - `asset_operations.broker = 'Toro'`
-- `asset_operations.category = 'Ações nacionais'` (alvo meta de alocação)
+- `asset_operations.asset_category = 'Ações Nacionais'` (categoria canônica — `engines/portfolio/constants.py`)
 
 ### Movimentos de resgate (kind=investment, amount positivo)
 
@@ -63,7 +63,7 @@ O Ledger Engine classifica **saídas de caixa para investimento** com `kind=inve
 CREATE TABLE asset_operations (
     id UUID PRIMARY KEY,
     broker TEXT NOT NULL,           -- 'Toro', 'Binance', 'Caixinha/RDB', etc.
-    category TEXT NOT NULL,         -- 'Ações nacionais', 'Renda Fixa', 'Cripto', etc.
+    asset_category TEXT NOT NULL,   -- canônicas: 'Ações Nacionais', 'Renda Fixa', 'Cripto', etc.
     asset_symbol TEXT NOT NULL,     -- 'PETR4', 'BTC', 'Flash-Debênture', etc.
     tipo ENUM ('compra','venda','juros','dividendo') NOT NULL,
     valor_unitario NUMERIC(15, 2) NOT NULL,

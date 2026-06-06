@@ -4,9 +4,16 @@ projeto: Goodies
 milestone: m2-portfolio
 titulo: Débito Técnico m2 → m3 (Portfolio Engine)
 data: 2026-06-05
-status: aberto
+status: resolvido-no-m3
 tags: [goodies, debito-tecnico, code-review, portfolio, m2, m3]
 ---
+
+> **✅ RESOLVIDO no m3 B0 (2026-06-06).** Os 6 pré-requisitos críticos foram tratados como a
+> fundação do m3 (commit 70c456b): §3.4 chokepoint `upsert_price`+precedência is_manual; §3.2
+> SSOT de categorias (`engines/portfolio/constants.py`); §3.3 categoria B3 das abas Posição;
+> §2.1 XIRR com preço parcial; §3.1 data de avaliação única; §3.5 reconciliação de `docs/02`.
+> Os itens **menores** que sobraram (§2.2, §2.3, §3.6–§3.10) foram revistos e migrados para
+> **`docs/13_Debito_Tecnico_m3.md`**. Este doc fica como registro histórico do code-review do m2.
 
 # Débito Técnico m2 → m3 — Portfolio Engine
 

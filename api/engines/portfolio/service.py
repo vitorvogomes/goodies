@@ -22,8 +22,10 @@ from typing import Any
 
 import asyncpg
 
+from config import settings
 from engines.market.cache import PriceCache
 
+from .constants import AssetCategory
 from .xirr import xirr
 
 # Tipos que aumentam posição (entram no DCA e no quantidade_net positivo)
@@ -33,7 +35,7 @@ _OUTFLOW_TIPOS = ("venda", "resgate")
 # Rendimentos — entram no XIRR como caixa positivo, mas não alteram quantidade
 _INCOME_TIPOS = ("dividendo", "juros")
 
-_XIRR_TTL_SECONDS = 3600  # 1h (ADR-008)
+_XIRR_TTL_SECONDS = settings.ttl_xirr  # 1h (ADR-008), configurável
 
 _cache = PriceCache()
 
@@ -91,6 +93,15 @@ def _sum_or_none(values: Sequence[float | None]) -> float | None:
     return sum(known) if known else None
 
 
+def eval_date(override: date | None = None) -> date:
+    """Data única de avaliação (terminal do XIRR/valoração) — §3.1.
+
+    Precedência: argumento explícito > `settings.evaluation_date` (env
+    EVALUATION_DATE, p/ reproduzir o gate / relatórios 'as-of') > `date.today()`.
+    """
+    return override or settings.evaluation_date or date.today()
+
+
 async def fetch_prices(conn: asyncpg.Connection) -> dict[str, float]:
     """Carrega o último preço (BRL) por ticker de asset_prices."""
     rows = await conn.fetch("SELECT ticker, price_brl FROM asset_prices")
@@ -102,26 +113,43 @@ async def upsert_price(
     ticker: str,
     price_brl: float,
     *,
+    price_usd: float | None = None,
     source: str = "manual",
     is_manual: bool = True,
 ) -> dict[str, Any]:
-    """Insere/atualiza o preço manual de um ticker (upsert por PK ticker)."""
+    """Chokepoint único de escrita de preço (PUT manual + worker do Market Engine).
+
+    Precedência is_manual (§3.4): uma escrita do worker (`is_manual=False`) NUNCA
+    sobrescreve uma linha manual (`is_manual=True`) — preços sem fonte de mercado
+    (Flash/RF/caixinhas/DeFi). Uma escrita manual sempre vence. Quando a gravação
+    de fato ocorre, invalida o cache de XIRR de todos os usuários que detêm o ticker
+    (ADR-008) — o worker chama esta função direto, sem passar pelo router.
+
+    `price_usd` é opcional (só CoinGecko fornece). Retorna a linha gravada, ou `{}`
+    quando a escrita foi ignorada pela precedência is_manual.
+    """
     row = await conn.fetchrow(
         """
-        INSERT INTO asset_prices (ticker, price_brl, source, is_manual, fetched_at)
-        VALUES ($1, $2, $3, $4, now())
+        INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, fetched_at)
+        VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (ticker) DO UPDATE
           SET price_brl = EXCLUDED.price_brl,
+              -- só sobrescreve USD quando um novo é fornecido (manual BRL não apaga o USD)
+              price_usd = COALESCE(EXCLUDED.price_usd, asset_prices.price_usd),
               source = EXCLUDED.source,
               is_manual = EXCLUDED.is_manual,
               fetched_at = now()
+          WHERE asset_prices.is_manual = false OR EXCLUDED.is_manual = true
         RETURNING ticker, price_brl, price_usd, source, is_manual, fetched_at
         """,
         ticker,
         price_brl,
+        price_usd,
         source,
         is_manual,
     )
+    if row is not None:
+        await _invalidate_xirr_for_ticker(conn, ticker)
     return dict(row) if row else {}
 
 
@@ -157,7 +185,11 @@ async def calculate_positions(
         """,
         user_id,
     )
-    prices = await fetch_prices(conn)
+    # Preço + is_manual numa só varredura de asset_prices. is_manual: o front bloqueia a
+    # edição quando False (capturado via Market Engine); sem linha → tratado como manual.
+    price_rows = await conn.fetch("SELECT ticker, price_brl, is_manual FROM asset_prices")
+    prices = {r["ticker"]: float(r["price_brl"]) for r in price_rows}
+    manual_map = {r["ticker"]: r["is_manual"] for r in price_rows}
 
     by_asset: dict[str, list[Any]] = defaultdict(list)
     category_of: dict[str, str] = {}
@@ -194,6 +226,8 @@ async def calculate_positions(
                 "resultado": resultado,
                 "resultado_pct": resultado_pct,
                 "stale": stale,
+                # sem preço ainda → editável (manual); com preço de mercado → bloqueado
+                "is_manual": manual_map.get(sym, True),
             }
         )
     positions.sort(key=lambda p: str(p["asset_symbol"]))
@@ -366,9 +400,9 @@ async def calculate_income(
 # Aliquotas de IR sobre ganho de capital por categoria de RV (estimativa).
 # Cripto e tratada separadamente (STORY-02-12); RF/Tesouro usam tabela regressiva.
 _IR_ALIQUOTAS: dict[str, float] = {
-    "Ações Nacionais": 0.15,
-    "ETFs": 0.15,
-    "FIIs": 0.20,
+    AssetCategory.ACOES: 0.15,
+    AssetCategory.ETFS: 0.15,
+    AssetCategory.FIIS: 0.20,
 }
 
 
@@ -432,9 +466,10 @@ async def calculate_crypto_ir_monthly(
         """
         SELECT asset_symbol, tipo, quantidade, valor_unitario, data_operacao
         FROM asset_operations
-        WHERE user_id = $1 AND asset_category = 'Cripto'
+        WHERE user_id = $1 AND asset_category = $2
         """,
         user_id,
+        AssetCategory.CRIPTO,
     )
 
     # Preco medio (DCA) por simbolo a partir de compra/aporte
@@ -498,6 +533,16 @@ async def invalidate_xirr_cache(user_id: str) -> None:
     await _cache.delete(_xirr_key(user_id))
 
 
+async def _invalidate_xirr_for_ticker(conn: asyncpg.Connection, ticker: str) -> None:
+    """Invalida o cache de XIRR de todo usuário que detém `ticker` (preço mudou)."""
+    rows = await conn.fetch(
+        "SELECT DISTINCT user_id FROM asset_operations WHERE asset_symbol = $1",
+        ticker,
+    )
+    for row in rows:
+        await invalidate_xirr_cache(str(row["user_id"]))
+
+
 async def calculate_portfolio_xirr(
     conn: asyncpg.Connection, user_id: str, today: date | None = None
 ) -> dict[str, Any]:
@@ -506,7 +551,7 @@ async def calculate_portfolio_xirr(
     if cached is not None:
         return dict(cached)
 
-    today = today or date.today()
+    today = eval_date(today)
     ops = await conn.fetch(
         """
         SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario,
@@ -534,16 +579,31 @@ async def calculate_portfolio_xirr(
         asset_current[sym] = cur
         by_asset[sym] = _nan_to_none(xirr(build_cashflows(aops, cur, today)))
 
-    # Por categoria (soma dos valores atuais dos ativos da categoria)
+    # §2.1: posição ABERTA sem preço não pode ser valorada — excluí-la inteiramente do
+    # cashflow agregado (senão as compras entram como saída sem valor terminal e a taxa
+    # despenca). Posição FECHADA (net<=0) permanece: seus fluxos realizados são válidos.
+    unpriced_open = {
+        sym
+        for sym, aops in by_asset_ops.items()
+        if prices.get(sym) is None and net_quantity(aops) > 0
+    }
+
+    # Por categoria (soma dos valores atuais dos ativos valoráveis da categoria)
     by_category: dict[str, float | None] = {}
     for cat, cops in by_cat_ops.items():
-        syms = {op["asset_symbol"] for op in cops}
+        cat_ops = [op for op in cops if op["asset_symbol"] not in unpriced_open]
+        if not cat_ops:
+            by_category[cat] = None
+            continue
+        syms = {op["asset_symbol"] for op in cat_ops}
         cat_cur = _sum_or_none([asset_current.get(s) for s in syms])
-        by_category[cat] = _nan_to_none(xirr(build_cashflows(cops, cat_cur, today)))
+        by_category[cat] = _nan_to_none(xirr(build_cashflows(cat_ops, cat_cur, today)))
 
-    # Consolidado
-    total_cur = _sum_or_none(list(asset_current.values()))
-    consolidated = _nan_to_none(xirr(build_cashflows(list(ops), total_cur, today)))
+    # Consolidado (exclui as posições abertas sem preço)
+    incl_ops = [op for op in ops if op["asset_symbol"] not in unpriced_open]
+    incl_syms = set(by_asset_ops) - unpriced_open
+    total_cur = _sum_or_none([asset_current.get(s) for s in incl_syms])
+    consolidated = _nan_to_none(xirr(build_cashflows(incl_ops, total_cur, today)))
 
     result: dict[str, Any] = {
         "consolidated": consolidated,

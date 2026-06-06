@@ -17,11 +17,12 @@ from typing import Any
 
 import asyncpg
 
+from engines.portfolio.constants import AssetCategory
 from engines.portfolio.migration import import_operations
 from engines.portfolio.rf_cdi import valor_atual_cdi
 from engines.portfolio.service import net_quantity, upsert_price
 
-_CATEGORY = "Renda Fixa"
+_CATEGORY = AssetCategory.RENDA_FIXA
 _PRICE_SOURCE = "nubank-cdi"
 
 

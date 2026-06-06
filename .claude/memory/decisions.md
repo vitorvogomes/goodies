@@ -68,6 +68,22 @@ Decidido na faxina pré-m3 (2026-06-06). Ver `docs/11_Coerencia_Nubank_Portfolio
 - **Santander = conta externa:** Pix do próprio nome vindos do Santander (~R$32k em `income/Extra`)
   contam como receita/despesa externa — **não** transferência interna (decisão reafirmada).
 
+## ADR-012 — Market Engine (m3): endpoints, precedência de preço, fontes free-tier
+Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/13_Debito_Tecnico_m3.md`.
+- **Preços sob `/api/v1/market/*`** (não `/portfolio`). `POST /market/prices/{ticker}` (manual),
+  `GET /market/prices[/{ticker}]` (leitura via fallback). O antigo `PUT /portfolio/prices` foi
+  **removido**. Contrato Pydantic (`PriceOut`) — superfície nova do m3.
+- **`portfolio.service.upsert_price` é o chokepoint único de escrita de preço.** Precedência
+  **`is_manual`**: worker (`is_manual=false`) NUNCA sobrescreve linha manual (Flash/RF/caixinhas/
+  DeFi — sem fonte de mercado); manual sempre vence. Invalida o cache de XIRR (ADR-008) **e** o
+  cache Redis de preço dentro do fluxo de escrita. `is_manual=true` ⇒ preço nunca fica `stale`.
+- **Fontes free-tier (cadência DIÁRIA p/ B3/Tesouro):** BRAPI grátis = **1.000 req/mês, 1 ativo/
+  req** (sem batch) → `price_b3` 1×/dia útil 19h BRT (~350/mês). **Tesouro via Tesouro Transparente
+  CSV** (open data CKAN, sem auth/WAF/quota) — a API oficial do Tesouro Direto está atrás de
+  Cloudflare (403 headless) e o brapi v2/treasury é Pro-only. CoinGecko demo = 10k/mês (*/2h).
+  `ttl_b3=ttl_tesouro=26h` p/ o preço do dia não aparecer "desatualizado". `EVALUATION_DATE` (§3.1)
+  threada a data de avaliação única. **Cripto/Binance só via cron — m4.**
+
 ---
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)

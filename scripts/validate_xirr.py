@@ -87,7 +87,10 @@ async def main() -> None:
         for o in ops
     ]
     valor_atual = sum(v for _, v in SHEET.values())
-    flows.append((date(2026, 6, 5), valor_atual))
+    # data de avaliação única (§3.1): EVALUATION_DATE no .env alinha o terminal do XIRR
+    # ao service/seeds; default = data do snapshot da planilha (2026-06-05).
+    terminal = settings.evaluation_date or date(2026, 6, 5)
+    flows.append((terminal, valor_atual))
     rate = xirr(flows)
 
     print(f"\nCusto total: sistema R$ {tot_mine:,.2f} | planilha R$ {tot_sheet:,.2f}")

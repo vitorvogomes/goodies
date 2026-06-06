@@ -16,6 +16,7 @@ from config import settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.ledger.router import router as ledger_router
 from engines.market.cache import check_redis
+from engines.market.router import router as market_router
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.router import router as portfolio_router
 from health import collect_component_status, register_component_check
@@ -29,7 +30,16 @@ register_component_check(check_redis)
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_pool()
+    scheduler = None
+    # Workers de preço (m3): só fora de testes e quando habilitado (ADR-003).
+    if settings.enable_scheduler and settings.environment != "test":
+        from workers.scheduler import build_scheduler
+
+        scheduler = build_scheduler()
+        scheduler.start()
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     await close_pool()
 
 
@@ -47,6 +57,7 @@ app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(portfolio_router)
 app.include_router(portfolio_analytics_router)
+app.include_router(market_router)
 app.include_router(hermes_router)
 
 

@@ -13,34 +13,14 @@ from typing import Annotated, Any
 
 import asyncpg
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
 
 from . import service
 
+# Preço manual migrou para POST /api/v1/market/prices/{ticker} (engines/market/router.py).
 router = APIRouter(prefix="/api/v1/portfolio", tags=["portfolio:analytics"])
-
-
-class SetPriceRequest(BaseModel):
-    """Preço manual de um ticker (BRL)."""
-
-    price_brl: float = Field(..., ge=0)
-
-
-@router.put("/prices/{asset_symbol}")
-async def set_manual_price(
-    asset_symbol: str,
-    body: SetPriceRequest,
-    user: dict[str, str] = Depends(get_current_user),
-    db: asyncpg.Connection = Depends(get_db),
-) -> dict[str, Any]:
-    """Define/atualiza o preço manual de um ativo (upsert)."""
-    result = await service.upsert_price(db, asset_symbol, body.price_brl)
-    # O XIRR consolidado depende do preço atual → invalida o cache (ADR-008).
-    await service.invalidate_xirr_cache(user["id"])
-    return result
 
 
 @router.get("/xirr")

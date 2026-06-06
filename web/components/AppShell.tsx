@@ -22,6 +22,7 @@ const NAV = [
   { href: "/portfolio/history", label: "Histórico" },
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
+  { href: "/market", label: "Preços" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

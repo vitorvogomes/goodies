@@ -13,6 +13,22 @@ function PriceCell({ pos }: { pos: Position }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(pos.preco_atual ?? ""));
 
+  // Preço capturado automaticamente (Market Engine): edição BLOQUEADA — o worker
+  // refresca via API e um valor manual seria sobrescrito de forma confusa.
+  if (!pos.is_manual && pos.preco_atual != null) {
+    return (
+      <span
+        title="Preço atualizado automaticamente via API (Market Engine) — não editável"
+        className="inline-flex items-center gap-1 tabular-nums text-foreground/70"
+      >
+        {formatBRL(pos.preco_atual)}
+        <span aria-hidden className="text-[10px] text-foreground/30">
+          🔒
+        </span>
+      </span>
+    );
+  }
+
   function commit() {
     setEditing(false);
     const raw = draft.trim();
@@ -38,16 +54,18 @@ function PriceCell({ pos }: { pos: Position }) {
       />
     );
   }
+  // Editável (manual ou ainda sem preço): sublinhado tracejado sinaliza a edição.
   return (
     <button
       type="button"
+      title="Clique para definir o preço manual"
       onClick={() => {
         setDraft(String(pos.preco_atual ?? ""));
         setEditing(true);
       }}
-      className="cursor-text tabular-nums hover:text-foreground"
+      className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-accent hover:text-foreground"
     >
-      {pos.preco_atual != null ? formatBRL(pos.preco_atual) : "definir"}
+      {pos.preco_atual != null ? formatBRL(pos.preco_atual) : "definir ✎"}
     </button>
   );
 }

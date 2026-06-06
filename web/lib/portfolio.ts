@@ -67,10 +67,14 @@ export function useSetManualPrice() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ symbol, price }: { symbol: string; price: number }) =>
-      apiFetch<unknown>(`/api/v1/portfolio/prices/${symbol}`, {
-        method: "PUT",
+      apiFetch<unknown>(`/api/v1/market/prices/${symbol}`, {
+        method: "POST",
         body: JSON.stringify({ price_brl: price }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolio"] }),
+    onSuccess: () => {
+      // o preço alimenta tanto as posições quanto a tela de preços (/market)
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      queryClient.invalidateQueries({ queryKey: ["market"] });
+    },
   });
 }

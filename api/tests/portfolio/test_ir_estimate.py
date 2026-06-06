@@ -22,8 +22,8 @@ async def _buy_with_price(
         },
         headers=headers,
     )
-    await api.put(
-        f"/api/v1/portfolio/prices/{sym}",
+    await api.post(
+        f"/api/v1/market/prices/{sym}",
         json={"price_brl": current},
         headers=headers,
     )

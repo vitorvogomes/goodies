@@ -42,8 +42,8 @@ class TestPositions:
     ) -> None:
         """Buy 100 @ 10, current price 12 → result +200 (20%)."""
         await _buy(api, auth_headers, "PETR4", 100.0, 10.0)
-        await api.put(
-            "/api/v1/portfolio/prices/PETR4",
+        await api.post(
+            "/api/v1/market/prices/PETR4",
             json={"price_brl": 12.0},
             headers=auth_headers,
         )
@@ -58,6 +58,7 @@ class TestPositions:
         assert abs(float(pos["resultado"]) - 200.0) < 0.01
         assert abs(float(pos["resultado_pct"]) - 20.0) < 0.01
         assert pos["stale"] is False
+        assert pos["is_manual"] is True  # preço definido manualmente (editável)
 
     @pytest.mark.asyncio
     async def test_position_without_price_is_stale(
@@ -73,6 +74,25 @@ class TestPositions:
         assert pos["resultado"] is None
         # cost basis still known
         assert abs(float(pos["custo_total"]) - 4000.0) < 0.01
+        assert pos["is_manual"] is True  # sem preço ainda → editável (default)
+
+    @pytest.mark.asyncio
+    async def test_position_auto_price_is_not_manual(
+        self, api: AsyncClient, pool: object, portfolio_user: dict
+    ) -> None:
+        """Preço capturado via Market Engine (is_manual=false) → posição is_manual=false."""
+        headers = portfolio_user["headers"]
+        await _buy(api, headers, "WEGE3", 10.0, 30.0)
+        async with pool.acquire() as conn:  # type: ignore[attr-defined]
+            await conn.execute(
+                "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
+                "VALUES ('WEGE3', 35.0, 'brapi', false)"
+            )
+        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
+        pos = next(p for p in resp.json() if p["asset_symbol"] == "WEGE3")
+        assert pos["is_manual"] is False
+        assert pos["stale"] is False
+        assert abs(float(pos["preco_atual"]) - 35.0) < 0.01
 
     @pytest.mark.asyncio
     async def test_net_quantity_after_sell(
@@ -81,8 +101,8 @@ class TestPositions:
         """Buy 100 @ 10, sell 40 @ 15 → net 60, DCA still 10."""
         await _buy(api, auth_headers, "ITSA4", 100.0, 10.0)
         await _buy(api, auth_headers, "ITSA4", 40.0, 15.0, tipo="venda")
-        await api.put(
-            "/api/v1/portfolio/prices/ITSA4",
+        await api.post(
+            "/api/v1/market/prices/ITSA4",
             json={"price_brl": 12.0},
             headers=auth_headers,
         )
@@ -113,8 +133,8 @@ class TestPositions:
             api, auth_headers, "Flash_CDB", 1.0, 12000.0,
             tipo="aporte", category="Renda Fixa",
         )
-        await api.put(
-            "/api/v1/portfolio/prices/Flash_CDB",
+        await api.post(
+            "/api/v1/market/prices/Flash_CDB",
             json={"price_brl": 13207.62},
             headers=auth_headers,
         )

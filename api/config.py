@@ -4,6 +4,7 @@ Lê variáveis de ambiente (e `.env` em dev). Valores ausentes usam os defaults
 abaixo. Em produção (Fly.io) as variáveis vêm de secrets, não de arquivo `.env`.
 """
 
+from datetime import date
 from pathlib import Path
 
 from pydantic import ValidationInfo, field_validator
@@ -46,6 +47,46 @@ class Settings(BaseSettings):
     # Valoração pós-fixada (pré-m3): CDI anual de referência (fração) p/ caixinhas/CDB
     # do Nubank (engines.portfolio.rf_cdi). Provisório — o m5 importa a série do BCB.
     cdi_anual: float = 0.1065
+
+    # Data de avaliação única (§3.1): "hoje" do XIRR/valoração. Vazio/ausente → data
+    # corrente. Fixar via env EVALUATION_DATE=YYYY-MM-DD p/ reproduzir o gate ou gerar
+    # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).
+    evaluation_date: date | None = None
+
+    # ---- Market Engine (m3) — fetchers de preço ----
+    brapi_token: str = ""  # BRAPI (B3) — https://brapi.dev
+    coingecko_api_key: str = ""  # CoinGecko (cripto)
+    # symbol (UPPER) -> id CoinGecko. Em config, não hardcoded (CLAUDE.md). Override
+    # via env COINGECKO_IDS (JSON). Estende conforme a carteira cripto cresce (m4).
+    coingecko_ids: dict[str, str] = {
+        "BTC": "bitcoin",
+        "ETH": "ethereum",
+        "SOL": "solana",
+        "ARB": "arbitrum",
+        "HYPE": "hyperliquid",
+        "USDT": "tether",
+        "USDC": "usd-coin",
+    }
+    # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
+    # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
+    # 1.000 req/mês; Tesouro Transparente publica preço de fechamento 1x/dia útil),
+    # então o preço do dia NÃO deve aparecer "desatualizado" durante o dia.
+    ttl_b3: int = 93600
+    ttl_crypto: int = 7200
+    ttl_tesouro: int = 93600
+    ttl_xirr: int = 3600
+
+    # Workers de preço (APScheduler no processo FastAPI). Desligar via env em ambientes
+    # onde o cron não deve rodar (ex.: scripts pontuais). Não inicia sob testes.
+    enable_scheduler: bool = True
+
+    @field_validator("evaluation_date", mode="before")
+    @classmethod
+    def _empty_evaluation_date(cls, v: object) -> object:
+        # .env de dev pode trazer EVALUATION_DATE= (vazio) → data corrente (None).
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
     @field_validator("database_url", mode="before")
     @classmethod

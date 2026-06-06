@@ -109,10 +109,12 @@ def _opt_today() -> str:
         i = sys.argv.index("--today")
         if i + 1 < len(sys.argv):
             return sys.argv[i + 1]
-    # default: hoje via env (passado pelo chamador) ou data fixa do snapshot
     import os
 
-    return os.environ.get("SEED_TODAY", "2026-06-05")
+    if env := os.environ.get("SEED_TODAY"):
+        return env
+    # §3.1: alinha a data de avaliação ao service/validator via settings.evaluation_date.
+    return settings.evaluation_date.isoformat() if settings.evaluation_date else "2026-06-05"
 
 
 if __name__ == "__main__":
