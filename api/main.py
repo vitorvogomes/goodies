@@ -19,6 +19,7 @@ from engines.market.cache import check_redis
 from engines.market.router import router as market_router
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.router import router as portfolio_router
+from engines.wallet.defi_router import router as defi_router
 from health import collect_component_status, register_component_check
 from hermes.router import router as hermes_router
 
@@ -59,6 +60,7 @@ app.include_router(portfolio_router)
 app.include_router(portfolio_analytics_router)
 app.include_router(market_router)
 app.include_router(hermes_router)
+app.include_router(defi_router)
 
 
 @app.get("/api/v1/health")
