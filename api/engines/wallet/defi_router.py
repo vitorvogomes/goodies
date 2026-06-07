@@ -7,7 +7,6 @@ vencimento (04-09) leem desta tabela.
 import datetime
 import uuid
 from collections.abc import Callable
-from decimal import Decimal
 from typing import Annotated, Any
 
 import asyncpg
@@ -17,6 +16,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.dates import today_brt
+from engines.common.numbers import as_decimal, value_of
 from engines.ledger.service import Alert
 from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 from engines.wallet.service import prices_by_ticker
@@ -78,13 +78,9 @@ def _to_response(
         notes=row["notes"],
         price_brl=brl,
         price_usd=usd,
-        value_brl=balance * brl if brl is not None else None,
-        value_usd=balance * usd if usd is not None else None,
+        value_brl=value_of(balance, brl),
+        value_usd=value_of(balance, usd),
     )
-
-
-def _as_decimal(value: float | None) -> Decimal | None:
-    return Decimal(str(value)) if value is not None else None
 
 
 @router.get("/positions", response_model=list[DefiPositionResponse])
@@ -117,7 +113,7 @@ async def create_position(
         uuid.UUID(user["id"]),
         body.protocol,
         body.asset_symbol,
-        _as_decimal(body.balance),
+        as_decimal(body.balance),
         body.maturity_date,
         body.is_active,
         body.notes,
@@ -129,7 +125,7 @@ async def create_position(
 _UPDATABLE: dict[str, Callable[[DefiPositionUpdate], Any]] = {
     "protocol": lambda b: b.protocol,
     "asset_symbol": lambda b: b.asset_symbol,
-    "balance": lambda b: _as_decimal(b.balance),
+    "balance": lambda b: as_decimal(b.balance),
     "maturity_date": lambda b: b.maturity_date,
     "is_active": lambda b: b.is_active,
     "notes": lambda b: b.notes,

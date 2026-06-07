@@ -28,7 +28,7 @@ import httpx
 
 from config import settings
 
-from ..base import with_client
+from ..base import with_client, with_owned_client
 from .base import WalletBalance
 
 _BASE_URL = "https://api.binance.com"
@@ -70,34 +70,32 @@ class BinanceFetcher:
     async def fetch(self) -> list[WalletBalance]:
         if not self._key or not self._secret:
             return []  # sem credencial → no-op
+        return await with_owned_client(self._scan, client=self._client)
+
+    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
         totals: dict[str, float] = defaultdict(float)
-        client = self._client or httpx.AsyncClient()
+        # corrige clock-skew (WSL): a Binance rejeita timestamp fora do recvWindow.
+        self._offset_ms = await self._server_offset(client)
+        # spot: não paginado (um GET devolve todos os balances)
         try:
-            # corrige clock-skew (WSL): a Binance rejeita timestamp fora do recvWindow.
-            self._offset_ms = await self._server_offset(client)
-            # spot: não paginado (um GET devolve todos os balances)
+            data = await with_client(
+                lambda c: self._signed_get(c, "/api/v3/account"),
+                client=client,
+                sleep=self._sleep,
+            )
+            self._parse_spot(data, totals)
+        except Exception:
+            pass  # fail-soft por endpoint
+        # earn: PAGINADO (size=100) — sem isso o 11º+ ativo em Earn não é contado
+        for path, field in (
+            ("/sapi/v1/simple-earn/flexible/position", "totalAmount"),
+            ("/sapi/v1/simple-earn/locked/position", "amount"),
+        ):
             try:
-                data = await with_client(
-                    lambda c: self._signed_get(c, "/api/v3/account"),
-                    client=client,
-                    sleep=self._sleep,
-                )
-                self._parse_spot(data, totals)
+                rows = await self._fetch_earn_rows(client, path)
             except Exception:
-                pass  # fail-soft por endpoint
-            # earn: PAGINADO (size=100) — sem isso o 11º+ ativo em Earn não é contado
-            for path, field in (
-                ("/sapi/v1/simple-earn/flexible/position", "totalAmount"),
-                ("/sapi/v1/simple-earn/locked/position", "amount"),
-            ):
-                try:
-                    rows = await self._fetch_earn_rows(client, path)
-                except Exception:
-                    continue  # fail-soft por endpoint
-                self._accumulate_earn(rows, totals, field)
-        finally:
-            if self._client is None:
-                await client.aclose()
+                continue  # fail-soft por endpoint
+            self._accumulate_earn(rows, totals, field)
         return [
             WalletBalance(
                 chain=_CHAIN,

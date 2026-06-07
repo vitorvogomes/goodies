@@ -189,15 +189,20 @@ async def test_failed_counts_only_core_symbols(pool: Any, portfolio_user: dict) 
 
 
 @pytest.mark.asyncio
-async def test_wallet_symbols_guard_is_fail_soft() -> None:
+async def test_distinct_symbols_guard_is_fail_soft() -> None:
     # tabela ausente / SELECT falha → [] (não derruba o cron de preço cripto do m3)
-    from workers.price_workers import _wallet_symbols
+    from workers.price_workers import _distinct_symbols
 
     class _BoomConn:
         async def fetch(self, *_a: Any, **_k: Any) -> list[Any]:
-            raise RuntimeError("relation wallet_positions does not exist")
+            raise RuntimeError("relation does not exist")
 
-    assert await _wallet_symbols(_BoomConn()) == []  # type: ignore[arg-type]
+    got = await _distinct_symbols(
+        _BoomConn(),  # type: ignore[arg-type]
+        "SELECT DISTINCT asset_symbol FROM wallet_positions",
+        "wallet",
+    )
+    assert got == []
 
 
 @pytest.mark.asyncio
@@ -230,15 +235,20 @@ async def test_crypto_worker_prices_defi_only_symbol(
 
 
 @pytest.mark.asyncio
-async def test_defi_symbols_guard_is_fail_soft() -> None:
+async def test_defi_distinct_symbols_guard_is_fail_soft() -> None:
     # tabela ausente / SELECT falha → [] (não derruba o cron de preço cripto)
-    from workers.price_workers import _defi_symbols
+    from workers.price_workers import _distinct_symbols
 
     class _BoomConn:
         async def fetch(self, *_a: Any, **_k: Any) -> list[Any]:
             raise RuntimeError("relation defi_positions does not exist")
 
-    assert await _defi_symbols(_BoomConn()) == []  # type: ignore[arg-type]
+    got = await _distinct_symbols(
+        _BoomConn(),  # type: ignore[arg-type]
+        "SELECT DISTINCT asset_symbol FROM defi_positions WHERE is_active",
+        "defi",
+    )
+    assert got == []
 
 
 def test_scheduler_registers_jobs_with_cadence() -> None:

@@ -9,6 +9,7 @@ cache agressivo via TTL de 2h).
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
@@ -20,6 +21,7 @@ from .base import PriceQuote, with_client
 
 _BASE_URL = "https://api.coingecko.com/api/v3/simple/price"
 _SOURCE = "coingecko"
+_MATURITY_SUFFIX = re.compile(r"-\d{3,4}$")  # sufixo de vencimento DeFi (ex.: hyUSD-2609)
 
 
 class CoinGeckoFetcher:
@@ -38,9 +40,18 @@ class CoinGeckoFetcher:
         self._client = client
         self._sleep = sleep
 
+    def _resolve_id(self, symbol: str) -> str | None:
+        """símbolo → id CoinGecko: tenta exato (UPPER) e, se não achar, sem o sufixo de
+        vencimento `-NNNN` (rolagem de maturidade ainda casa o mesmo id)."""
+        key = symbol.upper()
+        if key in self._ids:
+            return self._ids[key]
+        base = _MATURITY_SUFFIX.sub("", key)
+        return self._ids.get(base) if base != key else None
+
     async def fetch(self, symbols: Sequence[str]) -> dict[str, PriceQuote]:
-        # símbolo (UPPER) -> id CoinGecko; ignora os fora do mapa de config.
-        sym_to_id = {s: self._ids[s.upper()] for s in symbols if s.upper() in self._ids}
+        # símbolo -> id CoinGecko; ignora os fora do mapa de config (após normalizar sufixo).
+        sym_to_id = {s: cid for s in symbols if (cid := self._resolve_id(s)) is not None}
         if not sym_to_id:
             return {}
         ids_param = ",".join(sorted(set(sym_to_id.values())))

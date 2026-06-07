@@ -8,7 +8,6 @@ SQL — ver view monthly_summary).
 
 import datetime
 import uuid
-from decimal import Decimal
 from typing import Annotated
 
 import asyncpg
@@ -17,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.numbers import as_decimal
 from engines.ledger.categories import CategoryKind
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["ledger:transactions"])
@@ -121,11 +121,6 @@ async def _resolve_kind(
     return None
 
 
-def _as_decimal(amount: float | None) -> Decimal | None:
-    # str() evita ruído binário do float; NUMERIC(15,2) arredonda p/ 2 casas.
-    return Decimal(str(amount)) if amount is not None else None
-
-
 @router.get("", response_model=TransactionList)
 async def list_transactions(
     user: AuthUser,
@@ -191,7 +186,7 @@ async def create_transaction(
             f"VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {_COLUMNS}",
             body.account_id,
             body.date,
-            _as_decimal(body.amount),
+            as_decimal(body.amount),
             body.category,
             kind,
             body.description,
@@ -227,7 +222,7 @@ async def update_transaction(
             transaction_id,
             body.account_id,
             body.date,
-            _as_decimal(body.amount),
+            as_decimal(body.amount),
             body.category,
             body.description,
             body.is_recurring,

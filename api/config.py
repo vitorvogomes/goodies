@@ -70,12 +70,13 @@ class Settings(BaseSettings):
         # L-BTC (Liquid, ADR-005) vale 1:1 com BTC → reusa o caminho de preço do m3.
         "L-BTC": "bitcoin",
         "L-USDT": "tether",  # USDt na Liquid (SideSwap) → 1:1 USD
-        # Aliases DeFi (m4): chave em UPPER (fetcher casa por símbolo.upper()). YT-xSOL
-        # fica sem fonte (yield token). Sufixo de vencimento (-2609) = débito (docs/14).
+        # Aliases DeFi (m4): chave em UPPER (fetcher casa por símbolo.upper()). Chave SEM
+        # sufixo de vencimento — o fetcher tira o `-NNNN` antes do lookup, então uma
+        # rolagem de maturidade (hyUSD-2703) ainda casa. YT-xSOL fica sem fonte (yield token).
         "XSOL": "hylo-leveraged-sol",  # xSOL — Hylo Leveraged SOL
         "PT SUSDAI": "susdai",  # PT sUSDai (Pendle) ~ subjacente sUSDai (id API = susdai)
-        "HYUSD-2609": "hylo-usd",  # hyUSD (Hylo) — stablecoin ~US$1
-        "SHYUSD-2609": "hylo-usd",  # sHYUSD = hyUSD stakeado ~US$1
+        "HYUSD": "hylo-usd",  # hyUSD (Hylo) — stablecoin ~US$1 (qualquer vencimento)
+        "SHYUSD": "hylo-usd",  # sHYUSD = hyUSD stakeado ~US$1 (qualquer vencimento)
     }
     # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
     # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
@@ -98,6 +99,15 @@ class Settings(BaseSettings):
     binance_api_key: str = ""  # Binance spot+earn — CRON ONLY, assinado HMAC-SHA256
     binance_api_secret: str = ""
     wallet_rabby_address: str = ""  # Rabby — ETH/ARB/PENDLE (Etherscan) + HYPE (L1 spot + HyperEVM)
+    # Specs EVM da Rabby (chain, chainid, símbolo, contrato|None p/ ERC-20, casas decimais).
+    # Em config (não no fetcher): novo token = uma linha aqui (override via env EVM_TOKEN_SPECS).
+    # Contratos são constantes públicas; ETH nativo (contrato None) na mainnet e na Arbitrum.
+    evm_token_specs: list[tuple[str, int, str, str | None, int]] = [
+        ("ethereum", 1, "ETH", None, 18),
+        ("arbitrum", 42161, "ARB", "0x912CE59144191C1204E64559FE8253a0e49E6548", 18),
+        ("arbitrum", 42161, "ETH", None, 18),
+        ("arbitrum", 42161, "PENDLE", "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8", 18),
+    ]
     wallet_phantom_sol_address: str = ""  # Phantom — endereço SOL (JSON-RPC)
     wallet_sideswap_address: str = ""  # SideSwap — recebimento Liquid (L-BTC + USDT)
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).

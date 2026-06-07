@@ -5,7 +5,6 @@ Custos recorrentes com dia de vencimento (1-31). Alimentam a projeção de caixa
 """
 
 import uuid
-from decimal import Decimal
 from typing import Annotated
 
 import asyncpg
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.numbers import as_decimal
 
 router = APIRouter(prefix="/api/v1/fixed-costs", tags=["ledger:fixed-costs"])
 
@@ -59,10 +59,6 @@ def _to_response(row: asyncpg.Record) -> FixedCostResponse:
     )
 
 
-def _as_decimal(amount: float | None) -> Decimal | None:
-    return Decimal(str(amount)) if amount is not None else None
-
-
 @router.get("", response_model=list[FixedCostResponse])
 async def list_fixed_costs(
     user: AuthUser,
@@ -84,7 +80,7 @@ async def create_fixed_cost(body: FixedCostCreate, user: AuthUser, db: Db) -> Fi
         "INSERT INTO fixed_costs (name, amount, due_day, category, is_active) "
         f"VALUES ($1, $2, $3, $4, $5) RETURNING {_COLUMNS}",
         body.name,
-        _as_decimal(body.amount),
+        as_decimal(body.amount),
         body.due_day,
         body.category,
         body.is_active,
@@ -109,7 +105,7 @@ async def update_fixed_cost(
         f" RETURNING {_COLUMNS}",
         fixed_cost_id,
         body.name,
-        _as_decimal(body.amount),
+        as_decimal(body.amount),
         body.due_day,
         body.category,
         body.is_active,

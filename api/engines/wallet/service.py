@@ -17,6 +17,7 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.numbers import value_of
 from engines.market import service as market_service
 from engines.market.fetchers.wallets.base import WalletBalance
 from engines.portfolio.constants import CRYPTO_CATEGORIES, AssetCategory
@@ -196,8 +197,8 @@ async def list_wallet_positions(
                 "scanned_at": scanned_at.isoformat(),
                 "price_brl": brl,
                 "price_usd": usd,
-                "value_brl": qty * brl if brl is not None else None,
-                "value_usd": qty * usd if usd is not None else None,
+                "value_brl": value_of(qty, brl),
+                "value_usd": value_of(qty, usd),
                 # manual nunca expira (não vem de scan; ADR-012) — só o preço pode envelhecer
                 "stale": (
                     False

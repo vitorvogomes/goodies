@@ -68,6 +68,21 @@ async def test_pendle_and_defi_aliases_map_to_coingecko_ids() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_defi_alias_ignores_maturity_suffix() -> None:
+    # rolagem de vencimento: uma NOVA maturidade (hyUSD-2703) ainda deve casar hylo-usd
+    from config import settings
+
+    respx.get(url__startswith=_URL).mock(
+        return_value=httpx.Response(200, json={"hylo-usd": {"brl": 5.5, "usd": 1.0}})
+    )
+    fetcher = CoinGeckoFetcher(api_key="k", ids_map=settings.coingecko_ids, sleep=_no_sleep)
+    out = await fetcher.fetch(["hyUSD-2703", "sHYUSD-2811"])
+    assert out["hyUSD-2703"].price_brl == 5.5
+    assert out["sHYUSD-2811"].price_brl == 5.5
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_unknown_symbol_skipped() -> None:
     # DOGE não está no mapa -> nem é requisitado; sem ids -> sem chamada
     route = respx.get(url__startswith=_URL).mock(

@@ -21,7 +21,7 @@ import httpx
 
 from config import settings
 
-from ..base import with_client
+from ..base import with_client, with_owned_client
 from .base import WalletBalance
 
 _TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -56,24 +56,20 @@ class SolanaFetcher:
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:
             return []
+        return await with_owned_client(self._scan, client=self._client)
+
+    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
         out: list[WalletBalance] = []
-        client = self._client or httpx.AsyncClient()
         try:
-            try:
-                sol = await with_client(self._get_balance, client=client, sleep=self._sleep)
-                if sol > 0:
-                    out.append(self._wb("SOL", sol))
-            except Exception:
-                pass  # fail-soft: SOL nativo fora não impede os SPL
-            try:
-                out.extend(
-                    await with_client(self._get_tokens, client=client, sleep=self._sleep)
-                )
-            except Exception:
-                pass  # fail-soft: SPL fora não impede o SOL já obtido
-        finally:
-            if self._client is None:
-                await client.aclose()
+            sol = await with_client(self._get_balance, client=client, sleep=self._sleep)
+            if sol > 0:
+                out.append(self._wb("SOL", sol))
+        except Exception:
+            pass  # fail-soft: SOL nativo fora não impede os SPL
+        try:
+            out.extend(await with_client(self._get_tokens, client=client, sleep=self._sleep))
+        except Exception:
+            pass  # fail-soft: SPL fora não impede o SOL já obtido
         return out
 
     def _wb(self, symbol: str, qty: float) -> WalletBalance:

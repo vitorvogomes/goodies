@@ -78,3 +78,25 @@ async def with_client[T](
     finally:
         if owned:
             await cli.aclose()
+
+
+async def with_owned_client[T](
+    run: Callable[[httpx.AsyncClient], Awaitable[T]],
+    *,
+    client: httpx.AsyncClient | None = None,
+    factory: Callable[[], httpx.AsyncClient] = httpx.AsyncClient,
+) -> T:
+    """Lifecycle de client próprio-ou-injetado p/ fetchers que fazem VÁRIOS requests com
+    UM mesmo client (loop de specs/endpoints, ex.: Etherscan/Solana/Binance).
+
+    Cria via `factory` quando nenhum é injetado e fecha só o que criou; um client injetado
+    pertence ao chamador. O retry POR request fica no `with_client(..., client=cli)` que
+    `run` chama internamente — aqui só centralizamos o `try/finally: aclose`.
+    """
+    owned = client is None
+    cli = client if client is not None else factory()
+    try:
+        return await run(cli)
+    finally:
+        if owned:
+            await cli.aclose()

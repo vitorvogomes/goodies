@@ -21,7 +21,7 @@ import httpx
 
 from config import settings
 
-from ..base import with_client
+from ..base import with_client, with_owned_client
 from .base import WalletBalance
 
 _BASE_URL = "https://api.etherscan.io/v2/api"
@@ -36,14 +36,9 @@ class _Spec(NamedTuple):
     decimals: int
 
 
-# RABBY (mesmo endereço em todas as chains EVM): ETH nativo na mainnet (chainid 1) e na
-# Arbitrum One (42161), + ARB e PENDLE (ERC-20) na Arbitrum. (HYPE → Hyperliquid L1.)
-_DEFAULT_SPECS: tuple[_Spec, ...] = (
-    _Spec("ethereum", 1, "ETH", None, 18),
-    _Spec("arbitrum", 42161, "ARB", "0x912CE59144191C1204E64559FE8253a0e49E6548", 18),
-    _Spec("arbitrum", 42161, "ETH", None, 18),
-    _Spec("arbitrum", 42161, "PENDLE", "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8", 18),
-)
+def _specs_from_config() -> tuple[_Spec, ...]:
+    """Specs EVM a partir de `settings.evm_token_specs` (config-as-code, não hardcoded aqui)."""
+    return tuple(_Spec(*t) for t in settings.evm_token_specs)
 
 
 class EtherscanFetcher:
@@ -60,38 +55,36 @@ class EtherscanFetcher:
     ) -> None:
         self._api_key = api_key if api_key is not None else settings.etherscan_api_key
         self._address = address if address is not None else settings.wallet_rabby_address
-        self._specs = specs if specs is not None else _DEFAULT_SPECS
+        self._specs = specs if specs is not None else _specs_from_config()
         self._client = client
         self._sleep = sleep
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:
             return []  # sem endereço configurado → no-op
+        return await with_owned_client(self._scan, client=self._client)
+
+    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
         out: list[WalletBalance] = []
-        client = self._client or httpx.AsyncClient()
-        try:
-            for spec in self._specs:
+        for spec in self._specs:
 
-                async def _req(c: httpx.AsyncClient, s: _Spec = spec) -> float:
-                    return await self._balance(c, s)
+            async def _req(c: httpx.AsyncClient, s: _Spec = spec) -> float:
+                return await self._balance(c, s)
 
-                try:
-                    qty = await with_client(_req, client=client, sleep=self._sleep)
-                except Exception:
-                    continue  # fail-soft por spec: uma chain fora não derruba as outras
-                if qty > 0:
-                    out.append(
-                        WalletBalance(
-                            chain=spec.chain,
-                            wallet_address=self._address,
-                            asset_symbol=spec.symbol,
-                            quantity=qty,
-                            source=_SOURCE,
-                        )
+            try:
+                qty = await with_client(_req, client=client, sleep=self._sleep)
+            except Exception:
+                continue  # fail-soft por spec: uma chain fora não derruba as outras
+            if qty > 0:
+                out.append(
+                    WalletBalance(
+                        chain=spec.chain,
+                        wallet_address=self._address,
+                        asset_symbol=spec.symbol,
+                        quantity=qty,
+                        source=_SOURCE,
                     )
-        finally:
-            if self._client is None:
-                await client.aclose()
+                )
         return out
 
     async def _balance(self, client: httpx.AsyncClient, spec: _Spec) -> float:

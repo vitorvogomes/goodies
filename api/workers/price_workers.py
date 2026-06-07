@@ -36,32 +36,16 @@ async def _symbols_in(conn: asyncpg.Connection, categories: Iterable[str]) -> li
     return [r["asset_symbol"] for r in rows]
 
 
-async def _wallet_symbols(conn: asyncpg.Connection) -> list[str]:
-    """Símbolos escaneados em wallet_positions (m4) — precisam de preço mesmo sem op.
+async def _distinct_symbols(conn: asyncpg.Connection, sql: str, label: str) -> list[str]:
+    """`SELECT DISTINCT asset_symbol` fail-soft (m4): tabela ausente / SELECT falha → [].
 
-    Fail-soft: se a tabela ainda não existe (migration 0010 não aplicada) ou o SELECT
-    falha, devolve [] — NÃO derruba o cron de preço cripto (que existia antes do m4).
+    Não derruba o cron de preço cripto (que existia antes do m4). Símbolo sem alias no
+    mapa do fetcher (ex.: YT-xSOL-2609) é ignorado mais adiante.
     """
     try:
-        rows = await conn.fetch("SELECT DISTINCT asset_symbol FROM wallet_positions")
+        rows = await conn.fetch(sql)
     except Exception as exc:
-        logger.warning("wallet_symbols_failed", error=str(exc))
-        return []
-    return [r["asset_symbol"] for r in rows]
-
-
-async def _defi_symbols(conn: asyncpg.Connection) -> list[str]:
-    """Símbolos das posições DeFi ativas (m4) — precisam de preço via aliases CoinGecko.
-
-    Fail-soft (igual a `_wallet_symbols`): tabela ausente / SELECT falha → [] — NÃO derruba
-    o cron. Símbolo sem alias no mapa (ex.: YT-xSOL-2609) é ignorado pelo fetcher.
-    """
-    try:
-        rows = await conn.fetch(
-            "SELECT DISTINCT asset_symbol FROM defi_positions WHERE is_active"
-        )
-    except Exception as exc:
-        logger.warning("defi_symbols_failed", error=str(exc))
+        logger.warning("distinct_symbols_failed", label=label, error=str(exc))
         return []
     return [r["asset_symbol"] for r in rows]
 
@@ -130,8 +114,12 @@ async def run_price_crypto(
     """
     fetcher = fetcher or CoinGeckoFetcher()
     async with pool.acquire() as conn:
-        wallet = await _wallet_symbols(conn)
-        defi = await _defi_symbols(conn)
+        wallet = await _distinct_symbols(
+            conn, "SELECT DISTINCT asset_symbol FROM wallet_positions", "wallet"
+        )
+        defi = await _distinct_symbols(
+            conn, "SELECT DISTINCT asset_symbol FROM defi_positions WHERE is_active", "defi"
+        )
         return await _run_for(
             conn, CRYPTO_CATEGORIES, fetcher, "crypto", settings.ttl_crypto,
             extra_symbols=set(wallet) | set(defi),
