@@ -18,6 +18,7 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 
 from . import service
+from .crypto_sleeve import calculate_crypto_sleeve
 
 # Preço manual migrou para POST /api/v1/market/prices/{ticker} (engines/market/router.py).
 router = APIRouter(prefix="/api/v1/portfolio", tags=["portfolio:analytics"])
@@ -87,3 +88,16 @@ async def get_ir_crypto(
 ) -> dict[str, Any]:
     """Consolidação mensal de vendas de cripto + alerta de 80% do limite."""
     return await service.calculate_crypto_ir_monthly(db, user["id"])
+
+
+@router.get("/crypto-sleeve")
+async def get_crypto_sleeve(
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Sleeve cripto: custo (ledger) x valor (carteiras) → resultado + XIRR.
+
+    Serve também a reconciliação de VALOR (net_invested vs current_value, por rail). O
+    custo é conhecido só no nível do sleeve — sem retorno por ativo fabricado (CLAUDE.md).
+    """
+    return await calculate_crypto_sleeve(db, user["id"])

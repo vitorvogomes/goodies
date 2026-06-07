@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import type {
   Allocation,
   AssetOperation,
+  CryptoSleeve,
   OperationFilters,
   Position,
   Rebalancing,
@@ -31,6 +32,13 @@ export function useXIRR() {
   return useQuery({
     queryKey: ["portfolio", "xirr"],
     queryFn: () => apiFetch<XIRR>("/api/v1/portfolio/xirr"),
+  });
+}
+
+export function useCryptoSleeve() {
+  return useQuery({
+    queryKey: ["portfolio", "crypto-sleeve"],
+    queryFn: () => apiFetch<CryptoSleeve>("/api/v1/portfolio/crypto-sleeve"),
   });
 }
 

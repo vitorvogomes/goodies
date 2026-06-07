@@ -66,6 +66,30 @@ export interface XIRR {
   calculated_at: string;
 }
 
+// Crypto sleeve (m4): custo (ledger) x valor atual (carteiras). Custo/resultado/XIRR só no
+// nível do sleeve — cripto não vive em asset_operations. Serve também a reconciliação de valor.
+export interface CryptoSleeveRail {
+  rail: string;
+  current_value_brl: number;
+}
+
+export interface CryptoSleeveCategory {
+  category: string;
+  net_invested_brl: number;
+}
+
+export interface CryptoSleeve {
+  current_value_brl: number;
+  cost_basis_brl: number;
+  returned_brl: number;
+  net_invested_brl: number;
+  resultado: number;
+  xirr: number | null;
+  by_rail: CryptoSleeveRail[];
+  by_category: CryptoSleeveCategory[];
+  stale_value: boolean;
+}
+
 export interface OperationFilters {
   asset_symbol?: string;
   tipo?: OperationTipo;
