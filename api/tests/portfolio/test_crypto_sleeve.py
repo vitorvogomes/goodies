@@ -131,7 +131,8 @@ class TestCurrentValue:
         assert abs(total - 350.0) < 0.01
         assert stale is False
         assert abs(by_rail.get("ethereum", 0.0) - 300.0) < 0.01
-        assert abs(by_rail.get("defi", 0.0) - 50.0) < 0.01
+        # rail DeFi por protocolo (helper usa protocol="hylo")
+        assert abs(by_rail.get("hylo", 0.0) - 50.0) < 0.01
 
     @pytest.mark.asyncio
     async def test_dedup_manual_and_scanned(self, sleeve_user: dict) -> None:

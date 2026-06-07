@@ -98,7 +98,9 @@ async def sleeve_current_value(
             stale = True
             continue
         total += v
-        by_rail["defi"] += v
+        # rail por protocolo (hylo/pendle_v2/neobankless...) em vez de um "defi" genérico —
+        # assim cada custódia aparece distinta na reconciliação de valor.
+        by_rail[d.get("protocol") or "defi"] += v
     return total, dict(by_rail), stale
 
 
