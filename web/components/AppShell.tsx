@@ -23,6 +23,8 @@ const NAV = [
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
   { href: "/market", label: "Preços" },
+  { href: "/wallets", label: "Carteiras" },
+  { href: "/wallets/reconciliation", label: "Reconciliação" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
