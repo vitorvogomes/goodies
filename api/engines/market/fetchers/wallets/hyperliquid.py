@@ -27,6 +27,10 @@ _BASE_URL = "https://api.hyperliquid.xyz/info"
 _SOURCE = "hyperliquid"
 _CHAIN = "hyperliquid"
 _EVM_CHAIN = "hyperevm"
+# Source DISTINTO do spot: o sweep (snapshot-replace) é por source. Se as duas fontes
+# (spot L1 + HyperEVM) compartilhassem o source, uma cair (devolve []) enquanto a outra
+# responde varreria o último snapshot bom da que caiu (outage ≠ posição fechada).
+_EVM_SOURCE = "hyperevm"
 
 
 class HyperliquidFetcher:
@@ -112,7 +116,7 @@ class HyperliquidFetcher:
                 wallet_address=self._address,
                 asset_symbol="HYPE",
                 quantity=qty,
-                source=_SOURCE,
+                source=_EVM_SOURCE,  # sweep independente do spot (ver _EVM_SOURCE)
             )
         ]
 

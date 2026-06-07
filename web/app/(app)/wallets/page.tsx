@@ -45,7 +45,9 @@ function EditableNumber({
 
   function commit() {
     setEditing(false);
-    const n = Number(draft.replace(",", "."));
+    const trimmed = draft.trim();
+    if (trimmed === "") return; // campo vazio → não salva (evita zerar o saldo por engano)
+    const n = Number(trimmed.replace(",", "."));
     if (Number.isFinite(n) && n >= 0 && n !== value) onSave(n);
   }
 
@@ -520,7 +522,10 @@ export default function WalletsPage() {
                   </td>
                 </tr>
                 {g.items.map((p) => (
-                  <PositionRow key={`${p.chain}:${p.asset_symbol}`} p={p} />
+                  <PositionRow
+                    key={`${p.chain}:${p.asset_symbol}:${p.wallet_address}`}
+                    p={p}
+                  />
                 ))}
               </tbody>
             ))}

@@ -118,6 +118,37 @@ async def test_scan_outage_preserves_snapshot(pool: Any, wallet_user: dict) -> N
 
 
 @pytest.mark.asyncio
+async def test_scan_partial_source_outage_preserves_other_source(
+    pool: Any, wallet_user: dict
+) -> None:
+    # HYPE em 2 fontes (spot + HyperEVM) com sources DISTINTOS: se uma cai (o fetcher
+    # devolve só a outra), o sweep por source NÃO apaga o snapshot bom da que caiu.
+    # Regressão do code-review (antes, ambas usavam source=hyperliquid → a HyperEVM sumia).
+    uid = wallet_user["user_id"]
+    both = _FakeFetcher(
+        [
+            WalletBalance("hyperliquid", "0xw", "HYPE", 0.00979, "hyperliquid"),
+            WalletBalance("hyperevm", "0xw", "HYPE", 0.3108, "hyperevm"),
+        ]
+    )
+    await run_wallet_scan(pool, uid, fetchers=[both])
+    # HyperEVM "fora": o fetcher devolve só o spot (source hyperliquid)
+    spot_only = _FakeFetcher(
+        [WalletBalance("hyperliquid", "0xw", "HYPE", 0.00979, "hyperliquid")]
+    )
+    stats = await run_wallet_scan(pool, uid, fetchers=[spot_only])
+    assert stats["_FakeFetcher"]["swept"] == 0  # nada varrido (source hyperevm intacto)
+    async with pool.acquire() as conn:
+        chains = sorted(
+            r["chain"]
+            for r in await conn.fetch(
+                "SELECT chain FROM wallet_positions WHERE user_id = $1", uid
+            )
+        )
+    assert chains == ["hyperevm", "hyperliquid"]  # a posição HyperEVM sobreviveu
+
+
+@pytest.mark.asyncio
 async def test_scan_empty_list_is_noop(pool: Any, wallet_user: dict) -> None:
     # lista vazia explícita (NÃO os defaults reais — evita rede no teste)
     uid = wallet_user["user_id"]

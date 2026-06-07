@@ -173,7 +173,12 @@ async def list_wallet_positions(
                 "price_usd": usd,
                 "value_brl": qty * brl if brl is not None else None,
                 "value_usd": qty * usd if usd is not None else None,
-                "stale": (now - scanned_at).total_seconds() > settings.ttl_wallet,
+                # manual nunca expira (não vem de scan; ADR-012) — só o preço pode envelhecer
+                "stale": (
+                    False
+                    if r["is_manual"]
+                    else (now - scanned_at).total_seconds() > settings.ttl_wallet
+                ),
                 "is_manual": r["is_manual"],
             }
         )

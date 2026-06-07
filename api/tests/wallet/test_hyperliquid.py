@@ -60,8 +60,10 @@ async def test_includes_hyperevm_native_hype() -> None:
     respx.post(_EVM).mock(return_value=_evm_balance(310_800_000_000_000_000))  # 0.3108 HYPE
     out = {(b.chain, b.asset_symbol): b for b in await _fetcher().fetch()}
     assert out[("hyperliquid", "HYPE")].quantity == pytest.approx(0.00979)
+    assert out[("hyperliquid", "HYPE")].source == "hyperliquid"
     assert out[("hyperevm", "HYPE")].quantity == pytest.approx(0.3108)
-    assert out[("hyperevm", "HYPE")].source == "hyperliquid"
+    # source DISTINTO do spot → o sweep trata as duas fontes de HYPE de forma independente
+    assert out[("hyperevm", "HYPE")].source == "hyperevm"
 
 
 @pytest.mark.asyncio
