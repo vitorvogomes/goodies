@@ -12,6 +12,7 @@ import {
   useDefiPositions,
   useDeleteDefi,
   useDeleteManualPosition,
+  useUpdateDefi,
   useWalletPositions,
 } from "@/lib/wallet";
 import type { DefiPosition, WalletPosition } from "@/types/wallet";
@@ -26,6 +27,59 @@ function fmtWhen(iso: string | null): string {
 
 function fmtQty(n: number): string {
   return n.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
+}
+
+// Número editável inline (clique no valor → input; Enter salva, Esc cancela). Usado para
+// editar a quantidade de posições manuais (Liquid) e o saldo das posições DeFi.
+function EditableNumber({
+  value,
+  onSave,
+  pending,
+}: {
+  value: number;
+  onSave: (v: number) => void;
+  pending: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  function commit() {
+    setEditing(false);
+    const n = Number(draft.replace(",", "."));
+    if (Number.isFinite(n) && n >= 0 && n !== value) onSave(n);
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => {
+          setDraft(String(value).replace(".", ","));
+          setEditing(true);
+        }}
+        className="group inline-flex items-center gap-1 tabular-nums text-foreground/80 hover:text-foreground"
+        title="Editar"
+      >
+        {pending ? "…" : fmtQty(value)}
+        <span className="text-[10px] text-foreground/30 group-hover:text-accent">✎</span>
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      inputMode="decimal"
+      value={draft}
+      disabled={pending}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        else if (e.key === "Escape") setEditing(false);
+      }}
+      className="w-28 rounded border border-border bg-muted/40 px-2 py-1 text-right tabular-nums text-foreground outline-none focus:border-accent"
+    />
+  );
 }
 
 // Célula de dinheiro: BRL como principal, USD em mute logo abaixo. "—" sem preço.
@@ -82,11 +136,22 @@ function groupByChain(positions: WalletPosition[]): ChainGroup[] {
 
 function PositionRow({ p }: { p: WalletPosition }) {
   const del = useDeleteManualPosition();
+  const upd = useCreateManualPosition(); // POST manual = upsert → edita a quantidade
   return (
     <tr className="border-t border-border">
       <td className="px-4 py-2.5 font-medium text-foreground/90">{p.asset_symbol}</td>
       <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-        {fmtQty(p.quantity)}
+        {p.is_manual ? (
+          <EditableNumber
+            value={p.quantity}
+            pending={upd.isPending}
+            onSave={(v) =>
+              upd.mutate({ chain: p.chain, asset_symbol: p.asset_symbol, quantity: v })
+            }
+          />
+        ) : (
+          fmtQty(p.quantity)
+        )}
       </td>
       <td className="px-4 py-2.5 text-right">
         <Money brl={p.price_brl} usd={p.price_usd} />
@@ -142,7 +207,8 @@ function ManualForm() {
       <h2 className="mb-1 text-lg font-semibold text-foreground">Posição manual</h2>
       <p className="mb-4 text-xs text-foreground/50">
         Liquid (SideSwap) usa endereço confidencial e não é escaneável — informe L-BTC e
-        L-USDT à mão. Valorados pelo preço do m3.
+        L-USDT à mão. Valorados pelo preço do m3. Para alterar uma quantidade já lançada,
+        clique no valor na tabela acima (✎).
       </p>
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4" noValidate>
         <Field label="Rede" htmlFor="m-chain">
@@ -176,12 +242,17 @@ function ManualForm() {
 
 function DefiRow({ d }: { d: DefiPosition }) {
   const del = useDeleteDefi();
+  const upd = useUpdateDefi();
   return (
     <tr className="border-t border-border">
       <td className="px-4 py-2.5 font-medium text-foreground/90">{d.asset_symbol}</td>
       <td className="px-4 py-2.5 text-foreground/60">{d.protocol ?? "—"}</td>
       <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-        {fmtQty(d.balance)}
+        <EditableNumber
+          value={d.balance}
+          pending={upd.isPending}
+          onSave={(v) => upd.mutate({ id: d.id, balance: v })}
+        />
       </td>
       <td className="px-4 py-2.5 text-right">
         <Money brl={d.price_brl} usd={d.price_usd} />
@@ -248,7 +319,8 @@ function DefiSection() {
       <h2 className="mb-1 text-lg font-semibold text-foreground">DeFi (manual)</h2>
       <p className="mb-4 text-xs text-foreground/50">
         Posições DeFi com vencimento (entrada manual). Valoradas pelo preço do m3 quando há
-        fonte (YT-xSOL fica sem preço). Os alertas de vencimento leem destas.
+        fonte (YT-xSOL fica sem preço). Clique no saldo para editar (✎). Os alertas de
+        vencimento leem destas.
       </p>
 
       <div className="mb-4 overflow-hidden rounded-xl border border-border">

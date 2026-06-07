@@ -70,6 +70,18 @@ export function useCreateDefi() {
   });
 }
 
+export function useUpdateDefi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Partial<DefiPositionInput>) =>
+      apiFetch<unknown>(`/api/v1/defi/positions/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["defi"] }),
+  });
+}
+
 export function useDeleteDefi() {
   const qc = useQueryClient();
   return useMutation({
