@@ -30,6 +30,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
 from collections import Counter
 
+from _common import resolve_owner, user_arg
+
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
@@ -75,9 +77,7 @@ async def main() -> None:
         await init_pool(settings.database_url)
         pool = get_pool()
         async with pool.acquire() as conn:
-            admin = await conn.fetchrow(
-                "SELECT id, email FROM users ORDER BY created_at LIMIT 1"
-            )
+            admin = await resolve_owner(conn, user_arg())
             if not admin:
                 print("[erro] Nenhum usuário no banco. Crie um usuário primeiro.")
                 sys.exit(1)

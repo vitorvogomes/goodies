@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
 import openpyxl
+from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
@@ -114,9 +115,7 @@ def main() -> None:
         await init_pool(settings.database_url)
         pool = get_pool()
         async with pool.acquire() as conn:
-            admin = await conn.fetchrow(
-                "SELECT id, email FROM users ORDER BY created_at LIMIT 1"
-            )
+            admin = await resolve_owner(conn, user_arg())
             if not admin:
                 print("[erro] Nenhum usuário no banco.")
                 sys.exit(1)
@@ -128,9 +127,12 @@ def main() -> None:
             if snapshot_sheets is not None:
                 prices = parse_b3_position_prices(snapshot_sheets)
                 for ticker, price in prices.items():
-                    # preço de mercado (B3) -> is_manual=False: o worker m3 pode refrescar
+                    # preço de mercado -> is_manual=False: o worker m3 pode refrescar. A aba
+                    # Posição inclui Tesouro Direto ("Tesouro ..."): rotula source corretamente
+                    # (senão o seed mente a fonte até a 1ª rodada do worker corrigir).
+                    src = "tesouro" if ticker.startswith("Tesouro") else "b3"
                     await service.upsert_price(
-                        conn, ticker, price, source="b3", is_manual=False
+                        conn, ticker, price, source=src, is_manual=False
                     )
                 n_prices = len(prices)
             await service.invalidate_xirr_cache(user_id)

@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
+from _common import resolve_owner, user_arg
+
 from config import settings
 from db.connection import close_pool, init_pool
 from engines.portfolio.targets import PORTFOLIO_TARGETS, seed_targets
@@ -29,9 +31,7 @@ async def main() -> None:
         pool = get_pool()
 
         async with pool.acquire() as conn:
-            admin = await conn.fetchrow(
-                "SELECT id, email FROM users ORDER BY created_at LIMIT 1"
-            )
+            admin = await resolve_owner(conn, user_arg())
 
         if not admin:
             print("❌ No users found in database. Please seed a user first.")

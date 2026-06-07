@@ -19,6 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
+from _common import resolve_owner, user_arg
+
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
@@ -45,9 +47,11 @@ async def main() -> None:
     await init_pool(settings.database_url)
     pool = get_pool()
     async with pool.acquire() as conn:
-        uid = str(
-            await conn.fetchval("SELECT id FROM users ORDER BY created_at LIMIT 1")
-        )
+        owner = await resolve_owner(conn, user_arg())
+        if owner is None:
+            print("[erro] Nenhum usuário no banco.")
+            sys.exit(1)
+        uid = str(owner["id"])
         pos = await service.calculate_positions(conn, uid)
         ops = await conn.fetch(
             "SELECT data_operacao, tipo, quantidade, valor_unitario "

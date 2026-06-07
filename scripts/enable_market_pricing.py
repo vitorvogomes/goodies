@@ -24,10 +24,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 import asyncpg
 
 from config import settings
+from engines.portfolio.constants import B3_CATEGORIES, TREASURY_CATEGORIES
 
-# Categorias com fonte de mercado: Ações/ETFs/FIIs (BRAPI) + Aposentadoria (Tesouro
-# Transparente CSV). Renda Fixa (caixinhas/Flash/CDB) e Cripto (m4) ficam de fora.
-_CATEGORIES = ["Ações Nacionais", "ETFs", "FIIs", "Aposentadoria"]
+# Categorias com fonte de mercado: B3 (Ações/ETFs/FIIs via BRAPI) + Tesouro (Aposentadoria
+# via Tesouro Transparente). Da SSOT de constants, não hardcoded. Renda Fixa e Cripto fora.
+_CATEGORIES = [str(c) for c in (B3_CATEGORIES | TREASURY_CATEGORIES)]
 _SELECT_TICKERS = (
     "SELECT DISTINCT asset_symbol FROM asset_operations WHERE asset_category = ANY($1::text[])"
 )

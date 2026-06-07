@@ -221,7 +221,9 @@ async def import_operations(
             row["data_operacao"],
             row["external_id"],
         )
-        if result.endswith("1"):
+        # status do asyncpg = "INSERT 0 <n>"; n=1 inseriu, n=0 foi conflito (DO NOTHING).
+        # Parse do rowcount (último token) em vez de endswith("1") — frágil p/ n>=10.
+        if int(result.split()[-1]) > 0:
             imported += 1
         else:
             skipped += 1

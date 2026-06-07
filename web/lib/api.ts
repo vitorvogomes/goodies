@@ -55,7 +55,8 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const token = getAccessToken();
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  // default JSON, mas respeita um Content-Type do chamador (ex.: import de extrato = texto cru)
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
