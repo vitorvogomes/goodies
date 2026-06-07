@@ -26,6 +26,8 @@ export interface AssetOperation {
 export interface Position {
   asset_symbol: string;
   asset_category: string;
+  // custódia (chain/protocolo) — só nas linhas cripto, que são por custódia (m4 Tier 2)
+  custody?: string | null;
   quantidade_net: number;
   // null em cripto (m4): o custo é conhecido só no nível do sleeve, não por ativo
   preco_medio: number | null;

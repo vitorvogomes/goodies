@@ -209,6 +209,11 @@ export default function PositionsPage() {
                     <tr key={pos.asset_symbol} className="border-t border-border">
                       <td className="px-4 py-2.5 font-medium text-foreground/90">
                         {pos.asset_symbol}
+                        {pos.custody && (
+                          <span className="ml-2 rounded bg-muted/60 px-1.5 py-0.5 text-xs text-foreground/50">
+                            {pos.custody}
+                          </span>
+                        )}
                         {pos.stale && (
                           <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">
                             sem preço

@@ -107,47 +107,36 @@ async def sleeve_current_value(
 async def crypto_positions(
     conn: asyncpg.Connection, user_id: str
 ) -> list[dict[str, Any]]:
-    """Linhas de posição cripto AGREGADAS por ativo p/ a aba Posições (m4).
+    """Linhas de posição cripto POR CUSTÓDIA p/ a aba Posições (m4).
 
-    Mesmo shape de `calculate_positions`, mas custo é desconhecido por ativo → `preco_medio`/
-    `custo_total`/`resultado`/`resultado_pct = None` (custo/resultado vivem no nível do sleeve;
-    nunca fabricar retorno por ativo). Agrega o mesmo símbolo em várias chains numa linha
-    (detalhe por-chain fica na aba Carteiras). Sem preço → `stale=True`, `valor_atual=None`.
+    Uma linha por (ativo, custódia) — `custody` = chain da wallet ou protocolo DeFi — em vez de
+    agregar por símbolo: assim o custo reconstruído (Tier 2, por `(símbolo, fonte)`) casa só com
+    a custódia certa (ex.: ETH@binance com custo real; ETH@ethereum/Rabby = "—" até reconstruir
+    on-chain). Sem custo → `preco_medio`/`custo_total`/`resultado` = None (nunca fabricar). Sem
+    preço → `stale=True`, `valor_atual=None`.
     """
     wallets = await list_wallet_positions(conn, user_id)
     defi = await list_defi_valued(conn, user_id)
-    agg: dict[str, dict[str, Any]] = {}
-    for w in wallets:
-        _accumulate(agg, w["asset_symbol"], float(w["quantity"]), w["price_brl"])
-    for d in defi:
-        _accumulate(agg, d["asset_symbol"], float(d["balance"]), d["price_brl"])
-
-    # Custo reconstruído POR ATIVO (Tier 2): soma por símbolo (todas as fontes). Sem linha →
-    # custo desconhecido → preço médio/resultado seguem "—" (gap a custo zero, por design).
     cost_rows = await conn.fetch(
-        "SELECT asset_symbol, sum(custo_total_brl) AS custo FROM crypto_cost_basis "
-        "WHERE user_id = $1 GROUP BY asset_symbol",
+        "SELECT asset_symbol, source, custo_total_brl FROM crypto_cost_basis WHERE user_id = $1",
         user_id,
     )
-    cost_by_sym = {r["asset_symbol"]: float(r["custo"]) for r in cost_rows}
+    cost = {(r["asset_symbol"], r["source"]): float(r["custo_total_brl"]) for r in cost_rows}
 
     out: list[dict[str, Any]] = []
-    for sym, a in agg.items():
-        qty = a["qty"]
+
+    def emit(symbol: str, custody: str, qty: float, price: float | None,
+             valor: float | None, custo: float | None) -> None:
         if qty <= 0:
-            continue
-        price = a["price"]
-        valor = qty * price if price is not None else None
-        custo = cost_by_sym.get(sym)  # None = ainda não reconstruído
+            return
         preco_medio = custo / qty if custo is not None and qty else None
         resultado = valor - custo if custo is not None and valor is not None else None
-        resultado_pct = (
-            resultado / custo * 100 if resultado is not None and custo else None
-        )
+        resultado_pct = resultado / custo * 100 if resultado is not None and custo else None
         out.append(
             {
-                "asset_symbol": sym,
+                "asset_symbol": symbol,
                 "asset_category": str(AssetCategory.CRIPTO),
+                "custody": custody,
                 "quantidade_net": qty,
                 "preco_medio": preco_medio,
                 "custo_total": custo,
@@ -160,16 +149,15 @@ async def crypto_positions(
                 "is_manual": False,
             }
         )
+
+    for w in wallets:
+        emit(w["asset_symbol"], w["chain"], float(w["quantity"]), w["price_brl"],
+             w["value_brl"], cost.get((w["asset_symbol"], w["source"])))
+    for d in defi:
+        protocol = d["protocol"] or "defi"
+        emit(d["asset_symbol"], protocol, float(d["balance"]), d["price_brl"],
+             d["value_brl"], cost.get((d["asset_symbol"], protocol)))
     return out
-
-
-def _accumulate(
-    agg: dict[str, dict[str, Any]], sym: str, qty: float, price: float | None
-) -> None:
-    a = agg.setdefault(sym, {"qty": 0.0, "price": None})
-    a["qty"] += qty
-    if price is not None:
-        a["price"] = price
 
 
 async def calculate_crypto_sleeve(
