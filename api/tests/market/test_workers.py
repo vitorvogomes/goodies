@@ -164,6 +164,42 @@ async def test_crypto_worker_prices_wallet_only_symbol(
         await PriceCache().delete(service.price_cache_key("crypto", "MKT_WLBTC"))
 
 
+@pytest.mark.asyncio
+async def test_failed_counts_only_core_symbols(pool: Any, portfolio_user: dict) -> None:
+    # ticker só-de-wallet fora do mapa do fetcher NÃO infla `failed` (não há fonte p/ ele)
+    uid = portfolio_user["user_id"]
+    await _add_op(pool, uid, "MKT_COREBTC", "Cripto")
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO wallet_positions (user_id, chain, wallet_address, asset_symbol, "
+            "quantity, source) VALUES ($1, 'solana', 'sol1', 'MKT_DUST', 1, 'solana')",
+            uid,
+        )
+    fake = _FakeFetcher(
+        {"MKT_COREBTC": PriceQuote(price_brl=1.0, price_usd=None, source="coingecko")}
+    )
+    try:
+        stats = await run_price_crypto(pool, fetcher=fake)
+        assert stats["fetched"] == 1
+        assert stats["failed"] == 0  # MKT_DUST (extra de wallet) não conta como falha
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
+        await PriceCache().delete(service.price_cache_key("crypto", "MKT_COREBTC"))
+
+
+@pytest.mark.asyncio
+async def test_wallet_symbols_guard_is_fail_soft() -> None:
+    # tabela ausente / SELECT falha → [] (não derruba o cron de preço cripto do m3)
+    from workers.price_workers import _wallet_symbols
+
+    class _BoomConn:
+        async def fetch(self, *_a: Any, **_k: Any) -> list[Any]:
+            raise RuntimeError("relation wallet_positions does not exist")
+
+    assert await _wallet_symbols(_BoomConn()) == []  # type: ignore[arg-type]
+
+
 def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}

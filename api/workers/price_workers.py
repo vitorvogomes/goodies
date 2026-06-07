@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import asyncpg
+import structlog
 
 from config import settings
 from engines.market import service
@@ -23,6 +24,8 @@ from engines.portfolio.constants import (
     TREASURY_CATEGORIES,
 )
 
+logger = structlog.get_logger()
+
 
 async def _symbols_in(conn: asyncpg.Connection, categories: Iterable[str]) -> list[str]:
     rows = await conn.fetch(
@@ -34,8 +37,16 @@ async def _symbols_in(conn: asyncpg.Connection, categories: Iterable[str]) -> li
 
 
 async def _wallet_symbols(conn: asyncpg.Connection) -> list[str]:
-    """Símbolos escaneados em wallet_positions (m4) — precisam de preço mesmo sem op."""
-    rows = await conn.fetch("SELECT DISTINCT asset_symbol FROM wallet_positions")
+    """Símbolos escaneados em wallet_positions (m4) — precisam de preço mesmo sem op.
+
+    Fail-soft: se a tabela ainda não existe (migration 0010 não aplicada) ou o SELECT
+    falha, devolve [] — NÃO derruba o cron de preço cripto (que existia antes do m4).
+    """
+    try:
+        rows = await conn.fetch("SELECT DISTINCT asset_symbol FROM wallet_positions")
+    except Exception as exc:
+        logger.warning("wallet_symbols_failed", error=str(exc))
+        return []
     return [r["asset_symbol"] for r in rows]
 
 
@@ -48,8 +59,9 @@ async def _run_for(
     *,
     extra_symbols: Iterable[str] = (),
 ) -> dict[str, int]:
-    # une os tickers das ops com os escaneados (m4); o fetcher ignora os fora do mapa.
-    symbols = sorted(set(await _symbols_in(conn, categories)) | set(extra_symbols))
+    # une os tickers das ops (core) com os escaneados (m4); o fetcher ignora os fora do mapa.
+    core = await _symbols_in(conn, categories)
+    symbols = sorted(set(core) | set(extra_symbols))
     if not symbols:
         return {"symbols": 0, "fetched": 0, "updated": 0, "skipped": 0, "failed": 0}
     quotes = await fetcher.fetch(symbols)
@@ -71,7 +83,9 @@ async def _run_for(
         "fetched": len(quotes),
         "updated": updated,
         "skipped": skipped,  # ignorados pela precedência is_manual
-        "failed": len(symbols) - len(quotes),  # sem cotação na fonte
+        # só os tickers "core" (das categorias de mercado) sem cotação são falha de fonte;
+        # extras de wallet sem mapeamento no fetcher NÃO contam (não há fonte p/ eles).
+        "failed": len(set(core) - set(quotes)),
     }
 
 

@@ -41,7 +41,7 @@ async def test_scan_writes_positions(pool: Any, wallet_user: dict) -> None:
         ]
     )
     stats = await run_wallet_scan(pool, uid, fetchers=[fake])
-    assert stats["_FakeFetcher"] == {"fetched": 2, "failed": 0}
+    assert stats["_FakeFetcher"] == {"fetched": 2, "failed": 0, "swept": 0}
     async with pool.acquire() as conn:
         n = await conn.fetchval(
             "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
@@ -67,13 +67,53 @@ async def test_scan_fail_soft_one_fetcher_down(pool: Any, wallet_user: dict) -> 
     uid = wallet_user["user_id"]
     ok = _FakeFetcher([WalletBalance("liquid", "lq1", "L-BTC", 0.1, "liquid")])
     stats = await run_wallet_scan(pool, uid, fetchers=[_BoomFetcher(), ok])
-    assert stats["_BoomFetcher"] == {"fetched": 0, "failed": 1}
-    assert stats["_FakeFetcher"] == {"fetched": 1, "failed": 0}
+    assert stats["_BoomFetcher"] == {"fetched": 0, "failed": 1, "swept": 0}
+    assert stats["_FakeFetcher"] == {"fetched": 1, "failed": 0, "swept": 0}
     async with pool.acquire() as conn:
         n = await conn.fetchval(
             "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
         )
     assert n == 1  # o fetcher bom grava mesmo com o outro fora
+
+
+@pytest.mark.asyncio
+async def test_scan_sweeps_closed_position(pool: Any, wallet_user: dict) -> None:
+    # ETH + ARB no 1º scan; ARB vendido → 2º scan só ETH → ARB é varrido (não fantasma)
+    uid = wallet_user["user_id"]
+    full = _FakeFetcher(
+        [
+            WalletBalance("ethereum", "0xabc", "ETH", 1.0, "etherscan"),
+            WalletBalance("arbitrum", "0xabc", "ARB", 50.0, "etherscan"),
+        ]
+    )
+    await run_wallet_scan(pool, uid, fetchers=[full])
+    only_eth = _FakeFetcher([WalletBalance("ethereum", "0xabc", "ETH", 1.2, "etherscan")])
+    stats = await run_wallet_scan(pool, uid, fetchers=[only_eth])
+    assert stats["_FakeFetcher"]["swept"] == 1  # ARB removido
+    async with pool.acquire() as conn:
+        syms = [
+            r["asset_symbol"]
+            for r in await conn.fetch(
+                "SELECT asset_symbol FROM wallet_positions WHERE user_id = $1 "
+                "ORDER BY asset_symbol",
+                uid,
+            )
+        ]
+    assert syms == ["ETH"]
+
+
+@pytest.mark.asyncio
+async def test_scan_outage_preserves_snapshot(pool: Any, wallet_user: dict) -> None:
+    # source fora retorna [] → NÃO varre (outage ≠ posição fechada)
+    uid = wallet_user["user_id"]
+    f = _FakeFetcher([WalletBalance("solana", "sol1", "SOL", 5.0, "solana")])
+    await run_wallet_scan(pool, uid, fetchers=[f])
+    await run_wallet_scan(pool, uid, fetchers=[_FakeFetcher([])])  # scan vazio
+    async with pool.acquire() as conn:
+        n = await conn.fetchval(
+            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
+        )
+    assert n == 1  # SOL preservado
 
 
 @pytest.mark.asyncio

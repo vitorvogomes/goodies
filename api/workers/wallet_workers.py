@@ -60,9 +60,12 @@ async def run_wallet_scan(
                 balances = await fetcher.fetch()
             except Exception as exc:  # defesa extra; os fetchers já são fail-soft
                 logger.warning("wallet_scan_fetcher_failed", fetcher=name, error=str(exc))
-                stats[name] = {"fetched": 0, "failed": 1}
+                stats[name] = {"fetched": 0, "failed": 1, "swept": 0}
                 continue
             for balance in balances:
                 await service.upsert_wallet_position(conn, user_id, balance)
-            stats[name] = {"fetched": len(balances), "failed": 0}
+            # snapshot-replace: posição fechada (vendida/bridada) é varrida; um source
+            # fora devolve [] e NÃO apaga o último snapshot bom (outage ≠ fechamento).
+            swept = await service.sweep_wallet_positions(conn, user_id, balances)
+            stats[name] = {"fetched": len(balances), "failed": 0, "swept": swept}
     return stats

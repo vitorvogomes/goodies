@@ -98,8 +98,10 @@ class Settings(BaseSettings):
     # RPC Solana (JSON-RPC). Default = endpoint público (throttla); apontar p/
     # Helius/QuickNode no .env evita o rate-limit do mainnet-beta público.
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
-    # TTLs de cache (segundos): wallet scan = 4h; benchmark CDI/IPCA = 24h.
-    ttl_wallet: int = 14400
+    # TTLs de cache (segundos). wallet = 14h: o scan roda 3x/dia (8/14/20h BRT), com
+    # gap noturno de 12h (20h→8h); o TTL precisa ser > esse gap p/ não marcar saldo
+    # saudável como stale durante a noite. benchmark CDI/IPCA = 24h.
+    ttl_wallet: int = 50400
     ttl_benchmark: int = 86400
 
     @field_validator("evaluation_date", mode="before")

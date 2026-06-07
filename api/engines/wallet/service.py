@@ -43,6 +43,37 @@ async def upsert_wallet_position(
     )
 
 
+async def sweep_wallet_positions(
+    conn: asyncpg.Connection, user_id: str, balances: list[WalletBalance]
+) -> int:
+    """Apaga posições de um source que NÃO apareceram no scan atual (posição fechada).
+
+    Snapshot-replace por source: o scan é a verdade para os sources que ele cobriu.
+    Chamar SÓ quando o fetcher retornou ≥1 saldo — um source fora devolve `[]` (fail-soft)
+    e não deve apagar o último snapshot bom (outage ≠ posição fechada). Sem o sweep, um
+    ativo vendido/zerado (filtrado por `qty>0` no fetcher) ficaria como posição fantasma.
+    Devolve o número de linhas removidas.
+    """
+    if not balances:
+        return 0
+    sources = list({b.source for b in balances})
+    kept = {(b.chain, b.wallet_address, b.asset_symbol) for b in balances}
+    rows = await conn.fetch(
+        "SELECT id, chain, wallet_address, asset_symbol FROM wallet_positions "
+        "WHERE user_id = $1 AND source = ANY($2)",
+        user_id,
+        sources,
+    )
+    stale_ids = [
+        r["id"]
+        for r in rows
+        if (r["chain"], r["wallet_address"], r["asset_symbol"]) not in kept
+    ]
+    if stale_ids:
+        await conn.execute("DELETE FROM wallet_positions WHERE id = ANY($1)", stale_ids)
+    return len(stale_ids)
+
+
 async def list_wallet_positions(
     conn: asyncpg.Connection, user_id: str, *, now: datetime | None = None
 ) -> list[dict[str, Any]]:
