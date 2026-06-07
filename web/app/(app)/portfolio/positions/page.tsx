@@ -204,9 +204,12 @@ export default function PositionsPage() {
                     </td>
                   </tr>
 
-                  {/* ativos da categoria */}
+                  {/* ativos da categoria (cripto = 1 linha por custódia → key inclui a custódia) */}
                   {g.rows.map((pos) => (
-                    <tr key={pos.asset_symbol} className="border-t border-border">
+                    <tr
+                      key={pos.custody ? `${pos.asset_symbol}@${pos.custody}` : pos.asset_symbol}
+                      className="border-t border-border"
+                    >
                       <td className="px-4 py-2.5 font-medium text-foreground/90">
                         {pos.asset_symbol}
                         {pos.custody && (
