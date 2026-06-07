@@ -1,7 +1,8 @@
 # 11 — Coerência Nubank ↔ Portfólio (pré-m3)
 
-> Faxina de dados feita antes do m3 (Market Data) para que os indicadores (taxa de
-> poupança, total investido, XIRR, alocação) reflitam a realidade. Data: 2026-06-06.
+> **Status: RESOLVIDO (histórico).** Faxina de dados feita antes do m3 — decisões consolidadas
+> no **ADR-011** (`docs/07_Decisoes.md`). Doc mantido como registro de auditoria da curadoria.
+> Data: 2026-06-06. Cripto (a lacuna citada abaixo) foi coberta no m4.
 
 ## Diagnóstico (reconciliação extrato × portfólio)
 

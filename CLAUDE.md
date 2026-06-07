@@ -95,9 +95,10 @@ Gate m2: XIRR Python == Excel XIRR (±0,1 pp) nos dados históricos.
 import os
 LIQUID_BASE_URL = os.environ["LIQUID_BASE_URL"]   # https://blockstream.info/liquid/api — NÃO /btc/api
 LBTC_ASSET_ID   = os.environ["LBTC_ASSET_ID"]     # constante pública L-BTC — valor em .env (ADR-005)
+LUSDT_ASSET_ID  = os.environ["LUSDT_ASSET_ID"]    # constante pública L-USDT (Liquid é multi-asset)
 ```
-Client dedicado em `api/engines/market/fetchers/wallets/liquid.py`.
-Proibido reutilizar fetcher Bitcoin mainchain.
+Client dedicado em `api/engines/market/fetchers/wallets/liquid.py` (multi-asset: L-BTC + L-USDT).
+Proibido reutilizar fetcher Bitcoin mainchain. Endereço SideSwap é confidencial → entrada manual.
 
 ---
 

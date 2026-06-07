@@ -43,11 +43,17 @@
   contagens ou prefixos mascarados.
 - Evite `cat .env`, `echo $TOKEN`, prints de endereços completos, etc.
 
-## 5. Nota sobre `LBTC_ASSET_ID`
+## 5. Nota sobre os asset IDs e config de wallet (m4)
 
-- É uma constante **pública** da Liquid Network, mas por escolha do Vitor ela
-  também é **env-managed** (`${LBTC_ASSET_ID}` nos arquivos, valor real só no
-  `.env`) — mesmo tratamento dos endereços. Ver ADR-005.
+- `LBTC_ASSET_ID` e `LUSDT_ASSET_ID` são constantes **públicas** da Liquid Network, mas
+  por escolha do Vitor são **env-managed** (`${...}` nos arquivos, valor só no `.env`) —
+  mesmo tratamento dos endereços. Ver ADR-005.
+- O m4 adicionou 6 fetchers de wallet. Todos os endereços (`WALLET_RABBY_ADDRESS`,
+  `WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_SIDESWAP_ADDRESS`, `WALLET_TRUST_BTC_ADDRESS`) e
+  as URLs de RPC/base (`SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `BTC_BASE_URL`,
+  `LIQUID_BASE_URL`) são `.env`-managed — mesma tier das API keys.
+- **SideSwap** é confidencial (entrada manual): só o **endereço** é env-managed; não há
+  credencial/chave de visão guardada.
 
 ## 6. Dados financeiros
 

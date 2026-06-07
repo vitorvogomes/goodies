@@ -26,7 +26,7 @@ Retorno quando sem dado: `{"value": null, "stale": true, "last_updated": null}` 
 
 ## ADR-005 — Liquid Network: client dedicado
 Base URL: `https://blockstream.info/liquid/api` (NÃO `/btc/api`)
-Asset ID L-BTC: `${LBTC_ASSET_ID}`
+Asset IDs: `${LBTC_ASSET_ID}` (L-BTC) + `${LUSDT_ASSET_ID}` (L-USDT) — Liquid é multi-asset.
 **Proibido reutilizar qualquer código do fetcher Bitcoin mainchain.**
 
 ## ADR-006 — Auth JWT no FastAPI (não Supabase Auth)
@@ -69,7 +69,7 @@ Decidido na faxina pré-m3 (2026-06-06). Ver `docs/11_Coerencia_Nubank_Portfolio
   contam como receita/despesa externa — **não** transferência interna (decisão reafirmada).
 
 ## ADR-012 — Market Engine (m3): endpoints, precedência de preço, fontes free-tier
-Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/13_Debito_Tecnico_m3.md`.
+Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/15_Debito_Tecnico.md`.
 - **Preços sob `/api/v1/market/*`** (não `/portfolio`). `POST /market/prices/{ticker}` (manual),
   `GET /market/prices[/{ticker}]` (leitura via fallback). O antigo `PUT /portfolio/prices` foi
   **removido**. Contrato Pydantic (`PriceOut`) — superfície nova do m3.
@@ -84,6 +84,21 @@ Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/13_Debito_T
   `ttl_b3=ttl_tesouro=26h` p/ o preço do dia não aparecer "desatualizado". `EVALUATION_DATE` (§3.1)
   threada a data de avaliação única. **Cripto/Binance só via cron — m4.**
 
+## ADR-013 — Wallet scan (m4): fontes, `source` p/ sweep, valoração manual/DeFi
+Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-scan-config`/`m4-hype-on-hyperliquid`.
+- **6 fetchers fail-soft** (Etherscan ETH/ARB/PENDLE, Hyperliquid, Solana, Liquid, Bitcoin, Binance);
+  sem credencial = no-op. **HYPE em 2 fontes** no mesmo endereço Rabby: L1 spot (Info API) + **HyperEVM
+  nativo** (`eth_getBalance`, `HYPEREVM_RPC_URL`). HyperEVM entra em escopo **só p/ o HYPE nativo**.
+- **O `source` (por fonte) controla o sweep** (snapshot-replace): cada (sub)fonte usa um `source`
+  próprio — `hyperliquid` (spot) ≠ `hyperevm` — p/ que a queda de uma NÃO varra o snapshot bom da
+  outra (outage ≠ posição fechada).
+- **Posições manuais** (`is_manual=true`, p/ Liquid confidencial): o sweep nunca as apaga e elas
+  nunca ficam `stale`. Editáveis inline na UI (upsert).
+- **Valoração manual/DeFi** reusa o preço do m3 via aliases em `coingecko_ids` (chave UPPER). Cuidado:
+  **id da API CoinGecko ≠ slug do site** (`susdai`, não `staked-usdai`); YT-xSOL sem fonte (decisão).
+- **Reconciliação é só cripto** (`reconcile` filtra `asset_operations` por `CRYPTO_CATEGORIES`); B3 e
+  caixinhas Nubank vêm por outra via, não pelo scan de carteira.
+
 ---
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)
@@ -91,21 +106,24 @@ Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/13_Debito_T
 > Valores reais ficam SÓ em `.env` (gitignored). Aqui e em todos os docs
 > usamos apenas os nomes das variáveis. Ver `.claude/memory/security.md`.
 
-| Rede | Wallet | Variável de ambiente |
+| Rede / ativos | Wallet | Endereço (env) |
 |---|---|---|
-| ETH/ARB/HYPE | Rabby | `${WALLET_RABBY_ADDRESS}` |
+| ETH/ARB/PENDLE + HYPE (L1 spot + HyperEVM) | Rabby | `${WALLET_RABBY_ADDRESS}` |
 | SOL | Phantom | `${WALLET_PHANTOM_SOL_ADDRESS}` |
-| Liquid (L-BTC + USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` |
+| Liquid (L-BTC + L-USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` — confidencial → entrada manual |
 | BTC (mainchain) | Trust | `${WALLET_TRUST_BTC_ADDRESS}` |
+
+Config não-endereço (também `.env`): `LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQUID_BASE_URL`,
+`BTC_BASE_URL`, `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`/`_SECRET`.
 
 ## TTLs de cache Redis
 
 | Dado | TTL |
 |---|---|
-| B3 (BRAPI) | 4h — dias úteis apenas |
+| B3 (BRAPI) | 26h — 1×/dia útil 19h (free-tier) |
 | Cripto (CoinGecko) | 2h |
-| Tesouro Direto | 6h |
-| Wallet scan | 4h |
+| Tesouro Direto | 26h — 1×/dia útil |
+| Wallet scan | 14h — scan 3×/dia (8/14/20h), TTL > gap noturno |
 | Benchmarks (CDI/IPCA/IBOV) | 24h |
 | XIRR calculado | 1h (invalidar em nova operação) |
 

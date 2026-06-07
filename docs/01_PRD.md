@@ -138,11 +138,12 @@ Vitor gerencia ~R$ 28.300 de portfólio e ~R$ 10.000/mês de renda em uma planil
 
 **RF-M03** — Preços Tesouro Direto via API pública com matching flexível por nome (a API muda nomes de títulos sem aviso — implementar tolerância a variações).
 
-**RF-M04** — Scan de wallets on-chain:
-- ETH/ARB/HYPE: Etherscan API (`${WALLET_EVM_ADDRESS}`)
-- SOL: Solscan API (`${WALLET_SOL_ADDRESS}`)
-- Liquid (L-BTC): `blockstream.info/liquid` — API diferente do mainchain Bitcoin
-- HYPE: Hyperliquid explorer
+**RF-M04** — Scan de wallets on-chain (implementado no m4):
+- ETH/ARB/PENDLE: Etherscan V2 (`${WALLET_RABBY_ADDRESS}`)
+- HYPE: Hyperliquid Info API (L1 spot) + HyperEVM (`eth_getBalance`) — mesmo endereço Rabby
+- SOL/SPL: JSON-RPC público (`${WALLET_PHANTOM_SOL_ADDRESS}`) — não Solscan
+- Liquid (L-BTC + L-USDT): `blockstream.info/liquid` (`${WALLET_SIDESWAP_ADDRESS}`, confidencial → manual)
+- BTC mainchain: `blockstream.info/api` (`${WALLET_TRUST_BTC_ADDRESS}`) — client separado do Liquid (ADR-005)
 
 **RF-M05** — Integração Binance API: spot + earn wallets com cache + cron (não pull on-demand — respeitar rate limits).
 

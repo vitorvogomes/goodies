@@ -134,11 +134,12 @@ O motor de rebalanceamento do Goodies já existe como conceito na planilha (camp
 | USDT | $959 | $964 | +0,46% |
 | **Total cripto** | **$974,71** | **$791,44** | **-18,80%** |
 
-**Wallets ativas:**
-- TrustWallet, Phantom, Rabby, Binance, KuCoin, Liquid (L-BTC via GenesisP2P)
-- ETH/ARB/HYPE: `${WALLET_EVM_ADDRESS}`
-- SOL: `${WALLET_SOL_ADDRESS}`
-- Liquid: `${WALLET_LIQUID_ADDRESS}`
+**Wallets ativas (env vars renomeadas por wallet no m4):**
+- Rabby (ETH/ARB/PENDLE + HYPE L1 spot + HyperEVM): `${WALLET_RABBY_ADDRESS}`
+- Phantom (SOL): `${WALLET_PHANTOM_SOL_ADDRESS}`
+- SideSwap (Liquid L-BTC + L-USDT, confidencial → entrada manual): `${WALLET_SIDESWAP_ADDRESS}`
+- Trust (BTC mainchain): `${WALLET_TRUST_BTC_ADDRESS}`
+- Binance (spot + earn): via API key
 
 **Vencimentos DeFi a monitorar:**
 - xSOL (Phantom/Hylo): 29/09/2026

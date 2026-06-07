@@ -85,10 +85,12 @@ api/
 │   │   │   ├── bcb.py         # BCB (CDI, IPCA)
 │   │   │   ├── treasury.py    # Tesouro Direto
 │   │   │   ├── wallets/
-│   │   │   │   ├── etherscan.py    # ETH/ARB/HYPE
-│   │   │   │   ├── solscan.py      # SOL
-│   │   │   │   ├── liquid.py       # Liquid Network (L-BTC)
-│   │   │   │   └── hyperliquid.py  # HYPE on-chain
+│   │   │   │   ├── etherscan.py    # ETH/ARB + PENDLE (V2 multichain)
+│   │   │   │   ├── solana.py       # SOL/SPL (JSON-RPC)
+│   │   │   │   ├── liquid.py       # Liquid (L-BTC + L-USDT, ADR-005)
+│   │   │   │   ├── bitcoin.py      # BTC mainchain (ADR-005, client separado)
+│   │   │   │   ├── hyperliquid.py  # HYPE: L1 spot (Info API) + HyperEVM nativo
+│   │   │   │   └── binance.py      # spot + earn (cron HMAC)
 │   │   │   └── base.py        # interface abstrata de fetcher (ABC)
 │   │   └── models.py
 │   └── analytics/
@@ -147,8 +149,8 @@ web/
 | Worker | Schedule | O que faz |
 |---|---|---|
 | `price_b3` | Cron: **1×/dia útil 19h BRT** (free-tier BRAPI 1k req/mês) | BRAPI (B3) + Tesouro Transparente (Tesouro) → Postgres+Redis |
-| `price_crypto` | Cron: todo dia, a cada 2h | CoinGecko → Postgres+Redis (Binance é m4) |
-| `wallet_scan` | Cron: todo dia 8h, 14h, 20h | Etherscan + Solscan + Liquid → salva `wallet_positions` |
+| `price_crypto` | Cron: todo dia, a cada 2h | CoinGecko (inclui símbolos de wallet/DeFi) → Postgres+Redis |
+| `wallet_scan` | Cron: todo dia 8h, 14h, 20h | 6 fetchers (Etherscan/Hyperliquid/Solana/Liquid/Bitcoin/Binance) → `wallet_positions` (sweep por source) |
 | `benchmark_daily` | Cron: todo dia 22h | BCB (CDI/IPCA) + yfinance (IBOV) → salva `benchmark_data` |
 | `alert_eval` | Cron: todo dia 8h | Avalia todos os alertas, salva `active_alerts` |
 
@@ -281,18 +283,33 @@ CREATE TABLE asset_prices (
 );
 ```
 
-#### `wallet_positions`
+#### `wallet_positions` e `defi_positions` (m4)
+> Schema canônico nas migrations `0010_wallet_positions`, `0012_defi_positions`,
+> `0013_wallet_is_manual`. O esboço abaixo é ilustrativo — as colunas reais usam
+> `user_id`, `chain`, `wallet_address`, `asset_symbol`, `source`, `is_manual`.
+
 ```sql
+-- wallet_positions: snapshot do scan por (user, chain, wallet_address, asset_symbol).
+-- O sweep (snapshot-replace) é POR source; is_manual=true nunca é varrido.
 CREATE TABLE wallet_positions (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  wallet       TEXT NOT NULL,           -- "etherscan", "solscan", "liquid", "binance", "kucoin"
-  address      TEXT,
-  ticker       TEXT NOT NULL,
-  quantity     NUMERIC(20,8) NOT NULL,
-  scanned_at   TIMESTAMPTZ NOT NULL,
-  is_manual    BOOLEAN DEFAULT false
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id),
+  chain         TEXT NOT NULL,          -- ethereum|arbitrum|hyperliquid|hyperevm|solana|liquid|bitcoin|binance
+  wallet_address TEXT NOT NULL,         -- endereço on-chain | 'binance' | 'manual'
+  asset_symbol  TEXT NOT NULL,
+  quantity      NUMERIC(36,18) NOT NULL,
+  source        TEXT NOT NULL,          -- etherscan|hyperliquid|hyperevm|solana|liquid|bitcoin|binance|manual
+  scanned_at    TIMESTAMPTZ NOT NULL,
+  is_manual     BOOLEAN NOT NULL DEFAULT false,
+  UNIQUE (user_id, chain, wallet_address, asset_symbol)
 );
-CREATE INDEX idx_wallet_pos_ticker ON wallet_positions(ticker);
+-- defi_positions: entrada MANUAL de posições DeFi com vencimento (alertas 30d/7d).
+CREATE TABLE defi_positions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id),
+  protocol      TEXT, asset_symbol TEXT NOT NULL, balance NUMERIC(36,18) NOT NULL,
+  maturity_date DATE, is_active BOOLEAN NOT NULL DEFAULT true, notes TEXT
+);
 ```
 
 #### `goals`

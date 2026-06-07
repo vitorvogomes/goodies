@@ -1,5 +1,9 @@
 # Gate m3 — Market Engine (preços automáticos)
 
+> **Status: FECHADO (histórico).** m3 concluído (2026-06-06); a observação formal de 48h foi
+> dispensada (worker validado ao vivo, 23/23 cotados). A observabilidade contínua + alerta de
+> falha de worker no Discord é m6. Doc mantido como registro. Débito vivo: `docs/15_Debito_Tecnico.md`.
+
 **Critério (CLAUDE.md):** preços B3 e cripto atualizando automaticamente via worker, **sem
 erro por 48h**; o dashboard/posições mostram valor de mercado sem entrada manual.
 

@@ -136,8 +136,9 @@ Vitor tem L-BTC em GenesisP2P (Liquid Network). A API do Liquid é `blockstream.
 Implementar `fetchers/wallets/liquid.py` como cliente dedicado, sem reutilizar nenhuma lógica do fetcher de Bitcoin mainchain. Endpoint base: `https://blockstream.info/liquid/api/`.
 
 ### Consequências
-- Endereço Liquid (`${WALLET_LIQUID_ADDRESS}`) deve ser validado como endereço Liquid, não Bitcoin.
-- L-BTC é convertido para BRL via `CoinGecko BTC/BRL` (L-BTC = 1:1 com BTC).
+- Endereço Liquid (`${WALLET_SIDESWAP_ADDRESS}` — wallet SideSwap; renomeado de `WALLET_LIQUID_ADDRESS` no m4) é validado como endereço Liquid, não Bitcoin.
+- Liquid é **multi-asset**: o fetcher lê L-BTC (`${LBTC_ASSET_ID}`) **e** L-USDT (`${LUSDT_ASSET_ID}`) do mesmo endereço. L-BTC = 1:1 BTC, L-USDT = 1:1 USDt (via CoinGecko).
+- O endereço SideSwap é **confidencial** (blinded): o esplora público devolve 0 UTXOs → **entrada manual** (`is_manual`, ver ADR-013).
 
 ---
 
@@ -250,6 +251,62 @@ Comandos: `uv sync` (base+dev), `uv sync --no-dev` (só runtime, imagem), `uv ru
 - **CI** (`deploy.yml`) usa `astral-sh/setup-uv` + `uv sync --frozen` + `uv run ...` (dispensa `setup-python`).
 - **pre-commit** roda ruff via `uv run --project api ruff`.
 - Docs (`README`, `docs/LOCAL_DEV.md`, `docs/03_Stack.md`) atualizados. Substitui a cláusula da STORY-00-02 sobre `requirements*.txt`; o restante da stack (ADR-001) é inalterado — uv é tooling, não troca de framework.
+
+---
+
+## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
+
+**Data:** 2026-06-06  
+**Status:** Aceito (faxina pré-m3)
+
+### Contexto
+A planilha tratava resgates de caixinha Nubank como receita, inflando a taxa de poupança; CDB/caixinhas não apareciam no portfólio; Pix do próprio nome via Santander pareciam transferência interna.
+
+### Decisão
+- **Aplicação E resgate de caixinha são `kind='investment'`** (o resgate volta positivo e neta o `total_invested`) — nunca `income`.
+- Caixinhas/CDB Nubank viram ativos `asset_category='Renda Fixa'` (registro config-driven em `engines/portfolio/caixinhas.py`), valorados por `rf_cdi.py` com `settings.cdi_anual` (provisório até m5/BCB; `is_manual=true`, worker não sobrescreve — ADR-004).
+- **Santander = conta externa:** `income/Extra` do Santander conta como receita externa, não transferência interna.
+
+### Consequências
+- Reclassificação de linhas curadas é **in-place/idempotente** (`scripts/reclassify_caixinhas.py`); a migration `0009` cobre só o import futuro. **NÃO rodar `scripts/reset_ledger.py`** no banco curado. Ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
+
+---
+
+## ADR-012 — Market Engine (m3): endpoints, precedência de preço, fontes free-tier
+
+**Data:** 2026-06-06  
+**Status:** Aceito (m3)
+
+### Contexto
+O m3 automatizou preços (BRAPI/CoinGecko/Tesouro) com workers APScheduler, reusando `asset_prices` do m2 e respeitando preços manuais (Flash/RF/DeFi sem fonte de mercado).
+
+### Decisão
+- **Preços sob `/api/v1/market/*`** (contrato Pydantic `PriceOut`); o antigo `PUT /portfolio/prices` foi **removido**.
+- **`portfolio.service.upsert_price` é o chokepoint único de escrita**, com precedência **`is_manual`** (worker nunca sobrescreve manual) e invalidação do cache de XIRR (ADR-008) + cache Redis de preço dentro do fluxo. `is_manual=true` ⇒ nunca `stale`.
+- **Free-tier (cadência diária B3/Tesouro):** BRAPI grátis = 1.000 req/mês (1 ativo/req) → `price_b3` 1×/dia útil 19h; **Tesouro via Tesouro Transparente CSV** (open data, sem WAF). `ttl_b3=ttl_tesouro=26h`.
+
+### Consequências
+- `EVALUATION_DATE` única threada por service + seeds + validador. **Cripto/Binance só via cron (m4).** Ver `docs/12_Gate_M3_Market.md`.
+
+---
+
+## ADR-013 — Wallet scan (m4): fontes, `source` p/ sweep, valoração manual/DeFi
+
+**Data:** 2026-06-07  
+**Status:** Aceito (m4)
+
+### Contexto
+O m4 escaneia carteiras cripto on-chain + Binance (6 fetchers) gravando `wallet_positions`, reusando o preço do m3 e tratando o que não é escaneável (Liquid confidencial, posições DeFi com vencimento).
+
+### Decisão
+- **6 fetchers fail-soft** (Etherscan ETH/ARB/PENDLE, Hyperliquid, Solana, Liquid, Bitcoin, Binance); sem credencial = no-op. **HYPE em 2 fontes** no mesmo endereço Rabby: L1 spot (Info API) + **HyperEVM nativo** (`eth_getBalance`, `HYPEREVM_RPC_URL`). HyperEVM em escopo **só p/ o HYPE nativo**.
+- **O `source` (por fonte) controla o sweep** (snapshot-replace por source): cada (sub)fonte usa um `source` próprio — `hyperliquid` (spot) ≠ `hyperevm` — para que a queda de uma não varra o snapshot bom da outra (outage ≠ posição fechada).
+- **Posições manuais** (`is_manual=true`, p/ Liquid confidencial): o sweep nunca as apaga e elas nunca ficam `stale`; editáveis inline na UI (upsert).
+- **Valoração manual/DeFi** reusa o preço do m3 via aliases em `coingecko_ids` (chave UPPER). **Id da API CoinGecko ≠ slug do site** (`susdai`, não `staked-usdai`); YT-xSOL fica sem fonte (decisão).
+- **Reconciliação é só cripto** (`reconcile` filtra `asset_operations` por `CRYPTO_CATEGORIES`); B3 e caixinhas Nubank vêm por outra via.
+
+### Consequências
+- Débito conhecido (ver `docs/15_Debito_Tecnico.md`): aliases DeFi carregam sufixo de vencimento; manual+escaneado do mesmo ativo pode contar dobrado; valoração de wallet/DeFi ignora a camada de cache do m3.
 
 ---
 

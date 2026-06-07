@@ -52,7 +52,7 @@ goodies/
 
 ---
 
-## 4 Engines e suas responsabilidades
+## 5 Engines e suas responsabilidades
 
 **Ledger Engine** — controle de caixa
 - Transações (receitas/despesas), contas, categorias, custos fixos
@@ -66,11 +66,15 @@ goodies/
 - Estimativa de IR por categoria
 
 **Market Engine** — preços automáticos
-- B3: BRAPI.dev (ações, ETFs, FIIs) — TTL 4h
-- Cripto: CoinGecko (BTC, ETH, SOL, PENDLE, HYPE, USDT) — TTL 2h
-- Tesouro Direto: API pública com matching flexível por nome de título
-- Wallet scan: Etherscan (ETH/ARB/HYPE), Solscan (SOL), Liquid Network (L-BTC), Binance API
+- B3: BRAPI.dev (ações, ETFs, FIIs) — TTL 26h (1×/dia útil, free-tier)
+- Cripto: CoinGecko (BTC, ETH, SOL, PENDLE, HYPE, USDT, + aliases DeFi) — TTL 2h
+- Tesouro Direto: Tesouro Transparente (CSV open-data) com matching flexível por título
 - Fallback: Redis → Postgres (`asset_prices`) → manual — nunca bloqueia
+
+**Wallet Engine** (m4) — posições cripto on-chain/exchange
+- 6 fetchers fail-soft (`fetchers/wallets/`): Etherscan (ETH/ARB/PENDLE), Hyperliquid (HYPE — L1 spot + HyperEVM nativo), Solana (SOL/SPL, JSON-RPC), Liquid (L-BTC + L-USDT), Bitcoin mainchain, Binance (spot + earn, cron HMAC)
+- `wallet_positions` (snapshot por scan, sweep por source) + `defi_positions` (entrada manual com vencimento)
+- Posições manuais (`is_manual`, p/ Liquid confidencial) + valoração pelo preço do m3 (BRL/USD) + reconciliação **só cripto** (escaneado vs registrado)
 
 **Analytics Engine** — análise e metas
 - XIRR vs benchmarks (CDI/IPCA/IBOV no mesmo período)
@@ -136,20 +140,25 @@ O XIRR de cripto atualmente deve ser negativo (~-18% a.a.) — isso é esperado 
 ```
 DATABASE_URL, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN,
 JWT_SECRET_KEY, JWT_ALGORITHM, HERMES_SERVICE_TOKEN,
-BRAPI_TOKEN, BINANCE_API_KEY, BINANCE_SECRET_KEY,
-ETHERSCAN_API_KEY, SENTRY_DSN, ENVIRONMENT, CORS_ORIGINS
+BRAPI_TOKEN, BINANCE_API_KEY, BINANCE_API_SECRET, ETHERSCAN_API_KEY,
+WALLET_RABBY_ADDRESS, WALLET_PHANTOM_SOL_ADDRESS, WALLET_SIDESWAP_ADDRESS, WALLET_TRUST_BTC_ADDRESS,
+LBTC_ASSET_ID, LUSDT_ASSET_ID, LIQUID_BASE_URL, BTC_BASE_URL, SOLANA_RPC_URL, HYPEREVM_RPC_URL,
+CDI_ANUAL, SENTRY_DSN, ENVIRONMENT, CORS_ORIGINS
 ```
 
 ---
 
 ## Wallets e endereços configurados
 
-| Wallet | Rede | Endereço |
+| Wallet | Rede / ativos | Endereço (env) |
 |---|---|---|
-| ETH/ARB/HYPE | Ethereum/Arbitrum/HyperEVM | `${WALLET_EVM_ADDRESS}` |
-| SOL | Solana | `${WALLET_SOL_ADDRESS}` |
-| Liquid (L-BTC) | Liquid Network | `${WALLET_LIQUID_ADDRESS}` |
-| Binance | — | via API key (spot + earn) |
+| Rabby | ETH/ARB/PENDLE + HYPE (L1 spot + HyperEVM) | `${WALLET_RABBY_ADDRESS}` |
+| Phantom | SOL | `${WALLET_PHANTOM_SOL_ADDRESS}` |
+| SideSwap | Liquid (L-BTC + L-USDT) — confidencial → entrada manual | `${WALLET_SIDESWAP_ADDRESS}` |
+| Trust | BTC mainchain | `${WALLET_TRUST_BTC_ADDRESS}` |
+| Binance | spot + earn | via API key (cron HMAC) |
+
+Config não-endereço (`.env`): `LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQUID_BASE_URL`, `BTC_BASE_URL`, `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`.
 
 ---
 
