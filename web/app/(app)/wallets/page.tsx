@@ -1,11 +1,11 @@
 "use client";
 
-// STORY-04-10 — Carteiras: saldos escaneados (on-chain/exchange) + entrada manual
-// (Liquid confidencial) + posições DeFi. Valoração pelo preço do m3.
+// STORY-04-10 — Carteiras Cripto: saldos escaneados (on-chain/exchange) + entrada manual
+// (Liquid confidencial) + posições DeFi. Valoração pelo preço do m3 (BRL e USD). Visão por rede.
 import { type FormEvent, useState } from "react";
 
 import { Button, Card, Field, Input, Select } from "@/components/ui";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatUSD } from "@/lib/format";
 import {
   useCreateDefi,
   useCreateManualPosition,
@@ -28,6 +28,19 @@ function fmtQty(n: number): string {
   return n.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
 }
 
+// Célula de dinheiro: BRL como principal, USD em mute logo abaixo. "—" sem preço.
+function Money({ brl, usd }: { brl: number | null; usd: number | null }) {
+  if (brl == null) return <span className="text-foreground/40">—</span>;
+  return (
+    <div className="flex flex-col items-end leading-tight">
+      <span className="tabular-nums text-foreground/80">{formatBRL(brl)}</span>
+      {usd != null && (
+        <span className="tabular-nums text-[11px] text-foreground/40">{formatUSD(usd)}</span>
+      )}
+    </div>
+  );
+}
+
 function StatusBadge({ p }: { p: WalletPosition }) {
   const base = "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs";
   if (p.is_manual) {
@@ -40,6 +53,67 @@ function StatusBadge({ p }: { p: WalletPosition }) {
     return <span className={`${base} bg-warning/15 text-warning`}>⟳ desatualizado</span>;
   }
   return <span className={`${base} bg-gain/15 text-gain`}>↻ escaneado</span>;
+}
+
+interface ChainGroup {
+  chain: string;
+  items: WalletPosition[];
+  subtotalBrl: number;
+  subtotalUsd: number;
+}
+
+// Agrupa as posições por rede (chain), ordenadas, com subtotal BRL/USD por rede.
+function groupByChain(positions: WalletPosition[]): ChainGroup[] {
+  const map = new Map<string, WalletPosition[]>();
+  for (const p of positions) {
+    const arr = map.get(p.chain) ?? [];
+    arr.push(p);
+    map.set(p.chain, arr);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([chain, items]) => ({
+      chain,
+      items,
+      subtotalBrl: items.reduce((s, p) => s + (p.value_brl ?? 0), 0),
+      subtotalUsd: items.reduce((s, p) => s + (p.value_usd ?? 0), 0),
+    }));
+}
+
+function PositionRow({ p }: { p: WalletPosition }) {
+  const del = useDeleteManualPosition();
+  return (
+    <tr className="border-t border-border">
+      <td className="px-4 py-2.5 font-medium text-foreground/90">{p.asset_symbol}</td>
+      <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
+        {fmtQty(p.quantity)}
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        <Money brl={p.price_brl} usd={p.price_usd} />
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        <Money brl={p.value_brl} usd={p.value_usd} />
+      </td>
+      <td className="px-4 py-2.5 text-right text-xs text-foreground/50">
+        {p.is_manual ? "—" : fmtWhen(p.scanned_at)}
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        <StatusBadge p={p} />
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        {p.is_manual && (
+          <button
+            onClick={() => del.mutate({ chain: p.chain, asset_symbol: p.asset_symbol })}
+            disabled={del.isPending}
+            className="text-xs text-loss/80 hover:text-loss disabled:opacity-50"
+            aria-label="Remover posição manual"
+          >
+            ✕
+          </button>
+        )}
+      </td>
+    </tr>
+  );
 }
 
 function ManualForm() {
@@ -109,6 +183,12 @@ function DefiRow({ d }: { d: DefiPosition }) {
       <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
         {fmtQty(d.balance)}
       </td>
+      <td className="px-4 py-2.5 text-right">
+        <Money brl={d.price_brl} usd={d.price_usd} />
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        <Money brl={d.value_brl} usd={d.value_usd} />
+      </td>
       <td className="px-4 py-2.5 text-foreground/60">{d.maturity_date ?? "—"}</td>
       <td className="px-4 py-2.5 text-right">
         <button
@@ -128,6 +208,8 @@ function DefiSection() {
   const { data, isLoading, isError } = useDefiPositions();
   const create = useCreateDefi();
   const positions = data ?? [];
+  const subtotalBrl = positions.reduce((s, d) => s + (d.value_brl ?? 0), 0);
+  const subtotalUsd = positions.reduce((s, d) => s + (d.value_usd ?? 0), 0);
   const [asset, setAsset] = useState("");
   const [balance, setBalance] = useState("");
   const [protocol, setProtocol] = useState("");
@@ -165,7 +247,8 @@ function DefiSection() {
     <Card>
       <h2 className="mb-1 text-lg font-semibold text-foreground">DeFi (manual)</h2>
       <p className="mb-4 text-xs text-foreground/50">
-        Posições DeFi com vencimento (entrada manual). Os alertas de vencimento leem destas.
+        Posições DeFi com vencimento (entrada manual). Valoradas pelo preço do m3 quando há
+        fonte (YT-xSOL fica sem preço). Os alertas de vencimento leem destas.
       </p>
 
       <div className="mb-4 overflow-hidden rounded-xl border border-border">
@@ -175,6 +258,8 @@ function DefiSection() {
               <th className="px-4 py-2.5 font-medium">Ativo</th>
               <th className="px-4 py-2.5 font-medium">Protocolo</th>
               <th className="px-4 py-2.5 text-right font-medium">Saldo</th>
+              <th className="px-4 py-2.5 text-right font-medium">Preço</th>
+              <th className="px-4 py-2.5 text-right font-medium">Valor</th>
               <th className="px-4 py-2.5 font-medium">Vencimento</th>
               <th className="px-4 py-2.5 text-right font-medium"></th>
             </tr>
@@ -182,21 +267,21 @@ function DefiSection() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-foreground/50">
+                <td colSpan={7} className="px-4 py-6 text-center text-foreground/50">
                   Carregando…
                 </td>
               </tr>
             )}
             {isError && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-loss">
+                <td colSpan={7} className="px-4 py-6 text-center text-loss">
                   Erro ao carregar DeFi.
                 </td>
               </tr>
             )}
             {!isLoading && !isError && positions.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-foreground/50">
+                <td colSpan={7} className="px-4 py-6 text-center text-foreground/50">
                   Nenhuma posição DeFi.
                 </td>
               </tr>
@@ -205,6 +290,19 @@ function DefiSection() {
               <DefiRow key={d.id} d={d} />
             ))}
           </tbody>
+          {positions.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-border bg-muted/30">
+                <td className="px-4 py-2.5 text-xs font-medium text-foreground/60" colSpan={4}>
+                  Subtotal DeFi
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <Money brl={subtotalBrl} usd={subtotalUsd} />
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -244,16 +342,17 @@ function DefiSection() {
 
 export default function WalletsPage() {
   const { data, isLoading, isError } = useWalletPositions();
-  const del = useDeleteManualPosition();
   const positions = data ?? [];
-  const total = positions.reduce((acc, p) => acc + (p.value_brl ?? 0), 0);
+  const groups = groupByChain(positions);
+  const totalBrl = positions.reduce((acc, p) => acc + (p.value_brl ?? 0), 0);
+  const totalUsd = positions.reduce((acc, p) => acc + (p.value_usd ?? 0), 0);
   const staleCount = positions.filter((p) => !p.is_manual && (p.stale || p.price_brl == null))
     .length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-mono text-2xl font-semibold text-foreground">Carteiras</h1>
+        <h1 className="font-mono text-2xl font-semibold text-foreground">Carteiras Cripto</h1>
         <a href="/wallets/reconciliation">
           <Button variant="ghost">Reconciliação</Button>
         </a>
@@ -263,7 +362,10 @@ export default function WalletsPage() {
         <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 text-xs text-foreground/50">
           <span>
             Total valorado{" "}
-            <span className="tabular-nums text-foreground/80">{formatBRL(total)}</span>
+            <span className="tabular-nums text-foreground/80">{formatBRL(totalBrl)}</span>
+            {totalUsd > 0 && (
+              <span className="tabular-nums text-foreground/40"> · {formatUSD(totalUsd)}</span>
+            )}
           </span>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             <span>
@@ -285,76 +387,71 @@ export default function WalletsPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-foreground/60">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Rede</th>
               <th className="px-4 py-2.5 font-medium">Ativo</th>
               <th className="px-4 py-2.5 text-right font-medium">Quantidade</th>
-              <th className="px-4 py-2.5 text-right font-medium">Preço (BRL)</th>
-              <th className="px-4 py-2.5 text-right font-medium">Valor (BRL)</th>
+              <th className="px-4 py-2.5 text-right font-medium">Preço</th>
+              <th className="px-4 py-2.5 text-right font-medium">Valor</th>
               <th className="px-4 py-2.5 text-right font-medium">Atualizado</th>
               <th className="px-4 py-2.5 text-right font-medium">Status</th>
               <th className="px-4 py-2.5 text-right font-medium"></th>
             </tr>
           </thead>
-          <tbody>
-            {isLoading && (
+          {isLoading && (
+            <tbody>
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-foreground/50">
+                <td colSpan={7} className="px-4 py-8 text-center text-foreground/50">
                   Carregando…
                 </td>
               </tr>
-            )}
-            {isError && (
+            </tbody>
+          )}
+          {isError && (
+            <tbody>
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-loss">
+                <td colSpan={7} className="px-4 py-8 text-center text-loss">
                   Erro ao carregar carteiras.
                 </td>
               </tr>
-            )}
-            {!isLoading && !isError && positions.length === 0 && (
+            </tbody>
+          )}
+          {!isLoading && !isError && positions.length === 0 && (
+            <tbody>
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-foreground/50">
+                <td colSpan={7} className="px-4 py-8 text-center text-foreground/50">
                   Nenhuma posição escaneada ainda.
                 </td>
               </tr>
-            )}
-            {!isLoading &&
-              !isError &&
-              positions.map((p) => (
-                <tr key={`${p.chain}:${p.asset_symbol}`} className="border-t border-border">
-                  <td className="px-4 py-2.5 text-foreground/60">{p.chain}</td>
-                  <td className="px-4 py-2.5 font-medium text-foreground/90">{p.asset_symbol}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                    {fmtQty(p.quantity)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-foreground/50">
-                    {p.price_brl != null ? formatBRL(p.price_brl) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                    {p.value_brl != null ? formatBRL(p.value_brl) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-xs text-foreground/50">
-                    {p.is_manual ? "—" : fmtWhen(p.scanned_at)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <StatusBadge p={p} />
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    {p.is_manual && (
-                      <button
-                        onClick={() =>
-                          del.mutate({ chain: p.chain, asset_symbol: p.asset_symbol })
-                        }
-                        disabled={del.isPending}
-                        className="text-xs text-loss/80 hover:text-loss disabled:opacity-50"
-                        aria-label="Remover posição manual"
-                      >
-                        ✕
-                      </button>
-                    )}
+            </tbody>
+          )}
+          {!isLoading &&
+            !isError &&
+            groups.map((g) => (
+              <tbody key={g.chain}>
+                <tr className="border-t border-border bg-muted/30">
+                  <td colSpan={7} className="px-4 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">
+                        {g.chain}
+                      </span>
+                      <span className="text-xs">
+                        <span className="tabular-nums text-foreground/70">
+                          {formatBRL(g.subtotalBrl)}
+                        </span>
+                        {g.subtotalUsd > 0 && (
+                          <span className="tabular-nums text-foreground/40">
+                            {" "}
+                            · {formatUSD(g.subtotalUsd)}
+                          </span>
+                        )}
+                      </span>
+                    </div>
                   </td>
                 </tr>
-              ))}
-          </tbody>
+                {g.items.map((p) => (
+                  <PositionRow key={`${p.chain}:${p.asset_symbol}`} p={p} />
+                ))}
+              </tbody>
+            ))}
         </table>
       </div>
 

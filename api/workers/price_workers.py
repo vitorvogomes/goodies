@@ -50,6 +50,22 @@ async def _wallet_symbols(conn: asyncpg.Connection) -> list[str]:
     return [r["asset_symbol"] for r in rows]
 
 
+async def _defi_symbols(conn: asyncpg.Connection) -> list[str]:
+    """Símbolos das posições DeFi ativas (m4) — precisam de preço via aliases CoinGecko.
+
+    Fail-soft (igual a `_wallet_symbols`): tabela ausente / SELECT falha → [] — NÃO derruba
+    o cron. Símbolo sem alias no mapa (ex.: YT-xSOL-2609) é ignorado pelo fetcher.
+    """
+    try:
+        rows = await conn.fetch(
+            "SELECT DISTINCT asset_symbol FROM defi_positions WHERE is_active"
+        )
+    except Exception as exc:
+        logger.warning("defi_symbols_failed", error=str(exc))
+        return []
+    return [r["asset_symbol"] for r in rows]
+
+
 async def _run_for(
     conn: asyncpg.Connection,
     categories: Iterable[str],
@@ -109,13 +125,14 @@ async def run_price_crypto(
 ) -> dict[str, int]:
     """Atualiza cripto via CoinGecko (cron a cada 2h; NUNCA on-demand — CLAUDE.md).
 
-    Inclui os símbolos escaneados em wallet_positions (m4), além das ops, p/ que uma
-    cripto só-de-wallet também receba preço/valor BRL.
+    Inclui os símbolos escaneados em wallet_positions e os das posições DeFi (m4), além
+    das ops, p/ que uma cripto só-de-wallet ou só-DeFi também receba preço/valor.
     """
     fetcher = fetcher or CoinGeckoFetcher()
     async with pool.acquire() as conn:
         wallet = await _wallet_symbols(conn)
+        defi = await _defi_symbols(conn)
         return await _run_for(
             conn, CRYPTO_CATEGORIES, fetcher, "crypto", settings.ttl_crypto,
-            extra_symbols=wallet,
+            extra_symbols=set(wallet) | set(defi),
         )

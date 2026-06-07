@@ -10,6 +10,7 @@ endpoints `/api/v1/wallets/*` (consumidos pelo frontend 04-10/04-11).
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,6 +18,7 @@ import asyncpg
 
 from config import settings
 from engines.market.fetchers.wallets.base import WalletBalance
+from engines.portfolio.constants import CRYPTO_CATEGORIES
 from engines.portfolio.service import net_quantity
 
 
@@ -115,6 +117,29 @@ async def sweep_wallet_positions(
     return len(stale_ids)
 
 
+async def prices_by_ticker(
+    conn: asyncpg.Connection, symbols: Sequence[str]
+) -> dict[str, tuple[float | None, float | None]]:
+    """Preço corrente (BRL, USD) por ticker em asset_prices — 1 varredura, sem N+1.
+
+    Reusado por `list_wallet_positions` (m4) e pela valoração DeFi (defi_router). `price_brl`
+    é NOT NULL no schema; `price_usd` pode ser None (só o CoinGecko o popula).
+    """
+    if not symbols:
+        return {}
+    rows = await conn.fetch(
+        "SELECT ticker, price_brl, price_usd FROM asset_prices WHERE ticker = ANY($1)",
+        list(symbols),
+    )
+    return {
+        r["ticker"]: (
+            float(r["price_brl"]) if r["price_brl"] is not None else None,
+            float(r["price_usd"]) if r["price_usd"] is not None else None,
+        )
+        for r in rows
+    }
+
+
 async def list_wallet_positions(
     conn: asyncpg.Connection, user_id: str, *, now: datetime | None = None
 ) -> list[dict[str, Any]]:
@@ -130,16 +155,11 @@ async def list_wallet_positions(
         user_id,
     )
     symbols = [r["asset_symbol"] for r in rows]
-    prices: dict[str, float] = {}
-    if symbols:
-        price_rows = await conn.fetch(
-            "SELECT ticker, price_brl FROM asset_prices WHERE ticker = ANY($1)", symbols
-        )
-        prices = {r["ticker"]: float(r["price_brl"]) for r in price_rows}
+    prices = await prices_by_ticker(conn, symbols)
     out: list[dict[str, Any]] = []
     for r in rows:
         qty = float(r["quantity"])
-        price = prices.get(r["asset_symbol"])
+        brl, usd = prices.get(r["asset_symbol"], (None, None))
         scanned_at: datetime = r["scanned_at"]
         out.append(
             {
@@ -149,8 +169,10 @@ async def list_wallet_positions(
                 "quantity": qty,
                 "source": r["source"],
                 "scanned_at": scanned_at.isoformat(),
-                "price_brl": price,
-                "value_brl": qty * price if price is not None else None,
+                "price_brl": brl,
+                "price_usd": usd,
+                "value_brl": qty * brl if brl is not None else None,
+                "value_usd": qty * usd if usd is not None else None,
                 "stale": (now - scanned_at).total_seconds() > settings.ttl_wallet,
                 "is_manual": r["is_manual"],
             }
@@ -162,7 +184,9 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
     """Reconcilia saldo escaneado vs registrado: `delta = Σ scanned - net_quantity(ops)`.
 
     Por símbolo: soma a quantidade escaneada (todas as wallets) e compara com a quantidade
-    líquida das `asset_operations` (reusa `portfolio.service.net_quantity`).
+    líquida das `asset_operations`. **Só cripto** (m4): só as carteiras são rastreadas por
+    scan; B3 e caixinhas Nubank vêm por outra via e não pertencem à reconciliação. O lado
+    escaneado (`wallet_positions`) já é 100% cripto; o registrado é filtrado por categoria.
     """
     scanned_rows = await conn.fetch(
         "SELECT asset_symbol, SUM(quantity) AS qty FROM wallet_positions "
@@ -172,8 +196,10 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
     scanned = {r["asset_symbol"]: float(r["qty"]) for r in scanned_rows}
 
     ops = await conn.fetch(
-        "SELECT asset_symbol, tipo, quantidade FROM asset_operations WHERE user_id = $1",
+        "SELECT asset_symbol, tipo, quantidade FROM asset_operations "
+        "WHERE user_id = $1 AND asset_category = ANY($2::text[])",
         user_id,
+        list(CRYPTO_CATEGORIES),
     )
     by_symbol: dict[str, list[Any]] = defaultdict(list)
     for op in ops:

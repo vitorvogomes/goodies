@@ -1,4 +1,4 @@
-"""Fetcher Etherscan (EVM) — ETH (mainnet) + ARB (Arbitrum). STORY-04-02.
+"""Fetcher Etherscan (EVM) — ETH (mainnet) + ARB/ETH/PENDLE (Arbitrum). STORY-04-02 / m4.
 
 Etherscan **V2 multichain** (uma só API key p/ todas as chains, parâmetro `chainid`):
 `GET https://api.etherscan.io/v2/api?chainid={id}&module=account&action=...`. Saldo nativo
@@ -36,10 +36,13 @@ class _Spec(NamedTuple):
     decimals: int
 
 
-# ARB token na Arbitrum One. ETH é nativo na mainnet (chainid 1). (HYPE → Hyperliquid.)
+# RABBY (mesmo endereço em todas as chains EVM): ETH nativo na mainnet (chainid 1) e na
+# Arbitrum One (42161), + ARB e PENDLE (ERC-20) na Arbitrum. (HYPE → Hyperliquid L1.)
 _DEFAULT_SPECS: tuple[_Spec, ...] = (
     _Spec("ethereum", 1, "ETH", None, 18),
     _Spec("arbitrum", 42161, "ARB", "0x912CE59144191C1204E64559FE8253a0e49E6548", 18),
+    _Spec("arbitrum", 42161, "ETH", None, 18),
+    _Spec("arbitrum", 42161, "PENDLE", "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8", 18),
 )
 
 

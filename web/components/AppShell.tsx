@@ -22,8 +22,8 @@ const NAV = [
   { href: "/portfolio/history", label: "Histórico" },
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
-  { href: "/market", label: "Preços" },
-  { href: "/wallets", label: "Carteiras" },
+  { href: "/market", label: "Ativos B3" },
+  { href: "/wallets", label: "Carteiras Cripto" },
   { href: "/wallets/reconciliation", label: "Reconciliação" },
 ];
 

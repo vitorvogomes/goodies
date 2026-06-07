@@ -1,11 +1,17 @@
 // Formatadores pt-BR para a UI do Ledger (m1).
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 export function formatBRL(value: number): string {
   return BRL.format(value);
+}
+
+// Valor em dólar (ex.: 280 -> "$280.00"). Usado nas carteiras cripto (m4).
+export function formatUSD(value: number): string {
+  return USD.format(value);
 }
 
 export function formatPercent(value: number): string {

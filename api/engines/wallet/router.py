@@ -28,7 +28,9 @@ class WalletPositionOut(BaseModel):
     source: str
     scanned_at: str
     price_brl: float | None
+    price_usd: float | None
     value_brl: float | None
+    value_usd: float | None
     stale: bool
     is_manual: bool
 

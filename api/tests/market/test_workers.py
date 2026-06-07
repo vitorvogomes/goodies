@@ -200,6 +200,47 @@ async def test_wallet_symbols_guard_is_fail_soft() -> None:
     assert await _wallet_symbols(_BoomConn()) == []  # type: ignore[arg-type]
 
 
+@pytest.mark.asyncio
+async def test_crypto_worker_prices_defi_only_symbol(
+    pool: Any, portfolio_user: dict
+) -> None:
+    # ativo que só existe em defi_positions (sem op/wallet) também recebe preço (m4)
+    uid = portfolio_user["user_id"]
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO defi_positions (user_id, asset_symbol, balance, is_active) "
+            "VALUES ($1, 'MKT_DEFI', 5, true)",
+            uid,
+        )
+    fake = _FakeFetcher(
+        {"MKT_DEFI": PriceQuote(price_brl=12.0, price_usd=2.0, source="coingecko")}
+    )
+    try:
+        stats = await run_price_crypto(pool, fetcher=fake)
+        assert stats["updated"] == 1
+        async with pool.acquire() as conn:
+            price = await conn.fetchval(
+                "SELECT price_brl FROM asset_prices WHERE ticker = 'MKT_DEFI'"
+            )
+        assert float(price) == 12.0
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM defi_positions WHERE user_id = $1", uid)
+        await PriceCache().delete(service.price_cache_key("crypto", "MKT_DEFI"))
+
+
+@pytest.mark.asyncio
+async def test_defi_symbols_guard_is_fail_soft() -> None:
+    # tabela ausente / SELECT falha → [] (não derruba o cron de preço cripto)
+    from workers.price_workers import _defi_symbols
+
+    class _BoomConn:
+        async def fetch(self, *_a: Any, **_k: Any) -> list[Any]:
+            raise RuntimeError("relation defi_positions does not exist")
+
+    assert await _defi_symbols(_BoomConn()) == []  # type: ignore[arg-type]
+
+
 def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}

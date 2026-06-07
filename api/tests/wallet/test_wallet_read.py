@@ -17,25 +17,31 @@ async def _scan(pool: Any, uid: str, *balances: WalletBalance) -> None:
             await service.upsert_wallet_position(conn, uid, b)
 
 
-async def _price(pool: Any, ticker: str, price_brl: float) -> None:
+async def _price(
+    pool: Any, ticker: str, price_brl: float, price_usd: float | None = None
+) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
-            "VALUES ($1, $2, 'coingecko', false) ON CONFLICT (ticker) DO UPDATE "
-            "SET price_brl = EXCLUDED.price_brl",
+            "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual) "
+            "VALUES ($1, $2, $3, 'coingecko', false) ON CONFLICT (ticker) DO UPDATE "
+            "SET price_brl = EXCLUDED.price_brl, price_usd = EXCLUDED.price_usd",
             ticker,
             price_brl,
+            price_usd,
         )
 
 
-async def _op(pool: Any, uid: str, sym: str, tipo: str, qty: float) -> None:
+async def _op(
+    pool: Any, uid: str, sym: str, tipo: str, qty: float, cat: str = "Cripto"
+) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, "
             "tipo, quantidade, valor_unitario, data_operacao) "
-            "VALUES ($1, 'Test', $2, 'Cripto', $3, $4, 1, $5)",
+            "VALUES ($1, 'Test', $2, $3, $4, $5, 1, $6)",
             uid,
             sym,
+            cat,
             tipo,
             qty,
             date(2026, 1, 1),
@@ -48,7 +54,7 @@ async def test_positions_valued_by_market_price(
 ) -> None:
     uid = wallet_user["user_id"]
     await _scan(pool, uid, WalletBalance("solana", "sol1", "MKT_WSOL", 3.0, "solana"))
-    await _price(pool, "MKT_WSOL", 800.0)
+    await _price(pool, "MKT_WSOL", 800.0, 150.0)
     try:
         resp = await api.get("/api/v1/wallets/positions", headers=wallet_user["headers"])
         assert resp.status_code == 200
@@ -58,6 +64,8 @@ async def test_positions_valued_by_market_price(
         assert pos[0]["quantity"] == 3.0
         assert pos[0]["price_brl"] == 800.0
         assert pos[0]["value_brl"] == 2400.0  # 3 x 800
+        assert pos[0]["price_usd"] == 150.0  # USD (m4)
+        assert pos[0]["value_usd"] == 450.0  # 3 x 150
     finally:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM asset_prices WHERE ticker = 'MKT_WSOL'")
@@ -73,6 +81,8 @@ async def test_positions_without_price_null_value(
     body = resp.json()
     assert body[0]["price_brl"] is None
     assert body[0]["value_brl"] is None
+    assert body[0]["price_usd"] is None
+    assert body[0]["value_usd"] is None
 
 
 @pytest.mark.asyncio
@@ -93,6 +103,22 @@ async def test_reconciliation_delta(
     assert by["MKT_RSOL"]["registered_quantity"] == pytest.approx(1.5)
     assert by["MKT_RLBTC"]["delta"] == pytest.approx(0.2)
     assert by["MKT_RLBTC"]["registered_quantity"] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_excludes_non_crypto(
+    api: httpx.AsyncClient, wallet_user: dict, pool: Any
+) -> None:
+    # só cripto é rastreada por carteira; B3/Nubank vêm por outra via (m4)
+    uid = wallet_user["user_id"]
+    await _scan(pool, uid, WalletBalance("ethereum", "eth1", "MKT_RCETH", 1.0, "etherscan"))
+    await _op(pool, uid, "MKT_RCETH", "compra", 1.0)  # cripto → aparece
+    await _op(pool, uid, "MKT_RB3", "compra", 100.0, cat="Ações Nacionais")  # B3 → não
+    resp = await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])
+    assert resp.status_code == 200
+    syms = {r["asset_symbol"] for r in resp.json()}
+    assert "MKT_RCETH" in syms
+    assert "MKT_RB3" not in syms
 
 
 @pytest.mark.asyncio

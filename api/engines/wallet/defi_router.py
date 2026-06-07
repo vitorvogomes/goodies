@@ -17,6 +17,7 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.ledger.service import Alert
 from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
+from engines.wallet.service import prices_by_ticker
 
 router = APIRouter(prefix="/api/v1/defi", tags=["wallet:defi"])
 
@@ -52,17 +53,31 @@ class DefiPositionResponse(BaseModel):
     maturity_date: datetime.date | None
     is_active: bool
     notes: str | None
+    # Valoração (m4): preço m3 (asset_prices) via alias CoinGecko. None sem fonte (ex.: YT-xSOL).
+    price_brl: float | None = None
+    price_usd: float | None = None
+    value_brl: float | None = None
+    value_usd: float | None = None
 
 
-def _to_response(row: asyncpg.Record) -> DefiPositionResponse:
+def _to_response(
+    row: asyncpg.Record,
+    prices: dict[str, tuple[float | None, float | None]] | None = None,
+) -> DefiPositionResponse:
+    balance = float(row["balance"])
+    brl, usd = (prices or {}).get(row["asset_symbol"], (None, None))
     return DefiPositionResponse(
         id=str(row["id"]),
         asset_symbol=row["asset_symbol"],
-        balance=float(row["balance"]),
+        balance=balance,
         protocol=row["protocol"],
         maturity_date=row["maturity_date"],
         is_active=row["is_active"],
         notes=row["notes"],
+        price_brl=brl,
+        price_usd=usd,
+        value_brl=balance * brl if brl is not None else None,
+        value_usd=balance * usd if usd is not None else None,
     )
 
 
@@ -83,7 +98,8 @@ async def list_positions(
         uuid.UUID(user["id"]),
         active,
     )
-    return [_to_response(r) for r in rows]
+    prices = await prices_by_ticker(db, [r["asset_symbol"] for r in rows])
+    return [_to_response(r, prices) for r in rows]
 
 
 @router.post(

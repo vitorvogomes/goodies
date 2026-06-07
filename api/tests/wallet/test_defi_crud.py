@@ -73,5 +73,38 @@ async def test_negative_balance_rejected(api: httpx.AsyncClient, wallet_user: di
 
 
 @pytest.mark.asyncio
+async def test_list_values_positions_with_price(
+    api: httpx.AsyncClient, wallet_user: dict, pool: Any
+) -> None:
+    # xSOL com preço (alias CoinGecko) → valorado; YT-xSOL-2609 sem fonte → None (m4)
+    h = wallet_user["headers"]
+    await api.post(
+        "/api/v1/defi/positions", json={"asset_symbol": "xSOL", "balance": 2.0}, headers=h
+    )
+    await api.post(
+        "/api/v1/defi/positions",
+        json={"asset_symbol": "YT-xSOL-2609", "balance": 100.0},
+        headers=h,
+    )
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual) "
+            "VALUES ('xSOL', 1500.0, 280.0, 'coingecko', false) ON CONFLICT (ticker) "
+            "DO UPDATE SET price_brl = EXCLUDED.price_brl, price_usd = EXCLUDED.price_usd"
+        )
+    try:
+        listed = (await api.get("/api/v1/defi/positions", headers=h)).json()
+        by = {p["asset_symbol"]: p for p in listed}
+        assert by["xSOL"]["price_brl"] == 1500.0
+        assert by["xSOL"]["value_brl"] == 3000.0  # 2 x 1500
+        assert by["xSOL"]["value_usd"] == 560.0  # 2 x 280
+        assert by["YT-xSOL-2609"]["price_brl"] is None  # sem fonte → não valorado
+        assert by["YT-xSOL-2609"]["value_brl"] is None
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM asset_prices WHERE ticker = 'xSOL'")
+
+
+@pytest.mark.asyncio
 async def test_requires_auth(api: httpx.AsyncClient, pool: Any) -> None:
     assert (await api.get("/api/v1/defi/positions")).status_code == 401

@@ -8,7 +8,9 @@ export interface WalletPosition {
   source: string;
   scanned_at: string; // ISO8601
   price_brl: number | null;
+  price_usd: number | null;
   value_brl: number | null;
+  value_usd: number | null;
   stale: boolean;
   is_manual: boolean;
 }
@@ -28,6 +30,10 @@ export interface DefiPosition {
   maturity_date: string | null; // "YYYY-MM-DD" ou null
   is_active: boolean;
   notes: string | null;
+  price_brl: number | null;
+  price_usd: number | null;
+  value_brl: number | null;
+  value_usd: number | null;
 }
 
 export interface ManualPositionInput {

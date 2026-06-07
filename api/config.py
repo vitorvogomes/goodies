@@ -66,9 +66,16 @@ class Settings(BaseSettings):
         "HYPE": "hyperliquid",
         "USDT": "tether",
         "USDC": "usd-coin",
+        "PENDLE": "pendle",  # PENDLE (Arbitrum) — RABBY (m4)
         # L-BTC (Liquid, ADR-005) vale 1:1 com BTC → reusa o caminho de preço do m3.
         "L-BTC": "bitcoin",
         "L-USDT": "tether",  # USDt na Liquid (SideSwap) → 1:1 USD
+        # Aliases DeFi (m4): chave em UPPER (fetcher casa por símbolo.upper()). YT-xSOL
+        # fica sem fonte (yield token). Sufixo de vencimento (-2609) = débito (docs/14).
+        "XSOL": "hylo-leveraged-sol",  # xSOL — Hylo Leveraged SOL
+        "PT SUSDAI": "susdai",  # PT sUSDai (Pendle) ~ subjacente sUSDai (id API = susdai)
+        "HYUSD-2609": "hylo-usd",  # hyUSD (Hylo) — stablecoin ~US$1
+        "SHYUSD-2609": "hylo-usd",  # sHYUSD = hyUSD stakeado ~US$1
     }
     # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
     # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI

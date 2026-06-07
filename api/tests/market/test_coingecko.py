@@ -41,6 +41,33 @@ async def test_maps_symbol_to_id_and_fills_brl_usd() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_pendle_and_defi_aliases_map_to_coingecko_ids() -> None:
+    # usa o mapa REAL de config (PENDLE + aliases DeFi do m4)
+    from config import settings
+
+    respx.get(url__startswith=_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "pendle": {"brl": 20.0, "usd": 4.0},
+                "hylo-leveraged-sol": {"brl": 1500.0, "usd": 280.0},
+                "hylo-usd": {"brl": 5.5, "usd": 1.0},
+            },
+        )
+    )
+    fetcher = CoinGeckoFetcher(api_key="k", ids_map=settings.coingecko_ids, sleep=_no_sleep)
+    out = await fetcher.fetch(["PENDLE", "xSOL", "hyUSD-2609", "sHYUSD-2609", "YT-xSOL-2609"])
+    assert out["PENDLE"].price_brl == 20.0
+    assert out["xSOL"].price_usd == 280.0  # casa por símbolo.upper() → XSOL
+    # hyUSD-2609 e sHYUSD-2609 mapeiam ao MESMO id (hylo-usd) → ambos cotados
+    assert out["hyUSD-2609"].price_brl == 5.5
+    assert out["sHYUSD-2609"].price_brl == 5.5
+    # YT-xSOL-2609 não tem alias → ignorado (fica sem preço, decisão do m4)
+    assert "YT-xSOL-2609" not in out
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_unknown_symbol_skipped() -> None:
     # DOGE não está no mapa -> nem é requisitado; sem ids -> sem chamada
     route = respx.get(url__startswith=_URL).mock(

@@ -1,6 +1,6 @@
 """Integração m4 (STORY-04-12) — dirige as CLASSES REAIS dos fetchers.
 
-`run_wallet_scan` com os 5 fetchers reais (não fakes), respx mockando TODOS os explorers/
+`run_wallet_scan` com os 6 fetchers reais (não fakes), respx mockando TODOS os explorers/
 exchange → grava `wallet_positions`; explorer fora → sem linhas, nunca levanta (5xx);
 reconciliação/posições via ASGI. Sem rede.
 """
@@ -50,12 +50,17 @@ def _real_fetchers() -> list[Any]:
 
 
 def _mock_all_ok() -> None:
+    _ARB = "0x912ce59144191c1204e64559fe8253a0e49e6548"
+
     def eth(request: httpx.Request) -> httpx.Response:
-        if request.url.params["action"] == "balance":  # ETH nativo = 1 ETH
-            return httpx.Response(200, json={"status": "1", "result": "1000000000000000000"})
-        return httpx.Response(  # ARB = 50
-            200, json={"status": "1", "result": "50000000000000000000"}
-        )
+        p = request.url.params
+        if p["action"] == "balance":  # ETH nativo: 1 na mainnet, 0.3 na Arbitrum
+            wei = "1000000000000000000" if p["chainid"] == "1" else "300000000000000000"
+            return httpx.Response(200, json={"status": "1", "result": wei})
+        # ERC-20: ARB = 50, PENDLE = 7 (distingue pelo contractaddress)
+        is_arb = p["contractaddress"].lower() == _ARB
+        raw = "50000000000000000000" if is_arb else "7000000000000000000"
+        return httpx.Response(200, json={"status": "1", "result": raw})
 
     respx.get(url__startswith="https://api.etherscan.io/v2/api").mock(side_effect=eth)
     respx.post("https://api.hyperliquid.xyz/info").mock(
@@ -109,6 +114,8 @@ async def test_scan_persists_all_chains(pool: Any, wallet_user: dict) -> None:
     got = {(r["chain"], r["asset_symbol"]): float(r["quantity"]) for r in rows}
     assert got[("ethereum", "ETH")] == pytest.approx(1.0)
     assert got[("arbitrum", "ARB")] == pytest.approx(50.0)
+    assert got[("arbitrum", "ETH")] == pytest.approx(0.3)  # ETH nativo na Arbitrum (m4)
+    assert got[("arbitrum", "PENDLE")] == pytest.approx(7.0)  # PENDLE ERC-20 (m4)
     assert got[("hyperliquid", "HYPE")] == pytest.approx(10.0)
     assert got[("solana", "SOL")] == pytest.approx(2.0)
     assert got[("liquid", "L-BTC")] == pytest.approx(0.1)
@@ -141,10 +148,12 @@ async def test_positions_and_reconciliation_via_asgi(
     await run_wallet_scan(pool, uid, fetchers=_real_fetchers())
     pos = await api.get("/api/v1/wallets/positions", headers=wallet_user["headers"])
     assert pos.status_code == 200
-    assert len(pos.json()) == 8  # 8 posições (ETH/ARB/HYPE/SOL/L-BTC/L-USDT/BTC x2)
+    # 10 posições: ETH/ARB/ETH-arb/PENDLE/HYPE/SOL/L-BTC/L-USDT/BTC(Trust)/BTC(Binance)
+    assert len(pos.json()) == 10
     rec = await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])
     assert rec.status_code == 200
     by = {r["asset_symbol"]: r for r in rec.json()}
-    # sem ops registradas → delta = quantidade escaneada
-    assert by["ETH"]["delta"] == pytest.approx(1.0)
+    # sem ops registradas → delta = quantidade escaneada (somada por símbolo entre redes)
+    assert by["ETH"]["delta"] == pytest.approx(1.3)  # 1.0 (ethereum) + 0.3 (arbitrum)
     assert by["ETH"]["registered_quantity"] == pytest.approx(0.0)
+    assert by["PENDLE"]["delta"] == pytest.approx(7.0)

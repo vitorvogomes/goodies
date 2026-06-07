@@ -32,7 +32,7 @@ export default function ReconciliationPage() {
       <div className="flex items-center justify-between">
         <h1 className="font-mono text-2xl font-semibold text-foreground">Reconciliação</h1>
         <a href="/wallets">
-          <Button variant="ghost">Carteiras</Button>
+          <Button variant="ghost">Carteiras Cripto</Button>
         </a>
       </div>
 
