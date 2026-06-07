@@ -26,10 +26,11 @@ export interface AssetOperation {
 export interface Position {
   asset_symbol: string;
   asset_category: string;
-  // custódia (chain/protocolo) — só nas linhas cripto, que são por custódia (m4 Tier 2)
   custody?: string | null;
-  quantidade_net: number;
-  // null em cripto (m4): o custo é conhecido só no nível do sleeve, não por ativo
+  // cripto entra como UMA linha-bloco (sleeve), fora da tabela per-ativo (renderizada como card)
+  is_bucket?: boolean;
+  quantidade_net: number | null; // null no bloco cripto
+  // null no bloco cripto (m4): custo/preço médio vivem no nível do sleeve
   preco_medio: number | null;
   custo_total: number | null;
   preco_atual: number | null;

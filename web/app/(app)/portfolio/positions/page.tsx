@@ -85,24 +85,20 @@ function ResultCell({ pos }: { pos: Position }) {
 
 export default function PositionsPage() {
   const { data, isLoading, isError } = usePositions();
-  // Sleeve cripto (m4): custo/resultado/XIRR vivem aqui (por ativo o custo é "—").
+  // Cripto é um BLOCO (sleeve), renderizado como card abaixo — sai da tabela per-ativo, que
+  // fica só com B3/RF/etc. (granularidade fiel). O backend já manda a linha-bloco em `data`,
+  // então os totais consolidados a incluem; a tabela a filtra.
   const { data: sleeve } = useCryptoSleeve();
-  const sleeveCost = sleeve?.net_invested_brl ?? 0;
-  const sleeveResult = sleeve?.resultado ?? null;
-  const sleeveXirr = sleeve?.xirr ?? null;
 
   const totalAtual = (data ?? []).reduce((s, p) => s + (p.valor_atual ?? 0), 0);
-  // custo por ativo é null em cripto → soma só os não-cripto e adiciona o custo do sleeve
-  const totalCusto =
-    (data ?? []).reduce((s, p) => s + (p.custo_total ?? 0), 0) + sleeveCost;
+  const totalCusto = (data ?? []).reduce((s, p) => s + (p.custo_total ?? 0), 0);
   const totalResult = totalAtual - totalCusto;
 
-  // Agrupa por categoria com subtotais (valor atual + resultado). Mantém a ordem
-  // alfabética das linhas (backend já ordena por símbolo); grupos por maior posição.
-  // Cripto: custo/resultado/XIRR vêm do sleeve (não da soma dos custos por ativo, que é null).
+  // Tabela per-ativo = só NÃO-cripto; cripto vira card. Grupos por maior posição.
   const groups = useMemo(() => {
     const map = new Map<string, Position[]>();
     for (const p of data ?? []) {
+      if (p.asset_category === "Cripto") continue; // bloco no card, fora da tabela
       const arr = map.get(p.asset_category) ?? [];
       arr.push(p);
       map.set(p.asset_category, arr);
@@ -110,24 +106,17 @@ export default function PositionsPage() {
     return [...map.entries()]
       .map(([category, rows]) => {
         const subtotalAtual = rows.reduce((s, p) => s + (p.valor_atual ?? 0), 0);
-        const isCrypto = category === "Cripto";
-        const subtotalCusto = isCrypto
-          ? sleeveCost
-          : rows.reduce((s, p) => s + (p.custo_total ?? 0), 0);
-        const subtotalResult = isCrypto
-          ? sleeveResult ?? subtotalAtual - subtotalCusto
-          : subtotalAtual - subtotalCusto;
+        const subtotalCusto = rows.reduce((s, p) => s + (p.custo_total ?? 0), 0);
         return {
           category,
           rows,
           subtotalAtual,
           subtotalCusto,
-          subtotalResult,
-          xirr: isCrypto ? sleeveXirr : null,
+          subtotalResult: subtotalAtual - subtotalCusto,
         };
       })
       .sort((a, b) => b.subtotalAtual - a.subtotalAtual);
-  }, [data, sleeveCost, sleeveResult, sleeveXirr]);
+  }, [data]);
 
   return (
     <div className="space-y-6">
@@ -183,7 +172,7 @@ export default function PositionsPage() {
                 </td>
               </tr>
             )}
-            {!isLoading && !isError && (data?.length ?? 0) === 0 && (
+            {!isLoading && !isError && groups.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-foreground/50">
                   Nenhuma posição aberta.
@@ -204,19 +193,11 @@ export default function PositionsPage() {
                     </td>
                   </tr>
 
-                  {/* ativos da categoria (cripto = 1 linha por custódia → key inclui a custódia) */}
+                  {/* ativos da categoria (só não-cripto; cripto é o card abaixo) */}
                   {g.rows.map((pos) => (
-                    <tr
-                      key={pos.custody ? `${pos.asset_symbol}@${pos.custody}` : pos.asset_symbol}
-                      className="border-t border-border"
-                    >
+                    <tr key={pos.asset_symbol} className="border-t border-border">
                       <td className="px-4 py-2.5 font-medium text-foreground/90">
                         {pos.asset_symbol}
-                        {pos.custody && (
-                          <span className="ml-2 rounded bg-muted/60 px-1.5 py-0.5 text-xs text-foreground/50">
-                            {pos.custody}
-                          </span>
-                        )}
                         {pos.stale && (
                           <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning">
                             sem preço
@@ -254,17 +235,7 @@ export default function PositionsPage() {
                       {formatBRL(g.subtotalAtual)}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      {g.category === "Cripto" ? (
-                        // cripto: resultado do sleeve + XIRR (nunca (resultado/aplicado))
-                        <span
-                          className={`font-medium tabular-nums ${
-                            g.subtotalResult < 0 ? "text-loss" : "text-gain"
-                          }`}
-                        >
-                          {formatBRL(g.subtotalResult)}{" "}
-                          <span className="text-xs">(XIRR {formatRate(g.xirr)})</span>
-                        </span>
-                      ) : g.subtotalCusto > 0 ? (
+                      {g.subtotalCusto > 0 ? (
                         <span
                           className={`font-medium tabular-nums ${
                             g.subtotalResult < 0 ? "text-loss" : "text-gain"
@@ -287,10 +258,49 @@ export default function PositionsPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-foreground/40">
-        Em m2 o preço atual é manual — clique em “definir” para informar a cotação.
-        Preços automáticos chegam no m3 (Market Engine).
-      </p>
+
+      {sleeve && (sleeve.current_value_brl > 0 || sleeve.net_invested_brl > 0) && (
+        <div className="rounded-2xl border border-border bg-muted/20 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wide text-foreground/60">
+              🪙 Cripto (bloco)
+            </span>
+            <a href="/wallets" className="text-xs text-accent hover:underline">
+              ver Carteiras →
+            </a>
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <div>
+              <div className="text-xs text-foreground/50">Investido</div>
+              <div className="tabular-nums text-foreground/80">
+                {formatBRL(sleeve.net_invested_brl)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-foreground/50">Valor atual</div>
+              <div className="tabular-nums text-foreground/80">
+                {formatBRL(sleeve.current_value_brl)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-foreground/50">Resultado</div>
+              <div className={`tabular-nums ${sleeve.resultado < 0 ? "text-loss" : "text-gain"}`}>
+                {formatBRL(sleeve.resultado)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-foreground/50">XIRR</div>
+              <div className={`tabular-nums ${(sleeve.xirr ?? 0) < 0 ? "text-loss" : "text-gain"}`}>
+                {formatRate(sleeve.xirr)}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-foreground/40">
+            Cripto entra como um bloco (quanto saiu do Nubank vs quanto tem hoje). O detalhe por
+            moeda/carteira está em Carteiras Cripto.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

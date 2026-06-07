@@ -107,57 +107,41 @@ async def sleeve_current_value(
 async def crypto_positions(
     conn: asyncpg.Connection, user_id: str
 ) -> list[dict[str, Any]]:
-    """Linhas de posição cripto POR CUSTÓDIA p/ a aba Posições (m4).
+    """Cripto como UM BLOCO (sleeve) p/ a aba Posições (m4).
 
-    Uma linha por (ativo, custódia) — `custody` = chain da wallet ou protocolo DeFi — em vez de
-    agregar por símbolo: assim o custo reconstruído (Tier 2, por `(símbolo, fonte)`) casa só com
-    a custódia certa (ex.: ETH@binance com custo real; ETH@ethereum/Rabby = "—" até reconstruir
-    on-chain). Sem custo → `preco_medio`/`custo_total`/`resultado` = None (nunca fabricar). Sem
-    preço → `stale=True`, `valor_atual=None`.
+    Cripto não tem a granularidade fiel de B3/RF (custo por ativo só é recuperável em parte —
+    ver `docs/15`). Em vez de poluir Posições com linhas per-ativo incompletas, devolve **uma
+    linha-bloco**: investido (ledger) vs valor atual (carteiras) → resultado. `is_bucket=True`;
+    o detalhe por moeda/chain vive na aba Carteiras Cripto. Alocação soma este `valor_atual`
+    como a categoria Cripto. Vazio (sem carteira e sem aporte) → `[]`.
     """
-    wallets = await list_wallet_positions(conn, user_id)
-    defi = await list_defi_valued(conn, user_id)
-    cost_rows = await conn.fetch(
-        "SELECT asset_symbol, source, custo_total_brl FROM crypto_cost_basis WHERE user_id = $1",
-        user_id,
+    total, _, stale = await sleeve_current_value(conn, user_id)
+    cost = await sleeve_cost_basis(conn)
+    net_invested = cost["net_invested_brl"]
+    if total <= 0 and net_invested <= 0:
+        return []
+    custo = net_invested if net_invested > 0 else None
+    resultado = total - net_invested if custo is not None else None
+    resultado_pct = (
+        resultado / net_invested * 100 if resultado is not None and net_invested else None
     )
-    cost = {(r["asset_symbol"], r["source"]): float(r["custo_total_brl"]) for r in cost_rows}
-
-    out: list[dict[str, Any]] = []
-
-    def emit(symbol: str, custody: str, qty: float, price: float | None,
-             valor: float | None, custo: float | None) -> None:
-        if qty <= 0:
-            return
-        preco_medio = custo / qty if custo is not None and qty else None
-        resultado = valor - custo if custo is not None and valor is not None else None
-        resultado_pct = resultado / custo * 100 if resultado is not None and custo else None
-        out.append(
-            {
-                "asset_symbol": symbol,
-                "asset_category": str(AssetCategory.CRIPTO),
-                "custody": custody,
-                "quantidade_net": qty,
-                "preco_medio": preco_medio,
-                "custo_total": custo,
-                "preco_atual": price,
-                "valor_atual": valor,
-                "resultado": resultado,
-                "resultado_pct": resultado_pct,
-                "stale": price is None,
-                # preço vem do Market Engine (cripto = CoinGecko) → não editável aqui
-                "is_manual": False,
-            }
-        )
-
-    for w in wallets:
-        emit(w["asset_symbol"], w["chain"], float(w["quantity"]), w["price_brl"],
-             w["value_brl"], cost.get((w["asset_symbol"], w["source"])))
-    for d in defi:
-        protocol = d["protocol"] or "defi"
-        emit(d["asset_symbol"], protocol, float(d["balance"]), d["price_brl"],
-             d["value_brl"], cost.get((d["asset_symbol"], protocol)))
-    return out
+    return [
+        {
+            "asset_symbol": "Cripto",
+            "asset_category": str(AssetCategory.CRIPTO),
+            "custody": None,
+            "is_bucket": True,
+            "quantidade_net": None,
+            "preco_medio": None,
+            "custo_total": custo,
+            "preco_atual": None,
+            "valor_atual": total,
+            "resultado": resultado,
+            "resultado_pct": resultado_pct,
+            "stale": stale,
+            "is_manual": False,
+        }
+    ]
 
 
 async def calculate_crypto_sleeve(

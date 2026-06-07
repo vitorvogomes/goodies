@@ -1,8 +1,9 @@
-"""Fold do sleeve cripto em Posições → Alocação/Rebalanceamento (m4, Fase 3).
+"""Cripto como BLOCO em Posições → Alocação/Rebalanceamento (m4).
 
-Cripto entra nas Posições como linhas POR ATIVO (qtd + preço atual + valor, fiéis) com
-custo/preço médio/resultado = None (custo é conhecido só no nível do sleeve). Isso faz a
-Alocação e o Rebalanceamento incluírem Cripto automaticamente. Tickers sintéticos.
+Cripto não tem a granularidade fiel de B3/RF (custo por ativo só parcialmente recuperável —
+`docs/15`). Em Posições aparece como UMA linha-bloco (sleeve: investido vs valor atual); o
+detalhe por moeda/chain vive nas Carteiras Cripto. A Alocação/Rebalanceamento somam o valor do
+bloco como categoria Cripto. Tickers sintéticos.
 """
 from __future__ import annotations
 
@@ -20,16 +21,12 @@ async def _price(conn: Any, ticker: str, brl: float) -> None:
     )
 
 
-_SRC = {"binance": "binance", "solana": "solana", "bitcoin": "bitcoin"}
-
-
 async def _wallet(conn: Any, uid: str, chain: str, sym: str, qty: float) -> None:
-    # source espelha a chain (binance/solana/bitcoin); EVM → etherscan. O custo casa por source.
     await conn.execute(
         "INSERT INTO wallet_positions "
         "(user_id, chain, wallet_address, asset_symbol, quantity, source, is_manual) "
-        "VALUES ($1, $2, $3, $4, $5, $6, false)",
-        uid, chain, f"addr-{chain}", sym, qty, _SRC.get(chain, "etherscan"),
+        "VALUES ($1, $2, $3, $4, $5, 'etherscan', false)",
+        uid, chain, f"addr-{chain}", sym, qty,
     )
 
 
@@ -54,101 +51,39 @@ async def _b3_buy(api: AsyncClient, headers: dict, sym: str, qty: float, price: 
     await api.post(f"/api/v1/market/prices/{sym}", json={"price_brl": price}, headers=headers)
 
 
-class TestPositionsCryptoFold:
+class TestCryptoBucket:
     @pytest.mark.asyncio
-    async def test_crypto_row_has_null_cost(
+    async def test_single_bucket_row(
         self, api: AsyncClient, pool: Any, portfolio_user: dict
     ) -> None:
+        """Carteira + DeFi → UMA linha 'Cripto' (is_bucket); valor = soma; sem ledger custo None."""
         headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await _price(conn, "TKNA", 100.0)
-            await _wallet(conn, uid, "ethereum", "TKNA", 2.0)
+            await _price(conn, "TKND", 4.0)
+            await _wallet(conn, uid, "binance", "TKNA", 2.0)  # 200
+            await _defi(conn, uid, "TKND", 25.0)              # 100
         resp = await api.get("/api/v1/portfolio/positions", headers=headers)
         assert resp.status_code == 200
-        pos = next(p for p in resp.json() if p["asset_symbol"] == "TKNA")
-        assert pos["asset_category"] == "Cripto"
-        assert abs(float(pos["quantidade_net"]) - 2.0) < 1e-9
-        assert abs(float(pos["preco_atual"]) - 100.0) < 0.01
-        assert abs(float(pos["valor_atual"]) - 200.0) < 0.01
-        assert pos["preco_medio"] is None
-        assert pos["custo_total"] is None
-        assert pos["resultado"] is None
-        assert pos["resultado_pct"] is None
+        crypto = [p for p in resp.json() if p["asset_category"] == "Cripto"]
+        assert len(crypto) == 1
+        bucket = crypto[0]
+        assert bucket["asset_symbol"] == "Cripto"
+        assert bucket["is_bucket"] is True
+        assert bucket["custody"] is None
+        assert bucket["quantidade_net"] is None
+        assert bucket["preco_medio"] is None
+        assert abs(float(bucket["valor_atual"]) - 300.0) < 0.01
+        assert bucket["custo_total"] is None  # sem aporte no ledger
+        assert bucket["resultado"] is None
 
     @pytest.mark.asyncio
-    async def test_crypto_per_custody_not_aggregated(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
+    async def test_no_crypto_no_bucket(
+        self, api: AsyncClient, portfolio_user: dict
     ) -> None:
-        """Mesmo ativo em 3 chains → 3 linhas (uma por custódia), não agregadas."""
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
-        async with pool.acquire() as conn:
-            await _price(conn, "XETH", 10.0)
-            await _wallet(conn, uid, "ethereum", "XETH", 1.0)
-            await _wallet(conn, uid, "arbitrum", "XETH", 0.5)
-            await _wallet(conn, uid, "binance", "XETH", 0.5)
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        rows = [p for p in resp.json() if p["asset_symbol"] == "XETH"]
-        assert len(rows) == 3
-        assert {r["custody"] for r in rows} == {"ethereum", "arbitrum", "binance"}
-
-    @pytest.mark.asyncio
-    async def test_crypto_defi_included(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
-    ) -> None:
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
-        async with pool.acquire() as conn:
-            await _price(conn, "TKND", 4.0)
-            await _defi(conn, uid, "TKND", 25.0)  # 100
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        pos = next(p for p in resp.json() if p["asset_symbol"] == "TKND")
-        assert pos["asset_category"] == "Cripto"
-        assert abs(float(pos["valor_atual"]) - 100.0) < 0.01
-
-
-async def _cost_basis(conn: Any, uid: str, sym: str, qty: float, custo: float) -> None:
-    await conn.execute(
-        "INSERT INTO crypto_cost_basis (user_id, asset_symbol, source, qty, custo_total_brl) "
-        "VALUES ($1, $2, 'binance', $3, $4)",
-        uid, sym, qty, custo,
-    )
-
-
-class TestCostBasisInPositions:
-    @pytest.mark.asyncio
-    async def test_crypto_row_filled_from_cost_basis(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
-    ) -> None:
-        """Com custo reconstruído (crypto_cost_basis), a linha cripto deixa de ser '—'."""
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
-        async with pool.acquire() as conn:
-            await _price(conn, "TKNA", 100.0)
-            await _wallet(conn, uid, "binance", "TKNA", 2.0)  # valor 200
-            await _cost_basis(conn, uid, "TKNA", 2.0, 250.0)  # custo 250
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        pos = next(p for p in resp.json() if p["asset_symbol"] == "TKNA")
-        assert abs(float(pos["custo_total"]) - 250.0) < 0.01
-        assert abs(float(pos["preco_medio"]) - 125.0) < 0.01  # 250 / 2
-        assert abs(float(pos["valor_atual"]) - 200.0) < 0.01
-        assert abs(float(pos["resultado"]) - (-50.0)) < 0.01  # 200 - 250
-        assert abs(float(pos["resultado_pct"]) - (-20.0)) < 0.01
-
-    @pytest.mark.asyncio
-    async def test_cost_basis_matches_only_its_custody(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
-    ) -> None:
-        """Custo (TKNB, binance) casa só a linha do binance; a do ethereum fica '—'."""
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
-        async with pool.acquire() as conn:
-            await _price(conn, "TKNB", 10.0)
-            await _wallet(conn, uid, "binance", "TKNB", 5.0)   # 50, custo 80
-            await _wallet(conn, uid, "ethereum", "TKNB", 5.0)  # 50, sem custo → "—"
-            await _cost_basis(conn, uid, "TKNB", 5.0, 80.0)    # source='binance'
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        by = {p["custody"]: p for p in resp.json() if p["asset_symbol"] == "TKNB"}
-        assert abs(float(by["binance"]["custo_total"]) - 80.0) < 0.01
-        assert abs(float(by["binance"]["preco_medio"]) - 16.0) < 0.01  # 80 / 5
-        assert by["ethereum"]["custo_total"] is None
-        assert by["ethereum"]["preco_medio"] is None
+        resp = await api.get("/api/v1/portfolio/positions", headers=portfolio_user["headers"])
+        assert resp.status_code == 200
+        assert not [p for p in resp.json() if p["asset_category"] == "Cripto"]
 
 
 class TestAllocationCryptoFold:
