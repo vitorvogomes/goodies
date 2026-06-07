@@ -40,6 +40,19 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ## ⚪ MENOR (rastrear)
 
+### Cripto Tier 2 — preço médio POR ATIVO (gated no spike, decisão do Vitor)
+- O **sleeve cripto** já está integrado (Posições/Alocação/Rebalanceamento/XIRR + reconciliação
+  de valor), fiel, sem custo por ativo (custo só no nível do sleeve). O **preço médio por ativo**
+  fica deferido. O `scripts/crypto_history_spike.py` (read-only) **mediu a recuperabilidade**:
+  - **yes** — **Binance** (myTrades 23 + fiat 2 + deposit 1): custo em USDT/BRL derivável.
+  - **partial** — on-chain **Ethereum/Arbitrum/Solana/Bitcoin/Hyperliquid** (37–70 eventos): há
+    quantidade+data, mas o custo BRL exige **preço histórico** (CoinGecko) + decodificação de
+    **swaps** cripto↔cripto (aproximado).
+  - **no** — **HyperEVM** (RPC sem txlist), **Liquid/SideSwap** (endereço confidencial, esplora
+    devolve 0) e **KuCoin** (sem API, conta zerada — lacuna permanente).
+  - Construir o Tier 2 (operações por ativo + reconciliação por quantidade) é feature de tamanho
+    real (backfill de preço histórico + valuator de swaps) — **aguarda decisão**.
+
 ### Deferido por decisão (não depende de marco — escopo/feature)
 - **PT/YT Pendle valorados pelo subjacente.** PT sUSDai usa o preço de `susdai` (superestima
   até o vencimento); YT-xSOL sem preço. Um valuator Pendle-aware (por par) é débito de
