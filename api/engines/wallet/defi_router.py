@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.ledger.service import Alert
+from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 
 router = APIRouter(prefix="/api/v1/defi", tags=["wallet:defi"])
 
@@ -145,3 +147,23 @@ async def delete_position(position_id: uuid.UUID, user: AuthUser, db: Db) -> Non
     )
     if result == "DELETE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
+
+
+@router.get("/alerts", response_model=list[Alert])
+async def defi_alerts(user: AuthUser, db: Db) -> list[Alert]:
+    """Alertas de vencimento (30d/7d) das posições DeFi ativas — compute-on-read."""
+    today = datetime.date.today()
+    rows = await db.fetch(
+        "SELECT asset_symbol, maturity_date, protocol FROM defi_positions "
+        "WHERE user_id = $1 AND is_active AND maturity_date IS NOT NULL",
+        uuid.UUID(user["id"]),
+    )
+    positions = [
+        DefiMaturity(
+            asset_symbol=r["asset_symbol"],
+            maturity_date=r["maturity_date"],
+            protocol=r["protocol"],
+        )
+        for r in rows
+    ]
+    return defi_maturity_alerts(positions, today)
