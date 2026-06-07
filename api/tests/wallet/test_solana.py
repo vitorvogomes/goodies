@@ -93,6 +93,52 @@ async def test_no_address_is_noop() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_scans_multiple_addresses() -> None:
+    """Phantom + Neobankless num só fetcher → posições distintas por wallet_address (m4)."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        addr = body["params"][0]
+        if body["method"] == "getBalance":
+            val = 1_000_000_000 if addr == "ADDR1" else 2_000_000_000
+            return httpx.Response(200, json={"result": {"value": val}})
+        accts = [_token_account(_USDC, 50.0)] if addr == "ADDR2" else []
+        return httpx.Response(200, json={"result": {"value": accts}})
+
+    respx.post(_RPC).mock(side_effect=handler)
+    out = await SolanaFetcher(
+        addresses=["ADDR1", "ADDR2"], sleep=_no_sleep, rpc_url=_RPC
+    ).fetch()
+    by = {(b.wallet_address, b.asset_symbol): b for b in out}
+    assert by[("ADDR1", "SOL")].quantity == 1.0
+    assert by[("ADDR2", "SOL")].quantity == 2.0
+    assert by[("ADDR2", "USDC")].quantity == 50.0
+    assert all(b.source == "solana" and b.chain == "solana" for b in out)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_default_scans_phantom_and_neobankless(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sem args → escaneia as 2 wallets Solana das settings (Phantom + Neobankless)."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "wallet_phantom_sol_address", "PHANTOM")
+    monkeypatch.setattr(settings, "wallet_neobankless_address", "NEO")
+    monkeypatch.setattr(settings, "solana_rpc_url", _RPC)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if body["method"] == "getBalance":
+            val = 1_000_000_000 if body["params"][0] == "PHANTOM" else 3_000_000_000
+            return httpx.Response(200, json={"result": {"value": val}})
+        return httpx.Response(200, json={"result": {"value": []}})
+
+    respx.post(_RPC).mock(side_effect=handler)
+    out = await SolanaFetcher(sleep=_no_sleep).fetch()
+    assert {b.wallet_address for b in out} == {"PHANTOM", "NEO"}
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_uses_settings_rpc_url_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     from config import settings
 

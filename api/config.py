@@ -121,6 +121,9 @@ class Settings(BaseSettings):
         ("arbitrum", 42161, "PENDLE", "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8", 18),
     ]
     wallet_phantom_sol_address: str = ""  # Phantom — endereço SOL (JSON-RPC)
+    # Neobankless — 2ª wallet Solana (USD em USDC/SPL, rastreável via mesmo JSON-RPC). O
+    # SolanaFetcher escaneia Phantom + Neobankless juntos (mesmo source=solana → 1 sweep).
+    wallet_neobankless_address: str = ""
     wallet_sideswap_address: str = ""  # SideSwap — recebimento Liquid (L-BTC + USDT)
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
     liquid_base_url: str = "https://blockstream.info/liquid/api"

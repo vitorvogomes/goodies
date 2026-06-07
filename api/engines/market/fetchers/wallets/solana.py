@@ -42,40 +42,67 @@ class SolanaFetcher:
         self,
         address: str | None = None,
         *,
+        addresses: list[str] | None = None,
         mints: dict[str, str] | None = None,
         client: httpx.AsyncClient | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         rpc_url: str | None = None,
     ) -> None:
-        self._address = address if address is not None else settings.wallet_phantom_sol_address
+        # 1+ endereços Solana. `addresses` (lista) tem precedência; `address` (compat) = 1;
+        # default = Phantom + Neobankless das settings (mesmo source → 1 sweep cobre as duas).
+        if addresses is not None:
+            self._addresses = [a for a in addresses if a]
+        elif address is not None:
+            self._addresses = [address] if address else []
+        else:
+            self._addresses = [
+                a
+                for a in (
+                    settings.wallet_phantom_sol_address,
+                    settings.wallet_neobankless_address,
+                )
+                if a
+            ]
         self._mints = mints if mints is not None else _DEFAULT_MINTS
         self._client = client
         self._sleep = sleep
         self._rpc = rpc_url if rpc_url is not None else settings.solana_rpc_url
 
     async def fetch(self) -> list[WalletBalance]:
-        if not self._address:
+        if not self._addresses:
             return []
         return await with_owned_client(self._scan, client=self._client)
 
     async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
         out: list[WalletBalance] = []
+        for addr in self._addresses:
+            out.extend(await self._scan_one(client, addr))
+        return out
+
+    async def _scan_one(self, client: httpx.AsyncClient, addr: str) -> list[WalletBalance]:
+        out: list[WalletBalance] = []
         try:
-            sol = await with_client(self._get_balance, client=client, sleep=self._sleep)
+            sol = await with_client(
+                lambda c: self._get_balance(c, addr), client=client, sleep=self._sleep
+            )
             if sol > 0:
-                out.append(self._wb("SOL", sol))
+                out.append(self._wb(addr, "SOL", sol))
         except Exception:
             pass  # fail-soft: SOL nativo fora não impede os SPL
         try:
-            out.extend(await with_client(self._get_tokens, client=client, sleep=self._sleep))
+            out.extend(
+                await with_client(
+                    lambda c: self._get_tokens(c, addr), client=client, sleep=self._sleep
+                )
+            )
         except Exception:
             pass  # fail-soft: SPL fora não impede o SOL já obtido
         return out
 
-    def _wb(self, symbol: str, qty: float) -> WalletBalance:
+    def _wb(self, addr: str, symbol: str, qty: float) -> WalletBalance:
         return WalletBalance(
             chain=_CHAIN,
-            wallet_address=self._address,
+            wallet_address=addr,
             asset_symbol=symbol,
             quantity=qty,
             source=_SOURCE,
@@ -90,16 +117,16 @@ class SolanaFetcher:
         resp.raise_for_status()
         return resp.json()
 
-    async def _get_balance(self, client: httpx.AsyncClient) -> float:
-        data = await self._rpc_call(client, "getBalance", [self._address])
+    async def _get_balance(self, client: httpx.AsyncClient, addr: str) -> float:
+        data = await self._rpc_call(client, "getBalance", [addr])
         lamports = data["result"]["value"]  # KeyError em erro → fail-soft no chamador
         return float(lamports) / 1e9
 
-    async def _get_tokens(self, client: httpx.AsyncClient) -> list[WalletBalance]:
+    async def _get_tokens(self, client: httpx.AsyncClient, addr: str) -> list[WalletBalance]:
         data = await self._rpc_call(
             client,
             "getTokenAccountsByOwner",
-            [self._address, {"programId": _TOKEN_PROGRAM}, {"encoding": "jsonParsed"}],
+            [addr, {"programId": _TOKEN_PROGRAM}, {"encoding": "jsonParsed"}],
         )
         out: list[WalletBalance] = []
         for acc in data["result"]["value"]:
@@ -112,5 +139,5 @@ class SolanaFetcher:
                 continue
             qty = float(ui_amount)
             if qty > 0:
-                out.append(self._wb(symbol, qty))
+                out.append(self._wb(addr, symbol, qty))
         return out
