@@ -26,6 +26,7 @@ import asyncpg
 from config import settings
 from engines.wallet.service import list_defi_valued, list_wallet_positions
 
+from .constants import AssetCategory
 from .service import _nan_to_none, eval_date
 from .xirr import xirr
 
@@ -99,6 +100,58 @@ async def sleeve_current_value(
         total += v
         by_rail["defi"] += v
     return total, dict(by_rail), stale
+
+
+async def crypto_positions(
+    conn: asyncpg.Connection, user_id: str
+) -> list[dict[str, Any]]:
+    """Linhas de posição cripto AGREGADAS por ativo p/ a aba Posições (m4).
+
+    Mesmo shape de `calculate_positions`, mas custo é desconhecido por ativo → `preco_medio`/
+    `custo_total`/`resultado`/`resultado_pct = None` (custo/resultado vivem no nível do sleeve;
+    nunca fabricar retorno por ativo). Agrega o mesmo símbolo em várias chains numa linha
+    (detalhe por-chain fica na aba Carteiras). Sem preço → `stale=True`, `valor_atual=None`.
+    """
+    wallets = await list_wallet_positions(conn, user_id)
+    defi = await list_defi_valued(conn, user_id)
+    agg: dict[str, dict[str, Any]] = {}
+    for w in wallets:
+        _accumulate(agg, w["asset_symbol"], float(w["quantity"]), w["price_brl"])
+    for d in defi:
+        _accumulate(agg, d["asset_symbol"], float(d["balance"]), d["price_brl"])
+
+    out: list[dict[str, Any]] = []
+    for sym, a in agg.items():
+        qty = a["qty"]
+        if qty <= 0:
+            continue
+        price = a["price"]
+        out.append(
+            {
+                "asset_symbol": sym,
+                "asset_category": str(AssetCategory.CRIPTO),
+                "quantidade_net": qty,
+                "preco_medio": None,
+                "custo_total": None,
+                "preco_atual": price,
+                "valor_atual": qty * price if price is not None else None,
+                "resultado": None,
+                "resultado_pct": None,
+                "stale": price is None,
+                # preço vem do Market Engine (cripto = CoinGecko) → não editável aqui
+                "is_manual": False,
+            }
+        )
+    return out
+
+
+def _accumulate(
+    agg: dict[str, dict[str, Any]], sym: str, qty: float, price: float | None
+) -> None:
+    a = agg.setdefault(sym, {"qty": 0.0, "price": None})
+    a["qty"] += qty
+    if price is not None:
+        a["price"] = price
 
 
 async def calculate_crypto_sleeve(

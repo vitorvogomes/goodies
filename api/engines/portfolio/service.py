@@ -246,6 +246,12 @@ async def calculate_positions(
                 "is_manual": manual_map.get(sym, True),
             }
         )
+    # Fold do sleeve cripto (m4): cripto não vive em asset_operations — agrega wallet/defi
+    # por ativo (qtd+preço+valor fiéis; custo None). Import lazy evita o ciclo
+    # portfolio.service <-> wallet.service. Alocação/rebalanceamento herdam o valor.
+    from .crypto_sleeve import crypto_positions
+
+    positions.extend(await crypto_positions(conn, user_id))
     positions.sort(key=lambda p: str(p["asset_symbol"]))
     return positions
 
