@@ -47,7 +47,7 @@ class SolanaFetcher:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         rpc_url: str | None = None,
     ) -> None:
-        self._address = address if address is not None else settings.wallet_sol_address
+        self._address = address if address is not None else settings.wallet_phantom_sol_address
         self._mints = mints if mints is not None else _DEFAULT_MINTS
         self._client = client
         self._sleep = sleep

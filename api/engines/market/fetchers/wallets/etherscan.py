@@ -56,7 +56,7 @@ class EtherscanFetcher:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._api_key = api_key if api_key is not None else settings.etherscan_api_key
-        self._address = address if address is not None else settings.wallet_evm_address
+        self._address = address if address is not None else settings.wallet_rabby_address
         self._specs = specs if specs is not None else _DEFAULT_SPECS
         self._client = client
         self._sleep = sleep

@@ -46,7 +46,7 @@ class LiquidFetcher:
         base = base_url if base_url is not None else settings.liquid_base_url
         self._base = base.rstrip("/")
         self._asset_id = asset_id if asset_id is not None else settings.lbtc_asset_id
-        self._address = address if address is not None else settings.wallet_liquid_address
+        self._address = address if address is not None else settings.wallet_sideswap_address
         self._client = client
         self._sleep = sleep
 

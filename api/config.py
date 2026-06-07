@@ -89,9 +89,9 @@ class Settings(BaseSettings):
     solscan_api_key: str = ""  # SOL/SPL — https://solscan.io
     binance_api_key: str = ""  # Binance spot+earn — CRON ONLY, assinado HMAC-SHA256
     binance_api_secret: str = ""
-    wallet_evm_address: str = ""  # endereço EVM escaneado pela Etherscan
-    wallet_sol_address: str = ""  # endereço Solana escaneado pela Solscan
-    wallet_liquid_address: str = ""  # endereço Liquid escaneado pela Blockstream
+    wallet_rabby_address: str = ""  # Rabby — ETH/ARB (Etherscan) + HYPE (Hyperliquid L1)
+    wallet_phantom_sol_address: str = ""  # Phantom — endereço SOL (JSON-RPC)
+    wallet_sideswap_address: str = ""  # SideSwap — recebimento Liquid (L-BTC + USDT)
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
     liquid_base_url: str = "https://blockstream.info/liquid/api"
     lbtc_asset_id: str = ""  # constante pública L-BTC (64 hex) — valor no .env

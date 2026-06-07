@@ -91,11 +91,12 @@ Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/13_Debito_T
 > Valores reais ficam SÓ em `.env` (gitignored). Aqui e em todos os docs
 > usamos apenas os nomes das variáveis. Ver `.claude/memory/security.md`.
 
-| Rede | Variável de ambiente |
-|---|---|
-| ETH/ARB/HYPE | `${WALLET_EVM_ADDRESS}` |
-| SOL | `${WALLET_SOL_ADDRESS}` |
-| Liquid | `${WALLET_LIQUID_ADDRESS}` |
+| Rede | Wallet | Variável de ambiente |
+|---|---|---|
+| ETH/ARB/HYPE | Rabby | `${WALLET_RABBY_ADDRESS}` |
+| SOL | Phantom | `${WALLET_PHANTOM_SOL_ADDRESS}` |
+| Liquid (L-BTC + USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` |
+| BTC (mainchain) | Trust | `${WALLET_TRUST_BTC_ADDRESS}` |
 
 ## TTLs de cache Redis
 

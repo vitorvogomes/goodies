@@ -3,7 +3,7 @@
 HYPE não é ERC-20 na Ethereum/Arbitrum: fica na Hyperliquid L1. A posição spot vem do
 Info API: `POST https://api.hyperliquid.xyz/info` com `{"type":"spotClearinghouseState",
 "user":<endereço>}` → `{"balances":[{"coin":"HYPE","total":"...","hold":"..."}]}`. O
-endereço é o mesmo EVM (`WALLET_EVM_ADDRESS`; a Hyperliquid usa endereços EVM).
+endereço é o mesmo EVM da Rabby (`WALLET_RABBY_ADDRESS`; a Hyperliquid usa endereços EVM).
 
 Devolve QUANTIDADES (o preço vem do m3 via `coingecko_ids["HYPE"]`). Fail-soft: API fora
 → lista vazia, nunca levanta.
@@ -38,7 +38,7 @@ class HyperliquidFetcher:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         base_url: str = _BASE_URL,
     ) -> None:
-        self._address = address if address is not None else settings.wallet_evm_address
+        self._address = address if address is not None else settings.wallet_rabby_address
         self._symbols = {s.upper() for s in symbols}
         self._client = client
         self._sleep = sleep
