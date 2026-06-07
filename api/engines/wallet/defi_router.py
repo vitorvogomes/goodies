@@ -6,8 +6,9 @@ vencimento (04-09) leem desta tabela.
 """
 import datetime
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -121,38 +122,51 @@ async def create_position(
         body.is_active,
         body.notes,
     )
-    return _to_response(row)
+    return _to_response(row, await prices_by_ticker(db, [row["asset_symbol"]]))
+
+
+# colunas atualizáveis via PUT → (nome no schema, como extrair o valor do body)
+_UPDATABLE: dict[str, Callable[[DefiPositionUpdate], Any]] = {
+    "protocol": lambda b: b.protocol,
+    "asset_symbol": lambda b: b.asset_symbol,
+    "balance": lambda b: _as_decimal(b.balance),
+    "maturity_date": lambda b: b.maturity_date,
+    "is_active": lambda b: b.is_active,
+    "notes": lambda b: b.notes,
+}
 
 
 @router.put("/positions/{position_id}", response_model=DefiPositionResponse)
 async def update_position(
     position_id: uuid.UUID, body: DefiPositionUpdate, user: AuthUser, db: Db
 ) -> DefiPositionResponse:
-    row = await db.fetchrow(
-        """
-        UPDATE defi_positions SET
-          protocol = COALESCE($3, protocol),
-          asset_symbol = COALESCE($4, asset_symbol),
-          balance = COALESCE($5, balance),
-          maturity_date = COALESCE($6, maturity_date),
-          is_active = COALESCE($7, is_active),
-          notes = COALESCE($8, notes),
-          updated_at = now()
-        WHERE id = $1 AND user_id = $2
-        """
-        f" RETURNING {_COLUMNS}",
-        position_id,
-        uuid.UUID(user["id"]),
-        body.protocol,
-        body.asset_symbol,
-        _as_decimal(body.balance),
-        body.maturity_date,
-        body.is_active,
-        body.notes,
-    )
+    # SET dinâmico só com os campos ENVIADOS (model_fields_set): assim maturity_date=null
+    # de fato limpa o vencimento, em vez de o COALESCE manter a data antiga (alerta fantasma).
+    uid = uuid.UUID(user["id"])
+    sets: list[str] = []
+    values: list[Any] = []
+    for col, extract in _UPDATABLE.items():
+        if col in body.model_fields_set:
+            values.append(extract(body))
+            sets.append(f"{col} = ${len(values) + 2}")  # $1=id, $2=user_id
+    if sets:
+        sets.append("updated_at = now()")
+        row = await db.fetchrow(
+            f"UPDATE defi_positions SET {', '.join(sets)} "
+            f"WHERE id = $1 AND user_id = $2 RETURNING {_COLUMNS}",
+            position_id,
+            uid,
+            *values,
+        )
+    else:  # body vazio → devolve a posição atual sem tocar
+        row = await db.fetchrow(
+            f"SELECT {_COLUMNS} FROM defi_positions WHERE id = $1 AND user_id = $2",
+            position_id,
+            uid,
+        )
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
-    return _to_response(row)
+    return _to_response(row, await prices_by_ticker(db, [row["asset_symbol"]]))
 
 
 @router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT)

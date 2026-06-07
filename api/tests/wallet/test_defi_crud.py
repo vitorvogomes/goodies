@@ -46,6 +46,56 @@ async def test_update(api: httpx.AsyncClient, wallet_user: dict) -> None:
 
 
 @pytest.mark.asyncio
+async def test_put_clears_maturity_date(api: httpx.AsyncClient, wallet_user: dict) -> None:
+    # PUT com maturity_date=null deve LIMPAR (COALESCE mantinha a data antiga → alerta fantasma)
+    h = wallet_user["headers"]
+    created = (
+        await api.post(
+            "/api/v1/defi/positions",
+            json={"asset_symbol": "hyUSD-2609", "balance": 10.0, "maturity_date": "2026-09-29"},
+            headers=h,
+        )
+    ).json()
+    upd = await api.put(
+        f"/api/v1/defi/positions/{created['id']}", json={"maturity_date": None}, headers=h
+    )
+    assert upd.status_code == 200
+    assert upd.json()["maturity_date"] is None
+    # campo ausente NÃO é alterado: balance segue 10
+    assert upd.json()["balance"] == 10.0
+
+
+@pytest.mark.asyncio
+async def test_put_returns_valued_response(
+    api: httpx.AsyncClient, wallet_user: dict, pool: Any
+) -> None:
+    # update deve devolver price/value (não só o GET)
+    h = wallet_user["headers"]
+    created = (
+        await api.post(
+            "/api/v1/defi/positions", json={"asset_symbol": "MNL_HY", "balance": 1.0}, headers=h
+        )
+    ).json()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
+            "VALUES ('MNL_HY', 5.0, 'coingecko', false) ON CONFLICT (ticker) "
+            "DO UPDATE SET price_brl = EXCLUDED.price_brl"
+        )
+    cache = PriceCache()
+    await cache.delete(price_cache_key("crypto", "MNL_HY"))
+    try:
+        upd = await api.put(
+            f"/api/v1/defi/positions/{created['id']}", json={"balance": 3.0}, headers=h
+        )
+        assert upd.json()["price_brl"] == 5.0
+        assert upd.json()["value_brl"] == 15.0  # 3 x 5
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM asset_prices WHERE ticker = 'MNL_HY'")
+
+
+@pytest.mark.asyncio
 async def test_list_filter_active(api: httpx.AsyncClient, wallet_user: dict) -> None:
     h = wallet_user["headers"]
     await api.post("/api/v1/defi/positions", json=_NEW, headers=h)

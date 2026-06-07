@@ -34,6 +34,8 @@ from .base import WalletBalance
 _BASE_URL = "https://api.binance.com"
 _SOURCE = "binance"
 _CHAIN = "binance"
+_EARN_PAGE_SIZE = 100  # máx. da Binance p/ /simple-earn/*/position
+_EARN_MAX_PAGES = 50  # guarda anti-loop (5.000 posições — muito além do real)
 
 
 class BinanceFetcher:
@@ -69,25 +71,30 @@ class BinanceFetcher:
         if not self._key or not self._secret:
             return []  # sem credencial → no-op
         totals: dict[str, float] = defaultdict(float)
-        endpoints: tuple[tuple[str, Callable[[Any, dict[str, float]], None]], ...] = (
-            ("/api/v3/account", self._parse_spot),
-            ("/sapi/v1/simple-earn/flexible/position", self._parse_flexible),
-            ("/sapi/v1/simple-earn/locked/position", self._parse_locked),
-        )
         client = self._client or httpx.AsyncClient()
         try:
             # corrige clock-skew (WSL): a Binance rejeita timestamp fora do recvWindow.
             self._offset_ms = await self._server_offset(client)
-            for path, parser in endpoints:
-
-                async def _req(c: httpx.AsyncClient, p: str = path) -> Any:
-                    return await self._signed_get(c, p)
-
+            # spot: não paginado (um GET devolve todos os balances)
+            try:
+                data = await with_client(
+                    lambda c: self._signed_get(c, "/api/v3/account"),
+                    client=client,
+                    sleep=self._sleep,
+                )
+                self._parse_spot(data, totals)
+            except Exception:
+                pass  # fail-soft por endpoint
+            # earn: PAGINADO (size=100) — sem isso o 11º+ ativo em Earn não é contado
+            for path, field in (
+                ("/sapi/v1/simple-earn/flexible/position", "totalAmount"),
+                ("/sapi/v1/simple-earn/locked/position", "amount"),
+            ):
                 try:
-                    data = await with_client(_req, client=client, sleep=self._sleep)
+                    rows = await self._fetch_earn_rows(client, path)
                 except Exception:
                     continue  # fail-soft por endpoint
-                parser(data, totals)
+                self._accumulate_earn(rows, totals, field)
         finally:
             if self._client is None:
                 await client.aclose()
@@ -117,9 +124,13 @@ class BinanceFetcher:
         sig = hmac.new(self._secret.encode(), query.encode(), hashlib.sha256).hexdigest()
         return {**params, "signature": sig}
 
-    async def _signed_get(self, client: httpx.AsyncClient, path: str) -> Any:
+    async def _signed_get(
+        self, client: httpx.AsyncClient, path: str, extra: dict[str, Any] | None = None
+    ) -> Any:
         timestamp = int(self._clock() * 1000) + self._offset_ms  # corrigido p/ o servidor
-        params = {"timestamp": timestamp, "recvWindow": self._recv}
+        params: dict[str, Any] = {"timestamp": timestamp, "recvWindow": self._recv}
+        if extra:
+            params.update(extra)
         resp = await client.get(
             f"{self._base}{path}",
             params=self._sign(params),
@@ -128,6 +139,27 @@ class BinanceFetcher:
         )
         resp.raise_for_status()
         return resp.json()
+
+    async def _fetch_earn_rows(self, client: httpx.AsyncClient, path: str) -> list[Any]:
+        """Pagina `/simple-earn/*/position` (size=100) até esgotar (página parcial ou `total`).
+
+        A Binance pagina (default size=10); um GET único perderia o 11º+ ativo em Earn.
+        """
+        rows: list[Any] = []
+        for current in range(1, _EARN_MAX_PAGES + 1):
+
+            async def _req(c: httpx.AsyncClient, cur: int = current) -> Any:
+                return await self._signed_get(
+                    c, path, {"current": cur, "size": _EARN_PAGE_SIZE}
+                )
+
+            data = await with_client(_req, client=client, sleep=self._sleep)
+            page = data.get("rows", []) if isinstance(data, dict) else []
+            rows.extend(page)
+            total = int(data.get("total", 0) or 0) if isinstance(data, dict) else 0
+            if len(page) < _EARN_PAGE_SIZE or len(rows) >= total:
+                break
+        return rows
 
     @staticmethod
     def _parse_spot(data: Any, totals: dict[str, float]) -> None:
@@ -141,16 +173,8 @@ class BinanceFetcher:
             totals[asset] += float(row.get("free", 0) or 0) + float(row.get("locked", 0) or 0)
 
     @staticmethod
-    def _parse_flexible(data: Any, totals: dict[str, float]) -> None:
-        BinanceFetcher._parse_earn(data, totals, "totalAmount")
-
-    @staticmethod
-    def _parse_locked(data: Any, totals: dict[str, float]) -> None:
-        BinanceFetcher._parse_earn(data, totals, "amount")
-
-    @staticmethod
-    def _parse_earn(data: Any, totals: dict[str, float], field: str) -> None:
-        rows = data.get("rows", []) if isinstance(data, dict) else []
+    def _accumulate_earn(rows: list[Any], totals: dict[str, float], field: str) -> None:
+        """Soma as quantidades de Earn (`field` = totalAmount|amount) por ativo."""
         for row in rows:
             if not isinstance(row, dict):
                 continue

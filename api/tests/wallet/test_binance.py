@@ -137,6 +137,29 @@ async def test_time_endpoint_failure_falls_back_to_local_clock() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_earn_pagination_fetches_all_pages() -> None:
+    """Simple Earn pagina (size=100): o 11º+ ativo em Earn não pode ser perdido."""
+    _mock_time()
+    _route("/api/v3/account", {"balances": []})
+    _route("/sapi/v1/simple-earn/locked/position", {"rows": [], "total": 0})
+    # flexible: página 1 cheia (100 linhas de BTC) + página 2 com ETH → precisa da 2ª página
+    page1 = {"rows": [{"asset": "BTC", "totalAmount": "0.01"}] * 100, "total": 101}
+    page2 = {"rows": [{"asset": "ETH", "totalAmount": "2.0"}], "total": 101}
+
+    def _flex(request: httpx.Request) -> httpx.Response:
+        current = request.url.params.get("current")
+        return httpx.Response(200, json=page1 if current == "1" else page2)
+
+    respx.get(url__startswith=f"{_BASE}/sapi/v1/simple-earn/flexible/position").mock(
+        side_effect=_flex
+    )
+    out = {b.asset_symbol: b for b in await _fetcher().fetch()}
+    assert out["BTC"].quantity == pytest.approx(1.0)  # 100 x 0.01 (página 1)
+    assert out["ETH"].quantity == pytest.approx(2.0)  # página 2 (perdido sem paginação)
+
+
+@pytest.mark.asyncio
 async def test_no_credentials_is_noop() -> None:
     assert await BinanceFetcher(api_key="", api_secret="", sleep=_no_sleep).fetch() == []
 

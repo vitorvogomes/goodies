@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 
 import httpx
 
@@ -78,45 +78,67 @@ class TreasuryFetcher:
         if not wanted:
             return {}
         try:
-            text = await with_client(
-                self._download,
+            return await with_client(
+                lambda c: self._download_and_parse(c, wanted),
                 client=self._client,
                 sleep=self._sleep,
                 factory=lambda: httpx.AsyncClient(follow_redirects=True),
             )
         except Exception:
             return {}  # fail-soft: fonte indisponível → nada
-        return self._parse(text, wanted)
 
-    async def _download(self, client: httpx.AsyncClient) -> str:
-        resp = await client.get(_CSV_URL, timeout=60.0)
-        resp.raise_for_status()
-        return resp.content.decode("latin-1", errors="replace")
+    async def _download_and_parse(
+        self, client: httpx.AsyncClient, wanted: dict[tuple[str, int], str]
+    ) -> dict[str, PriceQuote]:
+        """Baixa o CSV (~14MB) em STREAM e parseia single-pass — sem bufferizar tudo.
 
-    @staticmethod
-    def _parse(text: str, wanted: dict[tuple[str, int], str]) -> dict[str, PriceQuote]:
-        # single-pass: por símbolo, guarda o PU da maior Data Base vista.
+        Por símbolo guarda o PU da maior Data Base vista. latin-1 é single-byte, então
+        decodificar chunk-a-chunk é seguro (sem partir caractere multi-byte).
+        """
         latest: dict[str, tuple[_DateT, float]] = {}
-        for line in text.splitlines():
-            p = line.split(";")
-            if len(p) < 8:
-                continue
-            base = _br_date(p[2])
-            venc = _br_date(p[1])
-            if base is None or venc is None:
-                continue  # cabeçalho / linha inválida
-            sym = wanted.get((" ".join(p[0].split()), venc[0]))
-            if sym is None:
-                continue
-            pu = _br_float(p[6])  # PU Venda Manha (resgate)
-            if pu is None:
-                pu = _br_float(p[7])  # fallback PU Base Manha
-            if pu is None:
-                continue
-            prev = latest.get(sym)
-            if prev is None or base > prev[0]:
-                latest[sym] = (base, pu)
+        async with client.stream("GET", _CSV_URL, timeout=60.0) as resp:
+            resp.raise_for_status()
+            async for line in _aiter_latin1_lines(resp):
+                _consume_line(line, wanted, latest)
         return {
             sym: PriceQuote(price_brl=pu, price_usd=None, source=_SOURCE)
             for sym, (_base, pu) in latest.items()
         }
+
+
+async def _aiter_latin1_lines(resp: httpx.Response) -> AsyncIterator[str]:
+    """Itera as linhas (latin-1) do corpo em stream, sem materializar o CSV inteiro."""
+    buf = ""
+    async for chunk in resp.aiter_bytes():
+        buf += chunk.decode("latin-1", errors="replace")
+        while "\n" in buf:
+            line, buf = buf.split("\n", 1)
+            yield line
+    if buf:
+        yield buf  # última linha sem \n final
+
+
+def _consume_line(
+    line: str,
+    wanted: dict[tuple[str, int], str],
+    latest: dict[str, tuple[_DateT, float]],
+) -> None:
+    """Processa uma linha do CSV, atualizando `latest` com o PU da Data Base mais recente."""
+    p = line.split(";")
+    if len(p) < 8:
+        return
+    base = _br_date(p[2])
+    venc = _br_date(p[1])
+    if base is None or venc is None:
+        return  # cabeçalho / linha inválida
+    sym = wanted.get((" ".join(p[0].split()), venc[0]))
+    if sym is None:
+        return
+    pu = _br_float(p[6])  # PU Venda Manha (resgate)
+    if pu is None:
+        pu = _br_float(p[7])  # fallback PU Base Manha
+    if pu is None:
+        return
+    prev = latest.get(sym)
+    if prev is None or base > prev[0]:
+        latest[sym] = (base, pu)
