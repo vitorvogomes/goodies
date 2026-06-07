@@ -46,6 +46,7 @@ async def _cleanup_user(pool: Any, uid: str) -> None:
         # p/ não vazar valor cripto entre testes (user-scoped).
         await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
         await conn.execute("DELETE FROM defi_positions WHERE user_id = $1", uid)
+        await conn.execute("DELETE FROM crypto_cost_basis WHERE user_id = $1", uid)
         # asset_prices is global (keyed by ticker, no user_id) — wipe between tests
         # to keep per-user isolation. Sequential test execution makes this safe.
         await conn.execute("DELETE FROM asset_prices")

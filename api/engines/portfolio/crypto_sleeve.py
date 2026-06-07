@@ -122,23 +122,39 @@ async def crypto_positions(
     for d in defi:
         _accumulate(agg, d["asset_symbol"], float(d["balance"]), d["price_brl"])
 
+    # Custo reconstruído POR ATIVO (Tier 2): soma por símbolo (todas as fontes). Sem linha →
+    # custo desconhecido → preço médio/resultado seguem "—" (gap a custo zero, por design).
+    cost_rows = await conn.fetch(
+        "SELECT asset_symbol, sum(custo_total_brl) AS custo FROM crypto_cost_basis "
+        "WHERE user_id = $1 GROUP BY asset_symbol",
+        user_id,
+    )
+    cost_by_sym = {r["asset_symbol"]: float(r["custo"]) for r in cost_rows}
+
     out: list[dict[str, Any]] = []
     for sym, a in agg.items():
         qty = a["qty"]
         if qty <= 0:
             continue
         price = a["price"]
+        valor = qty * price if price is not None else None
+        custo = cost_by_sym.get(sym)  # None = ainda não reconstruído
+        preco_medio = custo / qty if custo is not None and qty else None
+        resultado = valor - custo if custo is not None and valor is not None else None
+        resultado_pct = (
+            resultado / custo * 100 if resultado is not None and custo else None
+        )
         out.append(
             {
                 "asset_symbol": sym,
                 "asset_category": str(AssetCategory.CRIPTO),
                 "quantidade_net": qty,
-                "preco_medio": None,
-                "custo_total": None,
+                "preco_medio": preco_medio,
+                "custo_total": custo,
                 "preco_atual": price,
-                "valor_atual": qty * price if price is not None else None,
-                "resultado": None,
-                "resultado_pct": None,
+                "valor_atual": valor,
+                "resultado": resultado,
+                "resultado_pct": resultado_pct,
                 "stale": price is None,
                 # preço vem do Market Engine (cripto = CoinGecko) → não editável aqui
                 "is_manual": False,

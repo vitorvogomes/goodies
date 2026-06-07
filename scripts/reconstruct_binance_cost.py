@@ -144,10 +144,12 @@ async def _main() -> None:
         )
         rates = await _usdtbrl_by_day(client, first)
 
+    commit = "--commit" in sys.argv
     print("=" * 78)
     print("RECONSTRUÇÃO DE CUSTO BINANCE (Tier 2 pragmático — trades + gap a custo zero)")
     print("=" * 78)
     tot_custo = tot_valor = 0.0
+    persist: list[tuple[str, float, float, float]] = []
     for sym, rows in per.items():
         base = sym.replace("USDT", "")
         qty_buy = cost_buy = qty_sell = 0.0
@@ -169,6 +171,7 @@ async def _main() -> None:
         valor = held * price
         tot_custo += custo_detido
         tot_valor += valor
+        persist.append((base, held, custo_detido, net_traded))
         print(f"\n{base}:")
         print(f"  negociado: comprou {qty_buy:.8f} por R$ {cost_buy:,.2f} "
               f"(preço médio R$ {dca:,.2f}) | vendeu {qty_sell:.8f}")
@@ -183,6 +186,28 @@ async def _main() -> None:
     print("(o aporte do ledger 'Binance' é R$ 2.042,36; a diferença p/ o custo negociado "
           "= perdas realizadas + USDT parado)")
     print("=" * 78)
+
+    if not commit:
+        print("\n(DRY-RUN — nada gravado. Use --commit para persistir em crypto_cost_basis.)")
+        return
+    await init_pool(settings.database_url)
+    pool2 = get_pool()
+    async with pool2.acquire() as conn:
+        uid = str(owner["id"])
+        for base, held, custo, net_traded in persist:
+            await conn.execute(
+                """
+                INSERT INTO crypto_cost_basis
+                  (user_id, asset_symbol, source, qty, custo_total_brl, traded_qty, computed_at)
+                VALUES ($1, $2, 'binance', $3, $4, $5, now())
+                ON CONFLICT (user_id, asset_symbol, source) DO UPDATE
+                  SET qty = EXCLUDED.qty, custo_total_brl = EXCLUDED.custo_total_brl,
+                      traded_qty = EXCLUDED.traded_qty, computed_at = now()
+                """,
+                uid, base, held, round(custo, 2), net_traded,
+            )
+    await close_pool()
+    print(f"\n[OK] {len(persist)} ativos gravados em crypto_cost_basis (source=binance).")
 
 
 if __name__ == "__main__":

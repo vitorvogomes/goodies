@@ -102,6 +102,51 @@ class TestPositionsCryptoFold:
         assert abs(float(pos["valor_atual"]) - 100.0) < 0.01
 
 
+async def _cost_basis(conn: Any, uid: str, sym: str, qty: float, custo: float) -> None:
+    await conn.execute(
+        "INSERT INTO crypto_cost_basis (user_id, asset_symbol, source, qty, custo_total_brl) "
+        "VALUES ($1, $2, 'binance', $3, $4)",
+        uid, sym, qty, custo,
+    )
+
+
+class TestCostBasisInPositions:
+    @pytest.mark.asyncio
+    async def test_crypto_row_filled_from_cost_basis(
+        self, api: AsyncClient, pool: Any, portfolio_user: dict
+    ) -> None:
+        """Com custo reconstruído (crypto_cost_basis), a linha cripto deixa de ser '—'."""
+        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await _price(conn, "TKNA", 100.0)
+            await _wallet(conn, uid, "binance", "TKNA", 2.0)  # valor 200
+            await _cost_basis(conn, uid, "TKNA", 2.0, 250.0)  # custo 250
+        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
+        pos = next(p for p in resp.json() if p["asset_symbol"] == "TKNA")
+        assert abs(float(pos["custo_total"]) - 250.0) < 0.01
+        assert abs(float(pos["preco_medio"]) - 125.0) < 0.01  # 250 / 2
+        assert abs(float(pos["valor_atual"]) - 200.0) < 0.01
+        assert abs(float(pos["resultado"]) - (-50.0)) < 0.01  # 200 - 250
+        assert abs(float(pos["resultado_pct"]) - (-20.0)) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_cost_basis_summed_across_sources(
+        self, api: AsyncClient, pool: Any, portfolio_user: dict
+    ) -> None:
+        """Custo soma por símbolo (várias fontes); qty agrega chains, gap fica a custo zero."""
+        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await _price(conn, "TKNB", 10.0)
+            await _wallet(conn, uid, "binance", "TKNB", 5.0)   # 50
+            await _wallet(conn, uid, "ethereum", "TKNB", 5.0)  # +50 (sem custo → gap zero)
+            await _cost_basis(conn, uid, "TKNB", 5.0, 80.0)    # custo só do lado binance
+        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
+        pos = next(p for p in resp.json() if p["asset_symbol"] == "TKNB")
+        assert abs(float(pos["custo_total"]) - 80.0) < 0.01
+        assert abs(float(pos["quantidade_net"]) - 10.0) < 1e-9
+        assert abs(float(pos["preco_medio"]) - 8.0) < 0.01  # 80 / 10 (gap a custo zero)
+
+
 class TestAllocationCryptoFold:
     @pytest.mark.asyncio
     async def test_allocation_includes_cripto(
