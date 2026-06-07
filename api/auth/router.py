@@ -33,7 +33,6 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     expires_in: int
 
 
@@ -83,13 +82,9 @@ async def login(
         hash_token(refresh),
         row["id"],
     )
-    # Refresh em httpOnly cookie (ADR-006) — o proxy.ts do front usa p/ gating.
+    # Refresh em httpOnly cookie (ADR-006) — nunca no body (legível por JS → XSS).
     _set_refresh_cookie(response, refresh)
-    return TokenResponse(
-        access_token=access,
-        refresh_token=refresh,
-        expires_in=_access_ttl_seconds(),
-    )
+    return TokenResponse(access_token=access, expires_in=_access_ttl_seconds())
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
@@ -109,6 +104,8 @@ async def refresh(
 
     try:
         payload = decode_refresh_token(token)
+        if payload.get("type") != "refresh":
+            raise JWTError("tipo de token inválido")
         user_id = uuid.UUID(str(payload.get("sub")))
     except (JWTError, ValueError):
         raise HTTPException(

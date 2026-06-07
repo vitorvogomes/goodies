@@ -26,6 +26,8 @@ async def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token ausente")
     try:
         payload = decode_access_token(credentials.credentials)
+        if payload.get("type") != "access":
+            raise JWTError("tipo de token inválido")
     except JWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token inválido ou expirado") from None
     try:

@@ -1,11 +1,14 @@
 """STORY-00-05 — rotas de auth (login/refresh/me) contra Postgres local."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest_asyncio
+from jose import jwt
 
-from auth.security import hash_password, hash_token
+from auth.security import _ALGORITHM, hash_password, hash_token
+from config import settings
 from main import app
 
 _PASSWORD = "correct-horse-battery"
@@ -38,7 +41,8 @@ async def test_login_success_returns_tokens(test_user):
     assert resp.status_code == 200
     data = resp.json()
     assert data["access_token"]
-    assert data["refresh_token"]
+    # ADR-006: refresh token vai SÓ no cookie httpOnly, nunca no body (legível por JS).
+    assert "refresh_token" not in data
     assert data["expires_in"] == 15 * 60
 
 
@@ -89,11 +93,12 @@ async def test_me_requires_valid_token(test_user):
 
 async def test_refresh_returns_new_access_and_rejects_invalid(test_user):
     async with _client() as client:
-        login = await client.post(
+        await client.post(
             "/api/v1/auth/login",
             json={"email": test_user["email"], "password": _PASSWORD},
         )
-        refresh = login.json()["refresh_token"]
+        # Refresh agora só sai no cookie httpOnly (jar do client).
+        refresh = client.cookies.get("refresh_token")
         ok = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
         bad = await client.post("/api/v1/auth/refresh", json={"refresh_token": "not.a.token"})
     assert ok.status_code == 200
@@ -123,11 +128,11 @@ async def test_refresh_without_token_returns_401(pool):
 
 async def test_refresh_rotates_cookie_and_db_hash(pool, test_user):
     async with _client() as client:
-        login = await client.post(
+        await client.post(
             "/api/v1/auth/login",
             json={"email": test_user["email"], "password": _PASSWORD},
         )
-        first_refresh = login.json()["refresh_token"]
+        first_refresh = client.cookies.get("refresh_token")
         resp = await client.post(
             "/api/v1/auth/refresh", json={"refresh_token": first_refresh}
         )
@@ -141,3 +146,35 @@ async def test_refresh_rotates_cookie_and_db_hash(pool, test_user):
             uuid.UUID(test_user["id"]),
         )
     assert stored != hash_token(first_refresh)
+
+
+def _token_with_type(secret: str, *, sub: str, token_type: str) -> str:
+    """Forja um JWT com `type` arbitrário assinado por `secret` (p/ os testes de hardening)."""
+    payload = {
+        "sub": sub,
+        "type": token_type,
+        "exp": datetime.now(UTC) + timedelta(minutes=15),
+    }
+    return str(jwt.encode(payload, secret, algorithm=_ALGORITHM))
+
+
+async def test_me_rejects_token_with_wrong_type(test_user):
+    """Token assinado com o segredo de access mas type!=access → 401."""
+    forged = _token_with_type(
+        settings.jwt_secret_key, sub=test_user["id"], token_type="refresh"
+    )
+    async with _client() as client:
+        resp = await client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"}
+        )
+    assert resp.status_code == 401
+
+
+async def test_refresh_rejects_token_with_wrong_type(test_user):
+    """Token assinado com o segredo de refresh mas type!=refresh → 401."""
+    forged = _token_with_type(
+        settings.jwt_refresh_secret_key, sub=test_user["id"], token_type="access"
+    )
+    async with _client() as client:
+        resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": forged})
+    assert resp.status_code == 401

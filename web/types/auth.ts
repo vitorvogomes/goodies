@@ -5,8 +5,8 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
+  // ADR-006: o refresh token vem SÓ no cookie httpOnly, nunca no corpo.
   access_token: string;
-  refresh_token: string;
   expires_in: number;
 }
 
