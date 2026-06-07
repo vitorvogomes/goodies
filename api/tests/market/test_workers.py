@@ -167,10 +167,11 @@ async def test_crypto_worker_prices_wallet_only_symbol(
 def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}
-    assert set(jobs) == {"price_b3", "price_crypto", "wallet_scan"}
+    assert set(jobs) == {"price_b3", "price_crypto", "wallet_scan", "benchmark_daily"}
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)
     assert "day_of_week='mon-fri'" in b3
     assert "hour='19'" in b3  # 1x/dia útil após fechamento (free-tier BRAPI)
     assert "hour='*/2'" in str(jobs["price_crypto"].trigger)
     assert "hour='8,14,20'" in str(jobs["wallet_scan"].trigger)  # 3x/dia (m4)
+    assert "hour='22'" in str(jobs["benchmark_daily"].trigger)  # 1x/dia (m4)

@@ -22,6 +22,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from db.connection import get_pool
+from workers.benchmark_workers import run_benchmark_daily
 from workers.price_workers import run_price_b3, run_price_crypto
 from workers.wallet_workers import resolve_owner_id, run_wallet_scan
 
@@ -50,6 +51,11 @@ async def _job_wallet_scan() -> None:
     logger.info("worker wallet_scan ok: %s", stats)
 
 
+async def _job_benchmark_daily() -> None:
+    stats = await run_benchmark_daily(get_pool())
+    logger.info("worker benchmark_daily ok: %s", stats)
+
+
 def build_scheduler() -> AsyncIOScheduler:
     """Cria o scheduler com os jobs registrados (não inicia — o lifespan faz start)."""
     scheduler = AsyncIOScheduler(job_defaults=_JOB_DEFAULTS)
@@ -74,5 +80,12 @@ def build_scheduler() -> AsyncIOScheduler:
         CronTrigger(hour="8,14,20", minute=0, timezone="America/Sao_Paulo"),
         id="wallet_scan",
         name="wallet_scan",
+    )
+    scheduler.add_job(
+        _job_benchmark_daily,
+        # 1x/dia 22h: BCB publica CDI/IPCA por dia útil (open data, sem quota).
+        CronTrigger(hour=22, minute=0, timezone="America/Sao_Paulo"),
+        id="benchmark_daily",
+        name="benchmark_daily",
     )
     return scheduler
