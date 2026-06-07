@@ -43,6 +43,46 @@ async def upsert_wallet_position(
     )
 
 
+async def upsert_manual_wallet_position(
+    conn: asyncpg.Connection, user_id: str, chain: str, asset_symbol: str, quantity: float
+) -> None:
+    """Grava/atualiza uma posição MANUAL (ex.: Liquid confidencial, não escaneável).
+
+    `is_manual=true`, `source='manual'`, `wallet_address='manual'` (sentinela). O sweep do
+    worker nunca a remove. Valorada como qualquer outra (preço do m3 por asset_symbol).
+    """
+    await conn.execute(
+        """
+        INSERT INTO wallet_positions
+          (user_id, chain, wallet_address, asset_symbol, quantity, source, scanned_at, is_manual)
+        VALUES ($1, $2, 'manual', $3, $4, 'manual', now(), true)
+        ON CONFLICT (user_id, chain, wallet_address, asset_symbol) DO UPDATE
+          SET quantity = EXCLUDED.quantity,
+              source = 'manual',
+              is_manual = true,
+              scanned_at = now()
+        """,
+        user_id,
+        chain,
+        asset_symbol,
+        quantity,
+    )
+
+
+async def delete_manual_wallet_position(
+    conn: asyncpg.Connection, user_id: str, chain: str, asset_symbol: str
+) -> bool:
+    """Remove uma posição manual. Devolve True se removeu (False se não existia)."""
+    result = await conn.execute(
+        "DELETE FROM wallet_positions WHERE user_id = $1 AND chain = $2 "
+        "AND asset_symbol = $3 AND is_manual = true",
+        user_id,
+        chain,
+        asset_symbol,
+    )
+    return bool(result != "DELETE 0")
+
+
 async def sweep_wallet_positions(
     conn: asyncpg.Connection, user_id: str, balances: list[WalletBalance]
 ) -> int:
@@ -52,7 +92,8 @@ async def sweep_wallet_positions(
     Chamar SÓ quando o fetcher retornou ≥1 saldo — um source fora devolve `[]` (fail-soft)
     e não deve apagar o último snapshot bom (outage ≠ posição fechada). Sem o sweep, um
     ativo vendido/zerado (filtrado por `qty>0` no fetcher) ficaria como posição fantasma.
-    Devolve o número de linhas removidas.
+    Posições manuais (`is_manual`) NUNCA são varridas (não vêm de scan). Devolve o número
+    de linhas removidas.
     """
     if not balances:
         return 0
@@ -60,7 +101,7 @@ async def sweep_wallet_positions(
     kept = {(b.chain, b.wallet_address, b.asset_symbol) for b in balances}
     rows = await conn.fetch(
         "SELECT id, chain, wallet_address, asset_symbol FROM wallet_positions "
-        "WHERE user_id = $1 AND source = ANY($2)",
+        "WHERE user_id = $1 AND source = ANY($2) AND is_manual = false",
         user_id,
         sources,
     )
@@ -84,7 +125,7 @@ async def list_wallet_positions(
     """
     now = now or datetime.now(tz=UTC)
     rows = await conn.fetch(
-        "SELECT chain, wallet_address, asset_symbol, quantity, source, scanned_at "
+        "SELECT chain, wallet_address, asset_symbol, quantity, source, scanned_at, is_manual "
         "FROM wallet_positions WHERE user_id = $1 ORDER BY chain, asset_symbol",
         user_id,
     )
@@ -111,6 +152,7 @@ async def list_wallet_positions(
                 "price_brl": price,
                 "value_brl": qty * price if price is not None else None,
                 "stale": (now - scanned_at).total_seconds() > settings.ttl_wallet,
+                "is_manual": r["is_manual"],
             }
         )
     return out
