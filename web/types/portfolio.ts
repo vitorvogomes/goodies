@@ -27,8 +27,9 @@ export interface Position {
   asset_symbol: string;
   asset_category: string;
   quantidade_net: number;
-  preco_medio: number;
-  custo_total: number;
+  // null em cripto (m4): o custo é conhecido só no nível do sleeve, não por ativo
+  preco_medio: number | null;
+  custo_total: number | null;
   preco_atual: number | null;
   valor_atual: number | null;
   resultado: number | null;

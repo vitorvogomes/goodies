@@ -4,8 +4,8 @@
 import { Fragment, useMemo, useState } from "react";
 
 import { Button, Input } from "@/components/ui";
-import { formatBRL, formatPercent } from "@/lib/format";
-import { usePositions, useSetManualPrice } from "@/lib/portfolio";
+import { formatBRL, formatPercent, formatRate } from "@/lib/format";
+import { useCryptoSleeve, usePositions, useSetManualPrice } from "@/lib/portfolio";
 import type { Position } from "@/types/portfolio";
 
 function PriceCell({ pos }: { pos: Position }) {
@@ -85,13 +85,21 @@ function ResultCell({ pos }: { pos: Position }) {
 
 export default function PositionsPage() {
   const { data, isLoading, isError } = usePositions();
+  // Sleeve cripto (m4): custo/resultado/XIRR vivem aqui (por ativo o custo é "—").
+  const { data: sleeve } = useCryptoSleeve();
+  const sleeveCost = sleeve?.net_invested_brl ?? 0;
+  const sleeveResult = sleeve?.resultado ?? null;
+  const sleeveXirr = sleeve?.xirr ?? null;
 
   const totalAtual = (data ?? []).reduce((s, p) => s + (p.valor_atual ?? 0), 0);
-  const totalCusto = (data ?? []).reduce((s, p) => s + p.custo_total, 0);
+  // custo por ativo é null em cripto → soma só os não-cripto e adiciona o custo do sleeve
+  const totalCusto =
+    (data ?? []).reduce((s, p) => s + (p.custo_total ?? 0), 0) + sleeveCost;
   const totalResult = totalAtual - totalCusto;
 
   // Agrupa por categoria com subtotais (valor atual + resultado). Mantém a ordem
   // alfabética das linhas (backend já ordena por símbolo); grupos por maior posição.
+  // Cripto: custo/resultado/XIRR vêm do sleeve (não da soma dos custos por ativo, que é null).
   const groups = useMemo(() => {
     const map = new Map<string, Position[]>();
     for (const p of data ?? []) {
@@ -102,17 +110,24 @@ export default function PositionsPage() {
     return [...map.entries()]
       .map(([category, rows]) => {
         const subtotalAtual = rows.reduce((s, p) => s + (p.valor_atual ?? 0), 0);
-        const subtotalCusto = rows.reduce((s, p) => s + p.custo_total, 0);
+        const isCrypto = category === "Cripto";
+        const subtotalCusto = isCrypto
+          ? sleeveCost
+          : rows.reduce((s, p) => s + (p.custo_total ?? 0), 0);
+        const subtotalResult = isCrypto
+          ? sleeveResult ?? subtotalAtual - subtotalCusto
+          : subtotalAtual - subtotalCusto;
         return {
           category,
           rows,
           subtotalAtual,
           subtotalCusto,
-          subtotalResult: subtotalAtual - subtotalCusto,
+          subtotalResult,
+          xirr: isCrypto ? sleeveXirr : null,
         };
       })
       .sort((a, b) => b.subtotalAtual - a.subtotalAtual);
-  }, [data]);
+  }, [data, sleeveCost, sleeveResult, sleeveXirr]);
 
   return (
     <div className="space-y-6">
@@ -205,7 +220,7 @@ export default function PositionsPage() {
                         {pos.quantidade_net}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                        {formatBRL(pos.preco_medio)}
+                        {pos.preco_medio != null ? formatBRL(pos.preco_medio) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-right text-foreground/80">
                         <PriceCell pos={pos} />
@@ -231,7 +246,17 @@ export default function PositionsPage() {
                       {formatBRL(g.subtotalAtual)}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      {g.subtotalCusto > 0 ? (
+                      {g.category === "Cripto" ? (
+                        // cripto: resultado do sleeve + XIRR (nunca (resultado/aplicado))
+                        <span
+                          className={`font-medium tabular-nums ${
+                            g.subtotalResult < 0 ? "text-loss" : "text-gain"
+                          }`}
+                        >
+                          {formatBRL(g.subtotalResult)}{" "}
+                          <span className="text-xs">(XIRR {formatRate(g.xirr)})</span>
+                        </span>
+                      ) : g.subtotalCusto > 0 ? (
                         <span
                           className={`font-medium tabular-nums ${
                             g.subtotalResult < 0 ? "text-loss" : "text-gain"

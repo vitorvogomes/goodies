@@ -3,7 +3,8 @@
 // STORY-04-11 — Reconciliação: saldo escaneado (wallet_positions) vs registrado
 // (net das asset_operations). Delta != 0 = divergência a investigar.
 import { Button } from "@/components/ui";
-import { fmtQty } from "@/lib/format";
+import { fmtQty, formatBRL, formatRate } from "@/lib/format";
+import { useCryptoSleeve } from "@/lib/portfolio";
 import { useReconciliation } from "@/lib/wallet";
 
 // alinhado ao display: fmtQty mostra 8 casas → o que arredonda p/ 0 (|Δ|<5e-9) não conta
@@ -21,6 +22,54 @@ function fmtDelta(delta: number): string {
   return `${sign}${fmtQty(delta)}`;
 }
 
+function ValuePanel() {
+  const { data: s } = useCryptoSleeve();
+  if (!s) return null;
+  const tone = s.resultado < 0 ? "text-loss" : "text-gain";
+  return (
+    <div className="rounded-2xl border border-border bg-muted/20 p-4">
+      <div className="mb-3 text-xs font-medium uppercase tracking-wide text-foreground/60">
+        Reconciliação de valor — cripto (sleeve)
+      </div>
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+        <div>
+          <div className="text-xs text-foreground/50">Investido (líq.)</div>
+          <div className="tabular-nums text-foreground/80">{formatBRL(s.net_invested_brl)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-foreground/50">Valor atual</div>
+          <div className="tabular-nums text-foreground/80">{formatBRL(s.current_value_brl)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-foreground/50">Resultado</div>
+          <div className={`tabular-nums ${tone}`}>{formatBRL(s.resultado)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-foreground/50">XIRR</div>
+          <div className={`tabular-nums ${tone}`}>{formatRate(s.xirr)}</div>
+        </div>
+      </div>
+      {s.by_rail.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {s.by_rail.map((r) => (
+            <span
+              key={r.rail}
+              className="rounded bg-muted/60 px-2 py-0.5 text-xs text-foreground/60"
+            >
+              {r.rail} <span className="tabular-nums">{formatBRL(r.current_value_brl)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {s.stale_value && (
+        <p className="mt-2 text-xs text-warning">
+          ⚠ algum ativo sem preço — valor atual parcial.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function ReconciliationPage() {
   const { data, isLoading, isError } = useReconciliation();
   const rows = data ?? [];
@@ -35,10 +84,13 @@ export default function ReconciliationPage() {
         </a>
       </div>
 
+      <ValuePanel />
+
       <p className="text-xs text-foreground/50">
-        Compara a quantidade <strong>escaneada</strong> (carteiras) com a quantidade{" "}
-        <strong>registrada</strong> (net das operações). Delta ≠ 0 indica divergência —
-        operação não lançada, taxa/rendimento, ou ativo só em carteira.
+        Acima, a reconciliação de <strong>valor</strong> (investido via Nubank vs valor atual
+        das carteiras → resultado). Abaixo, a de <strong>quantidade</strong>: o saldo{" "}
+        <strong>escaneado</strong> vs o <strong>registrado</strong> (net das operações). Delta
+        ≠ 0 indica divergência — operação não lançada, taxa/rendimento, ou ativo só em carteira.
       </p>
 
       {rows.length > 0 && (
