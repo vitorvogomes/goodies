@@ -223,6 +223,9 @@ async def calculate_dca_by_asset(
     Only includes 'compra' and 'aporte' tipos in calculation.
     Excludes 'venda', 'resgate', 'dividendo', 'juros'.
 
+    Espelha em SQL a fórmula de `service._dca_price` (Σ(q·vu)/Σq) — esta versão roda no
+    banco p/ o endpoint /dca; o cálculo em Python (posições/IR) usa `_dca_price`.
+
     Returns:
         Dict with asset_symbol, preco_medio, quantidade_total.
         None if no compra/aporte operations exist.

@@ -168,7 +168,12 @@ async def upsert_price(
 # Posições (STORY-02-07)
 # --------------------------------------------------------------------------- #
 def _dca_price(ops: Sequence[Any]) -> float:
-    """Preco medio ponderado de compra/aporte (custo / quantidade)."""
+    """Preço médio ponderado de compra/aporte: Σ(quantidade·valor_unitário)/Σquantidade.
+
+    Fonte ÚNICA do custo-médio em Python (posições + IR cripto). A mesma fórmula está
+    expressa em SQL em `operations.calculate_dca_*` (roda no banco, p/ o endpoint /dca).
+    Guard: Σquantidade=0 → 0.0.
+    """
     qty = sum(
         float(o["quantidade"]) for o in ops if o["tipo"] in _INFLOW_TIPOS
     )
@@ -483,18 +488,11 @@ async def calculate_crypto_ir_monthly(
         AssetCategory.CRIPTO,
     )
 
-    # Preco medio (DCA) por simbolo a partir de compra/aporte
-    inflow_qty: dict[str, float] = defaultdict(float)
-    inflow_cost: dict[str, float] = defaultdict(float)
+    # Preço médio (DCA) por símbolo — mesma fórmula das posições (fonte única `_dca_price`)
+    ops_by_symbol: dict[str, list[Any]] = defaultdict(list)
     for row in rows:
-        if row["tipo"] in _INFLOW_TIPOS:
-            qty = float(row["quantidade"])
-            inflow_qty[row["asset_symbol"]] += qty
-            inflow_cost[row["asset_symbol"]] += qty * float(row["valor_unitario"])
-    preco_medio = {
-        s: (inflow_cost[s] / inflow_qty[s] if inflow_qty[s] else 0.0)
-        for s in inflow_qty
-    }
+        ops_by_symbol[row["asset_symbol"]].append(row)
+    preco_medio = {sym: _dca_price(ops) for sym, ops in ops_by_symbol.items()}
 
     months: dict[str, dict[str, float]] = defaultdict(
         lambda: {"total_vendas": 0.0, "ganho": 0.0}
