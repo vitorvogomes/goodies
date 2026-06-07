@@ -76,6 +76,18 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)** · **�
    mas o XIRR é calculado em BRL → invalidação extra p/ ativos dual-currency (resultado correto,
    só churn de cache). Comparar só `price_brl` p/ o XIRR.
 
+## ⚪ DeFi/valoração (2026-06-07)
+
+10. **Aliases DeFi em `coingecko_ids` carregam o sufixo de vencimento.** `HYUSD-2609`/`SHYUSD-2609`
+    são chaves específicas da posição atual — se o Vitor rolar para uma nova maturidade (ex.: `-2703`),
+    o símbolo não casa e o ativo fica sem preço silenciosamente. Generalizar: normalizar o símbolo
+    (tirar o sufixo `-NNNN`) antes do lookup, ou mover o mapa de preço para um campo por posição.
+11. **PT/YT Pendle valorados pelo subjacente.** PT sUSDai usa o preço de `susdai` (subjacente) —
+    superestima levemente (PT < subjacente até o vencimento); YT-xSOL fica sem preço (yield token).
+    Aceito como aproximação; um valuator Pendle-aware (PT desconta, YT = saldo×preço-do-yield) é débito.
+12. **`susdai`: id da API ≠ slug do site.** O slug CoinGecko `staked-usdai` devolve vazio; o id correto
+    é `susdai` (achado via `/search`). Ao mapear novos ativos, confirmar o id pela busca, não pela URL.
+
 ## Herdados / operacionais (não-código)
 - **Smoke ao vivo pendente** (ambiente do Vitor): validar Liquid confidencial (UTXO blinded),
   shapes do Binance Simple Earn, cobertura Etherscan (só ETH+ARB), mapa de mints Solana
