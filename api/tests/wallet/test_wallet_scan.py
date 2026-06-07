@@ -6,7 +6,16 @@ from typing import Any
 import pytest
 
 from engines.market.fetchers.wallets.base import WalletBalance
-from workers.wallet_workers import run_wallet_scan
+from engines.market.fetchers.wallets.binance import BinanceFetcher
+from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
+from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
+from engines.market.fetchers.wallets.liquid import LiquidFetcher
+from engines.market.fetchers.wallets.solana import SolanaFetcher
+from workers.wallet_workers import (
+    _default_fetchers,
+    resolve_owner_id,
+    run_wallet_scan,
+)
 
 
 class _FakeFetcher:
@@ -68,6 +77,25 @@ async def test_scan_fail_soft_one_fetcher_down(pool: Any, wallet_user: dict) -> 
 
 
 @pytest.mark.asyncio
-async def test_scan_no_fetchers_is_noop(pool: Any, wallet_user: dict) -> None:
+async def test_scan_empty_list_is_noop(pool: Any, wallet_user: dict) -> None:
+    # lista vazia explícita (NÃO os defaults reais — evita rede no teste)
     uid = wallet_user["user_id"]
-    assert await run_wallet_scan(pool, uid) == {}
+    assert await run_wallet_scan(pool, uid, fetchers=[]) == {}
+
+
+def test_default_fetchers_are_the_five() -> None:
+    # o caminho default liga os 5 fetchers reais (sem chamar .fetch() — sem rede)
+    types = [type(f) for f in _default_fetchers()]
+    assert types == [
+        EtherscanFetcher,
+        HyperliquidFetcher,
+        SolanaFetcher,
+        LiquidFetcher,
+        BinanceFetcher,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resolve_owner_id_returns_a_user(pool: Any, wallet_user: dict) -> None:
+    uid = await resolve_owner_id(pool)
+    assert uid is not None and isinstance(uid, str)

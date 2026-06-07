@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
     liquid_base_url: str = "https://blockstream.info/liquid/api"
     lbtc_asset_id: str = ""  # constante pública L-BTC (64 hex) — valor no .env
+    # RPC Solana (JSON-RPC). Default = endpoint público (throttla); apontar p/
+    # Helius/QuickNode no .env evita o rate-limit do mainnet-beta público.
+    solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     # TTLs de cache (segundos): wallet scan = 4h; benchmark CDI/IPCA = 24h.
     ttl_wallet: int = 14400
     ttl_benchmark: int = 86400

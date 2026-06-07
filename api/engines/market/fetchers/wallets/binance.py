@@ -63,6 +63,7 @@ class BinanceFetcher:
         self._base = base_url.rstrip("/")
         self._clock = clock
         self._recv = recv_window
+        self._offset_ms = 0  # offset relógio local → servidor (calculado por fetch)
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._key or not self._secret:
@@ -75,6 +76,8 @@ class BinanceFetcher:
         )
         client = self._client or httpx.AsyncClient()
         try:
+            # corrige clock-skew (WSL): a Binance rejeita timestamp fora do recvWindow.
+            self._offset_ms = await self._server_offset(client)
             for path, parser in endpoints:
 
                 async def _req(c: httpx.AsyncClient, p: str = path) -> Any:
@@ -100,13 +103,23 @@ class BinanceFetcher:
             if asset in self._symbols and qty > 0
         ]
 
+    async def _server_offset(self, client: httpx.AsyncClient) -> int:
+        """`serverTime - relógio local` (ms). Fail-soft: `/time` fora → 0 (usa local)."""
+        try:
+            resp = await client.get(f"{self._base}/api/v3/time", timeout=10.0)
+            resp.raise_for_status()
+            return int(resp.json()["serverTime"]) - int(self._clock() * 1000)
+        except Exception:
+            return 0
+
     def _sign(self, params: dict[str, Any]) -> dict[str, Any]:
         query = urlencode(params)
         sig = hmac.new(self._secret.encode(), query.encode(), hashlib.sha256).hexdigest()
         return {**params, "signature": sig}
 
     async def _signed_get(self, client: httpx.AsyncClient, path: str) -> Any:
-        params = {"timestamp": int(self._clock() * 1000), "recvWindow": self._recv}
+        timestamp = int(self._clock() * 1000) + self._offset_ms  # corrigido p/ o servidor
+        params = {"timestamp": timestamp, "recvWindow": self._recv}
         resp = await client.get(
             f"{self._base}{path}",
             params=self._sign(params),

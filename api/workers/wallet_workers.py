@@ -11,9 +11,33 @@ import asyncpg
 import structlog
 
 from engines.market.fetchers.wallets.base import BalanceFetcher
+from engines.market.fetchers.wallets.binance import BinanceFetcher
+from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
+from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
+from engines.market.fetchers.wallets.liquid import LiquidFetcher
+from engines.market.fetchers.wallets.solana import SolanaFetcher
 from engines.wallet import service
 
 logger = structlog.get_logger()
+
+
+async def resolve_owner_id(pool: asyncpg.Pool) -> str | None:
+    """Dono do scan (usuário único no MVP, §3.7). None se não houver usuário."""
+    async with pool.acquire() as conn:
+        uid = await conn.fetchval("SELECT id FROM users ORDER BY created_at LIMIT 1")
+    return str(uid) if uid is not None else None
+
+
+def _default_fetchers() -> list[BalanceFetcher]:
+    """Os 5 fetchers reais lendo credenciais/endereços de `settings`. Sem credencial
+    → o fetcher é no-op (devolve []), então faltar uma fonte não quebra o scan."""
+    return [
+        EtherscanFetcher(),  # ETH (mainnet) + ARB (Arbitrum)
+        HyperliquidFetcher(),  # HYPE (Hyperliquid L1)
+        SolanaFetcher(),  # SOL + SPL
+        LiquidFetcher(),  # L-BTC (ADR-005)
+        BinanceFetcher(),  # spot + earn (assinado)
+    ]
 
 
 async def run_wallet_scan(
@@ -27,7 +51,7 @@ async def run_wallet_scan(
     Fail-soft por fetcher: uma chain/exchange fora (ou que levante) não bloqueia as
     demais nem propaga exceção. Devolve estatísticas por fetcher: {fetched, failed}.
     """
-    fetchers = fetchers if fetchers is not None else []
+    fetchers = fetchers if fetchers is not None else _default_fetchers()
     stats: dict[str, dict[str, int]] = {}
     async with pool.acquire() as conn:
         for fetcher in fetchers:

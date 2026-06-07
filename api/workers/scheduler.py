@@ -23,6 +23,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from db.connection import get_pool
 from workers.price_workers import run_price_b3, run_price_crypto
+from workers.wallet_workers import resolve_owner_id, run_wallet_scan
 
 logger = logging.getLogger("goodies.workers")
 
@@ -37,6 +38,16 @@ async def _job_price_b3() -> None:
 async def _job_price_crypto() -> None:
     stats = await run_price_crypto(get_pool())
     logger.info("worker price_crypto ok: %s", stats)
+
+
+async def _job_wallet_scan() -> None:
+    pool = get_pool()
+    uid = await resolve_owner_id(pool)
+    if uid is None:
+        logger.warning("worker wallet_scan: nenhum usuário; pulando")
+        return
+    stats = await run_wallet_scan(pool, uid)
+    logger.info("worker wallet_scan ok: %s", stats)
 
 
 def build_scheduler() -> AsyncIOScheduler:
@@ -56,5 +67,12 @@ def build_scheduler() -> AsyncIOScheduler:
         CronTrigger(hour="*/2", timezone="America/Sao_Paulo"),
         id="price_crypto",
         name="price_crypto",
+    )
+    scheduler.add_job(
+        _job_wallet_scan,
+        # 3x/dia (manhã/tarde/noite); APIs de explorer/exchange têm rate limit generoso.
+        CronTrigger(hour="8,14,20", minute=0, timezone="America/Sao_Paulo"),
+        id="wallet_scan",
+        name="wallet_scan",
     )
     return scheduler

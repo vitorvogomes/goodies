@@ -33,14 +33,23 @@ async def _symbols_in(conn: asyncpg.Connection, categories: Iterable[str]) -> li
     return [r["asset_symbol"] for r in rows]
 
 
+async def _wallet_symbols(conn: asyncpg.Connection) -> list[str]:
+    """Símbolos escaneados em wallet_positions (m4) — precisam de preço mesmo sem op."""
+    rows = await conn.fetch("SELECT DISTINCT asset_symbol FROM wallet_positions")
+    return [r["asset_symbol"] for r in rows]
+
+
 async def _run_for(
     conn: asyncpg.Connection,
     categories: Iterable[str],
     fetcher: PriceFetcher,
     cache_type: str,
     ttl: int,
+    *,
+    extra_symbols: Iterable[str] = (),
 ) -> dict[str, int]:
-    symbols = await _symbols_in(conn, categories)
+    # une os tickers das ops com os escaneados (m4); o fetcher ignora os fora do mapa.
+    symbols = sorted(set(await _symbols_in(conn, categories)) | set(extra_symbols))
     if not symbols:
         return {"symbols": 0, "fetched": 0, "updated": 0, "skipped": 0, "failed": 0}
     quotes = await fetcher.fetch(symbols)
@@ -84,7 +93,15 @@ async def run_price_b3(
 async def run_price_crypto(
     pool: asyncpg.Pool, *, fetcher: PriceFetcher | None = None
 ) -> dict[str, int]:
-    """Atualiza cripto via CoinGecko (cron a cada 2h; NUNCA on-demand — CLAUDE.md)."""
+    """Atualiza cripto via CoinGecko (cron a cada 2h; NUNCA on-demand — CLAUDE.md).
+
+    Inclui os símbolos escaneados em wallet_positions (m4), além das ops, p/ que uma
+    cripto só-de-wallet também receba preço/valor BRL.
+    """
     fetcher = fetcher or CoinGeckoFetcher()
     async with pool.acquire() as conn:
-        return await _run_for(conn, CRYPTO_CATEGORIES, fetcher, "crypto", settings.ttl_crypto)
+        wallet = await _wallet_symbols(conn)
+        return await _run_for(
+            conn, CRYPTO_CATEGORIES, fetcher, "crypto", settings.ttl_crypto,
+            extra_symbols=wallet,
+        )

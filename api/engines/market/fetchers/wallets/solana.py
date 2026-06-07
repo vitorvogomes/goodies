@@ -24,7 +24,6 @@ from config import settings
 from ..base import with_client
 from .base import WalletBalance
 
-_RPC_URL = "https://api.mainnet-beta.solana.com"
 _TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 _SOURCE = "solana"
 _CHAIN = "solana"
@@ -46,13 +45,13 @@ class SolanaFetcher:
         mints: dict[str, str] | None = None,
         client: httpx.AsyncClient | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        rpc_url: str = _RPC_URL,
+        rpc_url: str | None = None,
     ) -> None:
         self._address = address if address is not None else settings.wallet_sol_address
         self._mints = mints if mints is not None else _DEFAULT_MINTS
         self._client = client
         self._sleep = sleep
-        self._rpc = rpc_url
+        self._rpc = rpc_url if rpc_url is not None else settings.solana_rpc_url
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:

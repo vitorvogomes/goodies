@@ -89,3 +89,17 @@ async def test_persistent_error_returns_empty() -> None:
 @pytest.mark.asyncio
 async def test_no_address_is_noop() -> None:
     assert await SolanaFetcher(address="", sleep=_no_sleep, rpc_url=_RPC).fetch() == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_uses_settings_rpc_url_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    from config import settings
+
+    monkeypatch.setattr(settings, "solana_rpc_url", "https://custom.rpc/sol")
+    route = respx.post("https://custom.rpc/sol").mock(
+        return_value=httpx.Response(200, json={"result": {"value": 1_000_000_000}})
+    )
+    # sem rpc_url → usa settings.solana_rpc_url (apontar p/ Helius/QuickNode = só env)
+    await SolanaFetcher(address="SOLADDR", sleep=_no_sleep).fetch()
+    assert route.called

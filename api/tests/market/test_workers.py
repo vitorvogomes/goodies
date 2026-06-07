@@ -134,12 +134,43 @@ async def test_no_holdings_zero_stats(pool: Any) -> None:
     assert stats["failed"] == stats["symbols"]
 
 
+@pytest.mark.asyncio
+async def test_crypto_worker_prices_wallet_only_symbol(
+    pool: Any, portfolio_user: dict
+) -> None:
+    # cripto que só existe em wallet_positions (sem op) também recebe preço (m4 B3)
+    uid = portfolio_user["user_id"]
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO wallet_positions (user_id, chain, wallet_address, asset_symbol, "
+            "quantity, source) VALUES ($1, 'liquid', 'lq1', 'MKT_WLBTC', 0.1, 'liquid')",
+            uid,
+        )
+    fake = _FakeFetcher(
+        {"MKT_WLBTC": PriceQuote(price_brl=300000.0, price_usd=55000.0, source="coingecko")}
+    )
+    try:
+        stats = await run_price_crypto(pool, fetcher=fake)
+        assert stats["updated"] == 1
+        async with pool.acquire() as conn:
+            price = await conn.fetchval(
+                "SELECT price_brl FROM asset_prices WHERE ticker = 'MKT_WLBTC'"
+            )
+        assert float(price) == 300000.0
+    finally:
+        # limpa wallet_positions ANTES do teardown do usuário (FK sem cascade)
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
+        await PriceCache().delete(service.price_cache_key("crypto", "MKT_WLBTC"))
+
+
 def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}
-    assert set(jobs) == {"price_b3", "price_crypto"}
+    assert set(jobs) == {"price_b3", "price_crypto", "wallet_scan"}
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)
     assert "day_of_week='mon-fri'" in b3
     assert "hour='19'" in b3  # 1x/dia útil após fechamento (free-tier BRAPI)
     assert "hour='*/2'" in str(jobs["price_crypto"].trigger)
+    assert "hour='8,14,20'" in str(jobs["wallet_scan"].trigger)  # 3x/dia (m4)
