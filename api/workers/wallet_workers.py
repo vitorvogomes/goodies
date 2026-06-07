@@ -17,6 +17,7 @@ from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
 from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
 from engines.market.fetchers.wallets.liquid import LiquidFetcher
 from engines.market.fetchers.wallets.solana import SolanaFetcher
+from engines.portfolio.service import invalidate_xirr_cache
 from engines.wallet import service
 
 logger = structlog.get_logger()
@@ -70,4 +71,7 @@ async def run_wallet_scan(
             # fora devolve [] e NÃO apaga o último snapshot bom (outage ≠ fechamento).
             swept = await service.sweep_wallet_positions(conn, user_id, balances)
             stats[name] = {"fetched": len(balances), "failed": 0, "swept": swept}
+    # o scan mudou os saldos cripto → o valor atual do sleeve mudou: invalida o XIRR do
+    # usuário (m4) p/ o consolidado/Cripto não ficar stale até o TTL (1h).
+    await invalidate_xirr_cache(user_id)
     return stats

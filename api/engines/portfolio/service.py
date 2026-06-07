@@ -549,9 +549,16 @@ async def invalidate_xirr_cache(user_id: str) -> None:
 
 
 async def _invalidate_xirr_for_ticker(conn: asyncpg.Connection, ticker: str) -> None:
-    """Invalida o cache de XIRR de todo usuário que detém `ticker` (preço mudou)."""
+    """Invalida o cache de XIRR de todo usuário que detém `ticker` (preço mudou).
+
+    Inclui quem detém o ticker SÓ nas carteiras (wallet_positions/defi_positions): o sleeve
+    cripto (m4) valora pelo mesmo preço, então uma cotação nova de cripto também o afeta —
+    senão o XIRR consolidado/Cripto ficaria stale até o TTL (1h).
+    """
     rows = await conn.fetch(
-        "SELECT DISTINCT user_id FROM asset_operations WHERE asset_symbol = $1",
+        "SELECT user_id FROM asset_operations WHERE asset_symbol = $1 "
+        "UNION SELECT user_id FROM wallet_positions WHERE asset_symbol = $1 "
+        "UNION SELECT user_id FROM defi_positions WHERE asset_symbol = $1",
         ticker,
     )
     for row in rows:
@@ -618,7 +625,22 @@ async def calculate_portfolio_xirr(
     incl_ops = [op for op in ops if op["asset_symbol"] not in unpriced_open]
     incl_syms = set(by_asset_ops) - unpriced_open
     total_cur = _sum_or_none([asset_current.get(s) for s in incl_syms])
-    consolidated = _nan_to_none(xirr(build_cashflows(incl_ops, total_cur, today)))
+    incl_flows = build_cashflows(incl_ops, total_cur, today)
+    consolidated = _nan_to_none(xirr(incl_flows))
+
+    # Sleeve cripto (m4): cashflows do ledger + valor atual das carteiras (não vem de
+    # asset_operations). Folda Cripto no by_category e no consolidado. Import lazy evita o
+    # ciclo portfolio.service <-> wallet.service.
+    from .crypto_sleeve import sleeve_cashflows, sleeve_current_value
+
+    sleeve_flows = await sleeve_cashflows(conn)
+    sleeve_cur, _, _ = await sleeve_current_value(conn, user_id)
+    sleeve_terminal = [(today, sleeve_cur)] if sleeve_cur > 0 else []
+    if sleeve_flows or sleeve_terminal:
+        by_category[str(AssetCategory.CRIPTO)] = _nan_to_none(
+            xirr(sleeve_flows + sleeve_terminal)
+        )
+        consolidated = _nan_to_none(xirr(incl_flows + sleeve_flows + sleeve_terminal))
 
     result: dict[str, Any] = {
         "consolidated": consolidated,
