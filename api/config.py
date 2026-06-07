@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     solscan_api_key: str = ""  # SOL/SPL — https://solscan.io
     binance_api_key: str = ""  # Binance spot+earn — CRON ONLY, assinado HMAC-SHA256
     binance_api_secret: str = ""
-    wallet_rabby_address: str = ""  # Rabby — ETH/ARB (Etherscan) + HYPE (Hyperliquid L1)
+    wallet_rabby_address: str = ""  # Rabby — ETH/ARB/PENDLE (Etherscan) + HYPE (L1 spot + HyperEVM)
     wallet_phantom_sol_address: str = ""  # Phantom — endereço SOL (JSON-RPC)
     wallet_sideswap_address: str = ""  # SideSwap — recebimento Liquid (L-BTC + USDT)
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
@@ -110,6 +110,9 @@ class Settings(BaseSettings):
     # RPC Solana (JSON-RPC). Default = endpoint público (throttla); apontar p/
     # Helius/QuickNode no .env evita o rate-limit do mainnet-beta público.
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
+    # HyperEVM (chain EVM da Hyperliquid): HYPE é o gas token NATIVO (18 casas). O scan L1
+    # spot (Info API) não enxerga o saldo aqui — `eth_getBalance` no RPC público.
+    hyperevm_rpc_url: str = "https://rpc.hyperliquid.xyz/evm"
     # TTLs de cache (segundos). wallet = 14h: o scan roda 3x/dia (8/14/20h BRT), com
     # gap noturno de 12h (20h→8h); o TTL precisa ser > esse gap p/ não marcar saldo
     # saudável como stale durante a noite. benchmark CDI/IPCA = 24h.

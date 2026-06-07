@@ -66,6 +66,11 @@ def _mock_all_ok() -> None:
     respx.post("https://api.hyperliquid.xyz/info").mock(
         return_value=httpx.Response(200, json={"balances": [{"coin": "HYPE", "total": "10"}]})
     )
+    respx.post("https://rpc.hyperliquid.xyz/evm").mock(  # HyperEVM nativo: 0.5 HYPE
+        return_value=httpx.Response(
+            200, json={"jsonrpc": "2.0", "id": 1, "result": hex(500_000_000_000_000_000)}
+        )
+    )
 
     def sol(request: httpx.Request) -> httpx.Response:
         if json.loads(request.content)["method"] == "getBalance":  # 2 SOL
@@ -117,6 +122,7 @@ async def test_scan_persists_all_chains(pool: Any, wallet_user: dict) -> None:
     assert got[("arbitrum", "ETH")] == pytest.approx(0.3)  # ETH nativo na Arbitrum (m4)
     assert got[("arbitrum", "PENDLE")] == pytest.approx(7.0)  # PENDLE ERC-20 (m4)
     assert got[("hyperliquid", "HYPE")] == pytest.approx(10.0)
+    assert got[("hyperevm", "HYPE")] == pytest.approx(0.5)  # HYPE nativo na HyperEVM (m4)
     assert got[("solana", "SOL")] == pytest.approx(2.0)
     assert got[("liquid", "L-BTC")] == pytest.approx(0.1)
     assert got[("liquid", "L-USDT")] == pytest.approx(0.5)
@@ -148,8 +154,8 @@ async def test_positions_and_reconciliation_via_asgi(
     await run_wallet_scan(pool, uid, fetchers=_real_fetchers())
     pos = await api.get("/api/v1/wallets/positions", headers=wallet_user["headers"])
     assert pos.status_code == 200
-    # 10 posições: ETH/ARB/ETH-arb/PENDLE/HYPE/SOL/L-BTC/L-USDT/BTC(Trust)/BTC(Binance)
-    assert len(pos.json()) == 10
+    # 11 posições: ETH/ARB/ETH-arb/PENDLE/HYPE(L1)/HYPE(HyperEVM)/SOL/L-BTC/L-USDT/BTC x2
+    assert len(pos.json()) == 11
     rec = await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])
     assert rec.status_code == 200
     by = {r["asset_symbol"]: r for r in rec.json()}
