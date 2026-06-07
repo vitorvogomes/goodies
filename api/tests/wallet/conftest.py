@@ -45,4 +45,5 @@ async def wallet_user(pool: Any) -> AsyncIterator[dict[str, Any]]:
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
         await conn.execute("DELETE FROM defi_positions WHERE user_id = $1", uid)
+        await conn.execute("DELETE FROM asset_operations WHERE user_id = $1", uid)
         await conn.execute("DELETE FROM users WHERE id = $1", uid)
