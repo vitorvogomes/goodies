@@ -40,18 +40,19 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ## ⚪ MENOR (rastrear)
 
-### Cripto Tier 2 — preço médio POR ATIVO (gated no spike, decisão do Vitor)
-- O **sleeve cripto** já está integrado (Posições/Alocação/Rebalanceamento/XIRR + reconciliação
-  de valor), fiel, sem custo por ativo (custo só no nível do sleeve). O **preço médio por ativo**
-  fica deferido. O `scripts/crypto_history_spike.py` (read-only) **mediu a recuperabilidade**:
-  - **yes** — **Binance** (myTrades 23 + fiat 2 + deposit 1): custo em USDT/BRL derivável.
-  - **partial** — on-chain **Ethereum/Arbitrum/Solana/Bitcoin/Hyperliquid** (37–70 eventos): há
-    quantidade+data, mas o custo BRL exige **preço histórico** (CoinGecko) + decodificação de
-    **swaps** cripto↔cripto (aproximado).
-  - **no** — **HyperEVM** (RPC sem txlist), **Liquid/SideSwap** (endereço confidencial, esplora
-    devolve 0) e **KuCoin** (sem API, conta zerada — lacuna permanente).
-  - Construir o Tier 2 (operações por ativo + reconciliação por quantidade) é feature de tamanho
-    real (backfill de preço histórico + valuator de swaps) — **aguarda decisão**.
+### Cripto Tier 2 — preço médio POR ATIVO (Binance ✅; on-chain pendente)
+- **Binance FEITO** (modelo pragmático "trades + gap a custo zero"): `crypto_cost_basis`
+  (migration 0014) + `scripts/reconstruct_binance_cost.py --commit` (myTrades + câmbio histórico
+  **par Binance `USDTBRL`** — CoinGecko free não tem historical). Posições mostram BTC/ETH/SOL
+  **por custódia** com preço médio/resultado reais (ETH@binance −R$ 82). O *gap* (escaneado −
+  negociado = Earn/depósitos/Convert) entra a custo zero. **IR-cripto** dos trades Binance NÃO
+  é coberto (custo vive fora de `asset_operations`) — só relevante se houver venda tributável.
+- **On-chain pendente** (preencheria os "—" das linhas @ethereum/@arbitrum/@solana/@bitcoin):
+  **partial** no spike — quantidade+data existem (Etherscan/Solana/esplora), mas o custo BRL
+  exige preço histórico + decodificar **swaps** cripto↔cripto. Mesmo padrão do Binance, mais
+  trabalhoso. **Aguarda decisão.**
+- **no** (sem fonte): **HyperEVM** (RPC sem txlist), **Liquid/SideSwap** + **Neobankless**
+  (custodial, endereço só de depósito) e **KuCoin** (sem API, conta zerada — lacuna permanente).
 
 ### Deferido por decisão (não depende de marco — escopo/feature)
 - **PT/YT Pendle valorados pelo subjacente.** PT sUSDai usa o preço de `susdai` (superestima
