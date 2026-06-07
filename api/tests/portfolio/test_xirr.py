@@ -133,3 +133,13 @@ class TestXIRREdgeCases:
         result = xirr(cashflows)
         assert not math.isnan(result), "High return should converge"
         assert result > 90.0, f"Expected >9000%, got {result:.0%}"
+
+    def test_extreme_date_span_returns_nan(self) -> None:
+        """Datas a ~200 anos estouram (1+r)**(d/365) no bracket do brentq
+        (under/overflow → Zero/OverflowError) → deve devolver nan, não levantar 500."""
+        cashflows = [
+            (date(1825, 1, 1), -1000.0),
+            (date(2025, 1, 1), 1.0),
+        ]
+        result = xirr(cashflows)
+        assert math.isnan(result), "Extreme date span should return nan, not raise"

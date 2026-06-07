@@ -135,3 +135,35 @@ async def test_upsert_same_price_keeps_xirr_cache(
         # preço diferente → invalida
         await service.upsert_price(conn, "SAMEX", 7.5, source="brapi", is_manual=False)
         assert await cache.get(key) is None
+
+
+@pytest.mark.asyncio
+async def test_upsert_usd_only_change_keeps_xirr_cache(
+    pool: Any, portfolio_user: dict
+) -> None:
+    """Mudar SÓ price_usd não invalida o XIRR (que é em BRL) — evita churn de cache."""
+    uid = portfolio_user["user_id"]
+    cache = PriceCache()
+    key = f"xirr:consolidated:{uid}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
+            "asset_category, tipo, quantidade, valor_unitario, data_operacao) "
+            "VALUES ($1, 'Test', 'USDX', 'Cripto', 'compra', 1, 100, $2)",
+            uid,
+            date(2026, 1, 1),
+        )
+        await service.upsert_price(
+            conn, "USDX", 100.0, price_usd=20.0, source="coingecko", is_manual=False
+        )
+        await cache.set(key, {"consolidated": 0.1}, 3600)
+        # mesmo BRL, USD diferente → XIRR (BRL) preservado
+        await service.upsert_price(
+            conn, "USDX", 100.0, price_usd=25.0, source="coingecko", is_manual=False
+        )
+        assert await cache.get(key) is not None
+        # BRL muda → invalida
+        await service.upsert_price(
+            conn, "USDX", 110.0, price_usd=25.0, source="coingecko", is_manual=False
+        )
+        assert await cache.get(key) is None

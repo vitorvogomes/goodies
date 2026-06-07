@@ -17,8 +17,9 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.market import service as market_service
 from engines.market.fetchers.wallets.base import WalletBalance
-from engines.portfolio.constants import CRYPTO_CATEGORIES
+from engines.portfolio.constants import CRYPTO_CATEGORIES, AssetCategory
 from engines.portfolio.service import net_quantity
 
 
@@ -152,24 +153,15 @@ async def sweep_wallet_positions(
 async def prices_by_ticker(
     conn: asyncpg.Connection, symbols: Sequence[str]
 ) -> dict[str, tuple[float | None, float | None]]:
-    """Preço corrente (BRL, USD) por ticker em asset_prices — 1 varredura, sem N+1.
+    """Preço corrente (BRL, USD) por ticker para valoração de wallet/DeFi (tudo cripto).
 
-    Reusado por `list_wallet_positions` (m4) e pela valoração DeFi (defi_router). `price_brl`
-    é NOT NULL no schema; `price_usd` pode ser None (só o CoinGecko o popula).
+    Delega ao Market Engine (`prices_for_tickers`, cadeia Redis→Postgres do m3) com a
+    categoria Cripto — usa o cache cripto e não duplica o SELECT de preço fora da engine
+    de mercado. Reusado por `list_wallet_positions` (m4) e pela valoração DeFi (defi_router).
     """
-    if not symbols:
-        return {}
-    rows = await conn.fetch(
-        "SELECT ticker, price_brl, price_usd FROM asset_prices WHERE ticker = ANY($1)",
-        list(symbols),
+    return await market_service.prices_for_tickers(
+        conn, symbols, category=AssetCategory.CRIPTO
     )
-    return {
-        r["ticker"]: (
-            float(r["price_brl"]) if r["price_brl"] is not None else None,
-            float(r["price_usd"]) if r["price_usd"] is not None else None,
-        )
-        for r in rows
-    }
 
 
 async def list_wallet_positions(

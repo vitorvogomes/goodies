@@ -10,6 +10,7 @@ Renda Fixa & afins não têm fonte de mercado → `tipo=None` (preço sempre is_
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -179,6 +180,51 @@ async def list_user_prices(
             out.append(_from_pg_row(ticker, row, now))
         else:
             out.append(_missing(ticker))
+    return out
+
+
+async def prices_for_tickers(
+    conn: asyncpg.Connection,
+    tickers: Sequence[str],
+    *,
+    category: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, tuple[float | None, float | None]]:
+    """Preço (BRL, USD) por ticker em LOTE pela cadeia Redis→Postgres (cache-aside do m3).
+
+    Valoração de wallet/DeFi: todos cripto → `category='Cripto'` usa o cache cripto (em vez
+    de bater só no Postgres). Reusa as chaves/builders do m3; sem N+1 e sem SELECT de preço
+    duplicado fora desta engine. Ticker ausente NÃO entra no dict (call site faz
+    `.get(sym, (None, None))`).
+    """
+    keys = list(dict.fromkeys(tickers))  # dedup preservando ordem
+    if not keys:
+        return {}
+    now = now or datetime.now(tz=UTC)
+    cache_type = cache_type_for_category(category)
+
+    pg = {
+        r["ticker"]: r
+        for r in await conn.fetch(
+            "SELECT ticker, price_brl, price_usd FROM asset_prices WHERE ticker = ANY($1)",
+            keys,
+        )
+    }
+    cached: dict[str, Any] = {}
+    if cache_type is not None:
+        hits = await _cache.mget([price_cache_key(cache_type, t) for t in keys])
+        cached = {t: v for t, v in zip(keys, hits, strict=True) if v is not None}
+
+    out: dict[str, tuple[float | None, float | None]] = {}
+    for t in keys:
+        hit = cached.get(t)
+        if hit is not None:
+            out[t] = (hit.get("price_brl"), hit.get("price_usd"))
+        elif (row := pg.get(t)) is not None:
+            out[t] = (
+                float(row["price_brl"]) if row["price_brl"] is not None else None,
+                float(row["price_usd"]) if row["price_usd"] is not None else None,
+            )
     return out
 
 

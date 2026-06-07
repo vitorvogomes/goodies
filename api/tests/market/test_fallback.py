@@ -59,6 +59,45 @@ async def test_redis_hit_is_fresh(pool: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_prices_for_tickers_uses_crypto_cache(pool: Any) -> None:
+    # valoração de wallet/DeFi (category Cripto) deve usar o cache cripto, não só o PG
+    cache = PriceCache()
+    await cache.set(
+        service.price_cache_key("crypto", "MKT_WBTC"),
+        {
+            "price_brl": 360000.0,
+            "price_usd": 65000.0,
+            "source": "coingecko",
+            "fetched_at": "2026-06-06T11:00:00+00:00",
+        },
+        300,
+    )
+    try:
+        async with pool.acquire() as conn:
+            out = await service.prices_for_tickers(conn, ["MKT_WBTC"], category="Cripto")
+        assert out["MKT_WBTC"] == (360000.0, 65000.0)
+    finally:
+        await cache.delete(service.price_cache_key("crypto", "MKT_WBTC"))
+
+
+@pytest.mark.asyncio
+async def test_prices_for_tickers_falls_back_to_postgres(pool: Any) -> None:
+    await _insert_price(
+        pool, "MKT_WSOL", source="coingecko", is_manual=False, fetched_at=_NOW
+    )
+    async with pool.acquire() as conn:
+        out = await service.prices_for_tickers(conn, ["MKT_WSOL"], category="Cripto")
+    assert out["MKT_WSOL"][0] == 10.0  # price_brl do Postgres (sem cache)
+
+
+@pytest.mark.asyncio
+async def test_prices_for_tickers_missing_is_absent(pool: Any) -> None:
+    async with pool.acquire() as conn:
+        out = await service.prices_for_tickers(conn, ["MKT_NOPE"], category="Cripto")
+    assert "MKT_NOPE" not in out  # ausente → call site faz .get(sym, (None, None))
+
+
+@pytest.mark.asyncio
 async def test_postgres_hit_fresh_within_ttl(pool: Any) -> None:
     await _insert_price(
         pool, "MKT_BBAS3", source="brapi", is_manual=False, fetched_at=_NOW - timedelta(hours=1)

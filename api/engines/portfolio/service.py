@@ -155,13 +155,10 @@ async def upsert_price(
     )
     if row is None:
         return {}  # escrita ignorada pela precedência is_manual
-    # comparação exata em Decimal (já arredondado pelo numeric); linha nova → prev None → mudou
-    changed = (
-        row["prev_brl"] is None
-        or row["price_brl"] != row["prev_brl"]
-        or row["price_usd"] != row["prev_usd"]
-    )
-    if changed:
+    # XIRR é em BRL: só invalidar quando price_brl muda (mudança só de USD não afeta o XIRR).
+    # Comparação exata em Decimal (já arredondado pelo numeric); linha nova → prev None → mudou.
+    brl_changed = row["prev_brl"] is None or row["price_brl"] != row["prev_brl"]
+    if brl_changed:
         await _invalidate_xirr_for_ticker(conn, ticker)
     cols = ("ticker", "price_brl", "price_usd", "source", "is_manual", "fetched_at")
     return {k: row[k] for k in cols}

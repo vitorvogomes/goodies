@@ -55,3 +55,20 @@ async def pool():
     await init_pool(TEST_DSN)
     yield get_pool()
     await close_pool()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_price_cache():
+    """Reseta o singleton `_cache` do Market Engine a cada teste.
+
+    O cliente `redis.asyncio` liga-se ao event loop em que é usado pela 1ª vez. Com loop
+    por-teste (pytest-asyncio), o singleton criado no import ficaria preso a um loop já
+    fechado e o `mget` falharia ('Event loop is closed') a partir do 2º teste que o usa
+    (exposto quando a valoração de wallet/DeFi passou a ler pelo cache). Em prod o loop é
+    único → no-op. Recriar é lazy (sem conexão até o 1º comando).
+    """
+    from engines.market import service as market_service
+    from engines.market.cache import PriceCache
+
+    market_service._cache = PriceCache()
+    yield

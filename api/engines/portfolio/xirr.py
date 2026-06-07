@@ -37,5 +37,7 @@ def xirr(cashflows: list[tuple[date, float]]) -> float:
 
     try:
         return brentq(npv, -0.999, 100.0, xtol=1e-8, maxiter=1000)  # type: ignore[no-any-return]
-    except ValueError:
+    except (ValueError, OverflowError, ZeroDivisionError):
+        # ValueError: sem troca de sinal. Over/ZeroDivision: datas extremas (~séculos)
+        # estouram (1+r)**(d/365) no bracket do brentq. Nunca levantar 500 — devolve nan.
         return float("nan")

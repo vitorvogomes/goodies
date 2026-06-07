@@ -6,6 +6,9 @@ from typing import Any
 import httpx
 import pytest
 
+from engines.market.cache import PriceCache
+from engines.market.service import price_cache_key
+
 _NEW = {
     "asset_symbol": "xSOL",
     "balance": 12.5,
@@ -92,6 +95,11 @@ async def test_list_values_positions_with_price(
             "VALUES ('xSOL', 1500.0, 280.0, 'coingecko', false) ON CONFLICT (ticker) "
             "DO UPDATE SET price_brl = EXCLUDED.price_brl, price_usd = EXCLUDED.price_usd"
         )
+    # valoração é cache-aware (lê crypto cache antes do PG) — invalida p/ refletir o preço
+    # recém-escrito (Redis é compartilhado; um smoke ao vivo pode ter deixado xSOL cacheado)
+    cache = PriceCache()
+    await cache.delete(price_cache_key("crypto", "xSOL"))
+    await cache.delete(price_cache_key("crypto", "YT-xSOL-2609"))
     try:
         listed = (await api.get("/api/v1/defi/positions", headers=h)).json()
         by = {p["asset_symbol"]: p for p in listed}
