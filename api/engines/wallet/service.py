@@ -211,6 +211,37 @@ async def list_wallet_positions(
     return out
 
 
+async def list_defi_valued(
+    conn: asyncpg.Connection, user_id: str
+) -> list[dict[str, Any]]:
+    """Posições DeFi ATIVAS valoradas pelo preço corrente (m3) — mesma valoração do defi_router.
+
+    Helper de serviço compartilhado: o crypto sleeve (valor atual) lê daqui em vez de duplicar
+    o SELECT+valoração de `defi_positions`. Sem preço → `value_brl=None` (fail-soft).
+    """
+    rows = await conn.fetch(
+        "SELECT protocol, asset_symbol, balance FROM defi_positions "
+        "WHERE user_id = $1 AND is_active",
+        user_id,
+    )
+    prices = await prices_by_ticker(conn, [r["asset_symbol"] for r in rows])
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        bal = float(r["balance"])
+        brl, usd = prices.get(r["asset_symbol"], (None, None))
+        out.append(
+            {
+                "protocol": r["protocol"],
+                "asset_symbol": r["asset_symbol"],
+                "balance": bal,
+                "price_brl": brl,
+                "value_brl": value_of(bal, brl),
+                "value_usd": value_of(bal, usd),
+            }
+        )
+    return out
+
+
 async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, Any]]:
     """Reconcilia saldo escaneado vs registrado: `delta = Σ scanned - net_quantity(ops)`.
 

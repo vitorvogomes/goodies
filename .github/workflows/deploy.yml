@@ -53,6 +53,7 @@ jobs:
           workers/price_workers.py workers/scheduler.py
           engines/portfolio/constants.py engines/portfolio/service.py
           engines/portfolio/b3_import.py engines/portfolio/analytics_router.py
+          engines/portfolio/crypto_sleeve.py
           engines/ledger/accounts.py
           engines/ledger/categories.py engines/ledger/transactions.py
           engines/ledger/cashflow.py engines/ledger/fixed_costs.py

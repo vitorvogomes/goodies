@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).
     evaluation_date: date | None = None
 
+    # Categorias do LEDGER (transactions.category) cujo fluxo BRL é o custo do "sleeve"
+    # cripto (m4). Cripto não vive em asset_operations — o sleeve cruza estas saídas com o
+    # valor escaneado das carteiras. São NOMES de categoria (CRUD do usuário), não o enum
+    # AssetCategory; inclui o nome real com typo histórico ("Cripto Nubnak"). Override via
+    # env CRYPTO_LEDGER_CATEGORIES (JSON).
+    crypto_ledger_categories: list[str] = [
+        "Binance",
+        "Cripto Diversos",
+        "Cripto Nubnak",
+        "Liquid/DeFi",
+    ]
+
     # ---- Market Engine (m3) — fetchers de preço ----
     brapi_token: str = ""  # BRAPI (B3) — https://brapi.dev
     coingecko_api_key: str = ""  # CoinGecko (cripto)
