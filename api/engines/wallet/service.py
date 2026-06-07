@@ -22,6 +22,27 @@ from engines.portfolio.constants import CRYPTO_CATEGORIES
 from engines.portfolio.service import net_quantity
 
 
+class ManualPositionConflict(Exception):
+    """Já existe uma posição ESCANEADA do mesmo (chain, ativo) — manual duplicaria a contagem."""
+
+
+def _prefer_scanned(rows: Sequence[Any]) -> list[Any]:
+    """Dedup por (chain, asset_symbol): se há linha escaneada, descarta a manual.
+
+    Uma posição manual (`wallet_address='manual'`) e uma escaneada real coexistem como
+    linhas distintas (chave única difere por endereço). Sem isto, `list`/`reconcile`
+    somariam as duas (contagem dupla). A escaneada (on-chain) vence a manual.
+    """
+    has_scanned = {
+        (r["chain"], r["asset_symbol"]) for r in rows if not r["is_manual"]
+    }
+    return [
+        r
+        for r in rows
+        if not (r["is_manual"] and (r["chain"], r["asset_symbol"]) in has_scanned)
+    ]
+
+
 async def upsert_wallet_position(
     conn: asyncpg.Connection, user_id: str, balance: WalletBalance
 ) -> None:
@@ -52,7 +73,18 @@ async def upsert_manual_wallet_position(
 
     `is_manual=true`, `source='manual'`, `wallet_address='manual'` (sentinela). O sweep do
     worker nunca a remove. Valorada como qualquer outra (preço do m3 por asset_symbol).
+    Rejeita (`ManualPositionConflict`) se já há linha escaneada do mesmo (chain, ativo) —
+    senão as duas seriam somadas (contagem dupla).
     """
+    clash = await conn.fetchval(
+        "SELECT 1 FROM wallet_positions WHERE user_id = $1 AND chain = $2 "
+        "AND asset_symbol = $3 AND is_manual = false LIMIT 1",
+        user_id,
+        chain,
+        asset_symbol,
+    )
+    if clash:
+        raise ManualPositionConflict(f"{chain}/{asset_symbol} já é escaneada")
     await conn.execute(
         """
         INSERT INTO wallet_positions
@@ -154,6 +186,7 @@ async def list_wallet_positions(
         "FROM wallet_positions WHERE user_id = $1 ORDER BY chain, asset_symbol",
         user_id,
     )
+    rows = _prefer_scanned(rows)
     symbols = [r["asset_symbol"] for r in rows]
     prices = await prices_by_ticker(conn, symbols)
     out: list[dict[str, Any]] = []
@@ -193,18 +226,24 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
     scan; B3 e caixinhas Nubank vêm por outra via e não pertencem à reconciliação. O lado
     escaneado (`wallet_positions`) já é 100% cripto; o registrado é filtrado por categoria.
     """
-    scanned_rows = await conn.fetch(
-        "SELECT asset_symbol, SUM(quantity) AS qty FROM wallet_positions "
-        "WHERE user_id = $1 GROUP BY asset_symbol",
-        user_id,
+    # dedup manual vs escaneada (preferindo a escaneada) ANTES de somar — senão contaria 2x
+    scanned_rows = _prefer_scanned(
+        await conn.fetch(
+            "SELECT chain, asset_symbol, quantity, is_manual FROM wallet_positions "
+            "WHERE user_id = $1",
+            user_id,
+        )
     )
-    scanned = {r["asset_symbol"]: float(r["qty"]) for r in scanned_rows}
+    scanned: dict[str, float] = defaultdict(float)
+    for r in scanned_rows:
+        scanned[r["asset_symbol"]] += float(r["quantity"])
 
+    # categoria case-insensível: op cripto com casing divergente do enum não pode ser dropada
     ops = await conn.fetch(
         "SELECT asset_symbol, tipo, quantidade FROM asset_operations "
-        "WHERE user_id = $1 AND asset_category = ANY($2::text[])",
+        "WHERE user_id = $1 AND lower(asset_category) = ANY($2::text[])",
         user_id,
-        list(CRYPTO_CATEGORIES),
+        [c.lower() for c in CRYPTO_CATEGORIES],
     )
     by_symbol: dict[str, list[Any]] = defaultdict(list)
     for op in ops:

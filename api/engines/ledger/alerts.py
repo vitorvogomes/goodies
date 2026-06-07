@@ -5,7 +5,6 @@ dias + categorias acima de 120% da média dos últimos 3 meses. A persistência
 (active_alerts) e o Alert Engine ficam para o m5.
 """
 
-import datetime
 from typing import Annotated
 
 import asyncpg
@@ -13,6 +12,7 @@ from fastapi import APIRouter, Depends
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.dates import today_brt
 from engines.ledger.service import (
     Alert,
     FixedCostDue,
@@ -29,7 +29,7 @@ Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 @router.get("/alerts", response_model=list[Alert])
 async def alerts(user: AuthUser, db: Db) -> list[Alert]:
-    today = datetime.date.today()
+    today = today_brt()  # fuso BRT — em prod UTC daria off-by-one nos vencimentos (débito m4)
 
     fc_rows = await db.fetch(
         "SELECT name, amount, due_day, category FROM fixed_costs WHERE is_active"

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from engines.market.fetchers.wallets.base import WalletBalance
+from engines.wallet import service
 from workers.wallet_workers import run_wallet_scan
 
 
@@ -114,3 +115,56 @@ async def test_manual_requires_auth(api: Any) -> None:
         json={"chain": "liquid", "asset_symbol": "L-BTC", "quantity": 0.1},
     )
     assert r.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_manual_rejected_when_scanned_exists(api: Any, wallet_user: dict, pool: Any) -> None:
+    # já existe uma posição ESCANEADA do mesmo (chain, ativo) → manual viraria contagem dupla
+    uid = wallet_user["user_id"]
+    async with pool.acquire() as conn:
+        await service.upsert_wallet_position(
+            conn, uid, WalletBalance("solana", "solREAL", "MNL_SOL", 2.0, "solana")
+        )
+    r = await api.post(
+        "/api/v1/wallets/positions/manual",
+        json={"chain": "solana", "asset_symbol": "MNL_SOL", "quantity": 1.0},
+        headers=wallet_user["headers"],
+    )
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_list_and_reconcile_prefer_scanned_over_manual(
+    api: Any, wallet_user: dict, pool: Any
+) -> None:
+    # manual criada primeiro; depois um scan acha o mesmo (chain, ativo) num endereço real
+    uid = wallet_user["user_id"]
+    await api.post(
+        "/api/v1/wallets/positions/manual",
+        json={"chain": "solana", "asset_symbol": "MNL_DUP", "quantity": 5.0},
+        headers=wallet_user["headers"],
+    )
+    async with pool.acquire() as conn:
+        await service.upsert_wallet_position(
+            conn, uid, WalletBalance("solana", "solREAL", "MNL_DUP", 2.0, "solana")
+        )
+    # list: aparece uma vez só, a ESCANEADA (não soma manual+escaneada)
+    pos = (await api.get("/api/v1/wallets/positions", headers=wallet_user["headers"])).json()
+    dup = [p for p in pos if p["asset_symbol"] == "MNL_DUP"]
+    assert len(dup) == 1
+    assert dup[0]["is_manual"] is False
+    assert dup[0]["quantity"] == pytest.approx(2.0)
+    # reconcile: escaneado contado uma vez (2.0), não 7.0
+    rec = (await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])).json()
+    by = {r["asset_symbol"]: r for r in rec}
+    assert by["MNL_DUP"]["scanned_quantity"] == pytest.approx(2.0)
+
+
+@pytest.mark.asyncio
+async def test_manual_rejects_whitespace_symbol(api: Any, wallet_user: dict) -> None:
+    r = await api.post(
+        "/api/v1/wallets/positions/manual",
+        json={"chain": "liquid", "asset_symbol": "   ", "quantity": 0.1},
+        headers=wallet_user["headers"],
+    )
+    assert r.status_code == 422

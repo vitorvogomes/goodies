@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.dates import today_brt
 from engines.ledger.service import Alert
 from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 from engines.wallet.service import prices_by_ticker
@@ -168,7 +169,7 @@ async def delete_position(position_id: uuid.UUID, user: AuthUser, db: Db) -> Non
 @router.get("/alerts", response_model=list[Alert])
 async def defi_alerts(user: AuthUser, db: Db) -> list[Alert]:
     """Alertas de vencimento (30d/7d) das posições DeFi ativas — compute-on-read."""
-    today = datetime.date.today()
+    today = today_brt()  # fuso BRT — em prod UTC daria off-by-one nas bordas (débito m4)
     rows = await db.fetch(
         "SELECT asset_symbol, maturity_date, protocol FROM defi_positions "
         "WHERE user_id = $1 AND is_active AND maturity_date IS NOT NULL",

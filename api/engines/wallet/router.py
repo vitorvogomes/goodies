@@ -8,11 +8,12 @@ from typing import Annotated
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.wallet import service
+from engines.wallet.service import ManualPositionConflict
 
 router = APIRouter(prefix="/api/v1/wallets", tags=["wallet"])
 
@@ -40,6 +41,14 @@ class ManualPositionIn(BaseModel):
     asset_symbol: str = Field(min_length=1)
     quantity: float = Field(ge=0)
 
+    @field_validator("chain", "asset_symbol")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("não pode ser vazio")
+        return v
+
 
 class ManualPositionOut(BaseModel):
     chain: str
@@ -64,9 +73,12 @@ async def create_manual_position(
     body: ManualPositionIn, user: AuthUser, db: Db
 ) -> ManualPositionOut:
     """Entrada manual (ex.: Liquid confidencial). Upsert por (chain, asset_symbol)."""
-    await service.upsert_manual_wallet_position(
-        db, user["id"], body.chain, body.asset_symbol, body.quantity
-    )
+    try:
+        await service.upsert_manual_wallet_position(
+            db, user["id"], body.chain, body.asset_symbol, body.quantity
+        )
+    except ManualPositionConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return ManualPositionOut(
         chain=body.chain, asset_symbol=body.asset_symbol, quantity=body.quantity
     )

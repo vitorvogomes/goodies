@@ -122,6 +122,20 @@ async def test_reconciliation_excludes_non_crypto(
 
 
 @pytest.mark.asyncio
+async def test_reconciliation_category_case_insensitive(
+    api: httpx.AsyncClient, wallet_user: dict, pool: Any
+) -> None:
+    # op cripto gravada com casing divergente do enum ('cripto') ainda deve reconciliar
+    uid = wallet_user["user_id"]
+    await _scan(pool, uid, WalletBalance("solana", "sol1", "MKT_CI", 1.0, "solana"))
+    await _op(pool, uid, "MKT_CI", "compra", 1.0, cat="cripto")
+    resp = await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])
+    by = {r["asset_symbol"]: r for r in resp.json()}
+    assert by["MKT_CI"]["registered_quantity"] == pytest.approx(1.0)
+    assert by["MKT_CI"]["delta"] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
 async def test_read_endpoints_require_auth(api: httpx.AsyncClient) -> None:
     assert (await api.get("/api/v1/wallets/positions")).status_code == 401
     assert (await api.get("/api/v1/wallets/reconciliation")).status_code == 401
