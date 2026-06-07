@@ -1,32 +1,17 @@
 "use client";
 
 // STORY-03-11 — tela de preços do Market Engine com indicador de staleness.
-import { Button } from "@/components/ui";
-import { formatBRL } from "@/lib/format";
+import { Badge, Button } from "@/components/ui";
+import { fmtWhen, formatBRL } from "@/lib/format";
 import { usePrices } from "@/lib/market";
 import type { Price } from "@/types/market";
 
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
-
 // 4 estados visualmente distintos sobre 3 conceitos: não encontrado | manual | via API.
 function StatusBadge({ p }: { p: Price }) {
-  const base = "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs";
-  if (p.price_brl == null) {
-    return <span className={`${base} bg-loss/15 text-loss`}>✕ não encontrado</span>;
-  }
-  if (p.is_manual) {
-    return <span className={`${base} bg-accent/15 text-accent`}>✎ manual</span>;
-  }
-  if (p.stale) {
-    return <span className={`${base} bg-warning/15 text-warning`}>⟳ via API · desatualizado</span>;
-  }
-  return <span className={`${base} bg-gain/15 text-gain`}>↻ via API</span>;
+  if (p.price_brl == null) return <Badge tone="loss">✕ não encontrado</Badge>;
+  if (p.is_manual) return <Badge tone="accent">✎ manual</Badge>;
+  if (p.stale) return <Badge tone="warning">⟳ via API · desatualizado</Badge>;
+  return <Badge tone="gain">↻ via API</Badge>;
 }
 
 function Legend() {

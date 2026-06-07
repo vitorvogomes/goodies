@@ -2,10 +2,10 @@
 
 // STORY-04-10 — Carteiras Cripto: saldos escaneados (on-chain/exchange) + entrada manual
 // (Liquid confidencial) + posições DeFi. Valoração pelo preço do m3 (BRL e USD). Visão por rede.
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
-import { Button, Card, Field, Input, Select } from "@/components/ui";
-import { formatBRL, formatUSD } from "@/lib/format";
+import { Badge, Button, Card, Field, Input, Select } from "@/components/ui";
+import { fmtQty, fmtWhen, formatBRL, formatUSD, parseDecimalInput } from "@/lib/format";
 import {
   useCreateDefi,
   useCreateManualPosition,
@@ -17,37 +17,32 @@ import {
 } from "@/lib/wallet";
 import type { DefiPosition, WalletPosition } from "@/types/wallet";
 
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
-
-function fmtQty(n: number): string {
-  return n.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
-}
-
 // Número editável inline (clique no valor → input; Enter salva, Esc cancela). Usado para
 // editar a quantidade de posições manuais (Liquid) e o saldo das posições DeFi.
 function EditableNumber({
   value,
   onSave,
   pending,
+  error = false,
 }: {
   value: number;
   onSave: (v: number) => void;
   pending: boolean;
+  error?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // o Enter chama commit() e desmonta o input → o onBlur dispararia commit() de novo;
+  // este flag (resetado ao reentrar em edição) garante uma única gravação.
+  const committed = useRef(false);
 
   function commit() {
+    if (committed.current) return;
+    committed.current = true;
     setEditing(false);
     const trimmed = draft.trim();
     if (trimmed === "") return; // campo vazio → não salva (evita zerar o saldo por engano)
-    const n = Number(trimmed.replace(",", "."));
+    const n = parseDecimalInput(trimmed);
     if (Number.isFinite(n) && n >= 0 && n !== value) onSave(n);
   }
 
@@ -56,13 +51,23 @@ function EditableNumber({
       <button
         onClick={() => {
           setDraft(String(value).replace(".", ","));
+          committed.current = false;
           setEditing(true);
         }}
         className="group inline-flex items-center gap-1 tabular-nums text-foreground/80 hover:text-foreground"
         title="Editar"
       >
         {pending ? "…" : fmtQty(value)}
-        <span className="text-[10px] text-foreground/30 group-hover:text-accent">✎</span>
+        <span
+          className={
+            error
+              ? "text-[10px] text-loss"
+              : "text-[10px] text-foreground/30 group-hover:text-accent"
+          }
+          title={error ? "Falha ao salvar — tente de novo" : "Editar"}
+        >
+          {error ? "⚠" : "✎"}
+        </span>
       </button>
     );
   }
@@ -85,37 +90,61 @@ function EditableNumber({
 }
 
 // Célula de dinheiro: BRL como principal, USD em mute logo abaixo. "—" sem preço.
-function Money({ brl, usd }: { brl: number | null; usd: number | null }) {
+// `usdPartial` marca com "*" um total USD que subestima (algum item sem preço USD).
+function Money({
+  brl,
+  usd,
+  usdPartial = false,
+}: {
+  brl: number | null;
+  usd: number | null;
+  usdPartial?: boolean;
+}) {
   if (brl == null) return <span className="text-foreground/40">—</span>;
   return (
     <div className="flex flex-col items-end leading-tight">
       <span className="tabular-nums text-foreground/80">{formatBRL(brl)}</span>
       {usd != null && (
-        <span className="tabular-nums text-[11px] text-foreground/40">{formatUSD(usd)}</span>
+        <span className="tabular-nums text-[11px] text-foreground/40">
+          {formatUSD(usd)}
+          {usdPartial && "*"}
+        </span>
       )}
     </div>
   );
 }
 
 function StatusBadge({ p }: { p: WalletPosition }) {
-  const base = "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs";
-  if (p.is_manual) {
-    return <span className={`${base} bg-accent/15 text-accent`}>✎ manual</span>;
+  if (p.is_manual) return <Badge tone="accent">✎ manual</Badge>;
+  if (p.price_brl == null) return <Badge tone="loss">✕ sem preço</Badge>;
+  if (p.stale) return <Badge tone="warning">⟳ desatualizado</Badge>;
+  return <Badge tone="gain">↻ escaneado</Badge>;
+}
+
+interface ValueSum {
+  brl: number;
+  usd: number;
+  // false quando algum item tem BRL mas USD nulo → o total USD subestima (marcado com *)
+  usdComplete: boolean;
+}
+
+// Soma valores BRL/USD; sinaliza quando o USD está incompleto (preço só em BRL).
+function sumValues(items: Array<{ value_brl: number | null; value_usd: number | null }>): ValueSum {
+  let brl = 0;
+  let usd = 0;
+  let usdComplete = true;
+  for (const p of items) {
+    brl += p.value_brl ?? 0;
+    usd += p.value_usd ?? 0;
+    if (p.value_brl != null && p.value_usd == null) usdComplete = false;
   }
-  if (p.price_brl == null) {
-    return <span className={`${base} bg-loss/15 text-loss`}>✕ sem preço</span>;
-  }
-  if (p.stale) {
-    return <span className={`${base} bg-warning/15 text-warning`}>⟳ desatualizado</span>;
-  }
-  return <span className={`${base} bg-gain/15 text-gain`}>↻ escaneado</span>;
+  return { brl, usd, usdComplete };
 }
 
 interface ChainGroup {
   chain: string;
   items: WalletPosition[];
-  subtotalBrl: number;
-  subtotalUsd: number;
+  sum: ValueSum;
 }
 
 // Agrupa as posições por rede (chain), ordenadas, com subtotal BRL/USD por rede.
@@ -128,12 +157,19 @@ function groupByChain(positions: WalletPosition[]): ChainGroup[] {
   }
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([chain, items]) => ({
-      chain,
-      items,
-      subtotalBrl: items.reduce((s, p) => s + (p.value_brl ?? 0), 0),
-      subtotalUsd: items.reduce((s, p) => s + (p.value_usd ?? 0), 0),
-    }));
+    .map(([chain, items]) => ({ chain, items, sum: sumValues(items) }));
+}
+
+// USD do subtotal/total com marcador "*" quando incompleto (algum item sem USD).
+function UsdSuffix({ sum }: { sum: ValueSum }) {
+  if (sum.usd <= 0) return null;
+  return (
+    <span className="tabular-nums text-foreground/40">
+      {" "}
+      · {formatUSD(sum.usd)}
+      {!sum.usdComplete && "*"}
+    </span>
+  );
 }
 
 function PositionRow({ p }: { p: WalletPosition }) {
@@ -147,6 +183,7 @@ function PositionRow({ p }: { p: WalletPosition }) {
           <EditableNumber
             value={p.quantity}
             pending={upd.isPending}
+            error={upd.isError}
             onSave={(v) =>
               upd.mutate({ chain: p.chain, asset_symbol: p.asset_symbol, quantity: v })
             }
@@ -193,7 +230,7 @@ function ManualForm() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const q = Number(qty.replace(",", "."));
+    const q = parseDecimalInput(qty);
     if (!Number.isFinite(q) || q < 0) {
       setError("Quantidade inválida.");
       return;
@@ -253,6 +290,7 @@ function DefiRow({ d }: { d: DefiPosition }) {
         <EditableNumber
           value={d.balance}
           pending={upd.isPending}
+          error={upd.isError}
           onSave={(v) => upd.mutate({ id: d.id, balance: v })}
         />
       </td>
@@ -281,8 +319,7 @@ function DefiSection() {
   const { data, isLoading, isError } = useDefiPositions();
   const create = useCreateDefi();
   const positions = data ?? [];
-  const subtotalBrl = positions.reduce((s, d) => s + (d.value_brl ?? 0), 0);
-  const subtotalUsd = positions.reduce((s, d) => s + (d.value_usd ?? 0), 0);
+  const sum = sumValues(positions);
   const [asset, setAsset] = useState("");
   const [balance, setBalance] = useState("");
   const [protocol, setProtocol] = useState("");
@@ -292,7 +329,7 @@ function DefiSection() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const b = Number(balance.replace(",", "."));
+    const b = parseDecimalInput(balance);
     if (!asset.trim() || !Number.isFinite(b) || b < 0) {
       setError("Informe ativo e saldo válidos.");
       return;
@@ -371,7 +408,7 @@ function DefiSection() {
                   Subtotal DeFi
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Money brl={subtotalBrl} usd={subtotalUsd} />
+                  <Money brl={sum.brl} usd={sum.usd} usdPartial={!sum.usdComplete} />
                 </td>
                 <td colSpan={2} />
               </tr>
@@ -418,8 +455,7 @@ export default function WalletsPage() {
   const { data, isLoading, isError } = useWalletPositions();
   const positions = data ?? [];
   const groups = groupByChain(positions);
-  const totalBrl = positions.reduce((acc, p) => acc + (p.value_brl ?? 0), 0);
-  const totalUsd = positions.reduce((acc, p) => acc + (p.value_usd ?? 0), 0);
+  const total = sumValues(positions);
   const staleCount = positions.filter((p) => !p.is_manual && (p.stale || p.price_brl == null))
     .length;
 
@@ -436,10 +472,8 @@ export default function WalletsPage() {
         <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 text-xs text-foreground/50">
           <span>
             Total valorado{" "}
-            <span className="tabular-nums text-foreground/80">{formatBRL(totalBrl)}</span>
-            {totalUsd > 0 && (
-              <span className="tabular-nums text-foreground/40"> · {formatUSD(totalUsd)}</span>
-            )}
+            <span className="tabular-nums text-foreground/80">{formatBRL(total.brl)}</span>
+            <UsdSuffix sum={total} />
           </span>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             <span>
@@ -509,14 +543,9 @@ export default function WalletsPage() {
                       </span>
                       <span className="text-xs">
                         <span className="tabular-nums text-foreground/70">
-                          {formatBRL(g.subtotalBrl)}
+                          {formatBRL(g.sum.brl)}
                         </span>
-                        {g.subtotalUsd > 0 && (
-                          <span className="tabular-nums text-foreground/40">
-                            {" "}
-                            · {formatUSD(g.subtotalUsd)}
-                          </span>
-                        )}
+                        <UsdSuffix sum={g.sum} />
                       </span>
                     </div>
                   </td>

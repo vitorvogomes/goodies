@@ -68,3 +68,25 @@ export function Card({ className, children }: { className?: string; children: Re
     </div>
   );
 }
+
+// Selo de status (preço/scan). `tone` mapeia os tokens gain/warning/accent/loss.
+// Compartilhado pelas telas de Ativos B3 e Carteiras (cada uma compõe seus rótulos).
+export function Badge({
+  tone,
+  children,
+}: {
+  tone: "gain" | "warning" | "accent" | "loss";
+  children: ReactNode;
+}) {
+  const tones = {
+    gain: "bg-gain/15 text-gain",
+    warning: "bg-warning/15 text-warning",
+    accent: "bg-accent/15 text-accent",
+    loss: "bg-loss/15 text-loss",
+  };
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs", tones[tone])}>
+      {children}
+    </span>
+  );
+}

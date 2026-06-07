@@ -3,13 +3,12 @@
 // STORY-04-11 — Reconciliação: saldo escaneado (wallet_positions) vs registrado
 // (net das asset_operations). Delta != 0 = divergência a investigar.
 import { Button } from "@/components/ui";
+import { fmtQty } from "@/lib/format";
 import { useReconciliation } from "@/lib/wallet";
 
-const EPS = 1e-9;
-
-function fmtQty(n: number): string {
-  return n.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
-}
+// alinhado ao display: fmtQty mostra 8 casas → o que arredonda p/ 0 (|Δ|<5e-9) não conta
+// nem colore como divergência (senão um delta-poeira aparecia como "+0" colorido).
+const EPS = 5e-9;
 
 function deltaClass(delta: number): string {
   if (Math.abs(delta) < EPS) return "text-foreground/40";
