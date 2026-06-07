@@ -157,11 +157,15 @@ Procedimento + débito: `docs/12_Gate_M3_Market.md`, `docs/13_Debito_Tecnico_m3.
 | 04-07 | Worker benchmark_daily (BCB CDI/IPCA; IBOV→m5) | [x] | (B4) |
 | 04-08 | Entrada manual DeFi (Phantom) — defi_positions + CRUD | [x] | (B4) |
 | 04-09 | Alertas de vencimento DeFi (30d e 7d) | [x] | (B4) |
-| 04-10 | Frontend — tela de wallets | [ ] | — |
-| 04-11 | Frontend — reconciliação posição escaneada | [ ] | — |
+| 04-10 | Frontend — tela de wallets | [x] | 28bcf4b (B5) · 4fc5b4c (USD+rede) |
+| 04-11 | Frontend — reconciliação posição escaneada | [x] | 28bcf4b (B5) · 4fc5b4c (só-cripto) |
 | 04-12 | Testes de integração (mocks chain explorers) | [x] | (B5) |
 
 **Gate m4:** posições cripto escaneadas automaticamente.
+**Status m4: 12/12 ✅** — scan automático de 4 carteiras + Binance (6 fetchers fail-soft); HYPE
+somado em 2 fontes (L1 spot + HyperEVM); manual/DeFi/Liquid valorados via aliases CoinGecko (m3),
+com USD ao lado do BRL e visão por rede; reconciliação só-cripto. `/code-review` (9 ângulos) → 3
+correções + débito em `docs/15`. Suite **410 verde**; ruff + mypy strict; front tsc/eslint/build ok.
 
 ---
 
