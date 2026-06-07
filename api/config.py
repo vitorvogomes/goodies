@@ -68,6 +68,7 @@ class Settings(BaseSettings):
         "USDC": "usd-coin",
         # L-BTC (Liquid, ADR-005) vale 1:1 com BTC → reusa o caminho de preço do m3.
         "L-BTC": "bitcoin",
+        "L-USDT": "tether",  # USDt na Liquid (SideSwap) → 1:1 USD
     }
     # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
     # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
@@ -95,6 +96,10 @@ class Settings(BaseSettings):
     # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
     liquid_base_url: str = "https://blockstream.info/liquid/api"
     lbtc_asset_id: str = ""  # constante pública L-BTC (64 hex) — valor no .env
+    lusdt_asset_id: str = ""  # asset id público do USDt na Liquid (64 hex) — valor no .env
+    # Bitcoin mainchain (Trust) — ADR-005: client SEPARADO do Liquid (NÃO /liquid/api).
+    wallet_trust_btc_address: str = ""  # Trust — endereço BTC mainchain (bc1q...)
+    btc_base_url: str = "https://blockstream.info/api"
     # RPC Solana (JSON-RPC). Default = endpoint público (throttla); apontar p/
     # Helius/QuickNode no .env evita o rate-limit do mainnet-beta público.
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"

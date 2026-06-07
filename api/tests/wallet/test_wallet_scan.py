@@ -7,6 +7,7 @@ import pytest
 
 from engines.market.fetchers.wallets.base import WalletBalance
 from engines.market.fetchers.wallets.binance import BinanceFetcher
+from engines.market.fetchers.wallets.bitcoin import BitcoinFetcher
 from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
 from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
 from engines.market.fetchers.wallets.liquid import LiquidFetcher
@@ -123,14 +124,15 @@ async def test_scan_empty_list_is_noop(pool: Any, wallet_user: dict) -> None:
     assert await run_wallet_scan(pool, uid, fetchers=[]) == {}
 
 
-def test_default_fetchers_are_the_five() -> None:
-    # o caminho default liga os 5 fetchers reais (sem chamar .fetch() — sem rede)
+def test_default_fetchers_are_the_six() -> None:
+    # o caminho default liga os 6 fetchers reais (sem chamar .fetch() — sem rede)
     types = [type(f) for f in _default_fetchers()]
     assert types == [
         EtherscanFetcher,
         HyperliquidFetcher,
         SolanaFetcher,
         LiquidFetcher,
+        BitcoinFetcher,
         BinanceFetcher,
     ]
 

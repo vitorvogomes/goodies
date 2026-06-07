@@ -12,6 +12,7 @@ import structlog
 
 from engines.market.fetchers.wallets.base import BalanceFetcher
 from engines.market.fetchers.wallets.binance import BinanceFetcher
+from engines.market.fetchers.wallets.bitcoin import BitcoinFetcher
 from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
 from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
 from engines.market.fetchers.wallets.liquid import LiquidFetcher
@@ -35,7 +36,8 @@ def _default_fetchers() -> list[BalanceFetcher]:
         EtherscanFetcher(),  # ETH (mainnet) + ARB (Arbitrum)
         HyperliquidFetcher(),  # HYPE (Hyperliquid L1)
         SolanaFetcher(),  # SOL + SPL
-        LiquidFetcher(),  # L-BTC (ADR-005)
+        LiquidFetcher(),  # L-BTC + USDT (ADR-005)
+        BitcoinFetcher(),  # BTC mainchain (ADR-005, client separado do Liquid)
         BinanceFetcher(),  # spot + earn (assinado)
     ]
 

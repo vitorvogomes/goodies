@@ -14,6 +14,7 @@ import pytest
 import respx
 
 from engines.market.fetchers.wallets.binance import BinanceFetcher
+from engines.market.fetchers.wallets.bitcoin import BitcoinFetcher
 from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
 from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
 from engines.market.fetchers.wallets.liquid import LiquidFetcher
@@ -22,6 +23,8 @@ from workers.wallet_workers import run_wallet_scan
 
 _SOL_RPC = "https://rpc.test/sol"
 _LBTC = "lbtc-asset-id-test"
+_LUSDT = "lusdt-asset-id-test"
+_BTC_BASE = "https://blockstream.info/api"
 _TS = 1_700_000_000.0
 
 
@@ -35,10 +38,11 @@ def _real_fetchers() -> list[Any]:
         SolanaFetcher(address="SOLADDR", rpc_url=_SOL_RPC, sleep=_no_sleep),
         LiquidFetcher(
             base_url="https://blockstream.info/liquid/api",
-            asset_id=_LBTC,
             address="lq1",
+            assets={_LBTC: "L-BTC", _LUSDT: "L-USDT"},
             sleep=_no_sleep,
         ),
+        BitcoinFetcher(base_url=_BTC_BASE, address="bc1qtrust", sleep=_no_sleep),
         BinanceFetcher(
             api_key="k", api_secret="s", symbols=("BTC",), sleep=_no_sleep, clock=lambda: _TS
         ),
@@ -65,7 +69,18 @@ def _mock_all_ok() -> None:
 
     respx.post(_SOL_RPC).mock(side_effect=sol)
     respx.get(url__startswith="https://blockstream.info/liquid/api").mock(
-        return_value=httpx.Response(200, json=[{"value": 10_000_000, "asset": _LBTC}])  # 0.1
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"value": 10_000_000, "asset": _LBTC},  # 0.1 L-BTC
+                {"value": 50_000_000, "asset": _LUSDT},  # 0.5 L-USDT
+            ],
+        )
+    )
+    respx.get(url__startswith=f"{_BTC_BASE}/address").mock(  # Trust, mainchain (ADR-005)
+        return_value=httpx.Response(
+            200, json={"chain_stats": {"funded_txo_sum": 25_000_000, "spent_txo_sum": 0}}  # 0.25
+        )
     )
     respx.get(url__startswith="https://api.binance.com/api/v3/time").mock(
         return_value=httpx.Response(200, json={"serverTime": int(_TS * 1000)})
@@ -97,6 +112,8 @@ async def test_scan_persists_all_chains(pool: Any, wallet_user: dict) -> None:
     assert got[("hyperliquid", "HYPE")] == pytest.approx(10.0)
     assert got[("solana", "SOL")] == pytest.approx(2.0)
     assert got[("liquid", "L-BTC")] == pytest.approx(0.1)
+    assert got[("liquid", "L-USDT")] == pytest.approx(0.5)
+    assert got[("bitcoin", "BTC")] == pytest.approx(0.25)
     assert got[("binance", "BTC")] == pytest.approx(0.5)
 
 
@@ -124,7 +141,7 @@ async def test_positions_and_reconciliation_via_asgi(
     await run_wallet_scan(pool, uid, fetchers=_real_fetchers())
     pos = await api.get("/api/v1/wallets/positions", headers=wallet_user["headers"])
     assert pos.status_code == 200
-    assert len(pos.json()) == 6  # 6 posições escaneadas
+    assert len(pos.json()) == 8  # 8 posições (ETH/ARB/HYPE/SOL/L-BTC/L-USDT/BTC x2)
     rec = await api.get("/api/v1/wallets/reconciliation", headers=wallet_user["headers"])
     assert rec.status_code == 200
     by = {r["asset_symbol"]: r for r in rec.json()}
