@@ -46,12 +46,14 @@ export default function TransitPage() {
                       {formatBRL(r.aplicado_brl)}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      {Math.abs(r.em_transito_brl) < 1 ? (
-                        <Badge tone="gain">conciliado</Badge>
-                      ) : (
+                      {r.em_transito_brl > 1 ? (
+                        // só "pendente" quando saiu > virou-posição (dinheiro mandado ainda
+                        // sem posição). Negativo = posição já cobre o saiu -> conciliado.
                         <span className="tabular-nums text-warning">
                           {formatBRL(r.em_transito_brl)}
                         </span>
+                      ) : (
+                        <Badge tone="gain">conciliado</Badge>
                       )}
                     </td>
                   </tr>
