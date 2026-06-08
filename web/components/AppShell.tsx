@@ -5,11 +5,12 @@
 // tentamos renová-lo pelo cookie httpOnly de refresh antes de cair no /login.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/components/ui";
 import { refreshAccessToken } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { useRefreshAll } from "@/lib/jobs";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -26,12 +27,15 @@ const NAV = [
   { href: "/market", label: "Ativos B3" },
   { href: "/wallets", label: "Carteiras Cripto" },
   { href: "/wallets/reconciliation", label: "Reconciliação" },
+  { href: "/refresh", label: "Atualização" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
+  const { mutate: refreshAll } = useRefreshAll();
+  const caughtUp = useRef(false);
 
   useEffect(() => {
     // O access token vive só em memória (pós-mount). Se sumiu (reload duro),
@@ -51,6 +55,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [router]);
+
+  // Catch-up local: ao abrir o app (pós-auth), atualiza o que estiver vencido — uma
+  // vez por carga, fail-soft (não bloqueia a UI). Só roda os jobs realmente vencidos.
+  useEffect(() => {
+    if (!ready || caughtUp.current) return;
+    caughtUp.current = true;
+    refreshAll(false);
+  }, [ready, refreshAll]);
 
   if (!ready) {
     return (

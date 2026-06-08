@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.router import router as auth_router
 from config import settings
 from db.connection import check_postgres, close_pool, init_pool
+from engines.jobs.router import router as jobs_router
 from engines.ledger.router import router as ledger_router
 from engines.market.cache import check_redis
 from engines.market.router import router as market_router
@@ -65,6 +66,7 @@ app.include_router(market_router)
 app.include_router(hermes_router)
 app.include_router(defi_router)
 app.include_router(wallet_router)
+app.include_router(jobs_router)
 
 
 @app.get("/api/v1/health")
