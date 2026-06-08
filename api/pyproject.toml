@@ -62,9 +62,9 @@ strict = true
 warn_unused_ignores = true
 plugins = ["pydantic.mypy"]
 
-# asyncpg/passlib/apscheduler não publicam stubs (py.typed) — ignora missing imports.
+# asyncpg/passlib/apscheduler/openpyxl não publicam stubs (py.typed) — ignora missing imports.
 [[tool.mypy.overrides]]
-module = ["asyncpg.*", "passlib.*", "jose.*", "apscheduler.*"]
+module = ["asyncpg.*", "passlib.*", "jose.*", "apscheduler.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 # ---- pytest + pytest-asyncio ----

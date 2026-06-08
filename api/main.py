@@ -18,6 +18,7 @@ from engines.ledger.router import router as ledger_router
 from engines.market.cache import check_redis
 from engines.market.router import router as market_router
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
+from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.router import router as portfolio_router
 from engines.wallet.defi_router import router as defi_router
 from engines.wallet.router import router as wallet_router
@@ -59,6 +60,7 @@ app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(portfolio_router)
 app.include_router(portfolio_analytics_router)
+app.include_router(portfolio_import_b3_router)
 app.include_router(market_router)
 app.include_router(hermes_router)
 app.include_router(defi_router)

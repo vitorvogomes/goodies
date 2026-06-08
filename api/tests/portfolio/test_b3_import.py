@@ -8,6 +8,7 @@ from engines.portfolio.b3_import import (
     map_movimentacao,
     parse_b3_categories,
     parse_b3_movimentacao,
+    parse_b3_negociacao,
     parse_b3_position_prices,
     parse_produto,
 )
@@ -188,3 +189,67 @@ class TestPositionPrices:
         prices = parse_b3_position_prices(sheets)
         # 564.02 / 0.15 = 3760.13
         assert abs(prices["Tesouro IPCA+ 2029"] - 564.02 / 0.15) < 0.01
+
+
+# Aba "Negociação" (extrato diário/semanal) — trade a trade, na DATA DO NEGÓCIO.
+# Data do Negócio | Tipo | Mercado | Prazo | Instituição | Código | Qtd | Preço | Valor
+_NEG_ROWS = [
+    ("Data do Negócio", "Tipo de Movimentação", "Mercado", "Prazo/Vencimento",
+     "Instituição", "Código de Negociação", "Quantidade", "Preço", "Valor"),  # header
+    ("05/06/2026", "Compra", "Mercado Fracionário", "-",
+     "SANTANDER CORRETORA DE TÍTULOS", "BBAS3F", 3, 19.46, 58.38),
+    ("05/06/2026", "Compra", "Mercado à Vista", "-",
+     "SANTANDER CORRETORA DE TÍTULOS", "GOLD11", 4, 23.22, 92.88),
+    ("04/06/2026", "Venda", "Mercado à Vista", "-",
+     "SANTANDER CORRETORA DE TÍTULOS", "PETR4", 2, 30.0, 60.0),
+]
+
+
+class TestParseNegociacao:
+    def test_maps_and_uses_trade_date(self) -> None:
+        ops = parse_b3_negociacao(_NEG_ROWS)
+        assert len(ops) == 3  # cabeçalho ignorado (tipo não-mapeável)
+        bbas = next(o for o in ops if o["asset_symbol"] == "BBAS3")
+        assert bbas["tipo"] == "compra"
+        assert bbas["quantidade"] == 3
+        assert abs(bbas["valor_unitario"] - 19.46) < 1e-9
+        assert bbas["data_operacao"] == date(2026, 6, 5)  # data do NEGÓCIO
+        assert bbas["external_id"]
+
+    def test_strips_fractional_suffix(self) -> None:
+        ops = parse_b3_negociacao(_NEG_ROWS)
+        assert {o["asset_symbol"] for o in ops} == {"BBAS3", "GOLD11", "PETR4"}
+
+    def test_venda_maps(self) -> None:
+        ops = parse_b3_negociacao(_NEG_ROWS)
+        petr = next(o for o in ops if o["asset_symbol"] == "PETR4")
+        assert petr["tipo"] == "venda"
+        assert petr["quantidade"] == 2
+
+    def test_category_map_wins_over_heuristic(self) -> None:
+        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO",
+                 "XPTO11", 1, 100.0, 100.0)]
+        ops = parse_b3_negociacao(rows, category_map={"XPTO11": "ETFs"})
+        assert ops[0]["asset_category"] == "ETFs"
+
+    def test_without_map_uses_heuristic(self) -> None:
+        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO",
+                 "XPTO11", 1, 100.0, 100.0)]
+        ops = parse_b3_negociacao(rows)
+        assert ops[0]["asset_category"] == "FIIs"  # fallback do sufixo 11
+
+    def test_external_id_differs_from_movimentacao(self) -> None:
+        """ÂNCORA da armadilha: negociação (data do negócio) vs movimentação
+        (data de liquidação D+2) -> external_id DIFERENTE para o mesmo trade.
+        O hash NÃO deduplica entre fontes; só a regra de cobertura (A3) protege."""
+        neg = parse_b3_negociacao([
+            ("05/06/2026", "Compra", "Mercado Fracionário", "-", "SANTANDER",
+             "BBAS3F", 3, 19.46, 58.38),
+        ])
+        mov = parse_b3_movimentacao([
+            ("Credito", "09/06/2026", "Transferência - Liquidação",
+             "BBAS3 - BANCO DO BRASIL S/A", "SANTANDER", 3, 19.46, 58.38),
+        ])
+        assert neg[0]["asset_symbol"] == mov[0]["asset_symbol"] == "BBAS3"
+        assert neg[0]["tipo"] == mov[0]["tipo"] == "compra"
+        assert neg[0]["external_id"] != mov[0]["external_id"]

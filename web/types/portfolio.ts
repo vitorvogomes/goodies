@@ -100,3 +100,20 @@ export interface OperationFilters {
   data_from?: string;
   data_to?: string;
 }
+
+// Import B3 (A4): relatório consolidado / movimentação / negociação -> asset_operations.
+// skipped_overlap = trades cujo período já está coberto por outra fonte (regra de
+// cobertura; evita dobrar trade-vs-liquidação). new_tickers = pedem confirmação.
+export interface ImportB3Report {
+  file_type: string;
+  parsed: number;
+  imported: number;
+  skipped_duplicate: number;
+  skipped_overlap: number;
+  overlap_tickers: string[];
+  new_tickers: string[];
+  date_range: [string, string] | null;
+  prices_upserted: number;
+  dry_run: boolean;
+  note?: string | null;
+}

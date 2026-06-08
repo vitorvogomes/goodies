@@ -20,6 +20,7 @@ const NAV = [
   { href: "/portfolio", label: "Portfolio" },
   { href: "/portfolio/positions", label: "Posições" },
   { href: "/portfolio/history", label: "Histórico" },
+  { href: "/portfolio/import", label: "Importar B3" },
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
   { href: "/market", label: "Ativos B3" },

@@ -18,7 +18,7 @@ Mapeamento de "Movimentação":
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
 
@@ -116,7 +116,7 @@ _POSITION_SHEETS: dict[str, tuple[str, str, str | None]] = {
 
 
 def parse_b3_position_prices(
-    sheets: dict[str, Sequence[Sequence[Any]]],
+    sheets: Mapping[str, Sequence[Sequence[Any]]],
 ) -> dict[str, float]:
     """Extrai preço unitário atual por ticker das abas 'Posição' do consolidado.
 
@@ -159,7 +159,7 @@ _SHEET_CATEGORY: dict[str, str] = {
 
 
 def parse_b3_categories(
-    sheets: dict[str, Sequence[Sequence[Any]]],
+    sheets: Mapping[str, Sequence[Sequence[Any]]],
 ) -> dict[str, str]:
     """Mapeia ticker -> categoria canônica a partir das abas 'Posição' do consolidado.
 
@@ -216,6 +216,60 @@ def parse_b3_movimentacao(
                 continue
             valor_unitario = valor_total / quantidade
         ticker = parse_produto(str(produto))
+        data_operacao = _to_date(data)
+        total = valor_total if valor_total is not None else quantidade * valor_unitario
+        category = (category_map or {}).get(ticker) or b3_category(ticker)
+        ops.append(
+            {
+                "asset_symbol": ticker,
+                "asset_category": category,
+                "tipo": tipo,
+                "quantidade": quantidade,
+                "valor_unitario": valor_unitario,
+                "data_operacao": data_operacao,
+                "external_id": operation_hash(data_operacao, ticker, tipo, total),
+            }
+        )
+    return ops
+
+
+def parse_b3_negociacao(
+    rows: Sequence[Sequence[Any]],
+    category_map: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Converte linhas da aba "Negociação" (extrato diário/semanal) em operações.
+
+    Layout (cabeçalho tolerado — linhas não-compra/venda são descartadas):
+        Data do Negócio | Tipo de Movimentação | Mercado | Prazo/Vencimento |
+        Instituição | Código de Negociação | Quantidade | Preço | Valor
+
+    CRÍTICO: usa a **data do negócio** (trade date), enquanto `parse_b3_movimentacao`
+    usa a data de liquidação (D+2) na "Transferência - Liquidação". O mesmo trade
+    gera `external_id` DIFERENTE entre as duas fontes -> o hash não deduplica entre
+    elas; a regra de cobertura por período (no serviço de import) é que evita a
+    dupla contagem. `category_map` (abas 'Posição' ou tickers já existentes) tem
+    precedência sobre a heurística de sufixo.
+    """
+    ops: list[dict[str, Any]] = []
+    for row in rows:
+        if len(row) < 9:
+            continue
+        data, tipo_raw, _mercado, _prazo, _inst, codigo, qtd, preco, valor = row[:9]
+        if not codigo or not tipo_raw:
+            continue
+        tipo = map_movimentacao("", str(tipo_raw))
+        if tipo not in ("compra", "venda"):  # ignora cabeçalho/totais/outros
+            continue
+        quantidade = _to_float(qtd)
+        valor_unitario = _to_float(preco)
+        valor_total = _to_float(valor)
+        if quantidade is None or quantidade == 0:
+            continue
+        if valor_unitario is None:
+            if valor_total is None:
+                continue
+            valor_unitario = valor_total / quantidade
+        ticker = parse_produto(str(codigo))
         data_operacao = _to_date(data)
         total = valor_total if valor_total is not None else quantidade * valor_unitario
         category = (category_map or {}).get(ticker) or b3_category(ticker)
