@@ -24,6 +24,7 @@ const NAV = [
   { href: "/portfolio/import", label: "Importar B3" },
   { href: "/portfolio/allocation", label: "Alocação" },
   { href: "/portfolio/rebalancing", label: "Rebalanceamento" },
+  { href: "/portfolio/transit", label: "Trânsito" },
   { href: "/market", label: "Ativos B3" },
   { href: "/wallets", label: "Carteiras Cripto" },
   { href: "/wallets/reconciliation", label: "Reconciliação" },

@@ -117,3 +117,22 @@ export interface ImportB3Report {
   dry_run: boolean;
   note?: string | null;
 }
+
+// Reconciliação de trânsito (Pilar 2): saiu do Nubank vs virou posição, por trilho.
+export interface TransitRail {
+  rail: string;
+  saiu_brl: number;
+  aplicado_brl: number;
+  em_transito_brl: number;
+}
+
+export interface TransitCrypto {
+  net_invested_brl: number;
+  current_value_brl: number;
+  resultado_brl: number;
+}
+
+export interface Transit {
+  rails: TransitRail[];
+  crypto: TransitCrypto;
+}
