@@ -114,8 +114,25 @@ function Money({
   );
 }
 
+const MANUAL_STALE_DAYS = 7; // saldo manual mais velho que isso pede revisão
+
+function ageDays(iso: string): number {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 0;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
+}
+
 function StatusBadge({ p }: { p: WalletPosition }) {
-  if (p.is_manual) return <Badge tone="accent">✎ manual</Badge>;
+  // Manuais não se atualizam sozinhos (Neobankless, SideSwap): mostrar a idade e
+  // alertar quando o valor está velho o bastante para revisar.
+  if (p.is_manual) {
+    const days = ageDays(p.scanned_at);
+    return days >= MANUAL_STALE_DAYS ? (
+      <Badge tone="warning">✎ manual · {days}d</Badge>
+    ) : (
+      <Badge tone="accent">✎ manual</Badge>
+    );
+  }
   if (p.price_brl == null) return <Badge tone="loss">✕ sem preço</Badge>;
   if (p.stale) return <Badge tone="warning">⟳ desatualizado</Badge>;
   return <Badge tone="gain">↻ escaneado</Badge>;
@@ -199,7 +216,7 @@ function PositionRow({ p }: { p: WalletPosition }) {
         <Money brl={p.value_brl} usd={p.value_usd} />
       </td>
       <td className="px-4 py-2.5 text-right text-xs text-foreground/50">
-        {p.is_manual ? "—" : fmtWhen(p.scanned_at)}
+        {fmtWhen(p.scanned_at)}
       </td>
       <td className="px-4 py-2.5 text-right">
         <StatusBadge p={p} />

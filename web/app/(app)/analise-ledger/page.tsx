@@ -17,8 +17,10 @@ import {
   useDeleteFixedCost,
   useFixedCosts,
   useMonthlySummaries,
+  useSuggestions,
   useUpdateCategory,
   useUpdateFixedCost,
+  useUpdateTransaction,
 } from "@/lib/ledger";
 import type {
   Category,
@@ -627,12 +629,58 @@ function FixedCostsView() {
   );
 }
 
+// ------------------------------------------------- Sugestões (híbrido sugere→confirmo)
+
+function SuggestionsCard() {
+  const suggestions = useSuggestions();
+  const update = useUpdateTransaction();
+  const items = suggestions.data ?? [];
+  if (items.length === 0) return null; // só aparece quando há despesas pendentes
+
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-foreground">Categorizar pendentes</h2>
+      <p className="mb-4 mt-1 text-sm text-foreground/50">
+        Despesas em “outros” com a categoria sugerida pelo histórico. Confirme em 1 clique.
+      </p>
+      <ul className="space-y-2">
+        {items.map((s) => (
+          <li key={s.transaction_id} className="flex items-center gap-3 text-sm">
+            <span className="w-24 shrink-0 tabular-nums text-foreground/50">{s.date}</span>
+            <span className="min-w-0 flex-1 truncate" title={s.description}>
+              {s.description}
+            </span>
+            <span className="shrink-0 tabular-nums text-loss">{formatBRL(s.amount)}</span>
+            <span className="shrink-0 rounded bg-accent/15 px-2 py-0.5 text-xs text-accent">
+              {s.suggested_category}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={update.isPending}
+              onClick={() =>
+                update.mutate({
+                  id: s.transaction_id,
+                  patch: { category: s.suggested_category },
+                })
+              }
+            >
+              Confirmar
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 // ----------------------------------------------------------------- Página
 
 export default function AnaliseLedgerPage() {
   return (
     <div className="space-y-8">
       <h1 className="font-mono text-2xl font-semibold text-foreground">Análise</h1>
+      <SuggestionsCard />
       <CategoryBreakdownCard />
       <CategoryManager />
       <FixedCostsView />

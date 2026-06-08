@@ -2,11 +2,18 @@
 
 // STORY-01-13-14 — importação de extrato Nubank (.ofx/.csv). Idempotente no backend
 // (dedup por FITID); investimento/transferência interna ficam fora do caixa.
-import { type FormEvent, useState } from "react";
+import { Fragment, type FormEvent, useState } from "react";
 
 import { Button, Card, Field, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useAccounts, useImportStatement } from "@/lib/ledger";
+
+const KIND_LABEL: Record<string, string> = {
+  income: "Receitas",
+  expense: "Despesas",
+  investment: "Investimentos",
+  transfer: "Transferências",
+};
 
 export default function ImportPage() {
   const accounts = useAccounts();
@@ -87,12 +94,16 @@ export default function ImportPage() {
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <dt className="text-foreground/60">Linhas lidas</dt>
             <dd className="text-right tabular-nums">{report.parsed}</dd>
-            <dt className="text-foreground/60">Importadas</dt>
+            <dt className="text-foreground/60">Importadas (novas)</dt>
             <dd className="text-right tabular-nums text-gain">{report.imported}</dd>
+            {Object.entries(report.by_kind).map(([kind, n]) => (
+              <Fragment key={kind}>
+                <dt className="pl-3 text-foreground/45">↳ {KIND_LABEL[kind] ?? kind}</dt>
+                <dd className="text-right tabular-nums text-foreground/70">{n}</dd>
+              </Fragment>
+            ))}
             <dt className="text-foreground/60">Duplicadas (ignoradas)</dt>
             <dd className="text-right tabular-nums">{report.duplicates}</dd>
-            <dt className="text-foreground/60">Investimento/transferência</dt>
-            <dd className="text-right tabular-nums">{report.skipped}</dd>
             <dt className="text-foreground/60">Erros</dt>
             <dd className={`text-right tabular-nums ${report.errors > 0 ? "text-loss" : ""}`}>
               {report.errors}

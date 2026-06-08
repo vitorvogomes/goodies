@@ -17,6 +17,7 @@ import type {
   FixedCostCreate,
   ImportReport,
   MonthlySummary,
+  Suggestion,
   Transaction,
   TransactionCreate,
   TransactionFilters,
@@ -179,6 +180,15 @@ export function useUpdateTransaction() {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
     },
+  });
+}
+
+// D — sugestões de categoria p/ despesas em "outros". Key sob ["transactions"] para
+// ser invalidada automaticamente quando uma transação é atualizada (confirmar).
+export function useSuggestions() {
+  return useQuery({
+    queryKey: ["transactions", "suggestions"],
+    queryFn: () => apiFetch<Suggestion[]>("/api/v1/transactions/suggestions"),
   });
 }
 

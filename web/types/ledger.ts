@@ -156,4 +156,15 @@ export interface ImportReport {
   duplicates: number;
   skipped: number;
   errors: number;
+  by_kind: Record<string, number>; // novas por kind (income/expense/investment/transfer)
+}
+
+// D — sugestão híbrida: despesa em "outros" + categoria proposta pelo histórico.
+export interface Suggestion {
+  transaction_id: string;
+  date: string;
+  description: string;
+  amount: number;
+  suggested_category: string;
+  score: number;
 }

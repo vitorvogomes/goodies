@@ -11,7 +11,7 @@ import io
 import re
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
 import asyncpg
@@ -46,6 +46,8 @@ class ImportReport:
     duplicates: int = 0
     skipped: int = 0  # legado: nada é pulado agora (grava-se tudo, classificado por kind)
     errors: int = 0
+    # breakdown das NOVAS importadas por kind (income/expense/investment/transfer)
+    by_kind: dict[str, int] = field(default_factory=dict)
 
 
 _TRNTAG = re.compile(r"<STMTTRN>(.*?)</STMTTRN>", re.DOTALL)
@@ -187,4 +189,5 @@ async def import_statement(
             report.duplicates += 1
         else:
             report.imported += 1
+            report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
     return report

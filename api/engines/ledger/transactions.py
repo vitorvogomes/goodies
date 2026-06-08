@@ -18,6 +18,7 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.numbers import as_decimal
 from engines.ledger.categories import CategoryKind
+from engines.ledger.suggest import suggest_category
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["ledger:transactions"])
 
@@ -172,6 +173,56 @@ async def list_transactions(
         total_transfer=float(agg["transfer_net"]),
         transfer_count=int(agg["transfer_count"]),
     )
+
+
+class SuggestionOut(BaseModel):
+    transaction_id: uuid.UUID
+    date: datetime.date
+    description: str
+    amount: float
+    suggested_category: str
+    score: float
+
+
+@router.get("/suggestions", response_model=list[SuggestionOut])
+async def suggest_categories(
+    user: AuthUser,
+    db: Db,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[SuggestionOut]:
+    """Sugere categoria para despesas em 'outros', por similaridade com o histórico
+    já categorizado. Híbrido: o usuário confirma (PUT na transação) e pode salvar um
+    match_pattern depois. Não altera nada — só propõe."""
+    hist = await db.fetch(
+        "SELECT description, category FROM transactions "
+        "WHERE kind = 'expense' AND category <> 'outros' "
+        "AND description IS NOT NULL AND description <> '' "
+        "ORDER BY date DESC LIMIT 2000"
+    )
+    history = [(r["description"], r["category"]) for r in hist]
+    pending = await db.fetch(
+        "SELECT id, date, description, amount FROM transactions "
+        "WHERE kind = 'expense' AND category = 'outros' "
+        "AND description IS NOT NULL AND description <> '' "
+        "ORDER BY date DESC LIMIT $1",
+        limit,
+    )
+    out: list[SuggestionOut] = []
+    for r in pending:
+        sug = suggest_category(r["description"], history)
+        if sug is None:
+            continue
+        out.append(
+            SuggestionOut(
+                transaction_id=r["id"],
+                date=r["date"],
+                description=r["description"],
+                amount=float(r["amount"]),
+                suggested_category=sug[0],
+                score=round(sug[1], 3),
+            )
+        )
+    return out
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

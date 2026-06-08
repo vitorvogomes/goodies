@@ -213,6 +213,25 @@ async def test_import_statement_records_transfer_with_kind(pool):
     assert kinds == {"transfer", "expense"}  # a transferência fica fora de receita/despesa
 
 
+async def test_import_report_by_kind_breaks_down_new(pool):
+    """ImportReport.by_kind conta só as NOVAS importadas, por kind (clareza no front)."""
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, $2) RETURNING id", "ByKind", "bank"
+        )
+        entries = [
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 2, 1), Decimal("1000"), "Salário"),
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 2, 2), Decimal("-50"), "Mercado"),
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 2, 3), Decimal("-80"), "Padaria"),
+        ]
+        report = await import_statement(conn, acc, entries)
+        report2 = await import_statement(conn, acc, entries)  # reimport: tudo duplicado
+    assert report.imported == 3
+    assert report.by_kind == {"income": 1, "expense": 2}
+    assert report2.imported == 0
+    assert sum(report2.by_kind.values()) == 0  # duplicadas não contam
+
+
 def test_classify_self_transfer_when_identifier_present():
     e = StatementEntry(
         "d",

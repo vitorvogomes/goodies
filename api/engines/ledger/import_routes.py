@@ -29,6 +29,7 @@ class ImportReport(BaseModel):
     duplicates: int
     skipped: int
     errors: int
+    by_kind: dict[str, int] = {}  # novas por kind (income/expense/investment/transfer)
 
 
 def _self_identifiers() -> list[str]:
@@ -86,4 +87,5 @@ async def import_endpoint(
         duplicates=report.duplicates,
         skipped=report.skipped,
         errors=report.errors,
+        by_kind=report.by_kind,
     )
