@@ -20,6 +20,8 @@ export interface Reconciliation {
   scanned_quantity: number;
   registered_quantity: number;
   delta: number;
+  value_brl: number | null;
+  value_usd: number | null;
 }
 
 export interface DefiPosition {

@@ -78,43 +78,61 @@ export default function AllocationPage() {
         <Card>
           <p className="mb-4 text-sm text-foreground/50">Atual vs. meta por categoria</p>
           <div className="space-y-3">
-            {(data?.categories ?? []).map((c) => (
-              <div key={c.category} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-foreground/80">{c.category}</span>
-                  <span className="tabular-nums text-foreground/60">
-                    {formatPercent(c.pct_atual)}
-                    {c.pct_meta != null && (
-                      <span className="text-foreground/40">
-                        {" "}/ {formatPercent(c.pct_meta)}
-                      </span>
-                    )}
-                    {c.desvio_pp != null && (
-                      <span
-                        className={`ml-2 ${
-                          c.desvio_pp >= 0 ? "text-gain" : "text-loss"
-                        }`}
-                      >
-                        {formatPP(c.desvio_pp)}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {/* barra: atual (cheia) com marcador da meta */}
-                <div className="relative h-2 overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-full rounded bg-accent/70"
-                    style={{ width: `${Math.min(100, c.pct_atual)}%` }}
-                  />
-                  {c.pct_meta != null && (
+            {(data?.categories ?? []).map((c) => {
+              // valores financeiros: R$ alvo = meta% × total; R$ desvio = atual − alvo
+              const alvo = c.pct_meta != null ? (c.pct_meta / 100) * (data?.total ?? 0) : null;
+              const desvioBrl = alvo != null ? c.valor_atual - alvo : null;
+              return (
+                <div key={c.category} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-foreground/80">{c.category}</span>
+                    <span className="tabular-nums text-foreground/60">
+                      {formatPercent(c.pct_atual)}
+                      {c.pct_meta != null && (
+                        <span className="text-foreground/40">
+                          {" "}/ {formatPercent(c.pct_meta)}
+                        </span>
+                      )}
+                      {c.desvio_pp != null && (
+                        <span
+                          className={`ml-2 ${
+                            c.desvio_pp >= 0 ? "text-gain" : "text-loss"
+                          }`}
+                        >
+                          {formatPP(c.desvio_pp)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {/* valores financeiros (R$): atual · alvo · desvio */}
+                  <div className="flex justify-between text-xs tabular-nums text-foreground/45">
+                    <span>{formatBRL(c.valor_atual)}</span>
+                    <span>
+                      {alvo != null && <>alvo {formatBRL(alvo)}</>}
+                      {desvioBrl != null && (
+                        <span className={`ml-2 ${desvioBrl >= 0 ? "text-gain" : "text-loss"}`}>
+                          {desvioBrl >= 0 ? "+" : ""}
+                          {formatBRL(desvioBrl)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {/* barra: atual (cheia) com marcador da meta */}
+                  <div className="relative h-2 overflow-hidden rounded bg-muted">
                     <div
-                      className="absolute top-0 h-full w-0.5 bg-foreground/70"
-                      style={{ left: `${Math.min(100, c.pct_meta)}%` }}
+                      className="h-full rounded bg-accent/70"
+                      style={{ width: `${Math.min(100, c.pct_atual)}%` }}
                     />
-                  )}
+                    {c.pct_meta != null && (
+                      <div
+                        className="absolute top-0 h-full w-0.5 bg-foreground/70"
+                        style={{ left: `${Math.min(100, c.pct_meta)}%` }}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </div>

@@ -24,8 +24,16 @@ function ReportRows({ report }: { report: ImportB3Report }) {
       <dd className="text-right">{TYPE_LABEL[report.file_type] ?? report.file_type}</dd>
       {report.file_type === "consolidado" ? (
         <>
-          <dt className="text-foreground/60">Preços atualizados</dt>
-          <dd className="text-right tabular-nums">{report.prices_upserted}</dd>
+          <dt className="text-foreground/60">
+            {report.dry_run ? "Preços a atualizar" : "Preços atualizados"}
+          </dt>
+          <dd className="text-right tabular-nums text-gain">{report.prices_upserted}</dd>
+          {report.prices_skipped_manual > 0 && (
+            <>
+              <dt className="text-foreground/60">Mantidos manuais (não tocados)</dt>
+              <dd className="text-right tabular-nums">{report.prices_skipped_manual}</dd>
+            </>
+          )}
         </>
       ) : (
         <>
@@ -149,16 +157,18 @@ export default function ImportB3Page() {
               Já cobertos por outra fonte (pulados): {preview.overlap_tickers.join(", ")}.
             </p>
           )}
-          {preview.file_type !== "consolidado" && (
-            <Button
-              type="button"
-              onClick={handleConfirm}
-              disabled={importB3.isPending}
-              className="mt-4"
-            >
-              {importB3.isPending ? "Importando…" : `Confirmar import (${preview.imported})`}
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={handleConfirm}
+            disabled={importB3.isPending}
+            className="mt-4"
+          >
+            {importB3.isPending
+              ? "Importando…"
+              : preview.file_type === "consolidado"
+                ? `Aplicar preços (${preview.prices_upserted})`
+                : `Confirmar import (${preview.imported})`}
+          </Button>
         </Card>
       )}
 

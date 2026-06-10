@@ -4,6 +4,7 @@
 // (Liquid confidencial) + posições DeFi. Valoração pelo preço do m3 (BRL e USD). Visão por rede.
 import { type FormEvent, useRef, useState } from "react";
 
+import { Money } from "@/components/Money";
 import { Badge, Button, Card, Field, Input, Select } from "@/components/ui";
 import { fmtQty, fmtWhen, formatBRL, formatUSD, parseDecimalInput } from "@/lib/format";
 import {
@@ -86,31 +87,6 @@ function EditableNumber({
       }}
       className="w-28 rounded border border-border bg-muted/40 px-2 py-1 text-right tabular-nums text-foreground outline-none focus:border-accent"
     />
-  );
-}
-
-// Célula de dinheiro: BRL como principal, USD em mute logo abaixo. "—" sem preço.
-// `usdPartial` marca com "*" um total USD que subestima (algum item sem preço USD).
-function Money({
-  brl,
-  usd,
-  usdPartial = false,
-}: {
-  brl: number | null;
-  usd: number | null;
-  usdPartial?: boolean;
-}) {
-  if (brl == null) return <span className="text-foreground/40">—</span>;
-  return (
-    <div className="flex flex-col items-end leading-tight">
-      <span className="tabular-nums text-foreground/80">{formatBRL(brl)}</span>
-      {usd != null && (
-        <span className="tabular-nums text-[11px] text-foreground/40">
-          {formatUSD(usd)}
-          {usdPartial && "*"}
-        </span>
-      )}
-    </div>
   );
 }
 

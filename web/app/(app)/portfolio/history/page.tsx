@@ -55,7 +55,7 @@ export default function HistoryPage() {
         <Field label="Ativo" htmlFor="f-symbol">
           <Input
             id="f-symbol"
-            placeholder="PETR4F…"
+            placeholder="busca por trecho: petr, nubank…"
             value={symbol}
             onChange={(e) => setSymbol(e.target.value)}
           />

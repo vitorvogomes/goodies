@@ -86,3 +86,17 @@ export function useSetManualPrice() {
     },
   });
 }
+
+// Volta o preço ao automático (limpa is_manual): o worker volta a cotar. Usado quando o
+// usuário digitou o valor líquido de um Tesouro/caixinha e quer deixar o worker assumir.
+export function useRevertPrice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      apiFetch<unknown>(`/api/v1/market/prices/${symbol}/manual`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      queryClient.invalidateQueries({ queryKey: ["market"] });
+    },
+  });
+}

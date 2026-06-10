@@ -2,6 +2,7 @@
 
 // STORY-04-11 — Reconciliação: saldo escaneado (wallet_positions) vs registrado
 // (net das asset_operations). Delta != 0 = divergência a investigar.
+import { Money } from "@/components/Money";
 import { Button } from "@/components/ui";
 import { fmtQty, formatBRL, formatRate } from "@/lib/format";
 import { useCryptoSleeve } from "@/lib/portfolio";
@@ -38,7 +39,7 @@ function ValuePanel() {
         </div>
         <div>
           <div className="text-xs text-foreground/50">Valor atual</div>
-          <div className="tabular-nums text-foreground/80">{formatBRL(s.current_value_brl)}</div>
+          <Money brl={s.current_value_brl} usd={s.current_value_usd} usdPartial={s.usd_partial} />
         </div>
         <div>
           <div className="text-xs text-foreground/50">Resultado</div>
@@ -111,6 +112,7 @@ export default function ReconciliationPage() {
               <th className="px-4 py-2.5 text-right font-medium">Escaneado</th>
               <th className="px-4 py-2.5 text-right font-medium">Registrado</th>
               <th className="px-4 py-2.5 text-right font-medium">Delta</th>
+              <th className="px-4 py-2.5 text-right font-medium">Valor</th>
             </tr>
           </thead>
           <tbody>
@@ -150,6 +152,9 @@ export default function ReconciliationPage() {
                     className={`px-4 py-2.5 text-right font-medium tabular-nums ${deltaClass(r.delta)}`}
                   >
                     {fmtDelta(r.delta)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <Money brl={r.value_brl} usd={r.value_usd} />
                   </td>
                 </tr>
               ))}

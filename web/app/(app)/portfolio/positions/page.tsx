@@ -3,37 +3,58 @@
 // STORY-02-13 — tabela de posições com valor atual (preço manual em m2).
 import { Fragment, useMemo, useState } from "react";
 
+import { Money } from "@/components/Money";
 import { Button, Input } from "@/components/ui";
-import { formatBRL, formatPercent, formatRate } from "@/lib/format";
-import { useCryptoSleeve, usePositions, useSetManualPrice } from "@/lib/portfolio";
+import { formatBRL, formatPercent, formatRate, parseDecimalInput } from "@/lib/format";
+import {
+  useCryptoSleeve,
+  usePositions,
+  useRevertPrice,
+  useSetManualPrice,
+} from "@/lib/portfolio";
 import type { Position } from "@/types/portfolio";
 
+// Input inline reutilizável (Enter salva, Esc/blur cancela ou salva). Parser pt-BR
+// (parseDecimalInput) — "1.234,56" e "1234.56" ambos válidos.
+function InlineNumber({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (raw: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(initial);
+  return (
+    <Input
+      autoFocus
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCommit(draft);
+        if (e.key === "Escape") onCancel();
+      }}
+      className="w-24 px-1.5 py-1 text-right"
+    />
+  );
+}
+
+// Preço atual editável. Mesmo um preço automático (is_manual=false) pode ser sobrescrito —
+// ao salvar, vira manual; o cadeado é só um indicador. Quando manual, oferece "↺ voltar ao
+// automático" (libera o worker a cotar de novo).
 function PriceCell({ pos }: { pos: Position }) {
   const setPrice = useSetManualPrice();
+  const revert = useRevertPrice();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(pos.preco_atual ?? ""));
 
-  // Preço capturado automaticamente (Market Engine): edição BLOQUEADA — o worker
-  // refresca via API e um valor manual seria sobrescrito de forma confusa.
-  if (!pos.is_manual && pos.preco_atual != null) {
-    return (
-      <span
-        title="Preço atualizado automaticamente via API (Market Engine) — não editável"
-        className="inline-flex items-center gap-1 tabular-nums text-foreground/70"
-      >
-        {formatBRL(pos.preco_atual)}
-        <span aria-hidden className="text-[10px] text-foreground/30">
-          🔒
-        </span>
-      </span>
-    );
-  }
-
-  function commit() {
+  function commit(raw: string) {
     setEditing(false);
-    const raw = draft.trim();
-    if (raw === "") return; // campo vazio: não sobrescreve o preço (Number("")===0)
-    const value = Number(raw.replace(",", "."));
+    const t = raw.trim();
+    if (t === "") return; // campo vazio: não sobrescreve
+    const value = parseDecimalInput(t);
     if (Number.isFinite(value) && value >= 0 && value !== pos.preco_atual) {
       setPrice.mutate({ symbol: pos.asset_symbol, price: value });
     }
@@ -41,31 +62,86 @@ function PriceCell({ pos }: { pos: Position }) {
 
   if (editing) {
     return (
-      <Input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="w-24 px-1.5 py-1 text-right"
+      <InlineNumber
+        initial={pos.preco_atual != null ? String(pos.preco_atual).replace(".", ",") : ""}
+        onCommit={commit}
+        onCancel={() => setEditing(false)}
       />
     );
   }
-  // Editável (manual ou ainda sem preço): sublinhado tracejado sinaliza a edição.
+
+  const auto = !pos.is_manual && pos.preco_atual != null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        type="button"
+        title={auto ? "Automático via API — clique para sobrescrever (vira manual)" : "Clique para definir o preço manual"}
+        onClick={() => setEditing(true)}
+        className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-accent hover:text-foreground"
+      >
+        {pos.preco_atual != null ? formatBRL(pos.preco_atual) : "definir ✎"}
+      </button>
+      {auto && (
+        <span aria-hidden title="Automático (Market Engine)" className="text-[10px] text-foreground/30">
+          🔄
+        </span>
+      )}
+      {pos.is_manual && pos.preco_atual != null && (
+        <button
+          type="button"
+          title="Voltar ao automático (o worker volta a cotar)"
+          onClick={() => revert.mutate(pos.asset_symbol)}
+          className="text-[11px] text-foreground/40 hover:text-accent"
+        >
+          ↺
+        </button>
+      )}
+    </span>
+  );
+}
+
+// Valor atual editável: digita o valor TOTAL (ex.: o líquido do app do Tesouro/Nubank) e o
+// preço unitário é recalculado (preço = valor / quantidade). Só editável com quantidade > 0.
+function ValueCell({ pos }: { pos: Position }) {
+  const setPrice = useSetManualPrice();
+  const [editing, setEditing] = useState(false);
+  const qty = pos.quantidade_net ?? 0;
+
+  if (qty <= 0) {
+    return (
+      <span className="tabular-nums text-foreground/80">
+        {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "—"}
+      </span>
+    );
+  }
+
+  function commit(raw: string) {
+    setEditing(false);
+    const t = raw.trim();
+    if (t === "") return;
+    const total = parseDecimalInput(t);
+    if (Number.isFinite(total) && total >= 0 && total !== pos.valor_atual) {
+      setPrice.mutate({ symbol: pos.asset_symbol, price: total / qty });
+    }
+  }
+
+  if (editing) {
+    return (
+      <InlineNumber
+        initial={pos.valor_atual != null ? String(pos.valor_atual).replace(".", ",") : ""}
+        onCommit={commit}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
   return (
     <button
       type="button"
-      title="Clique para definir o preço manual"
-      onClick={() => {
-        setDraft(String(pos.preco_atual ?? ""));
-        setEditing(true);
-      }}
+      title="Clique para informar o valor atual (o preço é recalculado)"
+      onClick={() => setEditing(true)}
       className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-accent hover:text-foreground"
     >
-      {pos.preco_atual != null ? formatBRL(pos.preco_atual) : "definir ✎"}
+      {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "definir ✎"}
     </button>
   );
 }
@@ -214,8 +290,8 @@ export default function PositionsPage() {
                       <td className="px-4 py-2.5 text-right text-foreground/80">
                         <PriceCell pos={pos} />
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground/80">
-                        {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "—"}
+                      <td className="px-4 py-2.5 text-right text-foreground/80">
+                        <ValueCell pos={pos} />
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <ResultCell pos={pos} />
@@ -278,9 +354,11 @@ export default function PositionsPage() {
             </div>
             <div>
               <div className="text-xs text-foreground/50">Valor atual</div>
-              <div className="tabular-nums text-foreground/80">
-                {formatBRL(sleeve.current_value_brl)}
-              </div>
+              <Money
+                brl={sleeve.current_value_brl}
+                usd={sleeve.current_value_usd}
+                usdPartial={sleeve.usd_partial}
+              />
             </div>
             <div>
               <div className="text-xs text-foreground/50">Resultado</div>

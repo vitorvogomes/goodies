@@ -84,6 +84,8 @@ export interface CryptoSleeveCategory {
 
 export interface CryptoSleeve {
   current_value_brl: number;
+  current_value_usd: number;
+  usd_partial: boolean;
   cost_basis_brl: number;
   returned_brl: number;
   net_invested_brl: number;
@@ -114,16 +116,22 @@ export interface ImportB3Report {
   new_tickers: string[];
   date_range: [string, string] | null;
   prices_upserted: number;
+  prices_skipped_manual: number;
   dry_run: boolean;
   note?: string | null;
 }
 
 // Reconciliação de trânsito (Pilar 2): saiu do Nubank vs virou posição, por trilho.
+export type TransitStatus = "reconciled" | "pending" | "rendimento_realizado";
+
 export interface TransitRail {
   rail: string;
   saiu_brl: number;
   aplicado_brl: number;
   em_transito_brl: number;
+  dividendos_juros_brl: number;
+  caixa_corretora_brl: number | null;
+  status: TransitStatus;
 }
 
 export interface TransitCrypto {
