@@ -274,16 +274,23 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
         by_symbol[op["asset_symbol"]].append(op)
     registered = {sym: net_quantity(rows) for sym, rows in by_symbol.items()}
 
+    symbols = sorted(set(scanned) | set(registered))
+    # valoração por símbolo (BRL+USD) reusando o mesmo lookup de preço (sem N+1)
+    prices = await prices_by_ticker(conn, symbols)
+
     out: list[dict[str, Any]] = []
-    for sym in sorted(set(scanned) | set(registered)):
+    for sym in symbols:
         s = scanned.get(sym, 0.0)
         reg = registered.get(sym, 0.0)
+        brl, usd = prices.get(sym, (None, None))
         out.append(
             {
                 "asset_symbol": sym,
                 "scanned_quantity": s,
                 "registered_quantity": reg,
                 "delta": s - reg,
+                "value_brl": value_of(s, brl),
+                "value_usd": value_of(s, usd),
             }
         )
     return out

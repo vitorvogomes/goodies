@@ -18,6 +18,7 @@ Import lazy a partir de `portfolio.service` (evita ciclo: `wallet.service` já i
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -72,36 +73,55 @@ async def sleeve_cashflows(conn: asyncpg.Connection) -> list[tuple[date, float]]
     return [(r["date"], float(r["amount"])) for r in rows]
 
 
+@dataclass(frozen=True)
+class SleeveValue:
+    """Valor atual do sleeve cripto: BRL + por rail + USD (parcial) + staleness."""
+
+    total_brl: float
+    by_rail: dict[str, float]
+    stale: bool
+    total_usd: float
+    usd_partial: bool  # algum ativo tem BRL mas não USD (cotação em dólar ausente)
+
+
 async def sleeve_current_value(
     conn: asyncpg.Connection, user_id: str
-) -> tuple[float, dict[str, float], bool]:
-    """Valor atual do sleeve (BRL) + por rail + `stale` (alguma posição sem preço).
+) -> SleeveValue:
+    """Valor atual do sleeve (BRL+USD) + por rail + `stale` (alguma posição sem preço).
 
-    Wallets agrupadas por `chain`; DeFi sob o rail "defi". Sem preço → contribui 0 e
-    marca `stale=True` (fail-soft; nunca levanta por falta de preço).
+    Wallets agrupadas por `chain`; DeFi sob o rail do protocolo. Sem preço BRL → contribui
+    0 e marca `stale=True`. USD é fail-soft: ativo com BRL mas sem USD marca `usd_partial`
+    (cripto sempre tem valor em dólar; ver ADR-005). Nunca levanta por falta de preço.
     """
     wallets = await list_wallet_positions(conn, user_id)
     defi = await list_defi_valued(conn, user_id)
     total = 0.0
+    total_usd = 0.0
+    usd_partial = False
     by_rail: dict[str, float] = defaultdict(float)
     stale = False
+
+    def _accumulate(value_brl: float | None, value_usd: float | None) -> bool:
+        nonlocal total, total_usd, usd_partial, stale
+        if value_brl is None:
+            stale = True
+            return False
+        total += value_brl
+        if value_usd is None:
+            usd_partial = True  # tem BRL mas não USD
+        else:
+            total_usd += value_usd
+        return True
+
     for w in wallets:
-        v = w["value_brl"]
-        if v is None:
-            stale = True
-            continue
-        total += v
-        by_rail[w["chain"]] += v
+        if _accumulate(w["value_brl"], w["value_usd"]):
+            by_rail[w["chain"]] += w["value_brl"]
     for d in defi:
-        v = d["value_brl"]
-        if v is None:
-            stale = True
-            continue
-        total += v
-        # rail por protocolo (hylo/pendle_v2/neobankless...) em vez de um "defi" genérico —
-        # assim cada custódia aparece distinta na reconciliação de valor.
-        by_rail[d.get("protocol") or "defi"] += v
-    return total, dict(by_rail), stale
+        if _accumulate(d["value_brl"], d["value_usd"]):
+            # rail por protocolo (hylo/pendle_v2/neobankless...) em vez de um "defi"
+            # genérico — assim cada custódia aparece distinta na reconciliação de valor.
+            by_rail[d.get("protocol") or "defi"] += d["value_brl"]
+    return SleeveValue(total, dict(by_rail), stale, total_usd, usd_partial)
 
 
 async def crypto_positions(
@@ -115,7 +135,8 @@ async def crypto_positions(
     o detalhe por moeda/chain vive na aba Carteiras Cripto. Alocação soma este `valor_atual`
     como a categoria Cripto. Vazio (sem carteira e sem aporte) → `[]`.
     """
-    total, _, stale = await sleeve_current_value(conn, user_id)
+    sv = await sleeve_current_value(conn, user_id)
+    total, stale = sv.total_brl, sv.stale
     cost = await sleeve_cost_basis(conn)
     net_invested = cost["net_invested_brl"]
     if total <= 0 and net_invested <= 0:
@@ -154,7 +175,8 @@ async def calculate_crypto_sleeve(
     convergência (`_nan_to_none`).
     """
     today = eval_date(today)
-    total, by_rail, stale = await sleeve_current_value(conn, user_id)
+    sv = await sleeve_current_value(conn, user_id)
+    total = sv.total_brl
     cost = await sleeve_cost_basis(conn)
     flows = await sleeve_cashflows(conn)
     if total > 0:
@@ -162,14 +184,16 @@ async def calculate_crypto_sleeve(
     rate = _nan_to_none(xirr(flows)) if len(flows) >= 2 else None
     return {
         "current_value_brl": total,
+        "current_value_usd": sv.total_usd,
+        "usd_partial": sv.usd_partial,
         "cost_basis_brl": cost["cost_basis_brl"],
         "returned_brl": cost["returned_brl"],
         "net_invested_brl": cost["net_invested_brl"],
         "resultado": total - cost["net_invested_brl"],
         "xirr": rate,
         "by_rail": [
-            {"rail": k, "current_value_brl": v} for k, v in sorted(by_rail.items())
+            {"rail": k, "current_value_brl": v} for k, v in sorted(sv.by_rail.items())
         ],
         "by_category": cost["by_category"],
-        "stale_value": stale,
+        "stale_value": sv.stale,
     }

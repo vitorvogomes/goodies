@@ -62,6 +62,8 @@ class ReconciliationOut(BaseModel):
     scanned_quantity: float
     registered_quantity: float
     delta: float
+    value_brl: float | None = None
+    value_usd: float | None = None
 
 
 @router.get("/positions", response_model=list[WalletPositionOut])

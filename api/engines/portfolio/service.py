@@ -548,6 +548,22 @@ async def calculate_crypto_ir_monthly(
     }
 
 
+async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
+    """Libera um preço manual p/ o worker voltar a sobrescrever (is_manual=false).
+
+    NÃO apaga o preço — só limpa a flag (ação explícita do usuário, ADR-012 intacto).
+    Invalida o cache de XIRR de quem detém o ticker (o preço pode mudar no próximo scan).
+    Devolve False se o ticker não existe (o router responde 404). Idempotente.
+    """
+    updated = await conn.execute(
+        "UPDATE asset_prices SET is_manual = false WHERE ticker = $1", ticker
+    )
+    if updated == "UPDATE 0":
+        return False
+    await _invalidate_xirr_for_ticker(conn, ticker)
+    return True
+
+
 def _xirr_key(user_id: str) -> str:
     return f"xirr:consolidated:{user_id}"
 
@@ -647,7 +663,7 @@ async def calculate_portfolio_xirr(
     from .crypto_sleeve import sleeve_cashflows, sleeve_current_value
 
     sleeve_flows = await sleeve_cashflows(conn)
-    sleeve_cur, _, _ = await sleeve_current_value(conn, user_id)
+    sleeve_cur = (await sleeve_current_value(conn, user_id)).total_brl
     sleeve_terminal = [(today, sleeve_cur)] if sleeve_cur > 0 else []
     if sleeve_flows or sleeve_terminal:
         by_category[str(AssetCategory.CRIPTO)] = _nan_to_none(

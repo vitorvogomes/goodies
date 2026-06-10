@@ -9,7 +9,7 @@ from __future__ import annotations
 
 # ruff: noqa: B008
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
@@ -57,5 +57,23 @@ async def set_manual_price(
     await portfolio_service.upsert_price(db, ticker, body.price_brl)
     # Invalida o cache Redis para o override manual não ficar mascarado por um preço
     # de mercado cacheado (manual sempre vence; ver invalidate_price_cache).
+    await service.invalidate_price_cache(ticker)
+    return PriceOut(**await service.get_price(db, ticker))
+
+
+@router.delete("/prices/{ticker}/manual", response_model=PriceOut)
+async def revert_manual_price(
+    ticker: str,
+    user: dict[str, str] = Depends(get_current_user),
+    db: asyncpg.Connection = Depends(get_db),
+) -> PriceOut:
+    """Volta o preço ao automático: limpa is_manual (não apaga) p/ o worker sobrescrever.
+
+    Caso de uso: o usuário digitou o valor líquido de um Tesouro/caixinha e quer voltar a
+    deixar o worker cotar. 404 se o ticker não tem preço; idempotente se já era automático.
+    """
+    reverted = await portfolio_service.clear_manual_price(db, ticker)
+    if not reverted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ticker sem preço cadastrado")
     await service.invalidate_price_cache(ticker)
     return PriceOut(**await service.get_price(db, ticker))

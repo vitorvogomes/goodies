@@ -244,6 +244,31 @@ class TestListAssetOperations:
         assert data[0]["asset_symbol"] == "PETR4"
 
     @pytest.mark.asyncio
+    async def test_list_filter_asset_symbol_is_fuzzy_substring(
+        self, api: AsyncClient, auth_headers: dict, _cleanup_operations: None
+    ) -> None:
+        """Filtro de ativo por substring case-insensitive (busca por similaridade):
+        'petr' acha PETR4; 'vale' acha VALE3."""
+        for symbol in ["PETR4", "VALE3"]:
+            await api.post(
+                "/api/v1/asset-operations",
+                json={
+                    "broker": "B3", "asset_symbol": symbol,
+                    "asset_category": "Ações Nacionais", "tipo": "compra",
+                    "quantidade": 10.0, "valor_unitario": 25.50,
+                    "data_operacao": "2026-06-01",
+                },
+                headers=auth_headers,
+            )
+        resp = await api.get(
+            "/api/v1/asset-operations?asset_symbol=petr", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["asset_symbol"] == "PETR4"  # substring case-insensitive
+
+    @pytest.mark.asyncio
     async def test_list_filter_by_tipo(
         self, api: AsyncClient, auth_headers: dict, _cleanup_operations: None
     ) -> None:

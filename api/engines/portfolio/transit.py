@@ -44,11 +44,19 @@ RAILS: tuple[Rail, ...] = (
     Rail("Debêntures Flash", ("Flash Capital debêntures",), ("Renda Fixa",), ("Flash",)),
 )
 
+# Tolerância de reconciliação (R$): centralizada aqui (o front não decide mais a regra).
+_RECONCILE_TOL = 1.0
+
+# aplicado (compra-venda) e proventos (dividendo+juros) numa só varredura por trilho.
 _APLICADO_SQL = (
-    "SELECT COALESCE(SUM(CASE "
+    "SELECT "
+    "COALESCE(SUM(CASE "
     "WHEN tipo IN ('compra','aporte') THEN quantidade * valor_unitario "
     "WHEN tipo IN ('venda','resgate') THEN -(quantidade * valor_unitario) "
-    "ELSE 0 END), 0) "
+    "ELSE 0 END), 0) AS aplicado, "
+    "COALESCE(SUM(CASE "
+    "WHEN tipo IN ('dividendo','juros') THEN quantidade * valor_unitario "
+    "ELSE 0 END), 0) AS proventos "
     "FROM asset_operations WHERE user_id = $1 AND asset_category = ANY($2)"
 )
 
@@ -63,18 +71,32 @@ async def _saiu(conn: asyncpg.Connection, categories: Sequence[str]) -> float:
     return -float(val)
 
 
-async def _aplicado(conn: asyncpg.Connection, user_id: str, rail: Rail) -> float:
-    """Quanto virou posição (custo líq.): compras - vendas em asset_operations."""
+async def _aplicado(
+    conn: asyncpg.Connection, user_id: str, rail: Rail
+) -> tuple[float, float]:
+    """(aplicado, proventos): custo líq. (compras-vendas) e dividendos+juros do trilho."""
     if rail.asset_brokers is None:
-        val = await conn.fetchval(_APLICADO_SQL, user_id, list(rail.asset_categories))
+        row = await conn.fetchrow(_APLICADO_SQL, user_id, list(rail.asset_categories))
     else:
-        val = await conn.fetchval(
+        row = await conn.fetchrow(
             _APLICADO_SQL + " AND broker = ANY($3)",
             user_id,
             list(rail.asset_categories),
             list(rail.asset_brokers),
         )
-    return float(val)
+    return float(row["aplicado"]), float(row["proventos"])
+
+
+def _transit_status(em_transito: float) -> str:
+    """Estado do trilho (decidido no backend, não no front):
+    - reconciled: |em_transito| dentro da tolerância;
+    - rendimento_realizado: aplicado > saiu (ex.: caixinha encerrada que rendeu);
+    - pending: saiu > aplicado (dinheiro mandado que ainda não virou posição)."""
+    if em_transito < -_RECONCILE_TOL:
+        return "rendimento_realizado"
+    if em_transito > _RECONCILE_TOL:
+        return "pending"
+    return "reconciled"
 
 
 async def calculate_transit(
@@ -83,13 +105,21 @@ async def calculate_transit(
     rails: list[dict[str, Any]] = []
     for rail in RAILS:
         saiu = await _saiu(conn, rail.ledger_categories)
-        aplicado = await _aplicado(conn, user_id, rail)
+        aplicado, proventos = await _aplicado(conn, user_id, rail)
+        em_transito = saiu - aplicado
+        # proventos (dividendo/JCP) creditados na corretora são CAIXA parado lá, não
+        # trânsito: caixa_corretora = em_transito + proventos (≈ saldo na Toro). Só
+        # exposto quando há proventos (trilho B3); senão null.
+        caixa = round(em_transito + proventos, 2) if proventos > 0 else None
         rails.append(
             {
                 "rail": rail.name,
                 "saiu_brl": round(saiu, 2),
                 "aplicado_brl": round(aplicado, 2),
-                "em_transito_brl": round(saiu - aplicado, 2),
+                "em_transito_brl": round(em_transito, 2),
+                "dividendos_juros_brl": round(proventos, 2),
+                "caixa_corretora_brl": caixa,
+                "status": _transit_status(em_transito),
             }
         )
     # cripto reconcilia pelo sleeve (não é trânsito — carteiras são escaneadas ao vivo).

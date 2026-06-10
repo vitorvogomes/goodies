@@ -54,11 +54,11 @@ async def _tx(conn: Any, acc: uuid.UUID, amount: float, category: str) -> None:
     )
 
 
-async def _price(conn: Any, ticker: str, brl: float) -> None:
+async def _price(conn: Any, ticker: str, brl: float, usd: float | None = None) -> None:
     await conn.execute(
-        "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
-        "VALUES ($1, $2, 'coingecko', false)",
-        ticker, brl,
+        "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual) "
+        "VALUES ($1, $2, $3, 'coingecko', false)",
+        ticker, brl, usd,
     )
 
 
@@ -123,6 +123,26 @@ class TestCryptoSleeveEndpoint:
         assert abs(d["resultado"] - (-600.0)) < 0.01
         rail_sum = sum(r["current_value_brl"] for r in d["by_rail"])
         assert abs(rail_sum - d["current_value_brl"]) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_usd_value_and_partial_flag(
+        self, api: AsyncClient, crypto_user: dict
+    ) -> None:
+        """current_value_usd soma o USD disponível; usd_partial=True quando algum ativo
+        tem BRL mas não USD (preço sem cotação em dólar)."""
+        pool, uid = crypto_user["pool"], crypto_user["uid"]
+        async with pool.acquire() as conn:
+            await _price(conn, "TKUSD", 100.0, 20.0)  # tem USD
+            await _price(conn, "TKNOUSD", 50.0, None)  # só BRL
+            await _wallet(conn, uid, "ethereum", "TKUSD", 2.0)   # 200 BRL / 40 USD
+            await _wallet(conn, uid, "ethereum", "TKNOUSD", 1.0)  # 50 BRL / sem USD
+        resp = await api.get(
+            "/api/v1/portfolio/crypto-sleeve", headers=crypto_user["headers"]
+        )
+        d = resp.json()
+        assert abs(d["current_value_brl"] - 250.0) < 0.01
+        assert abs(d["current_value_usd"] - 40.0) < 0.01
+        assert d["usd_partial"] is True  # TKNOUSD entrou só em BRL
 
     @pytest.mark.asyncio
     async def test_misspelled_category_counted(

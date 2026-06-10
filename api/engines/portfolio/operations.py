@@ -125,7 +125,8 @@ async def list_operations(
     param_idx = 2
 
     if asset_symbol:
-        query += f" AND asset_symbol = ${param_idx}"
+        # busca por similaridade: substring case-insensitive ('petr' acha PETR4F)
+        query += f" AND asset_symbol ILIKE '%' || ${param_idx} || '%'"
         params.append(asset_symbol)
         param_idx += 1
 

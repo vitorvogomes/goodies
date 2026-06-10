@@ -130,3 +130,20 @@ async def test_cashflow_running_balance(api, auth_headers, account):
     assert entries[0]["running_balance"] == 1000.0
     assert entries[1]["running_balance"] == 800.0
     assert entries[2]["running_balance"] == 750.0
+
+
+async def test_cashflow_running_balance_anchored_by_from(api, auth_headers, account):
+    """O filtro `from` não pode 'esquecer' o saldo anterior: o running_balance ancora
+    no SUM(amount) de tudo antes de `from` (senão a tela começa em 0 errado)."""
+    await _post_tx(api, auth_headers, account, "2099-05-01", 1000, "Salário")
+    await _post_tx(api, auth_headers, account, "2099-05-10", -300, "alimentação")  # saldo 700
+    await _post_tx(api, auth_headers, account, "2099-06-02", -100, "transporte")
+
+    resp = await api.get(
+        f"/api/v1/cashflow?account_id={account}&from=2099-06-01", headers=auth_headers
+    )
+    assert resp.status_code == 200
+    entries = resp.json()
+    assert len(entries) == 1  # só a tx de junho
+    # ancora no saldo de maio (700), não recomeça do 0: 700 - 100 = 600
+    assert entries[0]["running_balance"] == 600.0

@@ -73,10 +73,19 @@ async def cashflow(
     from_: Annotated[datetime.date | None, Query(alias="from")] = None,
     to: Annotated[datetime.date | None, Query()] = None,
 ) -> list[CashflowEntry]:
+    # `base` ancora o running_balance no saldo de TUDO antes de `from`: a window roda
+    # só sobre as linhas filtradas, então sem isto o saldo "esquece" o prefixo e a tela
+    # começaria do 0 errado quando há filtro de data inicial.
     rows = await db.fetch(
         """
+        WITH base AS (
+          SELECT COALESCE(SUM(amount), 0) AS b
+          FROM transactions
+          WHERE ($1::uuid IS NULL OR account_id = $1)
+            AND ($2::date IS NOT NULL AND date < $2)
+        )
         SELECT id, account_id, date, amount, category, description,
-               SUM(amount) OVER (
+               (SELECT b FROM base) + SUM(amount) OVER (
                  ORDER BY date, created_at
                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                ) AS running_balance

@@ -73,6 +73,36 @@ async def test_manual_overrides_cached_auto_price(
 
 
 @pytest.mark.asyncio
+async def test_revert_manual_price_to_auto(api: Any, pool: Any, portfolio_user: dict) -> None:
+    """DELETE .../manual libera o ticker p/ o worker sobrescrever (is_manual=false),
+    sem apagar o preço. Idempotente; 404 se o ticker não existe."""
+    headers = portfolio_user["headers"]
+    # 404 quando não há linha
+    miss = await api.delete(
+        "/api/v1/market/prices/MKT_NONE/manual", headers=headers
+    )
+    assert miss.status_code == 404
+
+    await api.post(
+        "/api/v1/market/prices/MKT_REV", json={"price_brl": 99.0}, headers=headers
+    )
+    resp = await api.delete("/api/v1/market/prices/MKT_REV/manual", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["is_manual"] is False  # liberado p/ o worker
+    async with pool.acquire() as conn:
+        flag = await conn.fetchval(
+            "SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_REV'"
+        )
+    assert flag is False
+    # preço preservado (não apagado)
+    got = await api.get("/api/v1/market/prices/MKT_REV", headers=headers)
+    assert got.json()["price_brl"] == 99.0
+    # idempotente: reverter de novo continua 200
+    again = await api.delete("/api/v1/market/prices/MKT_REV/manual", headers=headers)
+    assert again.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_list_prices_covers_holdings(api: Any, pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     headers = portfolio_user["headers"]

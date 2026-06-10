@@ -127,12 +127,12 @@ class TestCurrentValue:
             await _price(conn, "TKND", 2.0)
             await _wallet(conn, uid, "ethereum", "TKNA", 3.0)  # 300
             await _defi(conn, uid, "TKND", 25.0)               # 50
-            total, by_rail, stale = await sleeve_current_value(conn, uid)
-        assert abs(total - 350.0) < 0.01
-        assert stale is False
-        assert abs(by_rail.get("ethereum", 0.0) - 300.0) < 0.01
+            sv = await sleeve_current_value(conn, uid)
+        assert abs(sv.total_brl - 350.0) < 0.01
+        assert sv.stale is False
+        assert abs(sv.by_rail.get("ethereum", 0.0) - 300.0) < 0.01
         # rail DeFi por protocolo (helper usa protocol="hylo")
-        assert abs(by_rail.get("hylo", 0.0) - 50.0) < 0.01
+        assert abs(sv.by_rail.get("hylo", 0.0) - 50.0) < 0.01
 
     @pytest.mark.asyncio
     async def test_dedup_manual_and_scanned(self, sleeve_user: dict) -> None:
@@ -144,8 +144,8 @@ class TestCurrentValue:
                           is_manual=False, address="scanned")
             await _wallet(conn, uid, "liquid", "TKNA", 1.0, source="manual",
                           is_manual=True, address="manual")
-            total, _, _ = await sleeve_current_value(conn, uid)
-        assert abs(total - 100.0) < 0.01  # não 200
+            sv = await sleeve_current_value(conn, uid)
+        assert abs(sv.total_brl - 100.0) < 0.01  # não 200
 
     @pytest.mark.asyncio
     async def test_fail_soft_unpriced(self, sleeve_user: dict) -> None:
@@ -153,9 +153,9 @@ class TestCurrentValue:
         pool, uid = sleeve_user["pool"], sleeve_user["uid"]
         async with pool.acquire() as conn:
             await _wallet(conn, uid, "ethereum", "NOPRICE", 5.0)
-            total, _, stale = await sleeve_current_value(conn, uid)
-        assert total == 0.0
-        assert stale is True
+            sv = await sleeve_current_value(conn, uid)
+        assert sv.total_brl == 0.0
+        assert sv.stale is True
 
 
 class TestSleeve:
