@@ -8,6 +8,7 @@ import { Button, Input } from "@/components/ui";
 import { formatBRL, formatPercent, formatRate, parseDecimalInput } from "@/lib/format";
 import {
   useCryptoSleeve,
+  useIncome,
   usePositions,
   useRevertPrice,
   useSetManualPrice,
@@ -156,6 +157,37 @@ function ResultCell({ pos }: { pos: Position }) {
       {formatBRL(pos.resultado)}{" "}
       <span className="text-xs">({formatPercent(pos.resultado_pct)})</span>
     </span>
+  );
+}
+
+// Rendimentos (dividendo/juros) por categoria — separados do ganho de capital. Onde o
+// rendimento das caixinhas (juros sacados embutidos nos resgates) fica visível.
+function IncomeCard() {
+  const { data: income } = useIncome();
+  if (!income || income.total <= 0) return null;
+  return (
+    <div className="rounded-2xl border border-border bg-muted/20 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-wide text-foreground/60">
+          💰 Rendimentos recebidos (dividendos / juros)
+        </span>
+        <span className="tabular-nums text-sm font-medium text-gain">
+          {formatBRL(income.total)}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        {income.by_category.map((c) => (
+          <div key={c.asset_category}>
+            <div className="text-xs text-foreground/50">{c.asset_category}</div>
+            <div className="tabular-nums text-foreground/80">{formatBRL(c.total)}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-foreground/40">
+        Inclui FII/JCP da B3 e os juros realizados das caixinhas Nubank (o que rendeu e
+        foi sacado ao longo do tempo).
+      </p>
+    </div>
   );
 }
 
@@ -379,6 +411,8 @@ export default function PositionsPage() {
           </p>
         </div>
       )}
+
+      <IncomeCard />
     </div>
   );
 }

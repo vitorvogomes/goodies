@@ -8,6 +8,7 @@ import type {
   Allocation,
   AssetOperation,
   CryptoSleeve,
+  Income,
   OperationFilters,
   Position,
   Rebalancing,
@@ -39,6 +40,13 @@ export function useCryptoSleeve() {
   return useQuery({
     queryKey: ["portfolio", "crypto-sleeve"],
     queryFn: () => apiFetch<CryptoSleeve>("/api/v1/portfolio/crypto-sleeve"),
+  });
+}
+
+export function useIncome() {
+  return useQuery({
+    queryKey: ["portfolio", "income"],
+    queryFn: () => apiFetch<Income>("/api/v1/portfolio/income"),
   });
 }
 

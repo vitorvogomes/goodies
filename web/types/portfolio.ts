@@ -122,6 +122,23 @@ export interface ImportB3Report {
 }
 
 // Reconciliação de trânsito (Pilar 2): saiu do Nubank vs virou posição, por trilho.
+// Rendimentos (dividendo/juros) separados do ganho de capital — GET /portfolio/income.
+export interface IncomeByAsset {
+  asset_symbol: string;
+  asset_category: string;
+  total: number;
+}
+export interface IncomeByCategory {
+  asset_category: string;
+  total: number;
+}
+export interface Income {
+  total: number;
+  by_asset: IncomeByAsset[];
+  by_category: IncomeByCategory[];
+  by_type: Record<string, number>;
+}
+
 export type TransitStatus = "reconciled" | "pending" | "rendimento_realizado";
 
 export interface TransitRail {

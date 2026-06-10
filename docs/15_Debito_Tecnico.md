@@ -49,13 +49,18 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
   **Fix de desenho:** normalizar para a data do negócio (subtrair D+2 da movimentação) ou
   cobrir por (ticker, qtd, valor) em vez de só data. Sem impacto enquanto não se mistura.
 
-### RF Nubank — caixinhas encerradas (decisão: display honesto)
-- **Trilho RF diverge −R$351,98** (caixinhas Extra/Reserva/HotCash/Potencial encerradas
-  renderam e foram resgatadas: saíram do Nubank, sem posição aberta). **Decisão do Vitor
-  (2026-06-10): manter o display honesto** — o trilho mostra `rendimento_realizado`, não
-  falso "conciliado". NÃO seedar: as descrições do extrato se sobrepõem ("Nu Reserva
-  Imediata" em Extra/HotCash/Reserva), há resgate sem nome de caixinha (Resp. Ltda (?)
-  +993,93) e linha ambígua ("Potencial - Caixinha Extra") — um seed por token corromperia.
+### Caixinhas Nubank — rendimento realizado registrado (RESOLVIDO 2026-06-10)
+- **Resolvido.** O extrato Nubank lança o resgate inteiro (principal+juros) como saída de
+  principal, então `net = aportes−resgates` subcontava o principal de caixinhas muito
+  giradas (Turbo: net R$2.276 vs principal real R$2.400) e o rendimento ficava oculto.
+  `scripts/register_caixinha_yields.py` reclassifica resgate→juros (XIRR-neutro): Turbo
+  → investido R$2.400 + op `juros` R$123,91; bucket `Nubank-Encerradas` (Extra/Reserva/
+  HotCash/Potencial por EXCLUSÃO de snow/turbo/guanabara — evita a ambiguidade de nomes)
+  → op `juros` R$351,98, sem posição. Rendimento agora visível em /income + card em
+  Posições. Idempotente/reversível. O trânsito RF segue mostrando `rendimento_realizado`
+  (honesto — o caixa voltou com lucro). **Aberto (menor):** `Tesouro IPCA+ Juros
+  Semestrais 2055` tem um cupom (~R$114,59) lançado como `venda` em vez de `juros`
+  (impacto ~R$0,79, posição quase zerada).
 
 ### Observabilidade (m6)
 - **Fetchers `except Exception: return []` sem log no nível do fetcher.** Um bug de parse
