@@ -30,6 +30,33 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ## 🟡 MÉDIO
 
+> **Pass de review m4 (2026-06-10).** `/code-review` (high, 7 ângulos × verify) +
+> conferências do Vitor. **Corrigidos** (não são mais débito): C1 `_to_date` datetime→date;
+> C3 hash de fills idênticos; C4 import consolidado (botão confirmar + cache Redis + contador);
+> C5 sweep não apaga sub-unidade que falhou (`ScanBalances.complete`); C6 dupla contagem
+> cripto (exclui Cripto do fold per-ativo); C7 CRUD wallet/DeFi invalida XIRR; C8 worker
+> cripto reporta apagão; frescor honesto (status `partial` + `data_age` de `scanned_at`);
+> trânsito coerente (proventos→caixa corretora, status no backend); revert de preço manual;
+> USD no sleeve/reconciliação; `/cashflow` running_balance ancorado; ILIKE no histórico.
+> Suite 504→524. Itens **abertos** abaixo.
+
+### Cobertura B3 cruza calendários diferentes (C2 — desenho)
+- **A regra de cobertura compara datas de bases distintas.** `_ticker_cutoffs` usa
+  `max(data_operacao)` de outra proveniência, mas **negociação = data do negócio** e
+  **movimentação = liquidação D+2** (`b3_import_service.py:120`). Na borda de ~2 dias um
+  trade pode ser importado em dobro (mov depois de neg) ou descartado como overlap (neg
+  depois de mov). Hoje mitigado por importar uma proveniência só; vira problema ao misturar.
+  **Fix de desenho:** normalizar para a data do negócio (subtrair D+2 da movimentação) ou
+  cobrir por (ticker, qtd, valor) em vez de só data. Sem impacto enquanto não se mistura.
+
+### RF Nubank — caixinhas encerradas (decisão: display honesto)
+- **Trilho RF diverge −R$351,98** (caixinhas Extra/Reserva/HotCash/Potencial encerradas
+  renderam e foram resgatadas: saíram do Nubank, sem posição aberta). **Decisão do Vitor
+  (2026-06-10): manter o display honesto** — o trilho mostra `rendimento_realizado`, não
+  falso "conciliado". NÃO seedar: as descrições do extrato se sobrepõem ("Nu Reserva
+  Imediata" em Extra/HotCash/Reserva), há resgate sem nome de caixinha (Resp. Ltda (?)
+  +993,93) e linha ambígua ("Potencial - Caixinha Extra") — um seed por token corromperia.
+
 ### Observabilidade (m6)
 - **Fetchers `except Exception: return []` sem log no nível do fetcher.** Um bug de parse
   (mudança de schema da API → KeyError/ValueError) fica indistinguível de blip de rede; a
@@ -67,9 +94,30 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 - **`susdai`: id da API ≠ slug do site.** `staked-usdai` (slug) devolve vazio; o id correto é
   `susdai` (via `/search`). Nota de processo: ao mapear novo ativo, confirmar o id pela busca.
 
+### Limpeza / altitude (review m4 2026-06-10, baixa prioridade)
+- **Card do sleeve cripto duplicado em 3 telas** (`positions`, `wallets/reconciliation`,
+  `transit`): mesmo layout de 4 stats (Investido/Valor/Resultado/XIRR), já com deriva (XIRR
+  colorido pelo sinal do resultado numa, do próprio XIRR noutra). Extrair `CryptoSleeveCard`.
+- **Sleeve computado 2× na tela Posições:** `/positions` injeta a linha-bloco (via
+  `crypto_positions`) E `useCryptoSleeve()` refaz tudo (inclui XIRR) p/ o card — 2× os SELECTs
+  de wallet/defi/preço por visita. Renderizar o card da linha-bloco já em `data`.
+- **`transit.py` recomputa o sleeve** (XIRR via brentq) só para descartar — o front já tem
+  `useCryptoSleeve()`. Retornar só `rails` e o card vir do hook.
+- **RAILS/caixinhas hardcodam strings de categoria do ledger** que são CRUD-áveis em
+  `categories` (renomear quebra silenciosamente o trilho). Centralizar (Settings ou tabela).
+- **`EditableNumber` (wallets) × `PriceCell`/`InlineNumber` (positions)** — editores inline
+  quase iguais. `InlineNumber` já unifica o parser pt-BR em Posições; falta unir com Carteiras.
+- **4 cópias da assinatura HMAC Binance** nos scripts (`crypto_history_spike`,
+  `reconstruct_binance_cost`, `binance_history_discovery`) vs `BinanceFetcher`. Extrair helper.
+- **`crypto_cost_basis` (migration 0014) sem leitor** em produção (o per-ativo foi removido em
+  `3d92b21`). Tabela + `reconstruct_binance_cost.py` preservados p/ Tier 2 futuro, não exibidos.
+
 ### Eficiência / qualidade (baixa prioridade)
 - **Scan em série.** `run_wallet_scan` roda os fetchers em série segurando 1 conexão;
   `asyncio.gather` por fonte cortaria o wall-clock. Cron 3x/dia → prioridade baixa.
+- **Refresh roda os jobs em série** (`refresh_stale`): o POST /jobs/refresh espera a SOMA das
+  durações (B3+Tesouro+cripto+6 fetchers+BCB). `asyncio.gather` dos vencidos cortaria o
+  wall-clock do "Atualizar tudo" / catch-up. Mesma classe do scan em série.
 - **Scripts sem teste**; falta cobertura de `b3_import`. **`validate_xirr.py`** ainda tem a
   planilha de referência + valores hardcoded e valida o **custo**, não o `=XIRR` (já aceita
   `--user` e usa `settings.evaluation_date`).
