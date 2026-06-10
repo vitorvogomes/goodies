@@ -29,7 +29,7 @@ import httpx
 from config import settings
 
 from ..base import with_client, with_owned_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _BASE_URL = "https://api.binance.com"
 _SOURCE = "binance"
@@ -69,11 +69,13 @@ class BinanceFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._key or not self._secret:
-            return []  # sem credencial → no-op
+            # não escaneou (sem credencial) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         return await with_owned_client(self._scan, client=self._client)
 
-    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
+    async def _scan(self, client: httpx.AsyncClient) -> ScanBalances:
         totals: dict[str, float] = defaultdict(float)
+        complete = True
         # corrige clock-skew (WSL): a Binance rejeita timestamp fora do recvWindow.
         self._offset_ms = await self._server_offset(client)
         # spot: não paginado (um GET devolve todos os balances)
@@ -85,7 +87,7 @@ class BinanceFetcher:
             )
             self._parse_spot(data, totals)
         except Exception:
-            pass  # fail-soft por endpoint
+            complete = False  # fail-soft por endpoint; o sweep não varre este scan (C5)
         # earn: PAGINADO (size=100) — sem isso o 11º+ ativo em Earn não é contado
         for path, field in (
             ("/sapi/v1/simple-earn/flexible/position", "totalAmount"),
@@ -94,19 +96,23 @@ class BinanceFetcher:
             try:
                 rows = await self._fetch_earn_rows(client, path)
             except Exception:
-                continue  # fail-soft por endpoint
+                complete = False  # fail-soft por endpoint
+                continue
             self._accumulate_earn(rows, totals, field)
-        return [
-            WalletBalance(
-                chain=_CHAIN,
-                wallet_address=_CHAIN,
-                asset_symbol=asset,
-                quantity=qty,
-                source=_SOURCE,
-            )
-            for asset, qty in sorted(totals.items())
-            if asset in self._symbols and qty > 0
-        ]
+        return ScanBalances(
+            (
+                WalletBalance(
+                    chain=_CHAIN,
+                    wallet_address=_CHAIN,
+                    asset_symbol=asset,
+                    quantity=qty,
+                    source=_SOURCE,
+                )
+                for asset, qty in sorted(totals.items())
+                if asset in self._symbols and qty > 0
+            ),
+            complete=complete,
+        )
 
     async def _server_offset(self, client: httpx.AsyncClient) -> int:
         """`serverTime - relógio local` (ms). Fail-soft: `/time` fora → 0 (usa local)."""

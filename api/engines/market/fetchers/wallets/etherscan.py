@@ -22,7 +22,7 @@ import httpx
 from config import settings
 
 from ..base import with_client, with_owned_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _BASE_URL = "https://api.etherscan.io/v2/api"
 _SOURCE = "etherscan"
@@ -61,11 +61,12 @@ class EtherscanFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:
-            return []  # sem endereço configurado → no-op
+            # não escaneou (sem endereço) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         return await with_owned_client(self._scan, client=self._client)
 
-    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
-        out: list[WalletBalance] = []
+    async def _scan(self, client: httpx.AsyncClient) -> ScanBalances:
+        out = ScanBalances()
         for spec in self._specs:
 
             async def _req(c: httpx.AsyncClient, s: _Spec = spec) -> float:
@@ -74,6 +75,7 @@ class EtherscanFetcher:
             try:
                 qty = await with_client(_req, client=client, sleep=self._sleep)
             except Exception:
+                out.complete = False  # sub-unidade fora: o sweep não pode varrê-la (C5)
                 continue  # fail-soft por spec: uma chain fora não derruba as outras
             if qty > 0:
                 out.append(

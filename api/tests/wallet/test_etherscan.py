@@ -75,19 +75,37 @@ async def test_status_zero_is_fail_soft_per_spec() -> None:
         )
 
     respx.get(url__startswith=_BASE).mock(side_effect=handler)
-    out = {(b.chain, b.asset_symbol): b for b in await _fetcher().fetch()}
+    result = await _fetcher().fetch()
+    out = {(b.chain, b.asset_symbol): b for b in result}
     assert ("ethereum", "ETH") not in out  # spec da mainnet (chainid 1) falhou → omitida
     assert out[("arbitrum", "ARB")].quantity == 5.0  # specs da Arbitrum sobrevivem
     assert out[("arbitrum", "ETH")].quantity == 5.0
+    # achado C5: spec que falhou marca o scan como incompleto → o worker NÃO varre
+    # (a posição da chain que caiu não pode ser tratada como "fechada")
+    assert getattr(result, "complete", True) is False
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_complete_scan_is_marked_complete() -> None:
+    respx.get(url__startswith=_BASE).mock(
+        return_value=httpx.Response(200, json={"status": "1", "result": "0"})
+    )
+    result = await _fetcher().fetch()
+    assert getattr(result, "complete", True) is True  # tudo respondeu → sweep liberado
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_persistent_error_returns_empty_no_raise() -> None:
     respx.get(url__startswith=_BASE).mock(return_value=httpx.Response(500))
-    assert await _fetcher().fetch() == []
+    result = await _fetcher().fetch()
+    assert result == []
+    assert getattr(result, "complete", True) is False  # tudo falhou → não varre
 
 
 @pytest.mark.asyncio
 async def test_no_address_is_noop() -> None:
-    assert await EtherscanFetcher(api_key="k", address="", sleep=_no_sleep).fetch() == []
+    result = await EtherscanFetcher(api_key="k", address="", sleep=_no_sleep).fetch()
+    assert result == []
+    assert getattr(result, "complete", True) is False  # não escaneou → não varre

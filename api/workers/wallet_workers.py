@@ -65,12 +65,25 @@ async def run_wallet_scan(
                 logger.warning("wallet_scan_fetcher_failed", fetcher=name, error=str(exc))
                 stats[name] = {"fetched": 0, "failed": 1, "swept": 0}
                 continue
+            # ScanBalances.complete=False → alguma sub-unidade (spec/endereço/endpoint)
+            # falhou; lista simples (testes/legado) é tratada como scan completo.
+            complete = bool(getattr(balances, "complete", True))
             for balance in balances:
                 await service.upsert_wallet_position(conn, user_id, balance)
             # snapshot-replace: posição fechada (vendida/bridada) é varrida; um source
             # fora devolve [] e NÃO apaga o último snapshot bom (outage ≠ fechamento).
-            swept = await service.sweep_wallet_positions(conn, user_id, balances)
-            stats[name] = {"fetched": len(balances), "failed": 0, "swept": swept}
+            # Scan INCOMPLETO também não varre: a sub-unidade que falhou não é
+            # posição fechada (achado C5) — só upserta o que veio.
+            swept = (
+                await service.sweep_wallet_positions(conn, user_id, balances)
+                if complete
+                else 0
+            )
+            stats[name] = {
+                "fetched": len(balances),
+                "failed": 0 if complete else 1,
+                "swept": swept,
+            }
     # o scan mudou os saldos cripto → o valor atual do sleeve mudou: invalida o XIRR do
     # usuário (m4) p/ o consolidado/Cripto não ficar stale até o TTL (1h).
     await invalidate_xirr_cache(user_id)

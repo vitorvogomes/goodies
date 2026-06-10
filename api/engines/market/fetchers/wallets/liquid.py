@@ -26,7 +26,7 @@ import httpx
 from config import settings
 
 from ..base import with_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _SOURCE = "liquid"
 _CHAIN = "liquid"
@@ -59,11 +59,12 @@ class LiquidFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address or not self._assets:
-            return []  # sem endereço/asset configurado → no-op
+            # não escaneou (sem endereço/asset) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         try:
             utxos = await with_client(self._get_utxos, client=self._client, sleep=self._sleep)
         except Exception:
-            return []  # fail-soft: fonte fora → nada
+            return ScanBalances(complete=False)  # fail-soft: fonte fora (sem sweep)
         sats_by_asset: dict[str, int] = {}
         for utxo in utxos if isinstance(utxos, list) else []:
             # a Liquid é multi-asset; só conta os assets conhecidos (L-BTC / USDT).
@@ -75,7 +76,7 @@ class LiquidFetcher:
             value = utxo.get("value")
             if isinstance(value, int | float):
                 sats_by_asset[asset_id] = sats_by_asset.get(asset_id, 0) + int(value)
-        out: list[WalletBalance] = []
+        out = ScanBalances()
         for asset_id, symbol in self._assets.items():  # ordem estável: L-BTC, L-USDT
             sats = sats_by_asset.get(asset_id, 0)
             if sats <= 0:

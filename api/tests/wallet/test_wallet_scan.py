@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from engines.market.fetchers.wallets.base import WalletBalance
+from engines.market.fetchers.wallets.base import ScanBalances, WalletBalance
 from engines.market.fetchers.wallets.binance import BinanceFetcher
 from engines.market.fetchers.wallets.bitcoin import BitcoinFetcher
 from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
@@ -146,6 +146,40 @@ async def test_scan_partial_source_outage_preserves_other_source(
             )
         )
     assert chains == ["hyperevm", "hyperliquid"]  # a posição HyperEVM sobreviveu
+
+
+@pytest.mark.asyncio
+async def test_scan_incomplete_fetch_preserves_snapshot_of_failed_subunit(
+    pool: Any, wallet_user: dict
+) -> None:
+    # Achado C5: Etherscan/Solana/Binance fazem fail-soft POR sub-unidade (spec/endereço/
+    # endpoint) e devolvem lista PARCIAL não-vazia sob o mesmo source. O sweep não pode
+    # tratar a sub-unidade que falhou como "posição fechada".
+    uid = wallet_user["user_id"]
+    full = _FakeFetcher(
+        [
+            WalletBalance("ethereum", "0xabc", "ETH", 1.0, "etherscan"),
+            WalletBalance("arbitrum", "0xabc", "ARB", 50.0, "etherscan"),
+        ]
+    )
+    await run_wallet_scan(pool, uid, fetchers=[full])
+    # Arbitrum "fora": o fetcher devolve só ETH e marca o scan como incompleto
+    partial = _FakeFetcher(
+        ScanBalances(
+            [WalletBalance("ethereum", "0xabc", "ETH", 1.2, "etherscan")],
+            complete=False,
+        )
+    )
+    stats = await run_wallet_scan(pool, uid, fetchers=[partial])
+    assert stats["_FakeFetcher"] == {"fetched": 1, "failed": 1, "swept": 0}
+    async with pool.acquire() as conn:
+        syms = sorted(
+            r["asset_symbol"]
+            for r in await conn.fetch(
+                "SELECT asset_symbol FROM wallet_positions WHERE user_id = $1", uid
+            )
+        )
+    assert syms == ["ARB", "ETH"]  # ARB preservado; ETH atualizado
 
 
 @pytest.mark.asyncio

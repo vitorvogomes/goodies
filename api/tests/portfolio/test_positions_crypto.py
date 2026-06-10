@@ -85,6 +85,34 @@ class TestCryptoBucket:
         assert resp.status_code == 200
         assert not [p for p in resp.json() if p["asset_category"] == "Cripto"]
 
+    @pytest.mark.asyncio
+    async def test_crypto_asset_operation_is_not_double_counted(
+        self, api: AsyncClient, pool: Any, portfolio_user: dict
+    ) -> None:
+        """Achado C6: uma op de categoria Cripto em asset_operations NÃO pode virar linha
+        per-ativo (o sleeve/bloco já valora cripto pelas carteiras) — senão conta 2x.
+        O IR-cripto continua lendo asset_operations direto, então a op fica preservada."""
+        # ticker sintético (não-BTC) p/ não colidir com preço cacheado no Redis de outro teste
+        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await _price(conn, "TKCRP", 300000.0)
+            await _wallet(conn, uid, "binance", "TKCRP", 0.01)  # bloco = 3000
+            # op Cripto registrada (ex.: para o IR-cripto) — caminho vivo
+            await conn.execute(
+                "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
+                "asset_category, tipo, quantidade, valor_unitario, data_operacao) "
+                "VALUES ($1, 'Binance', 'TKCRP', 'Cripto', 'compra', 0.01, 200000.0, "
+                "'2026-01-02')",
+                uid,
+            )
+        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
+        assert resp.status_code == 200
+        crypto = [p for p in resp.json() if p["asset_category"] == "Cripto"]
+        assert len(crypto) == 1  # só o bloco — NÃO uma linha TKCRP per-ativo
+        assert crypto[0]["is_bucket"] is True
+        # o bloco vale o saldo da carteira (3000), não soma a op (que viraria +2000 custo)
+        assert abs(float(crypto[0]["valor_atual"]) - 3000.0) < 0.01
+
 
 class TestAllocationCryptoFold:
     @pytest.mark.asyncio

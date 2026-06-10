@@ -124,7 +124,10 @@ class TestConsolidado:
         async with pool.acquire() as conn:
             rep = await import_b3_workbook(conn, uid, sheets, dry_run=False)
         assert rep["file_type"] == "consolidado"
-        assert rep["prices_upserted"] == 2
+        # achado C4: PETR4 era manual e foi PULADA (precedência is_manual) -> o contador
+        # conta só o que realmente gravou (antes contava len(prices), inflando)
+        assert rep["prices_upserted"] == 1
+        assert rep["prices_skipped_manual"] == 1
         async with pool.acquire() as conn:
             petr = await conn.fetchval(
                 "SELECT price_brl FROM asset_prices WHERE ticker = 'PETR4'"

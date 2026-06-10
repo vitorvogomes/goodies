@@ -19,6 +19,29 @@ _NEW = {
 
 
 @pytest.mark.asyncio
+async def test_crud_invalidates_xirr_cache(
+    api: httpx.AsyncClient, wallet_user: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Achado C7: posição DeFi entra no valor do sleeve → cada create/update/delete
+    invalida o XIRR consolidado (1h)."""
+    calls: list[str] = []
+
+    async def spy(uid: str) -> None:
+        calls.append(uid)
+
+    monkeypatch.setattr("engines.wallet.defi_router.invalidate_xirr_cache", spy)
+    h = wallet_user["headers"]
+    pid = (await api.post("/api/v1/defi/positions", json=_NEW, headers=h)).json()["id"]
+    assert calls == [wallet_user["user_id"]]
+    calls.clear()
+    await api.put(f"/api/v1/defi/positions/{pid}", json={"balance": 20.0}, headers=h)
+    assert calls == [wallet_user["user_id"]]
+    calls.clear()
+    await api.delete(f"/api/v1/defi/positions/{pid}", headers=h)
+    assert calls == [wallet_user["user_id"]]
+
+
+@pytest.mark.asyncio
 async def test_create_and_list(api: httpx.AsyncClient, wallet_user: dict) -> None:
     h = wallet_user["headers"]
     resp = await api.post("/api/v1/defi/positions", json=_NEW, headers=h)

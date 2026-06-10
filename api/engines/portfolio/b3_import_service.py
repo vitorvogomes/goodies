@@ -19,6 +19,8 @@ from typing import Any
 
 import asyncpg
 
+from engines.market import service as market_service
+
 from . import service
 from .b3_import import (
     parse_b3_movimentacao,
@@ -81,18 +83,35 @@ async def import_b3_workbook(
         "new_tickers": [],
         "date_range": None,
         "prices_upserted": 0,
+        "prices_skipped_manual": 0,
         "dry_run": dry_run,
     }
 
     # --- consolidado: categorias + preços (abas 'Posição'); ops vêm de mov/neg ---
     if ftype == "consolidado":
         prices = parse_b3_position_prices(sheets)
-        if not dry_run:
-            for ticker, price in prices.items():
-                await service.upsert_price(
-                    conn, ticker, price, source="b3", is_manual=False
-                )
-        report["prices_upserted"] = len(prices)
+        if dry_run:
+            # preview: quantos NÃO seriam gravados por já serem manuais (precedência)
+            report["prices_upserted"] = len(prices)
+            report["note"] = (
+                "consolidado (dry-run): preços/categorias seriam aplicados; "
+                "ops vêm de movimentação/negociação"
+            )
+            return report
+        upserted = 0
+        for ticker, price in prices.items():
+            # upsert_price retorna {} quando a precedência is_manual ignora a escrita;
+            # só conta (e invalida o cache Redis) o que de fato gravou. Achado C4.
+            written = await service.upsert_price(
+                conn, ticker, price, source="b3", is_manual=False
+            )
+            if written:
+                upserted += 1
+                # o preço é gravado no Postgres, mas get_price lê o Redis 1º: sem isto
+                # um preço B3 cacheado (TTL 26h) mascararia o recém-importado. Achado C4.
+                await market_service.invalidate_price_cache(ticker)
+        report["prices_upserted"] = upserted
+        report["prices_skipped_manual"] = len(prices) - upserted
         report["note"] = (
             "consolidado: preços/categorias aplicados; ops vêm de movimentação/negociação"
         )

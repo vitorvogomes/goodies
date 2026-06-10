@@ -21,7 +21,7 @@ import httpx
 from config import settings
 
 from ..base import with_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _BASE_URL = "https://api.hyperliquid.xyz/info"
 _SOURCE = "hyperliquid"
@@ -57,16 +57,19 @@ class HyperliquidFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:
-            return []
+            # não escaneou (sem endereço) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         # duas fontes independentes: L1 spot + HyperEVM nativo (fail-soft por fonte)
-        return await self._fetch_spot() + await self._fetch_hyperevm()
+        spot = await self._fetch_spot()
+        evm = await self._fetch_hyperevm()
+        return ScanBalances([*spot, *evm], complete=spot.complete and evm.complete)
 
-    async def _fetch_spot(self) -> list[WalletBalance]:
+    async def _fetch_spot(self) -> ScanBalances:
         try:
             data = await with_client(self._request, client=self._client, sleep=self._sleep)
         except Exception:
-            return []  # fail-soft: API fora → nada
-        out: list[WalletBalance] = []
+            return ScanBalances(complete=False)  # fail-soft: API fora → nada (sem sweep)
+        out = ScanBalances()
         balances = data.get("balances", []) if isinstance(data, dict) else []
         for bal in balances:
             if not isinstance(bal, dict):
@@ -91,34 +94,38 @@ class HyperliquidFetcher:
                 )
         return out
 
-    async def _fetch_hyperevm(self) -> list[WalletBalance]:
+    async def _fetch_hyperevm(self) -> ScanBalances:
         """HYPE nativo na HyperEVM (gas token, 18 casas) via `eth_getBalance`."""
-        if "HYPE" not in self._symbols or not self._evm_rpc:
-            return []
+        if "HYPE" not in self._symbols:
+            return ScanBalances()  # config deliberada: nada a buscar aqui
+        if not self._evm_rpc:
+            return ScanBalances(complete=False)  # não escaneou (RPC não configurado)
         try:
             data = await with_client(
                 self._request_hyperevm, client=self._client, sleep=self._sleep
             )
         except Exception:
-            return []  # fail-soft
+            return ScanBalances(complete=False)  # fail-soft (sem sweep deste scan)
         result = data.get("result") if isinstance(data, dict) else None
         if not isinstance(result, str):
-            return []
+            return ScanBalances(complete=False)
         try:
             qty = int(result, 16) / 1e18
         except (TypeError, ValueError):
-            return []
+            return ScanBalances(complete=False)
         if qty <= 0:
-            return []
-        return [
-            WalletBalance(
-                chain=_EVM_CHAIN,
-                wallet_address=self._address,
-                asset_symbol="HYPE",
-                quantity=qty,
-                source=_EVM_SOURCE,  # sweep independente do spot (ver _EVM_SOURCE)
-            )
-        ]
+            return ScanBalances()
+        return ScanBalances(
+            [
+                WalletBalance(
+                    chain=_EVM_CHAIN,
+                    wallet_address=self._address,
+                    asset_symbol="HYPE",
+                    quantity=qty,
+                    source=_EVM_SOURCE,  # sweep independente do spot (ver _EVM_SOURCE)
+                )
+            ]
+        )
 
     async def _request(self, client: httpx.AsyncClient) -> Any:
         resp = await client.post(

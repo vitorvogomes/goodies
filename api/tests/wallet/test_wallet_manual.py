@@ -168,3 +168,28 @@ async def test_manual_rejects_whitespace_symbol(api: Any, wallet_user: dict) -> 
         headers=wallet_user["headers"],
     )
     assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_manual_write_invalidates_xirr_cache(
+    api: Any, wallet_user: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Achado C7: a posição manual alimenta o XIRR consolidado via sleeve; criar/
+    apagar precisa invalidar o cache de XIRR (1h), senão o dashboard fica incoerente."""
+    calls: list[str] = []
+
+    async def spy(uid: str) -> None:
+        calls.append(uid)
+
+    monkeypatch.setattr("engines.wallet.router.invalidate_xirr_cache", spy)
+    await api.post(
+        "/api/v1/wallets/positions/manual",
+        json={"chain": "liquid", "asset_symbol": "L-BTC", "quantity": 0.2},
+        headers=wallet_user["headers"],
+    )
+    assert calls == [wallet_user["user_id"]]
+    calls.clear()
+    await api.delete(
+        "/api/v1/wallets/positions/manual/liquid/L-BTC", headers=wallet_user["headers"]
+    )
+    assert calls == [wallet_user["user_id"]]

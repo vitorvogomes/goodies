@@ -1,7 +1,7 @@
 """Tests for B3 Movimentação parser (STORY-02-17-18, fonte real Toro/B3)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from engines.portfolio.b3_import import (
     b3_category,
@@ -253,3 +253,35 @@ class TestParseNegociacao:
         assert neg[0]["asset_symbol"] == mov[0]["asset_symbol"] == "BBAS3"
         assert neg[0]["tipo"] == mov[0]["tipo"] == "compra"
         assert neg[0]["external_id"] != mov[0]["external_id"]
+
+    def test_datetime_cell_is_normalized_to_date(self) -> None:
+        """openpyxl (data_only) entrega células de data como datetime; datetime é
+        subclasse de date e passava cru -> `data_op <= cut` (date) dava TypeError
+        no serviço (500) e o isoformat divergia ('T00:00:00'). Achado C1."""
+        rows = [(datetime(2026, 6, 5, 0, 0), "Compra", "Mercado à Vista", "-",
+                 "SANTANDER", "PETR4", 2, 30.0, 60.0)]
+        op = parse_b3_negociacao(rows)[0]
+        assert type(op["data_operacao"]) is date  # não datetime
+        assert op["data_operacao"] == date(2026, 6, 5)
+        # mesmo trade com a data como string BR -> MESMO external_id (hash estável)
+        str_op = parse_b3_negociacao(
+            [("05/06/2026", "Compra", "Mercado à Vista", "-",
+              "SANTANDER", "PETR4", 2, 30.0, 60.0)]
+        )[0]
+        assert op["external_id"] == str_op["external_id"]
+
+    def test_identical_fills_same_day_get_distinct_ids(self) -> None:
+        """Dois fills idênticos no mesmo dia (aba trade-a-trade) são operações reais
+        distintas; sem sequência o hash colidia e o 2º era descartado. Achado C3."""
+        rows = [
+            ("05/06/2026", "Compra", "Mercado à Vista", "-",
+             "SANTANDER", "PETR4", 100, 10.0, 1000.0),
+            ("05/06/2026", "Compra", "Mercado à Vista", "-",
+             "SANTANDER", "PETR4", 100, 10.0, 1000.0),
+        ]
+        ops = parse_b3_negociacao(rows)
+        assert len(ops) == 2
+        assert ops[0]["external_id"] != ops[1]["external_id"]
+        # o 1º fill mantém o hash legado (seq=0) -> idempotência com o já-importado
+        legacy = parse_b3_negociacao([rows[0]])[0]
+        assert ops[0]["external_id"] == legacy["external_id"]

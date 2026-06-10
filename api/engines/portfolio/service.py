@@ -25,8 +25,12 @@ import asyncpg
 from config import settings
 from engines.market.cache import PriceCache
 
-from .constants import AssetCategory
+from .constants import CRYPTO_CATEGORIES, AssetCategory
 from .xirr import xirr
+
+# Categorias valoradas SÓ pelo sleeve/bloco cripto (carteiras) — excluídas do fold
+# per-ativo em posições/XIRR p/ não contar 2x (C6). Lista p/ o parâmetro asyncpg.
+_CRYPTO_CATS = [str(c) for c in CRYPTO_CATEGORIES]
 
 # Tipos que aumentam posição (entram no DCA e no quantidade_net positivo)
 _INFLOW_TIPOS = ("compra", "aporte")
@@ -193,13 +197,18 @@ async def calculate_positions(
     Inclui apenas ativos com quantidade liquida > 0 (posicoes abertas).
     Sem preco -> valor_atual/resultado null e stale=true (ADR-004).
     """
+    # Exclui categoria Cripto do fold per-ativo: cripto é valorada SÓ pelo sleeve/bloco
+    # (carteiras), então uma op Cripto em asset_operations (ex.: registrada p/ o IR-cripto)
+    # contaria 2x — uma vez per-ativo e outra no bloco. O IR-cripto lê asset_operations
+    # direto, então a op fica preservada. Achado C6.
     ops = await conn.fetch(
         """
         SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario
         FROM asset_operations
-        WHERE user_id = $1
+        WHERE user_id = $1 AND asset_category <> ALL($2::text[])
         """,
         user_id,
+        _CRYPTO_CATS,
     )
     # Preço + is_manual numa só varredura de asset_prices. is_manual: o front bloqueia a
     # edição quando False (capturado via Market Engine); sem linha → tratado como manual.
@@ -574,15 +583,19 @@ async def calculate_portfolio_xirr(
         return dict(cached)
 
     today = eval_date(today)
+    # Exclui Cripto do fold per-ativo: o sleeve folda Cripto no by_category/consolidado
+    # mais abaixo (valor das carteiras). Sem isto, uma op Cripto em asset_operations entra
+    # 2x no consolidado (per-ativo + sleeve). IR-cripto lê asset_operations à parte. C6.
     ops = await conn.fetch(
         """
         SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario,
                data_operacao
         FROM asset_operations
-        WHERE user_id = $1
+        WHERE user_id = $1 AND asset_category <> ALL($2::text[])
         ORDER BY data_operacao
         """,
         user_id,
+        _CRYPTO_CATS,
     )
     prices = await fetch_prices(conn)
 

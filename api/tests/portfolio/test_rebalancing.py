@@ -73,11 +73,25 @@ class TestRebalancingEndpoint:
 
     @pytest.mark.asyncio
     async def test_crypto_over_target_gets_zero(
-        self, api: AsyncClient, portfolio_user: dict[str, Any]
+        self, api: AsyncClient, pool: Any, portfolio_user: dict[str, Any]
     ) -> None:
-        """Cripto above target → no aporte; others split the contribution."""
-        headers = portfolio_user["headers"]
-        await _buy_with_price(api, headers, "BTC", "Cripto", 1.0, 1000.0)
+        """Cripto above target → no aporte; others split the contribution.
+
+        Modelo de bloco (m4): cripto NÃO vem de asset_operations — vem do sleeve
+        (carteiras). Semeia uma wallet_position valorada (ticker sintético p/ não colidir
+        com preço cacheado no Redis) em vez de uma op Cripto. Coerente com o fix C6."""
+        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
+                "VALUES ('TKREB', 1000.0, 'coingecko', false)"
+            )
+            await conn.execute(
+                "INSERT INTO wallet_positions (user_id, chain, wallet_address, "
+                "asset_symbol, quantity, source, is_manual) "
+                "VALUES ($1, 'binance', 'addr-reb', 'TKREB', 1.0, 'etherscan', false)",
+                uid,
+            )
 
         resp = await api.get(
             "/api/v1/portfolio/rebalancing?amount=4000", headers=headers

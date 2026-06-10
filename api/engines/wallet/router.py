@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.portfolio.service import invalidate_xirr_cache
 from engines.wallet import service
 from engines.wallet.service import ManualPositionConflict
 
@@ -79,6 +80,9 @@ async def create_manual_position(
         )
     except ManualPositionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    # a posição manual alimenta o XIRR consolidado/Cripto via sleeve (m4): invalida o
+    # cache (1h) p/ o dashboard não ficar incoerente após a edição. Achado C7.
+    await invalidate_xirr_cache(user["id"])
     return ManualPositionOut(
         chain=body.chain, asset_symbol=body.asset_symbol, quantity=body.quantity
     )
@@ -95,6 +99,7 @@ async def delete_manual_position(
     )
     if not removed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição manual não encontrada")
+    await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
 
 
 @router.get("/reconciliation", response_model=list[ReconciliationOut])

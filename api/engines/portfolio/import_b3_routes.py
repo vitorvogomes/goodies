@@ -34,6 +34,7 @@ class ImportB3Report(BaseModel):
     new_tickers: list[str]
     date_range: list[str] | None
     prices_upserted: int
+    prices_skipped_manual: int = 0
     dry_run: bool
     note: str | None = None
 

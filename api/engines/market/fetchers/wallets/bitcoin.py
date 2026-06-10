@@ -22,7 +22,7 @@ import httpx
 from config import settings
 
 from ..base import with_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _SOURCE = "bitcoin"
 _CHAIN = "bitcoin"
@@ -48,30 +48,33 @@ class BitcoinFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._address:
-            return []  # sem endereço → no-op
+            # não escaneou (sem endereço) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         try:
             data = await with_client(self._get_stats, client=self._client, sleep=self._sleep)
         except Exception:
-            return []  # fail-soft: fonte fora → nada
+            return ScanBalances(complete=False)  # fail-soft: fonte fora (sem sweep)
         stats = data.get("chain_stats") if isinstance(data, dict) else None
         if not isinstance(stats, dict):
-            return []
+            return ScanBalances(complete=False)
         funded = stats.get("funded_txo_sum")
         spent = stats.get("spent_txo_sum")
         if not isinstance(funded, int | float) or not isinstance(spent, int | float):
-            return []
+            return ScanBalances(complete=False)
         sats = int(funded) - int(spent)  # saldo confirmado (sats)
         if sats <= 0:
-            return []
-        return [
-            WalletBalance(
-                chain=_CHAIN,
-                wallet_address=self._address,
-                asset_symbol=_SYMBOL,
-                quantity=sats / 1e8,
-                source=_SOURCE,
-            )
-        ]
+            return ScanBalances()  # escaneou e está zerado (BTC vendido) → sweep ok
+        return ScanBalances(
+            [
+                WalletBalance(
+                    chain=_CHAIN,
+                    wallet_address=self._address,
+                    asset_symbol=_SYMBOL,
+                    quantity=sats / 1e8,
+                    source=_SOURCE,
+                )
+            ]
+        )
 
     async def _get_stats(self, client: httpx.AsyncClient) -> Any:
         resp = await client.get(f"{self._base}/address/{self._address}", timeout=10.0)

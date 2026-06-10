@@ -112,10 +112,17 @@ def parse_date(raw: str) -> date:
 
 
 def operation_hash(
-    data_operacao: date, ticker: str, tipo: str, total: float
+    data_operacao: date, ticker: str, tipo: str, total: float, seq: int = 0
 ) -> str:
-    """Hash idempotente de (data, ticker, tipo, total)."""
+    """Hash idempotente de (data, ticker, tipo, total[, seq]).
+
+    `seq` desambigua fills idênticos no mesmo dia (aba trade-a-trade): a 1ª ocorrência
+    (seq=0) mantém o hash legado — preserva idempotência com ops já importadas —, e a
+    2ª+ ganha sufixo. Achado C3.
+    """
     payload = f"{data_operacao.isoformat()}|{ticker}|{tipo}|{total:.2f}"
+    if seq:
+        payload += f"|#{seq}"
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 

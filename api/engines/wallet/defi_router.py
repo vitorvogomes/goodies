@@ -18,6 +18,7 @@ from db.connection import get_db
 from engines.common.dates import today_brt
 from engines.common.numbers import as_decimal, value_of
 from engines.ledger.service import Alert
+from engines.portfolio.service import invalidate_xirr_cache
 from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 from engines.wallet.service import prices_by_ticker
 
@@ -118,6 +119,8 @@ async def create_position(
         body.is_active,
         body.notes,
     )
+    # posição DeFi entra no valor do sleeve → XIRR consolidado/Cripto stale (C7)
+    await invalidate_xirr_cache(user["id"])
     return _to_response(row, await prices_by_ticker(db, [row["asset_symbol"]]))
 
 
@@ -162,6 +165,8 @@ async def update_position(
         )
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
+    if sets:  # só invalida quando houve mudança de fato (body vazio = no-op)
+        await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
     return _to_response(row, await prices_by_ticker(db, [row["asset_symbol"]]))
 
 
@@ -174,6 +179,7 @@ async def delete_position(position_id: uuid.UUID, user: AuthUser, db: Db) -> Non
     )
     if result == "DELETE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
+    await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
 
 
 @router.get("/alerts", response_model=list[Alert])

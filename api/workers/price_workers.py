@@ -84,8 +84,11 @@ async def _run_for(
         "updated": updated,
         "skipped": skipped,  # ignorados pela precedência is_manual
         # só os tickers "core" (das categorias de mercado) sem cotação são falha de fonte;
-        # extras de wallet sem mapeamento no fetcher NÃO contam (não há fonte p/ eles).
-        "failed": len(set(core) - set(quotes)),
+        # extras de wallet sem mapeamento no fetcher NÃO contam (não há fonte p/ eles) —
+        # EXCETO no apagão total: símbolos pedidos e zero cotações é falha de fonte mesmo
+        # com core vazio (cripto não vive em asset_operations; sem isso o worker cripto
+        # reportava failed=0 com o CoinGecko 100% fora).
+        "failed": len(symbols) if not quotes else len(set(core) - set(quotes)),
     }
 
 

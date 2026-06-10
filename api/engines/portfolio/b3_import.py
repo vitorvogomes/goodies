@@ -19,7 +19,7 @@ Mapeamento de "Movimentação":
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from .constants import AssetCategory
@@ -99,7 +99,27 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
+def _next_seq(
+    seen: dict[tuple[date, str, str, float], int],
+    data_operacao: date,
+    ticker: str,
+    tipo: str,
+    total: float,
+) -> int:
+    """Nº de ocorrência (0-based) de um (data, ticker, tipo, total) idêntico já visto
+    no mesmo parse. Determinístico pela ordem das linhas -> re-import é idempotente."""
+    key = (data_operacao, ticker, tipo, round(total, 2))
+    seq = seen.get(key, 0)
+    seen[key] = seq + 1
+    return seq
+
+
 def _to_date(value: Any) -> date:
+    # openpyxl (data_only) entrega células de data como datetime; datetime é subclasse
+    # de date, então sem este ramo passava cru -> `data_op <= cut`(date) dava TypeError
+    # (500) e o isoformat divergia ('T00:00:00'). Normaliza p/ date puro. Achado C1.
+    if isinstance(value, datetime):
+        return value.date()
     if isinstance(value, date):
         return value
     return parse_date(str(value))
@@ -197,6 +217,7 @@ def parse_b3_movimentacao(
     `b3_category` — evita que um ETF novo terminando em 11 vire FII.
     """
     ops: list[dict[str, Any]] = []
+    seen: dict[tuple[date, str, str, float], int] = {}
     for row in rows:
         if len(row) < 8:
             continue
@@ -219,6 +240,7 @@ def parse_b3_movimentacao(
         data_operacao = _to_date(data)
         total = valor_total if valor_total is not None else quantidade * valor_unitario
         category = (category_map or {}).get(ticker) or b3_category(ticker)
+        seq = _next_seq(seen, data_operacao, ticker, tipo, total)
         ops.append(
             {
                 "asset_symbol": ticker,
@@ -227,7 +249,7 @@ def parse_b3_movimentacao(
                 "quantidade": quantidade,
                 "valor_unitario": valor_unitario,
                 "data_operacao": data_operacao,
-                "external_id": operation_hash(data_operacao, ticker, tipo, total),
+                "external_id": operation_hash(data_operacao, ticker, tipo, total, seq),
             }
         )
     return ops
@@ -251,6 +273,7 @@ def parse_b3_negociacao(
     precedência sobre a heurística de sufixo.
     """
     ops: list[dict[str, Any]] = []
+    seen: dict[tuple[date, str, str, float], int] = {}
     for row in rows:
         if len(row) < 9:
             continue
@@ -273,6 +296,9 @@ def parse_b3_negociacao(
         data_operacao = _to_date(data)
         total = valor_total if valor_total is not None else quantidade * valor_unitario
         category = (category_map or {}).get(ticker) or b3_category(ticker)
+        # fills idênticos no mesmo dia são trades reais distintos (extrato trade-a-trade):
+        # a sequência evita que o 2º colida no hash e seja descartado. Achado C3.
+        seq = _next_seq(seen, data_operacao, ticker, tipo, total)
         ops.append(
             {
                 "asset_symbol": ticker,
@@ -281,7 +307,7 @@ def parse_b3_negociacao(
                 "quantidade": quantidade,
                 "valor_unitario": valor_unitario,
                 "data_operacao": data_operacao,
-                "external_id": operation_hash(data_operacao, ticker, tipo, total),
+                "external_id": operation_hash(data_operacao, ticker, tipo, total, seq),
             }
         )
     return ops

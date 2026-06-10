@@ -22,7 +22,7 @@ import httpx
 from config import settings
 
 from ..base import with_client, with_owned_client
-from .base import WalletBalance
+from .base import ScanBalances, WalletBalance
 
 _TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 _SOURCE = "solana"
@@ -70,17 +70,20 @@ class SolanaFetcher:
 
     async def fetch(self) -> list[WalletBalance]:
         if not self._addresses:
-            return []
+            # não escaneou (sem endereço) ≠ escaneou e não achou nada
+            return ScanBalances(complete=False)
         return await with_owned_client(self._scan, client=self._client)
 
-    async def _scan(self, client: httpx.AsyncClient) -> list[WalletBalance]:
-        out: list[WalletBalance] = []
+    async def _scan(self, client: httpx.AsyncClient) -> ScanBalances:
+        out = ScanBalances()
         for addr in self._addresses:
-            out.extend(await self._scan_one(client, addr))
+            one = await self._scan_one(client, addr)
+            out.extend(one)
+            out.complete = out.complete and one.complete
         return out
 
-    async def _scan_one(self, client: httpx.AsyncClient, addr: str) -> list[WalletBalance]:
-        out: list[WalletBalance] = []
+    async def _scan_one(self, client: httpx.AsyncClient, addr: str) -> ScanBalances:
+        out = ScanBalances()
         try:
             sol = await with_client(
                 lambda c: self._get_balance(c, addr), client=client, sleep=self._sleep
@@ -88,7 +91,7 @@ class SolanaFetcher:
             if sol > 0:
                 out.append(self._wb(addr, "SOL", sol))
         except Exception:
-            pass  # fail-soft: SOL nativo fora não impede os SPL
+            out.complete = False  # fail-soft: SOL nativo fora não impede os SPL
         try:
             out.extend(
                 await with_client(
@@ -96,7 +99,7 @@ class SolanaFetcher:
                 )
             )
         except Exception:
-            pass  # fail-soft: SPL fora não impede o SOL já obtido
+            out.complete = False  # fail-soft: SPL fora não impede o SOL já obtido
         return out
 
     def _wb(self, addr: str, symbol: str, qty: float) -> WalletBalance:
