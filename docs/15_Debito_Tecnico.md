@@ -36,9 +36,10 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 > C5 sweep não apaga sub-unidade que falhou (`ScanBalances.complete`); C6 dupla contagem
 > cripto (exclui Cripto do fold per-ativo); C7 CRUD wallet/DeFi invalida XIRR; C8 worker
 > cripto reporta apagão; frescor honesto (status `partial` + `data_age` de `scanned_at`);
-> trânsito coerente (proventos→caixa corretora, status no backend); revert de preço manual;
-> USD no sleeve/reconciliação; `/cashflow` running_balance ancorado; ILIKE no histórico.
-> Suite 504→524. Itens **abertos** abaixo.
+> trânsito coerente (resíduo `saiu+proventos−aplicado` = caixa em corretora vira o título,
+> status no backend: B3→355, RF/Flash→0); revert de preço manual; USD no sleeve/
+> reconciliação; `/cashflow` running_balance ancorado; ILIKE no histórico.
+> Suite 504→530. Itens **abertos** abaixo.
 
 ### Cobertura B3 cruza calendários diferentes (C2 — desenho)
 - **A regra de cobertura compara datas de bases distintas.** `_ticker_cutoffs` usa
@@ -57,10 +58,25 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
   → investido R$2.400 + op `juros` R$123,91; bucket `Nubank-Encerradas` (Extra/Reserva/
   HotCash/Potencial por EXCLUSÃO de snow/turbo/guanabara — evita a ambiguidade de nomes)
   → op `juros` R$351,98, sem posição. Rendimento agora visível em /income + card em
-  Posições. Idempotente/reversível. O trânsito RF segue mostrando `rendimento_realizado`
-  (honesto — o caixa voltou com lucro). **Aberto (menor):** `Tesouro IPCA+ Juros
-  Semestrais 2055` tem um cupom (~R$114,59) lançado como `venda` em vez de `juros`
-  (impacto ~R$0,79, posição quase zerada).
+  Posições. Idempotente/reversível.
+
+### Trânsito — reframe do resíduo (RESOLVIDO 2026-06-10)
+- **Resolvido.** O número-título do trilho era `em_transito = saiu − aplicado`, que é
+  meio-número quando há proventos (um dividendo/juros aparece nos dois lados: reduz `saiu`
+  no ledger, mas é excluído de `aplicado`). O resíduo correto é **`saiu + proventos −
+  aplicado`** (= caixa real na corretora), universal: se o provento voltou ao Nubank já
+  está netado em `saiu` (cancela); se ficou, conta como caixa. `transit.py` agora expõe
+  esse resíduo sempre como `caixa_corretora_brl` com status `reconciled`/`caixa_em_corretora`/
+  `rendimento_reinvestido`. Resultado: B3 → caixa R$355,31 (= Toro real); RF Nubank → R$0
+  conciliado; Flash → R$0. `em_transito` vira detalhe (tooltip).
+- **Tesouro — aberto (menor, ~R$31,35 irredutível).** O resíduo do Tesouro (R$145,94)
+  decompõe em: **R$114,59** = a única venda real (Tesouro IPCA+ com Juros Semestrais 2055,
+  2025-02-24, ganho R$0,79 — é VENDA, não cupom) cuja devolução de caixa nunca entrou no
+  ledger Nubank; **R$31,35** = artefato consolidado-vs-transferência (taxas) espalhado nas
+  40 compras, irredutível sem o detalhe de taxas do Nubank (imaterial, ~1%). O script
+  `scripts/register_tesouro_sale_return.py` (dry-run/idempotente/reversível) insere a
+  devolução de R$114,59 → resíduo cai p/ R$31,35; **não aplicado** por tocar a Saldo
+  Acumulado (+R$114,59) — aguarda confirmação de que a venda devolveu caixa ao Nubank.
 
 ### Observabilidade (m6)
 - **Fetchers `except Exception: return []` sem log no nível do fetcher.** Um bug de parse

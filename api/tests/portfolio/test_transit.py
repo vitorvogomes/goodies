@@ -54,6 +54,9 @@ class TestTransit:
         assert b3["saiu_brl"] == 1000.0
         assert b3["aplicado_brl"] == 750.0  # 800 compra - 50 venda
         assert b3["em_transito_brl"] == 250.0
+        # sem proventos: resíduo (caixa) == em_transito; positivo → caixa na corretora
+        assert b3["caixa_corretora_brl"] == 250.0
+        assert b3["status"] == "caixa_em_corretora"
 
     @pytest.mark.asyncio
     async def test_rf_nubank_vs_flash_disambiguated_by_broker(
@@ -78,6 +81,8 @@ class TestTransit:
         assert flash["saiu_brl"] == 500.0
         assert flash["aplicado_brl"] == 500.0  # só o broker Flash, não o Nubank (999)
         assert flash["em_transito_brl"] == 0.0
+        assert flash["caixa_corretora_brl"] == 0.0
+        assert flash["status"] == "reconciled"
 
     @pytest.mark.asyncio
     async def test_b3_dividends_become_broker_cash_not_transit(
@@ -104,17 +109,19 @@ class TestTransit:
             res = await calculate_transit(conn, uid)
         b3 = next(r for r in res["rails"] if r["rail"] == "B3 (corretoras)")
         assert b3["aplicado_brl"] == 800.0  # dividendo/juros NÃO entram no aplicado
-        assert b3["em_transito_brl"] == 200.0
+        assert b3["em_transito_brl"] == 200.0  # detalhe (saiu - aplicado)
         assert b3["dividendos_juros_brl"] == 50.0
-        assert b3["caixa_corretora_brl"] == 250.0  # 200 trânsito + 50 proventos
-        assert b3["status"] == "pending"
+        # resíduo/título = saiu + proventos - aplicado = 1000 + 50 - 800 = 250 (caixa na Toro)
+        assert b3["caixa_corretora_brl"] == 250.0
+        assert b3["status"] == "caixa_em_corretora"
 
     @pytest.mark.asyncio
-    async def test_negative_transit_is_rendimento_realizado(
+    async def test_yield_withdrawn_reconciles_via_proventos(
         self, pool: Any, portfolio_user: dict
     ) -> None:
-        """aplicado > saiu (ex.: caixinha encerrada que rendeu) → NÃO é 'conciliado':
-        é rendimento realizado. O status vem do backend, não do front."""
+        """Caso RF Nubank real: o rendimento foi sacado junto com o resgate (já netado em
+        `saiu`) e também consta como op `juros`. O resíduo (saiu + proventos - aplicado)
+        cancela → conciliado, ainda que em_transito puro fique negativo."""
         uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM transactions")
@@ -124,12 +131,38 @@ class TestTransit:
             await _ins_tx(conn, acc, "-100", "Tesouro Direto Nubank", "tx-td")  # saiu 100
             await _ins_op(
                 conn, uid, "NU", "Tesouro X", "Aposentadoria", "aporte", "1", "150", "op-td"
-            )  # virou 150 (rendeu) → em_transito -50
+            )  # aplicado 150 (rendimento embutido no custo) → em_transito -50
+            await _ins_op(
+                conn, uid, "NU", "Tesouro X", "Aposentadoria", "juros", "1", "50", "op-tj"
+            )  # proventos 50 → resíduo 100 + 50 - 150 = 0
+            res = await calculate_transit(conn, uid)
+        td = next(r for r in res["rails"] if r["rail"] == "Tesouro Direto")
+        assert td["em_transito_brl"] == -50.0  # detalhe (meio-número)
+        assert td["dividendos_juros_brl"] == 50.0
+        assert td["caixa_corretora_brl"] == 0.0  # resíduo real
+        assert td["status"] == "reconciled"
+
+    @pytest.mark.asyncio
+    async def test_position_exceeds_saiu_without_proventos_is_reinvestido(
+        self, pool: Any, portfolio_user: dict
+    ) -> None:
+        """aplicado > saiu SEM provento registrado → anomalia: posição cresceu além do
+        que saiu (rendimento embutido no custo). Resíduo negativo, status sinaliza."""
+        uid = portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM transactions")
+            acc = await conn.fetchval(
+                "INSERT INTO accounts (name, type) VALUES ('trni', 'bank') RETURNING id"
+            )
+            await _ins_tx(conn, acc, "-100", "Tesouro Direto Nubank", "tx-tdi")  # saiu 100
+            await _ins_op(
+                conn, uid, "NU", "Tesouro Y", "Aposentadoria", "aporte", "1", "150", "op-tdi"
+            )  # aplicado 150, sem proventos → resíduo -50
             res = await calculate_transit(conn, uid)
         td = next(r for r in res["rails"] if r["rail"] == "Tesouro Direto")
         assert td["em_transito_brl"] == -50.0
-        assert td["status"] == "rendimento_realizado"
-        assert td["caixa_corretora_brl"] is None  # sem proventos no trilho
+        assert td["caixa_corretora_brl"] == -50.0  # agora sempre presente (número)
+        assert td["status"] == "rendimento_reinvestido"
 
     @pytest.mark.asyncio
     async def test_reconciled_status_within_tolerance(
@@ -148,6 +181,7 @@ class TestTransit:
             res = await calculate_transit(conn, uid)
         flash = next(r for r in res["rails"] if r["rail"] == "Debêntures Flash")
         assert flash["em_transito_brl"] == 0.0
+        assert flash["caixa_corretora_brl"] == 0.0
         assert flash["status"] == "reconciled"
 
     @pytest.mark.asyncio

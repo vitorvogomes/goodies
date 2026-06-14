@@ -2,9 +2,14 @@
 
 Por trilho de investimento: o ledger registra o que SAIU do Nubank (kind=investment, por
 categoria); o `asset_operations` registra o que VIROU POSIÇÃO (custo líquido de compras -
-vendas). O delta = "em trânsito" - dinheiro mandado que ainda não virou posição (ex.: a B3
-publica o relatório com atraso). Mapa validado em 2026-06-07 (ver memória
+vendas) e os PROVENTOS (dividendo/juros). Mapa validado em 2026-06-07 (ver memória
 `ledger-reconciliation-map`).
+
+O número-título por trilho é o RESÍDUO = `saiu + proventos - aplicado` = caixa real na
+corretora. Ele é universalmente correto independente de o provento ter ficado na corretora
+ou voltado ao Nubank: se voltou, já está netado em `saiu` (o +proventos cancela → não conta
+como caixa); se ficou, `saiu` não o viu (o +proventos conta como caixa). O `em_transito`
+puro (saiu-aplicado) é só detalhe — vira meio-número quando há proventos.
 
 Cripto NÃO é trânsito (as carteiras são escaneadas ao vivo): reconcilia pelo sleeve
 (investido vs valor atual), exposto à parte para não confundir perda com trânsito.
@@ -87,15 +92,18 @@ async def _aplicado(
     return float(row["aplicado"]), float(row["proventos"])
 
 
-def _transit_status(em_transito: float) -> str:
-    """Estado do trilho (decidido no backend, não no front):
-    - reconciled: |em_transito| dentro da tolerância;
-    - rendimento_realizado: aplicado > saiu (ex.: caixinha encerrada que rendeu);
-    - pending: saiu > aplicado (dinheiro mandado que ainda não virou posição)."""
-    if em_transito < -_RECONCILE_TOL:
-        return "rendimento_realizado"
-    if em_transito > _RECONCILE_TOL:
-        return "pending"
+def _residual_status(caixa: float) -> str:
+    """Estado do trilho pelo RESÍDUO (saiu + proventos - aplicado = caixa na corretora),
+    decidido no backend, não no front:
+    - reconciled: |caixa| dentro da tolerância (tudo virou posição ou já voltou ao Nubank);
+    - caixa_em_corretora: caixa > 0 parado na corretora (proventos/venda/transferência
+      recente ainda não reinvestidos — inclui o trânsito legítimo de relatório atrasado);
+    - rendimento_reinvestido: caixa < 0, posição cresceu além do que saiu sem provento
+      registrado (anomalia rara — rendimento embutido no custo)."""
+    if caixa > _RECONCILE_TOL:
+        return "caixa_em_corretora"
+    if caixa < -_RECONCILE_TOL:
+        return "rendimento_reinvestido"
     return "reconciled"
 
 
@@ -107,10 +115,10 @@ async def calculate_transit(
         saiu = await _saiu(conn, rail.ledger_categories)
         aplicado, proventos = await _aplicado(conn, user_id, rail)
         em_transito = saiu - aplicado
-        # proventos (dividendo/JCP) creditados na corretora são CAIXA parado lá, não
-        # trânsito: caixa_corretora = em_transito + proventos (≈ saldo na Toro). Só
-        # exposto quando há proventos (trilho B3); senão null.
-        caixa = round(em_transito + proventos, 2) if proventos > 0 else None
+        # Resíduo real = caixa na corretora = saiu + proventos - aplicado. É o número-título
+        # do trilho (sempre presente). em_transito (saiu-aplicado) e os proventos ficam como
+        # detalhe — o em_transito sozinho é meio-número quando há proventos.
+        caixa = round(em_transito + proventos, 2)
         rails.append(
             {
                 "rail": rail.name,
@@ -119,7 +127,7 @@ async def calculate_transit(
                 "em_transito_brl": round(em_transito, 2),
                 "dividendos_juros_brl": round(proventos, 2),
                 "caixa_corretora_brl": caixa,
-                "status": _transit_status(em_transito),
+                "status": _residual_status(caixa),
             }
         )
     # cripto reconcilia pelo sleeve (não é trânsito — carteiras são escaneadas ao vivo).

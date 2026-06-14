@@ -139,15 +139,21 @@ export interface Income {
   by_type: Record<string, number>;
 }
 
-export type TransitStatus = "reconciled" | "pending" | "rendimento_realizado";
+// Resíduo = saiu + proventos − aplicado (= caixa real na corretora). É o número-título.
+// caixa_em_corretora: caixa>0 parado lá (proventos/venda/transferência recente).
+// rendimento_reinvestido: caixa<0, posição cresceu além do que saiu sem provento registrado.
+export type TransitStatus =
+  | "reconciled"
+  | "caixa_em_corretora"
+  | "rendimento_reinvestido";
 
 export interface TransitRail {
   rail: string;
   saiu_brl: number;
   aplicado_brl: number;
-  em_transito_brl: number;
+  em_transito_brl: number; // detalhe (saiu − aplicado); meio-número quando há proventos
   dividendos_juros_brl: number;
-  caixa_corretora_brl: number | null;
+  caixa_corretora_brl: number; // resíduo/título (sempre presente)
   status: TransitStatus;
 }
 
