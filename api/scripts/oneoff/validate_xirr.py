@@ -8,23 +8,19 @@ planilha alimentam o XIRR consolidado. Tolerância de custo: < 1% no total.
 
 Uso:
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python ../scripts/validate_xirr.py
+      uv run python -m scripts.oneoff.validate_xirr
 """
 from __future__ import annotations
 
 import asyncio
 import sys
 from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
 from engines.portfolio.xirr import xirr
+from scripts._common import resolve_owner, user_arg
 
 # Planilha DESEMPENHO CARTEIRA (B3+Tesouro+Flash): ticker -> (aplicado, valor_atual).
 # Guanabara CDB e cripto ficam fora (sem data de aporte / são m4).

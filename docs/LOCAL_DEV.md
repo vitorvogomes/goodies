@@ -58,7 +58,7 @@ docker compose exec api alembic upgrade head        # cria/atualiza o schema (us
 
 # admin (só na primeira vez; não exponha a senha no chat/repo):
 docker compose exec -e ADMIN_EMAIL='vitor@goodies.local' -e ADMIN_PASSWORD='change-me' \
-  api python -m scripts.seed_admin
+  api python -m scripts.ops.seed_admin
 ```
 
 ### 3. Frontend — Next.js (host)
@@ -142,7 +142,7 @@ cd ~/projects/goodies
 docker compose up -d postgres redis
 cd api
 uv run alembic upgrade head
-ADMIN_EMAIL='vitor@goodies.local' ADMIN_PASSWORD='change-me' uv run python -m scripts.seed_admin
+ADMIN_EMAIL='vitor@goodies.local' ADMIN_PASSWORD='change-me' uv run python -m scripts.ops.seed_admin
 uv run uvicorn main:app --reload --port 8000
 ```
 Rodando a partir de `api/`, a API usa `localhost` para Postgres/Redis automaticamente. Não

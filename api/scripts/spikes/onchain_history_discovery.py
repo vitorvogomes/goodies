@@ -10,19 +10,14 @@ Não grava nada; não imprime endereço (só símbolos/quantias/datas e hash enc
 
 Uso:
     DATABASE_URL=postgresql://goodies:goodies@127.0.0.1:5432/goodies \
-        uv run python ../scripts/onchain_history_discovery.py
+        uv run python -m scripts.spikes.onchain_history_discovery
 """
 from __future__ import annotations
 
 import asyncio
-import sys
 from collections import defaultdict
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
-
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
 import httpx
 

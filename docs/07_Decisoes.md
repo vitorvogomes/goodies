@@ -250,7 +250,7 @@ Comandos: `uv sync` (base+dev), `uv sync --no-dev` (só runtime, imagem), `uv ru
 - **Dockerfile** copia o binário `uv` da imagem oficial e roda `uv sync --frozen --no-dev` numa venv em `/opt/venv` (fora de `/app`, p/ não ser sombreada pelo bind mount do compose).
 - **CI** (`deploy.yml`) usa `astral-sh/setup-uv` + `uv sync --frozen` + `uv run ...` (dispensa `setup-python`).
 - **pre-commit** roda ruff via `uv run --project api ruff`.
-- Docs (`README`, `docs/LOCAL_DEV.md`, `docs/03_Stack.md`) atualizados. Substitui a cláusula da STORY-00-02 sobre `requirements*.txt`; o restante da stack (ADR-001) é inalterado — uv é tooling, não troca de framework.
+- Docs (`README`, `docs/LOCAL_DEV.md`, `docs/v1/03_Stack.md`) atualizados. Substitui a cláusula da STORY-00-02 sobre `requirements*.txt`; o restante da stack (ADR-001) é inalterado — uv é tooling, não troca de framework.
 
 ---
 
@@ -268,7 +268,7 @@ A planilha tratava resgates de caixinha Nubank como receita, inflando a taxa de 
 - **Santander = conta externa:** `income/Extra` do Santander conta como receita externa, não transferência interna.
 
 ### Consequências
-- Reclassificação de linhas curadas é **in-place/idempotente** (`scripts/reclassify_caixinhas.py`); a migration `0009` cobre só o import futuro. **NÃO rodar `scripts/reset_ledger.py`** no banco curado. Ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
+- Reclassificação de linhas curadas é **in-place/idempotente** (`api/scripts/oneoff/reclassify_caixinhas.py`); a migration `0009` cobre só o import futuro. **NÃO rodar `api/scripts/oneoff/reset_ledger.py`** no banco curado. Ver `docs/v1/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
 
 ---
 
@@ -286,7 +286,7 @@ O m3 automatizou preços (BRAPI/CoinGecko/Tesouro) com workers APScheduler, reus
 - **Free-tier (cadência diária B3/Tesouro):** BRAPI grátis = 1.000 req/mês (1 ativo/req) → `price_b3` 1×/dia útil 19h; **Tesouro via Tesouro Transparente CSV** (open data, sem WAF). `ttl_b3=ttl_tesouro=26h`.
 
 ### Consequências
-- `EVALUATION_DATE` única threada por service + seeds + validador. **Cripto/Binance só via cron (m4).** Ver `docs/12_Gate_M3_Market.md`.
+- `EVALUATION_DATE` única threada por service + seeds + validador. **Cripto/Binance só via cron (m4).** Ver `docs/v1/12_Gate_M3_Market.md`.
 
 ---
 

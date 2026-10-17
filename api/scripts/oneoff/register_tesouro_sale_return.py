@@ -21,8 +21,8 @@ Reverter:
 
 Uso (a partir de api/):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python -m scripts.register_tesouro_sale_return            # dry-run
-    DATABASE_URL=...localhost... uv run python -m scripts.register_tesouro_sale_return --apply
+      uv run python -m scripts.oneoff.register_tesouro_sale_return            # dry-run
+    DATABASE_URL=... uv run python -m scripts.oneoff.register_tesouro_sale_return --apply
 """
 
 import asyncio

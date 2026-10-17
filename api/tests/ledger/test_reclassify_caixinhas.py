@@ -15,7 +15,7 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from scripts.reclassify_caixinhas import reclassify_caixinhas
+from scripts.oneoff.reclassify_caixinhas import reclassify_caixinhas
 
 _MONTH = datetime.date(2099, 3, 1)
 

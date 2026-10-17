@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
-from scripts.register_caixinha_yields import (
+from scripts.oneoff.register_caixinha_yields import (
     _CLOSED_MARKER,
     _CLOSED_SYMBOL,
     _NET_QTY_SQL,

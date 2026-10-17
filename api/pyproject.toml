@@ -5,7 +5,7 @@ description = "Goodies — backend FastAPI (ledger, portfolio, market, analytics
 requires-python = ">=3.12"
 readme = "../README.md"
 
-# Stack travada por ADR-001 / docs/03_Stack.md. Versões em piso (>=) — fixar no lock.
+# Stack travada por ADR-001 / docs/v1/03_Stack.md. Versões em piso (>=) — fixar no lock.
 dependencies = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
@@ -77,8 +77,10 @@ addopts = "-q"
 # ---- Cobertura: >=80% nas engines críticas (Portfolio, Analytics) ----
 [tool.coverage.run]
 branch = true
-source = ["engines"]
+source = ["engines", "workers", "auth", "hermes"]
 
 [tool.coverage.report]
 show_missing = true
-# Gate de cobertura aplicado nas engines críticas via /test
+skip_covered = true
+# Gate global (≥80%); o /test ainda destaca as engines críticas por arquivo.
+fail_under = 80

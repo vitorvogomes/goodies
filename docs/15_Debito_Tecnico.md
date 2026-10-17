@@ -116,7 +116,7 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 - **Resolvido.** O extrato Nubank lança o resgate inteiro (principal+juros) como saída de
   principal, então `net = aportes−resgates` subcontava o principal de caixinhas muito
   giradas (Turbo: net R$2.276 vs principal real R$2.400) e o rendimento ficava oculto.
-  `scripts/register_caixinha_yields.py` reclassifica resgate→juros (XIRR-neutro): Turbo
+  `api/scripts/oneoff/register_caixinha_yields.py` reclassifica resgate→juros (XIRR-neutro): Turbo
   → investido R$2.400 + op `juros` R$123,91; bucket `Nubank-Encerradas` (Extra/Reserva/
   HotCash/Potencial por EXCLUSÃO de snow/turbo/guanabara — evita a ambiguidade de nomes)
   → op `juros` R$351,98, sem posição. Rendimento agora visível em /income + card em
@@ -136,7 +136,7 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
   2025-02-24, ganho R$0,79 — é VENDA, não cupom) cuja devolução de caixa nunca entrou no
   ledger Nubank; **R$31,35** = artefato consolidado-vs-transferência (taxas) espalhado nas
   40 compras, irredutível sem o detalhe de taxas do Nubank (imaterial, ~1%). O script
-  `scripts/register_tesouro_sale_return.py` (dry-run/idempotente/reversível) insere a
+  `api/scripts/oneoff/register_tesouro_sale_return.py` (dry-run/idempotente/reversível) insere a
   devolução de R$114,59 → resíduo cai p/ R$31,35; **não aplicado** por tocar a Saldo
   Acumulado (+R$114,59) — aguarda confirmação de que a venda devolveu caixa ao Nubank.
 
@@ -152,7 +152,7 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ### Cripto Tier 2 — preço médio POR ATIVO (Binance ✅; on-chain pendente)
 - **Binance FEITO** (modelo pragmático "trades + gap a custo zero"): `crypto_cost_basis`
-  (migration 0014) + `scripts/reconstruct_binance_cost.py --commit` (myTrades + câmbio histórico
+  (migration 0014) + `api/scripts/spikes/reconstruct_binance_cost.py --commit` (myTrades + câmbio histórico
   **par Binance `USDTBRL`** — CoinGecko free não tem historical). Posições mostram BTC/ETH/SOL
   **por custódia** com preço médio/resultado reais (ETH@binance −R$ 82). O *gap* (escaneado −
   negociado = Earn/depósitos/Convert) entra a custo zero. **IR-cripto** dos trades Binance NÃO

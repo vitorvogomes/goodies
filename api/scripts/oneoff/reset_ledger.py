@@ -6,8 +6,8 @@ classificação atual (coluna `kind` + `categories.match_patterns` + os
 pois o dedup por `external_id` NÃO reclassifica linhas já gravadas.
 
 Uso (a partir de api/):
-    uv run python -m scripts.reset_ledger          # dry-run (só mostra o alvo)
-    uv run python -m scripts.reset_ledger --yes     # apaga e reimporta
+    uv run python -m scripts.oneoff.reset_ledger          # dry-run (só mostra o alvo)
+    uv run python -m scripts.oneoff.reset_ledger --yes     # apaga e reimporta
 
 OFX é roteado pelo ACCTID do arquivo para a conta cadastrada (account_number).
 """
@@ -22,7 +22,7 @@ from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.ledger.importer import import_statement, parse_account_number, parse_statement
 
-_FILES_DIR = Path(__file__).resolve().parents[2] / "files" / "nubank"
+_FILES_DIR = Path(__file__).resolve().parents[3] / "files" / "nubank"
 
 
 def _self_identifiers() -> list[str]:

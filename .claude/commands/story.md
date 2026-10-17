@@ -3,9 +3,9 @@ description: Carrega contexto de uma story para implementação. Uso: /story 00-
 ---
 
 Carregue e leia a story. O arquivo tem sufixo descritivo, então **resolva por glob**:
-`docs/06_Stories/STORY-$ARGUMENTS*.md` (ex.: `/story 00-01` → `STORY-00-01-monorepo-setup.md`).
+`docs/v1/06_Stories/STORY-$ARGUMENTS*.md` (ex.: `/story 00-01` → `STORY-00-01-monorepo-setup.md`).
 Se o glob retornar mais de um arquivo, use o de prefixo exato; se retornar zero, avise que a
-story não existe em `docs/06_Stories/` e pare.
+story não existe em `docs/v1/06_Stories/` e pare.
 
 Depois leia também:
 - `CLAUDE.md` (regras do projeto)

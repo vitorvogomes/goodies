@@ -48,15 +48,15 @@ echo "==> Snapshot de preços: ${SNAPSHOT:-<nenhum>}"
 echo
 
 # 1) Metas (idempotente)
-uv run python ../scripts/seed_portfolio_targets.py
+uv run python -m scripts.ops.seed_portfolio_targets
 
 # 2) Operações B3 + preços do snapshot
 SNAP_ARG=()
 [ -n "${SNAPSHOT:-}" ] && SNAP_ARG=(--snapshot "$SNAPSHOT")
-uv run python ../scripts/import_b3.py "$EXTRATO_DIR"/*.xlsx "${SNAP_ARG[@]}" --commit
+uv run python -m scripts.ops.import_b3 "$EXTRATO_DIR"/*.xlsx "${SNAP_ARG[@]}" --commit
 
 # 3) Debêntures Flash (revaloriza a hoje)
-uv run python ../scripts/seed_debentures_flash.py --commit
+uv run python -m scripts.ops.seed_debentures_flash --commit
 
 echo
 echo "==> Pronto. Carteira atualizada no banco local."

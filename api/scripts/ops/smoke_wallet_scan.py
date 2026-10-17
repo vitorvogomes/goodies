@@ -1,7 +1,7 @@
 """Smoke ao vivo do scan de wallets (m4). Roda 1 scan + precifica + lista valorado.
 
 Uso pontual no ambiente do Vitor (lê o .env real). NÃO imprime endereços/segredos —
-só chain / ativo / quantidade / valor BRL. `uv run python scripts/smoke_wallet_scan.py`.
+só chain / ativo / quantidade / valor BRL. `uv run python -m scripts.ops.smoke_wallet_scan`.
 """
 from __future__ import annotations
 

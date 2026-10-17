@@ -9,7 +9,7 @@ asset_prices = valor_atual_total / total_aplicado (valoração pré-fixada).
 
 Uso:
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python ../scripts/seed_debentures_flash.py [--dry-run] [--commit]
+      uv run python -m scripts.ops.seed_debentures_flash [--dry-run] [--commit]
 """
 from __future__ import annotations
 
@@ -18,17 +18,14 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
-from _common import resolve_owner, user_arg
-
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
 from engines.portfolio.migration import import_operations
 from engines.portfolio.rf_pre import valor_atual_pre
+from scripts._common import resolve_owner, user_arg
 
-_JSON = Path(__file__).parent.parent / "files" / "debentures-flash" / "integralizacoes.json"
+_JSON = Path(__file__).resolve().parents[3] / "files" / "debentures-flash" / "integralizacoes.json"
 _SYMBOL = "Flash-Debênture"
 _CATEGORY = "Renda Fixa"
 

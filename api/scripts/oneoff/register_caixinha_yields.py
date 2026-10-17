@@ -23,8 +23,8 @@ Reverter (se preciso):
 
 Uso (a partir de api/):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python -m scripts.register_caixinha_yields           # dry-run
-    DATABASE_URL=...localhost... uv run python -m scripts.register_caixinha_yields --apply
+      uv run python -m scripts.oneoff.register_caixinha_yields           # dry-run
+    DATABASE_URL=...localhost... uv run python -m scripts.oneoff.register_caixinha_yields --apply
 """
 
 import asyncio

@@ -10,7 +10,6 @@ description = "Falsos-positivos conhecidos do Goodies"
 # Caminhos que não devem ser escaneados (template público, skills de terceiros, lockfiles).
 paths = [
   '''\.env\.example$''',
-  '''^\.agents/''',
   '''^\.claude/skills/''',
   '''skills-lock\.json$''',
   '''package-lock\.json$''',

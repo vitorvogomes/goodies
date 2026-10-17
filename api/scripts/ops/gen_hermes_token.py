@@ -5,7 +5,7 @@ HERMES_SERVICE_TOKEN_SECRET (gere o secret com `python -c "import secrets;
 print(secrets.token_hex(32))"` e configure no Fly.io — NÃO commitar).
 
 Uso (a partir de api/):
-    .venv/bin/python -m scripts.gen_hermes_token
+    .venv/bin/python -m scripts.ops.gen_hermes_token
 """
 
 from datetime import UTC, datetime, timedelta

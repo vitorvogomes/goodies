@@ -5,11 +5,11 @@ Fonte real: relatórios exportados do Portal do Investidor (B3) + Tesouro Direto
 É a base da futura rotina automatizada (mesmo formato "Movimentação").
 
 Uso:
-    uv run python ../scripts/import_b3.py <arquivo_ou_glob...> [--dry-run] [--commit]
+    uv run python -m scripts.ops.import_b3 <arquivo_ou_glob...> [--dry-run] [--commit]
     # default é DRY-RUN (não grava). Use --commit para gravar no banco.
 
 Ex.:
-    uv run python ../scripts/import_b3.py "../files/b3/extrato mensal/"*.xlsx --dry-run
+    uv run python -m scripts.ops.import_b3 "../files/b3/extrato mensal/"*.xlsx --dry-run
 """
 from __future__ import annotations
 
@@ -18,10 +18,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 import openpyxl
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
@@ -32,6 +29,7 @@ from engines.portfolio.b3_import import (
     parse_b3_position_prices,
 )
 from engines.portfolio.migration import import_operations
+from scripts._common import resolve_owner, user_arg
 
 _SHEET = "Movimentação"
 

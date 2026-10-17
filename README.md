@@ -67,14 +67,15 @@ O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (a
 
 | Doc | Conteúdo |
 |---|---|
-| [`docs/00_Brief.md`](docs/00_Brief.md) | Visão e objetivo |
-| [`docs/01_PRD.md`](docs/01_PRD.md) | Requisitos de produto |
-| [`docs/02_Arquitetura.md`](docs/02_Arquitetura.md) | Arquitetura técnica |
-| [`docs/03_Stack.md`](docs/03_Stack.md) | Stack detalhada |
-| [`docs/04_UX.md`](docs/04_UX.md) | UX / design |
+| [`docs/v1/00_Brief.md`](docs/v1/00_Brief.md) | Visão e objetivo |
+| [`docs/v1/01_PRD.md`](docs/v1/01_PRD.md) | Requisitos de produto |
+| [`docs/v1/02_Arquitetura.md`](docs/v1/02_Arquitetura.md) | Arquitetura técnica |
+| [`docs/v1/03_Stack.md`](docs/v1/03_Stack.md) | Stack detalhada |
+| [`docs/v1/04_UX.md`](docs/v1/04_UX.md) | UX / design |
 | [`docs/07_Decisoes.md`](docs/07_Decisoes.md) | ADRs |
-| [`docs/08_Contexto_Financeiro.md`](docs/08_Contexto_Financeiro.md) | Contexto financeiro do Vitor |
-| [`docs/05_Epicos/`](docs/05_Epicos/) · [`docs/06_Stories/`](docs/06_Stories/) | Épicos e stories |
+| [`docs/v1/08_Contexto_Financeiro.md`](docs/v1/08_Contexto_Financeiro.md) | Contexto financeiro do Vitor |
+| [`docs/v1/05_Epicos/`](docs/v1/05_Epicos/) · [`docs/v1/06_Stories/`](docs/v1/06_Stories/) | Épicos e stories |
+| [`docs/15_Debito_Tecnico.md`](docs/15_Debito_Tecnico.md) | Débito técnico (registro vivo) |
 | [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) | Como rodar localmente |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploy (Fly.io + Vercel) |
 

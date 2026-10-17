@@ -19,7 +19,7 @@ curl -s "http://localhost:8000/api/v1/cashflow/summary?month=2026-06" | python3 
 
 **m2 — Portfolio (CRÍTICO):**
 ```bash
-python3 scripts/validate_xirr.py
+(cd api && uv run python -m scripts.oneoff.validate_xirr)
 # XIRR Python deve coincidir com Excel XIRR (diferença < 0.1 pp)
 ```
 

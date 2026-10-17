@@ -8,7 +8,7 @@ Este script popula asset_prices com os valores disponiveis no snapshot da cartei
 - Acoes / ETF / FII / cripto: o snapshot so tem custo (preco_medio), nao o preco
   atual de mercado -> nao sao seedados aqui (ficam stale ate input manual ou m3).
 
-Uso: python scripts/seed_asset_prices.py [--dry-run]
+Uso: python -m scripts.oneoff.seed_asset_prices [--dry-run]
 """
 from __future__ import annotations
 
@@ -17,13 +17,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio.service import upsert_price
 
-_POSICAO = Path(__file__).parent.parent / "docs" / "Utils" / "posicao.json"
+_POSICAO = Path(__file__).resolve().parents[3] / "docs" / "Utils" / "posicao.json"
 
 
 def _manual_prices() -> list[tuple[str, float]]:

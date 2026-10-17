@@ -23,7 +23,7 @@
 ## B) Matriz milestone → skills
 
 > Cobre as ~90 stories que existem só como linha no `PROGRESS.md`. Quando uma story
-> vira arquivo em `docs/06_Stories/`, ela recebe o frontmatter `skills:` (seção C).
+> vira arquivo em `docs/v1/06_Stories/`, ela recebe o frontmatter `skills:` (seção C).
 
 | Milestone | Skills que devem ser acionadas | Lacunas (sem skill → conventions/decisions) |
 |---|---|---|
@@ -40,7 +40,7 @@
 
 ## C) Frontmatter `skills:` nas stories
 
-Toda story em `docs/06_Stories/STORY-*.md` declara, ao lado de `tags:`:
+Toda story em `docs/v1/06_Stories/STORY-*.md` declara, ao lado de `tags:`:
 ```yaml
 skills: [test-driven-development, <skill-de-área>]
 skills_evitar: [supabase]   # só onde há risco de misfire (ex.: auth)
@@ -80,3 +80,12 @@ Candidatos avaliados e **não instalados** (sem fonte de bom fit no registry):
 | CSV/migração | `pluginagentmarketplace@pandas-data-analysis` | "análise" pandas, não ETL determinístico; publisher pouco conhecido |
 
 Para instalar mesmo assim: `npx skills find "<termo>"` e validar a fonte antes.
+
+## D) Instalação de skills (layout do repo)
+
+- Skills vivem **só** em `.claude/skills/<nome>/` (diretórios reais, versionados). A pasta
+  `.agents/` foi removida em 2026-10-17 — não recriar.
+- Instalar com alvo exclusivo Claude Code: `npx skills add <owner/repo> --skill <nome> -a claude-code`.
+  Se o CLI ainda criar `.agents/` + symlinks, trocar o symlink pelo diretório real
+  (`cp -rL`) e apagar o `.agents/`. Registrar a fonte em `skills-lock.json`.
+- Skills de terceiros ficam fora do gitleaks (`.gitleaks.toml` → `^\.claude/skills/`).

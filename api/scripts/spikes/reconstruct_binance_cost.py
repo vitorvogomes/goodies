@@ -10,8 +10,8 @@ Não grava nada, não imprime segredo. Apenas mostra os números p/ validar ante
 
 Uso:
     DATABASE_URL=postgresql://goodies:goodies@127.0.0.1:5432/goodies \
-        uv run python ../scripts/binance_history_discovery.py   # 1º (panorama)
-    DATABASE_URL=...  uv run python ../scripts/reconstruct_binance_cost.py [--user <id|email>]
+        uv run python -m scripts.spikes.binance_history_discovery   # 1º (panorama)
+    DATABASE_URL=...  uv run python -m scripts.spikes.reconstruct_binance_cost [--user <id|email>]
 """
 from __future__ import annotations
 
@@ -20,18 +20,14 @@ import hashlib
 import hmac
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 import httpx
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
+from scripts._common import resolve_owner, user_arg
 
 _BASE = "https://api.binance.com"
 _PAIRS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]

@@ -27,8 +27,8 @@ flyctl deploy   # o release_command roda `alembic upgrade head`
 ```
 Pós-deploy (criar admin + token Hermes):
 ```bash
-ADMIN_EMAIL='...' ADMIN_PASSWORD='...' flyctl ssh console -C "python -m scripts.seed_admin"
-flyctl ssh console -C "python -m scripts.gen_hermes_token"   # guardar no secret do Hermes
+ADMIN_EMAIL='...' ADMIN_PASSWORD='...' flyctl ssh console -C "python -m scripts.ops.seed_admin"
+flyctl ssh console -C "python -m scripts.ops.gen_hermes_token"   # guardar no secret do Hermes
 ```
 
 ### 4. Vercel (web)

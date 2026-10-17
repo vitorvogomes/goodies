@@ -6,7 +6,7 @@ request é magnitude positiva; o endpoint aplica o sinal (despesa negativa).
 
 import uuid
 
-from scripts.gen_hermes_token import generate_hermes_token
+from scripts.ops.gen_hermes_token import generate_hermes_token
 
 
 def _hermes_headers() -> dict[str, str]:

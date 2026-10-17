@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, init_pool
 from engines.portfolio.targets import PORTFOLIO_TARGETS, seed_targets
+from scripts._common import resolve_owner, user_arg
 
 
 async def main() -> None:

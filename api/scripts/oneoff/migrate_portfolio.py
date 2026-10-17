@@ -12,8 +12,8 @@ Formato esperado do CSV (cabeçalho; aliases aceitos, sem acento/maiúsculas):
 - Renda Fixa pode vir sem quantidade (importa por valor total).
 
 Uso:
-    uv run python ../scripts/migrate_portfolio.py <csv> [--dry-run]
-    uv run python ../scripts/migrate_portfolio.py <csv> --excel-xirr 0.0853 [--tolerance 0.001]
+    uv run python -m scripts.oneoff.migrate_portfolio <csv> [--dry-run]
+    uv run python -m scripts.oneoff.migrate_portfolio <csv> --excel-xirr 0.0853 [--tolerance 0.001]
 
 ATENÇÃO (definir antes de rodar no CSV real):
 - Sinal das compras na planilha (o storage usa quantidade>0 + tipo; o sinal do
@@ -24,18 +24,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 from collections import Counter
-
-from _common import resolve_owner, user_arg
+from pathlib import Path
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio import service
 from engines.portfolio.migration import import_operations, parse_operations_csv
+from scripts._common import resolve_owner, user_arg
 
 
 def _arg(flag: str) -> str | None:

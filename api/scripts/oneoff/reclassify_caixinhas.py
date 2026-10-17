@@ -11,8 +11,8 @@ NÃO rode `reset_ledger` depois — apagaria a curadoria + este conserto.
 
 Uso (a partir de api/):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python -m scripts.reclassify_caixinhas          # dry-run (mostra o efeito)
-    DATABASE_URL=...localhost... uv run python -m scripts.reclassify_caixinhas --apply
+      uv run python -m scripts.oneoff.reclassify_caixinhas          # dry-run (mostra o efeito)
+    DATABASE_URL=...localhost... uv run python -m scripts.oneoff.reclassify_caixinhas --apply
 """
 
 import asyncio

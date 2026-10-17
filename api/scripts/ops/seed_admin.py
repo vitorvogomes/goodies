@@ -4,7 +4,7 @@ Lê ADMIN_EMAIL e ADMIN_PASSWORD do ambiente — NÃO embute senha no repo
 (security.md / ADR-006). Upsert idempotente com hash bcrypt (passlib).
 
 Uso (a partir de api/):
-    ADMIN_EMAIL=... ADMIN_PASSWORD=... .venv/bin/python -m scripts.seed_admin
+    ADMIN_EMAIL=... ADMIN_PASSWORD=... .venv/bin/python -m scripts.ops.seed_admin
 """
 
 import asyncio

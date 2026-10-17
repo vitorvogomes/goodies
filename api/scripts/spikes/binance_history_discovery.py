@@ -11,7 +11,7 @@ par, fiat orders BRL, depósitos/saques) e cruza com:
 
 Uso (sandbox off, DATABASE_URL local; lê credenciais de `settings`):
     DATABASE_URL=postgresql://goodies:goodies@127.0.0.1:5432/goodies \
-        uv run python ../scripts/binance_history_discovery.py [--user <id|email>]
+        uv run python -m scripts.spikes.binance_history_discovery [--user <id|email>]
 """
 from __future__ import annotations
 
@@ -21,18 +21,14 @@ import hmac
 import sys
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 import httpx
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
+from scripts._common import resolve_owner, user_arg
 
 _BASE = "https://api.binance.com"
 # pares a investigar = ativos cripto detidos na Binance cotados em USDT

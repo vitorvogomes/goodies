@@ -14,7 +14,7 @@ do PREÇO MÉDIO por ativo:
 
 Uso (sandbox off, DATABASE_URL local; lê credenciais/endereços de `settings`):
     DATABASE_URL=postgresql://goodies:goodies@127.0.0.1:5432/goodies \
-        uv run python ../scripts/crypto_history_spike.py [--user <id|email>]
+        uv run python -m scripts.spikes.crypto_history_spike [--user <id|email>]
 
 Decisão de avançar para o Tier 2 (reconstrução por ativo) fica para o Vitor após o relatório.
 """
@@ -27,18 +27,14 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-sys.path.insert(0, str(Path(__file__).parent))  # acha _common ao importar via importlib (testes)
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
 import httpx
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
+from scripts._common import resolve_owner, user_arg
 
 # --------------------------------------------------------------------------- #
 # Núcleo puro (testado): veredito + redação de segredos

@@ -55,11 +55,11 @@ código-fonte (`pythonpath="."`), sem build de wheel. **Sem `requirements*.txt`/
 Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. Dockerfile/CI usam uv.
 
 ## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
-Decidido na faxina pré-m3 (2026-06-06). Ver `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
+Decidido na faxina pré-m3 (2026-06-06). Ver `docs/v1/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
 - **Aplicação E resgate de caixinha são `kind='investment'`** (o resgate volta positivo e neta o
   `total_invested`). Resgate de caixinha **nunca** é `income` — inflaria a taxa de poupança.
-- Reclassificação de linhas curadas é **in-place/idempotente** (`api/scripts/reclassify_caixinhas.py`).
-  **NÃO rodar `scripts/reset_ledger.py`** no banco curado — apagaria a curadoria. A migration
+- Reclassificação de linhas curadas é **in-place/idempotente** (`api/scripts/oneoff/reclassify_caixinhas.py`).
+  **NÃO rodar `api/scripts/oneoff/reset_ledger.py`** no banco curado — apagaria a curadoria. A migration
   `0009` cuida só das regras de import **futuro**.
 - Caixinhas/CDB Nubank são ativos `asset_category='Renda Fixa'` (registro config-driven em
   `engines/portfolio/caixinhas.py`; **Reserva** já listada, `enabled=False` até criar). Valoração
@@ -69,7 +69,7 @@ Decidido na faxina pré-m3 (2026-06-06). Ver `docs/11_Coerencia_Nubank_Portfolio
   contam como receita/despesa externa — **não** transferência interna (decisão reafirmada).
 
 ## ADR-012 — Market Engine (m3): endpoints, precedência de preço, fontes free-tier
-Decidido no m3 (2026-06-06). Ver `docs/12_Gate_M3_Market.md` + `docs/15_Debito_Tecnico.md`.
+Decidido no m3 (2026-06-06). Ver `docs/v1/12_Gate_M3_Market.md` + `docs/15_Debito_Tecnico.md`.
 - **Preços sob `/api/v1/market/*`** (não `/portfolio`). `POST /market/prices/{ticker}` (manual),
   `GET /market/prices[/{ticker}]` (leitura via fallback). O antigo `PUT /portfolio/prices` foi
   **removido**. Contrato Pydantic (`PriceOut`) — superfície nova do m3.

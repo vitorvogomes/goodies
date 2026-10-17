@@ -10,16 +10,13 @@ caixinhas/CDB Nubank, sem fonte de mercado) permanecem is_manual=true.
 
 Uso (banco curado local):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      uv run python ../scripts/enable_market_pricing.py            # dry-run
-    DATABASE_URL=... uv run python ../scripts/enable_market_pricing.py --commit
+      uv run python -m scripts.oneoff.enable_market_pricing            # dry-run
+    DATABASE_URL=... uv run python -m scripts.oneoff.enable_market_pricing --commit
 """
 from __future__ import annotations
 
 import asyncio
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
 
 import asyncpg
 

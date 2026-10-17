@@ -7,7 +7,7 @@ Objetivo do ativo: segurar até o vencimento e então realocar.
 
 Uso (a partir de api/):
     DATABASE_URL=postgresql://goodies:goodies@localhost:5432/goodies \
-      SEED_TODAY=2026-06-06 uv run python ../scripts/seed_cdb_guanabara.py [--commit]
+      SEED_TODAY=2026-06-06 uv run python -m scripts.ops.seed_cdb_guanabara [--commit]
 """
 from __future__ import annotations
 
@@ -15,11 +15,6 @@ import asyncio
 import os
 import sys
 from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "api"))
-
-from _common import resolve_owner, user_arg
 
 from config import settings
 from db.connection import close_pool, get_pool, init_pool
@@ -31,6 +26,7 @@ from engines.portfolio.caixinhas import (
     seed_spec,
 )
 from engines.portfolio.service import net_quantity
+from scripts._common import resolve_owner, user_arg
 
 
 def _opt_today() -> str:

@@ -4,7 +4,7 @@ Carga histórica/bulk reusando o mesmo parser/serviço do endpoint. Idempotente
 (dedup por external_id). Roda local antes de aplicar em produção (ADR / runbook).
 
 Uso (a partir de api/):
-    uv run python -m scripts.migrate_ledger <arquivo.ofx|.csv> [account_id] [--apply]
+    uv run python -m scripts.ops.migrate_ledger <arquivo.ofx|.csv> [account_id] [--apply]
 
 OFX: a conta é resolvida pelo ACCTID do arquivo (account_id opcional).
 CSV: informe o account_id. Sem --apply: dry-run (parse + classificação, sem gravar).
@@ -86,7 +86,7 @@ def main() -> None:
     apply = "--apply" in raw_args
     args = [a for a in raw_args if a != "--apply"]
     if not (1 <= len(args) <= 2):
-        print("uso: python -m scripts.migrate_ledger <arquivo> [account_id] [--apply]")
+        print("uso: python -m scripts.ops.migrate_ledger <arquivo> [account_id] [--apply]")
         return
 
     path = Path(args[0])
