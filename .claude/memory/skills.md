@@ -11,12 +11,21 @@
 |---|---|
 | Schema Postgres, migrations, views | `supabase-postgres-best-practices` (+ `supabase` só p/ contexto de conexão) |
 | Otimização SQL, índices, EXPLAIN ANALYZE | `supabase-postgres-best-practices` |
-| Design de endpoint REST (status, paginação, versionamento) | `api-design-principles` |
+| Design de endpoint REST (status, paginação, versionamento) | `api-design-principles` + `fastapi` (padrões FastAPI/Pydantic atuais) |
 | Implementar qualquer feature/bugfix (**sempre**) | `test-driven-development` |
 | Bug difícil / correção numérica / falha de teste | `systematic-debugging` |
 | Next.js App Router, RSC, file conventions | `next-best-practices` ⚠ surfaçar via `/story` (não auto-dispara) |
-| Componente / página / UI production-grade | `frontend-design` |
-| Design system: paleta, fonts, tipos de chart, UX | `ui-ux-pro-max` |
+| Componente / página / UI production-grade | `frontend-design` + `shadcn` (componentes, `components.json`, registry) |
+| Design system: tokens Tailwind v4, paleta, fonts, tipos de chart, UX | `tailwind-design-system` + `ui-ux-pro-max` (+ `better-colors`, `better-typography`) |
+| Tabelas de dados (ordenar, filtrar, paginar, agrupar) | `tanstack-table` (+ `shadcn` data-table) |
+| Layout / navegação / hierarquia de informação | `better-layout` |
+| Polimento de UI (raios, alinhamento, profundidade, hit areas) | `better-ui` + `emil-design-eng` |
+| Acessibilidade (contraste, foco, teclado, ARIA) | `better-accessibility` |
+| Microcopy pt-BR (rótulos, estados vazios, erros) | `better-writing` |
+| **Revisão de UI antes do `/done`** (story de frontend) | `interface-review` (ou `better-interface` p/ passe completo) |
+| App Router avançado (streaming, parallel/intercepting routes p/ drawers) | `nextjs-app-router-patterns` + `next-best-practices` |
+| Testes de frontend (componentes, hooks, utils) | `vitest-testing` |
+| Procurar skill para uma lacuna | `find-skills` (critério: fonte oficial ou ≥1K installs; auditar antes) |
 | Logs (structlog), Sentry, métricas, tracing | `python-observability` |
 | Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD | **sem skill** → `decisions.md` + `conventions.md` + TDD/`systematic-debugging` |
 
@@ -37,6 +46,17 @@
 | **m7** Frontend | next-best-practices, frontend-design, ui-ux-pro-max, tdd, systematic-debugging | — |
 
 ¹ `supabase` em m0 **só** para contexto de conexão Postgres — **nunca** auth (ver guardrails).
+
+### B2) Goodies v2 — épico → skills (substitui m5–m7 quando o BMAD fechar o backlog v2)
+
+| Épico v2 | Skills |
+|---|---|
+| A. Fundação UI (shadcn, tokens, DataTable, AppShell 4 áreas) | shadcn, tailwind-design-system, tanstack-table, better-layout, better-ui, next-best-practices, vitest-testing, interface-review |
+| B. Categorização dinâmica (grupo+sub, inbox, regras) | tdd, supabase-postgres-best-practices, api-design-principles, fastapi, tanstack-table, better-writing |
+| C. Ingestão unificada (hub Nubank+B3, lotes, proveniência) | tdd, systematic-debugging, supabase-postgres-best-practices, fastapi, better-layout |
+| D. Conciliação e atualização (jobs, CDI real, RF) | tdd, systematic-debugging, python-observability |
+| E. Visão geral integrada | ui-ux-pro-max, better-interface, emil-design-eng, nextjs-app-router-patterns |
+| F. Observabilidade / deploy / alertas | python-observability, tdd, api-design-principles |
 
 ## C) Frontmatter `skills:` nas stories
 
