@@ -70,12 +70,15 @@ async def run_wallet_scan(
             complete = bool(getattr(balances, "complete", True))
             for balance in balances:
                 await service.upsert_wallet_position(conn, user_id, balance)
-            # snapshot-replace: posição fechada (vendida/bridada) é varrida; um source
-            # fora devolve [] e NÃO apaga o último snapshot bom (outage ≠ fechamento).
+            # snapshot-replace: posição fechada (vendida/bridada) é varrida — inclusive
+            # scan completo e vazio (tudo vendido) nas fontes que o fetcher declara
+            # (`SOURCES`); um source fora (incompleto) NÃO apaga o snapshot bom.
             # Scan INCOMPLETO também não varre: a sub-unidade que falhou não é
             # posição fechada (achado C5) — só upserta o que veio.
             swept = (
-                await service.sweep_wallet_positions(conn, user_id, balances)
+                await service.sweep_wallet_positions(
+                    conn, user_id, balances, getattr(fetcher, "SOURCES", ())
+                )
                 if complete
                 else 0
             )

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from auth.dependencies import get_current_user
 from db.connection import get_db, get_pool
-from workers.refresh import default_jobs, refresh_stale
+from workers.refresh import default_jobs, oldest_wallet_scan, refresh_stale
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -80,9 +80,7 @@ async def jobs_status(user: AuthUser, db: Db) -> list[JobStatus]:
     }
     # idade do DADO de carteira (não do heartbeat): um scan que rodou mas não trouxe
     # nada renova last_run sem renovar scanned_at — /refresh e /wallets divergiam
-    oldest_scan = await db.fetchval(
-        "SELECT MIN(scanned_at) FROM wallet_positions WHERE NOT is_manual"
-    )
+    oldest_scan = await oldest_wallet_scan(db)
     out: list[JobStatus] = []
     for spec in default_jobs():
         r = rows.get(spec.name)

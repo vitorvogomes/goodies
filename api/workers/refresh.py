@@ -29,6 +29,17 @@ class JobSpec:
     name: str
     run: Callable[[asyncpg.Pool], Awaitable[dict[str, Any]]]
     threshold_seconds: int
+    # idade do DADO (não do heartbeat): se mais velho que last_run, decide o vencimento.
+    # Mesmo critério do /jobs/status (wallet_scan envelhece pelo scanned_at real).
+    data_since: Callable[[asyncpg.Connection], Awaitable[datetime | None]] | None = None
+
+
+async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
+    """scanned_at mais antigo das posições escaneadas (idade real do dado de carteira)."""
+    value: datetime | None = await conn.fetchval(
+        "SELECT MIN(scanned_at) FROM wallet_positions WHERE NOT is_manual"
+    )
+    return value
 
 
 async def _job_b3(pool: asyncpg.Pool) -> dict[str, Any]:
@@ -55,7 +66,7 @@ def default_jobs() -> list[JobSpec]:
     return [
         JobSpec("price_b3", _job_b3, settings.ttl_b3),
         JobSpec("price_crypto", _job_crypto, settings.ttl_crypto),
-        JobSpec("wallet_scan", _job_wallet, settings.ttl_wallet),
+        JobSpec("wallet_scan", _job_wallet, settings.ttl_wallet, oldest_wallet_scan),
         JobSpec("benchmark", _job_benchmark, settings.ttl_benchmark),
     ]
 
@@ -81,6 +92,32 @@ async def _record(
     )
 
 
+async def run_and_record(
+    pool: asyncpg.Pool, spec: JobSpec, now: datetime, conn: asyncpg.Connection | None = None
+) -> bool:
+    """Roda um job (fail-soft) e grava o heartbeat em job_runs. Usado pelo catch-up e
+    pelo cron — assim /jobs/status enxerga os dois caminhos. Devolve ok."""
+    ok = True
+    error: str | None = None
+    stats: dict[str, Any] = {}
+    try:
+        stats = await spec.run(pool)
+    except Exception as exc:  # fail-soft: um job não derruba os outros
+        ok, error = False, f"{type(exc).__name__}: {exc}"
+    if conn is not None:
+        await _record(conn, spec.name, now, ok, error, stats)
+    else:
+        async with pool.acquire() as own:
+            await _record(own, spec.name, now, ok, error, stats)
+    return ok
+
+
+async def run_named_job(pool: asyncpg.Pool, name: str, now: datetime) -> bool:
+    """Roda o JobSpec `name` de `default_jobs()` gravando o heartbeat (entrada do cron)."""
+    spec = next(s for s in default_jobs() if s.name == name)
+    return await run_and_record(pool, spec, now)
+
+
 async def refresh_stale(
     pool: asyncpg.Pool,
     *,
@@ -103,6 +140,10 @@ async def refresh_stale(
             results: dict[str, str] = {}
             for spec in specs:
                 lr = last.get(spec.name)
+                if lr is not None and spec.data_since is not None:
+                    since = await spec.data_since(lock_conn)
+                    if since is not None and since < lr:
+                        lr = since  # dado mais velho que o heartbeat (fonte falhando)
                 due = (
                     force
                     or lr is None
@@ -111,14 +152,7 @@ async def refresh_stale(
                 if not due:
                     results[spec.name] = "fresh"
                     continue
-                ok = True
-                error: str | None = None
-                stats: dict[str, Any] = {}
-                try:
-                    stats = await spec.run(pool)
-                except Exception as exc:  # fail-soft: um job não derruba os outros
-                    ok, error = False, f"{type(exc).__name__}: {exc}"
-                await _record(lock_conn, spec.name, now, ok, error, stats)
+                ok = await run_and_record(pool, spec, now, lock_conn)
                 results[spec.name] = "ok" if ok else "error"
             return {"status": "ran", "jobs": results}
         finally:

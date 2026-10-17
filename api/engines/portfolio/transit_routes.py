@@ -1,6 +1,6 @@
 """Endpoint da reconciliação de trânsito (Pilar 2): GET /api/v1/portfolio/transit."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends
@@ -20,7 +20,10 @@ class TransitRail(BaseModel):
     rail: str
     saiu_brl: float
     aplicado_brl: float
-    em_transito_brl: float
+    em_transito_brl: float  # detalhe (saiu - aplicado)
+    dividendos_juros_brl: float
+    caixa_corretora_brl: float  # resíduo/título (saiu + proventos - aplicado)
+    status: Literal["reconciled", "caixa_em_corretora", "rendimento_reinvestido"]
 
 
 class TransitCrypto(BaseModel):

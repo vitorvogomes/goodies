@@ -47,9 +47,10 @@ async def alerts(user: AuthUser, db: Db) -> list[Alert]:
     # Despesas (só CONSUMO) por (mês, categoria) do mês atual + 3 meses anteriores.
     # kind='expense' exclui investimento/transferência: aportar mais na Binance/Toro/
     # caixinha NÃO é "gastar acima da média" (era o alerta incoerente da Binance).
+    # Gasto LÍQUIDO (SUM(-amount), como a view monthly_summary): estorno abate.
     exp_rows = await db.fetch(
         """
-        SELECT date_trunc('month', date)::date AS month, category, SUM(ABS(amount)) AS total
+        SELECT date_trunc('month', date)::date AS month, category, SUM(-amount) AS total
         FROM transactions
         WHERE kind = 'expense'
           AND date >= (date_trunc('month', $1::date) - interval '3 months')

@@ -44,6 +44,8 @@ def _specs_from_config() -> tuple[_Spec, ...]:
 class EtherscanFetcher:
     """Escaneia saldos EVM via Etherscan V2. `specs`/`client`/`sleep` injetáveis p/ teste."""
 
+    SOURCES = (_SOURCE,)  # fontes que um scan completo cobre (sweep de scan vazio)
+
     def __init__(
         self,
         api_key: str | None = None,

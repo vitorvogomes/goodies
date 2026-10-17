@@ -52,3 +52,26 @@ async def test_projection_30_60_90(api, auth_headers, account):
     assert points[60]["projected_balance"] == 11000.0  # 4000 + 10000 - 3000
     assert points[90]["projected_balance"] == 14500.0  # 4000 + 15000 - 4500
     assert fc.status_code == 201  # custo fixo limpo pela fixture autouse
+
+
+async def test_projection_income_ignores_recurring_non_income(api, auth_headers, account):
+    # review m4→main: receita recorrente = kind='income'. Um resgate recorrente de
+    # investimento (positivo, kind=investment) não é receita de caixa projetável.
+    await _post_tx(api, auth_headers, account, "2099-02-01", 3000, "Salário", is_recurring=True)
+    resp = await api.post(
+        "/api/v1/transactions",
+        json={
+            "account_id": account,
+            "date": "2099-02-02",
+            "amount": 800,
+            "category": "Resgate-proj",
+            "kind": "investment",
+            "is_recurring": True,
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    data = (
+        await api.get(f"/api/v1/cashflow/projection?account_id={account}", headers=auth_headers)
+    ).json()
+    assert data["monthly_income"] == 3000.0

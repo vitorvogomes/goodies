@@ -73,3 +73,30 @@ async def test_hermes_rejects_non_positive_amount(api, account):
         headers=_hermes_headers(),
     )
     assert resp.status_code == 422
+
+
+async def test_hermes_expense_respects_investment_category_kind(api, account, pool):
+    # review m4→main: aporte lançado via Hermes numa categoria de investimento não pode
+    # virar despesa de consumo (derrubaria a taxa de poupança). kind vem da categoria.
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO categories (name, kind) VALUES ('ZZHermesInv', 'investment') "
+            "ON CONFLICT (name) DO NOTHING"
+        )
+    try:
+        resp = await api.post(
+            "/api/v1/hermes/expenses",
+            json={"account_id": account, "date": "2099-06-02", "amount": 200,
+                  "category": "ZZHermesInv"},
+            headers=_hermes_headers(),
+        )
+        assert resp.status_code == 201
+        assert resp.json()["amount"] == -200.0
+        async with pool.acquire() as conn:
+            kind = await conn.fetchval(
+                "SELECT kind FROM transactions WHERE id = $1", uuid.UUID(resp.json()["id"])
+            )
+        assert kind == "investment"
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM categories WHERE name = 'ZZHermesInv'")

@@ -1,8 +1,9 @@
 "use client";
 
 // Hooks React Query do Wallet Engine (m4) — posições escaneadas/manuais,
-// reconciliação e DeFi. Mutations invalidam ["wallets"] / ["defi"].
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+// reconciliação e DeFi. Mutations invalidam ["wallets"], ["defi"] e ["portfolio"]: o saldo
+// cripto entra no sleeve (Posições/Alocação/XIRR/Trânsito) e na reconciliação.
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import type {
@@ -12,6 +13,13 @@ import type {
   Reconciliation,
   WalletPosition,
 } from "@/types/wallet";
+
+// Tudo que depende do saldo cripto (wallet/DeFi) — ver comentário do topo.
+function invalidateCrypto(qc: QueryClient) {
+  for (const key of ["wallets", "defi", "portfolio"]) {
+    qc.invalidateQueries({ queryKey: [key] });
+  }
+}
 
 export function useWalletPositions() {
   return useQuery({
@@ -42,7 +50,7 @@ export function useCreateManualPosition() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wallets"] }),
+    onSuccess: () => invalidateCrypto(qc),
   });
 }
 
@@ -54,7 +62,7 @@ export function useDeleteManualPosition() {
         `/api/v1/wallets/positions/manual/${encodeURIComponent(chain)}/${encodeURIComponent(asset_symbol)}`,
         { method: "DELETE" },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wallets"] }),
+    onSuccess: () => invalidateCrypto(qc),
   });
 }
 
@@ -66,7 +74,7 @@ export function useCreateDefi() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["defi"] }),
+    onSuccess: () => invalidateCrypto(qc),
   });
 }
 
@@ -78,7 +86,7 @@ export function useUpdateDefi() {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["defi"] }),
+    onSuccess: () => invalidateCrypto(qc),
   });
 }
 
@@ -87,6 +95,6 @@ export function useDeleteDefi() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<unknown>(`/api/v1/defi/positions/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["defi"] }),
+    onSuccess: () => invalidateCrypto(qc),
   });
 }

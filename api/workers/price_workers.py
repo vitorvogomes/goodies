@@ -88,8 +88,23 @@ async def _run_for(
         # EXCETO no apagão total: símbolos pedidos e zero cotações é falha de fonte mesmo
         # com core vazio (cripto não vive em asset_operations; sem isso o worker cripto
         # reportava failed=0 com o CoinGecko 100% fora).
-        "failed": len(symbols) if not quotes else len(set(core) - set(quotes)),
+        "failed": _blackout_count(fetcher, core, symbols)
+        if not quotes
+        else len(set(core) - set(quotes)),
     }
+
+
+def _blackout_count(fetcher: PriceFetcher, core: Iterable[str], symbols: Iterable[str]) -> int:
+    """Zero cotações: conta como falha o core + os extras que o fetcher SABE cotar.
+
+    Extras sem mapeamento (ex.: YT-XSOL) não têm fonte — se só eles foram pedidos, o
+    fetcher nem consulta a API e isso não é apagão. Fetcher sem `supports` (sem mapa)
+    trata todo símbolo como cotável (comportamento anterior).
+    """
+    supports = getattr(fetcher, "supports", None)
+    if supports is None:
+        return len(set(symbols))
+    return len(set(core) | {s for s in symbols if supports(s)})
 
 
 async def run_price_b3(

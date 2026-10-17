@@ -117,6 +117,61 @@ async def test_scan_outage_preserves_snapshot(pool: Any, wallet_user: dict) -> N
     assert n == 1  # SOL preservado
 
 
+class _SourcedFetcher(_FakeFetcher):
+    """Fetcher que declara as fontes que cobre (como os fetchers reais)."""
+
+    SOURCES = ("bitcoin",)
+
+
+@pytest.mark.asyncio
+async def test_scan_complete_empty_sweeps_declared_source(
+    pool: Any, wallet_user: dict
+) -> None:
+    # Review m4→main: BTC todo vendido → o fetcher escaneia com sucesso e devolve
+    # ScanBalances() vazio (complete=True). A posição antiga tem de ser varrida.
+    uid = wallet_user["user_id"]
+    await run_wallet_scan(
+        pool,
+        uid,
+        fetchers=[_SourcedFetcher([WalletBalance("bitcoin", "bc1", "BTC", 0.1, "bitcoin")])],
+    )
+    stats = await run_wallet_scan(pool, uid, fetchers=[_SourcedFetcher(ScanBalances())])
+    assert stats["_SourcedFetcher"] == {"fetched": 0, "failed": 0, "swept": 1}
+    async with pool.acquire() as conn:
+        n = await conn.fetchval(
+            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
+        )
+    assert n == 0
+
+
+@pytest.mark.asyncio
+async def test_scan_incomplete_empty_keeps_declared_source(
+    pool: Any, wallet_user: dict
+) -> None:
+    # fonte fora (complete=False) com SOURCES declarado → continua sem varrer
+    uid = wallet_user["user_id"]
+    await run_wallet_scan(
+        pool,
+        uid,
+        fetchers=[_SourcedFetcher([WalletBalance("bitcoin", "bc1", "BTC", 0.1, "bitcoin")])],
+    )
+    await run_wallet_scan(
+        pool, uid, fetchers=[_SourcedFetcher(ScanBalances(complete=False))]
+    )
+    async with pool.acquire() as conn:
+        n = await conn.fetchval(
+            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
+        )
+    assert n == 1
+
+
+def test_real_fetchers_declare_sources() -> None:
+    # todo fetcher real declara as fontes que cobre (habilita o sweep de scan vazio)
+    for f in _default_fetchers():
+        assert getattr(type(f), "SOURCES", ()), type(f).__name__
+    assert set(HyperliquidFetcher.SOURCES) == {"hyperliquid", "hyperevm"}
+
+
 @pytest.mark.asyncio
 async def test_scan_partial_source_outage_preserves_other_source(
     pool: Any, wallet_user: dict

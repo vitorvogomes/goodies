@@ -89,6 +89,18 @@ async def test_put_clears_maturity_date(api: httpx.AsyncClient, wallet_user: dic
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["balance", "asset_symbol", "is_active"])
+async def test_put_null_on_required_field_is_422(
+    api: httpx.AsyncClient, wallet_user: dict, field: str
+) -> None:
+    # review m4→main: null explícito em coluna NOT NULL dava NotNullViolation → 500
+    h = wallet_user["headers"]
+    pid = (await api.post("/api/v1/defi/positions", json=_NEW, headers=h)).json()["id"]
+    resp = await api.put(f"/api/v1/defi/positions/{pid}", json={field: None}, headers=h)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_put_returns_valued_response(
     api: httpx.AsyncClient, wallet_user: dict, pool: Any
 ) -> None:

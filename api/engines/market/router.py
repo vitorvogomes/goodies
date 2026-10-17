@@ -69,9 +69,15 @@ async def revert_manual_price(
 ) -> PriceOut:
     """Volta o preço ao automático: limpa is_manual (não apaga) p/ o worker sobrescrever.
 
-    Caso de uso: o usuário digitou o valor líquido de um Tesouro/caixinha e quer voltar a
-    deixar o worker cotar. 404 se o ticker não tem preço; idempotente se já era automático.
+    Caso de uso: o usuário digitou o valor líquido de um Tesouro e quer voltar a
+    deixar o worker cotar. 404 se o ticker não tem preço; 409 se o ativo não tem fonte de
+    mercado (Renda Fixa/caixinha); idempotente se já era automático.
     """
+    if await service.lacks_market_source(db, ticker):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ativo sem fonte de mercado (Renda Fixa/caixinha): o preço é sempre manual",
+        )
     reverted = await portfolio_service.clear_manual_price(db, ticker)
     if not reverted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ticker sem preço cadastrado")

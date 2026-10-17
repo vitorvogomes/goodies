@@ -120,20 +120,26 @@ async def delete_manual_wallet_position(
 
 
 async def sweep_wallet_positions(
-    conn: asyncpg.Connection, user_id: str, balances: list[WalletBalance]
+    conn: asyncpg.Connection,
+    user_id: str,
+    balances: list[WalletBalance],
+    sources: Sequence[str] = (),
 ) -> int:
     """Apaga posições de um source que NÃO apareceram no scan atual (posição fechada).
 
     Snapshot-replace por source: o scan é a verdade para os sources que ele cobriu.
-    Chamar SÓ quando o fetcher retornou ≥1 saldo — um source fora devolve `[]` (fail-soft)
-    e não deve apagar o último snapshot bom (outage ≠ posição fechada). Sem o sweep, um
-    ativo vendido/zerado (filtrado por `qty>0` no fetcher) ficaria como posição fantasma.
+    Chamar SÓ para scan completo — um source fora (fail-soft) não deve apagar o último
+    snapshot bom (outage ≠ posição fechada). Sem o sweep, um ativo vendido/zerado
+    (filtrado por `qty>0` no fetcher) ficaria como posição fantasma. `sources` são as
+    fontes que o fetcher declara cobrir (`SOURCES`): permitem varrer um scan completo e
+    VAZIO (tudo vendido); sem elas, só os sources presentes em `balances` são varridos.
     Posições manuais (`is_manual`) NUNCA são varridas (não vêm de scan). Devolve o número
     de linhas removidas.
     """
-    if not balances:
+    covered = {b.source for b in balances} | set(sources)
+    if not covered:
         return 0
-    sources = list({b.source for b in balances})
+    sources = list(covered)
     kept = {(b.chain, b.wallet_address, b.asset_symbol) for b in balances}
     rows = await conn.fetch(
         "SELECT id, chain, wallet_address, asset_symbol FROM wallet_positions "

@@ -32,6 +32,8 @@ _SYMBOL = "BTC"
 class BitcoinFetcher:
     """Escaneia BTC mainchain (client dedicado, ADR-005). Args injetáveis p/ teste."""
 
+    SOURCES = (_SOURCE,)  # fontes que um scan completo cobre (sweep de scan vazio)
+
     def __init__(
         self,
         base_url: str | None = None,

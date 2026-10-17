@@ -49,6 +49,11 @@ class CoinGeckoFetcher:
         base = _MATURITY_SUFFIX.sub("", key)
         return self._ids.get(base) if base != key else None
 
+    def supports(self, symbol: str) -> bool:
+        """True se o símbolo tem id CoinGecko no mapa (o worker distingue apagão de
+        símbolo sem fonte)."""
+        return self._resolve_id(symbol) is not None
+
     async def fetch(self, symbols: Sequence[str]) -> dict[str, PriceQuote]:
         # símbolo -> id CoinGecko; ignora os fora do mapa de config (após normalizar sufixo).
         sym_to_id = {s: cid for s in symbols if (cid := self._resolve_id(s)) is not None}

@@ -188,6 +188,36 @@ async def test_failed_counts_only_core_symbols(pool: Any, portfolio_user: dict) 
         await PriceCache().delete(service.price_cache_key("crypto", "MKT_COREBTC"))
 
 
+class _MappedFakeFetcher(_FakeFetcher):
+    """Fetcher com mapa de símbolos (como o CoinGecko): `supports` diz o que tem fonte."""
+
+    def supports(self, symbol: str) -> bool:
+        return symbol in self._prices
+
+
+@pytest.mark.asyncio
+async def test_unmapped_only_extras_are_not_a_blackout(
+    pool: Any, portfolio_user: dict
+) -> None:
+    # review m4→main: só extras SEM mapeamento (ex.: YT-XSOL) e zero cotações não é
+    # apagão da fonte — o fetcher nem consultaria a API. Não pode marcar `partial`.
+    uid = portfolio_user["user_id"]
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM asset_operations WHERE asset_category = 'Cripto'")
+        await conn.execute(
+            "INSERT INTO wallet_positions (user_id, chain, wallet_address, asset_symbol, "
+            "quantity, source) VALUES ($1, 'solana', 'sol1', 'MKT_UNMAPPED', 1, 'solana')",
+            uid,
+        )
+    try:
+        stats = await run_price_crypto(pool, fetcher=_MappedFakeFetcher({}))
+        assert stats["fetched"] == 0
+        assert stats["failed"] == 0
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
+
+
 @pytest.mark.asyncio
 async def test_distinct_symbols_guard_is_fail_soft() -> None:
     # tabela ausente / SELECT falha → [] (não derruba o cron de preço cripto do m3)

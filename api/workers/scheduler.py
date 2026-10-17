@@ -12,48 +12,54 @@ de ids) → */2h é trivial. Desvia do default "4h" do CLAUDE.md por causa do li
 
 Os jobs pegam o pool vivo via `get_pool()` no disparo (pool aberto no lifespan antes do
 `scheduler.start()`). `coalesce/max_instances=1` evitam empilhar; com a idempotência dos
-workers, re-disparos convergem.
+workers, re-disparos convergem. Cada disparo grava o heartbeat em `job_runs` (mesmo caminho
+do catch-up, `run_named_job`) — o /jobs/status e o catch-up enxergam os runs do cron.
 """
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from db.connection import get_pool
-from workers.benchmark_workers import run_benchmark_daily
-from workers.price_workers import run_price_b3, run_price_crypto
-from workers.wallet_workers import resolve_owner_id, run_wallet_scan
+from workers.refresh import run_named_job
 
 logger = logging.getLogger("goodies.workers")
 
 _JOB_DEFAULTS = {"coalesce": True, "max_instances": 1, "misfire_grace_time": 300}
 
 
+# id do job cron -> nome do JobSpec do catch-up (workers/refresh.py) sob o qual o
+# heartbeat é gravado em job_runs (o /jobs/status e o catch-up leem esse nome).
+CRON_JOB_SPEC = {
+    "price_b3": "price_b3",
+    "price_crypto": "price_crypto",
+    "wallet_scan": "wallet_scan",
+    "benchmark_daily": "benchmark",
+}
+
+
+async def _run(job_id: str) -> None:
+    ok = await run_named_job(get_pool(), CRON_JOB_SPEC[job_id], datetime.now(UTC))
+    logger.info("worker %s %s", job_id, "ok" if ok else "error")
+
+
 async def _job_price_b3() -> None:
-    stats = await run_price_b3(get_pool())
-    logger.info("worker price_b3 ok: %s", stats)
+    await _run("price_b3")
 
 
 async def _job_price_crypto() -> None:
-    stats = await run_price_crypto(get_pool())
-    logger.info("worker price_crypto ok: %s", stats)
+    await _run("price_crypto")
 
 
 async def _job_wallet_scan() -> None:
-    pool = get_pool()
-    uid = await resolve_owner_id(pool)
-    if uid is None:
-        logger.warning("worker wallet_scan: nenhum usuário; pulando")
-        return
-    stats = await run_wallet_scan(pool, uid)
-    logger.info("worker wallet_scan ok: %s", stats)
+    await _run("wallet_scan")
 
 
 async def _job_benchmark_daily() -> None:
-    stats = await run_benchmark_daily(get_pool())
-    logger.info("worker benchmark_daily ok: %s", stats)
+    await _run("benchmark_daily")
 
 
 def build_scheduler() -> AsyncIOScheduler:

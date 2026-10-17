@@ -58,9 +58,19 @@ class HermesResult(BaseModel):
     category: str
 
 
+# kinds da categoria que prevalecem sobre o default do endpoint: um aporte/transferência
+# lançado como "saída" (/expenses) não é consumo (senão derruba a taxa de poupança).
+_CATEGORY_KIND_OVERRIDES = {"investment", "transfer"}
+
+
 async def _insert(
     db: asyncpg.Connection, body: HermesEntry, signed_amount: float, kind: str
 ) -> HermesResult:
+    category_kind = await db.fetchval(
+        "SELECT kind FROM categories WHERE name = $1", body.category
+    )
+    if category_kind in _CATEGORY_KIND_OVERRIDES:
+        kind = str(category_kind)
     try:
         row = await db.fetchrow(
             "INSERT INTO transactions (account_id, date, amount, category, kind, description) "

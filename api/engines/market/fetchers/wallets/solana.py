@@ -38,6 +38,8 @@ _DEFAULT_MINTS: dict[str, str] = {
 class SolanaFetcher:
     """Escaneia SOL + SPL via JSON-RPC. `mints`/`client`/`sleep`/`rpc_url` injetáveis."""
 
+    SOURCES = (_SOURCE,)  # fontes que um scan completo cobre (sweep de scan vazio)
+
     def __init__(
         self,
         address: str | None = None,

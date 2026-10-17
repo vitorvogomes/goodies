@@ -49,7 +49,7 @@ async def test_ttl_expiration(cache: PriceCache, test_key: str) -> None:
     # imediatamente disponível
     assert await cache.get(test_key) == {"value": 1}
     # expira após o TTL
-    await asyncio.sleep(1.2)
+    await asyncio.sleep(2.1)  # margem: TTL do Redis tem granularidade de 1s (flaky c/ 1.2)
     assert await cache.get(test_key) is None
 
 

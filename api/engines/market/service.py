@@ -45,6 +45,19 @@ def cache_type_for_category(category: str | None) -> str | None:
     return None
 
 
+async def lacks_market_source(conn: asyncpg.Connection, ticker: str) -> bool:
+    """True se o ticker é de categoria SEM fetcher (Renda Fixa/caixinha/CDB/Flash).
+
+    Para esses o preço é sempre manual: liberar o is_manual o deixaria stale para sempre.
+    Ticker sem operação (ex.: só em carteira cripto) não é bloqueado — tem fonte.
+    """
+    category = await conn.fetchval(
+        "SELECT asset_category FROM asset_operations WHERE asset_symbol = $1 LIMIT 1",
+        ticker,
+    )
+    return category is not None and cache_type_for_category(category) is None
+
+
 # source gravado em asset_prices -> tipo (p/ calcular staleness na leitura via Postgres).
 _TYPE_BY_SOURCE = {"brapi": "b3", "b3": "b3", "coingecko": "crypto", "tesouro": "tesouro"}
 

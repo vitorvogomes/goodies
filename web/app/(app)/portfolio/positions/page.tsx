@@ -43,6 +43,10 @@ function InlineNumber({
   );
 }
 
+// Categorias com fonte de mercado (fetcher). Renda Fixa/caixinha não tem: o preço é sempre
+// manual e o backend recusa (409) voltar ao automático — o ↺ nem aparece.
+const MARKET_SOURCED = new Set(["Ações Nacionais", "ETFs", "FIIs", "Aposentadoria", "Cripto"]);
+
 // Preço atual editável. Mesmo um preço automático (is_manual=false) pode ser sobrescrito —
 // ao salvar, vira manual; o cadeado é só um indicador. Quando manual, oferece "↺ voltar ao
 // automático" (libera o worker a cotar de novo).
@@ -87,7 +91,7 @@ function PriceCell({ pos }: { pos: Position }) {
           🔄
         </span>
       )}
-      {pos.is_manual && pos.preco_atual != null && (
+      {pos.is_manual && pos.preco_atual != null && MARKET_SOURCED.has(pos.asset_category) && (
         <button
           type="button"
           title="Voltar ao automático (o worker volta a cotar)"

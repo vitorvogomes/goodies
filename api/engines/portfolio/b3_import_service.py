@@ -9,7 +9,8 @@ que o já-coberto por OUTRA proveniência (o `broker` etiqueta a fonte), e repor
 o que foi pulado (`skipped_overlap`) — nunca trunca em silêncio.
 
 Tipos:
-- consolidado: aplica categorias + preços (abas 'Posição'); ops vêm de mov/neg.
+- consolidado: aplica preços (abas 'Posição'); ops vêm de mov/neg. As categorias das
+  abas NÃO são aplicadas (sobrescreveria correções manuais) — débito do hub de ingestão v2.
 - movimentacao / negociacao: vira ops, sob a regra de cobertura.
 """
 from __future__ import annotations
@@ -87,14 +88,14 @@ async def import_b3_workbook(
         "dry_run": dry_run,
     }
 
-    # --- consolidado: categorias + preços (abas 'Posição'); ops vêm de mov/neg ---
+    # --- consolidado: preços (abas 'Posição'); ops vêm de mov/neg ---
     if ftype == "consolidado":
         prices = parse_b3_position_prices(sheets)
         if dry_run:
             # preview: quantos NÃO seriam gravados por já serem manuais (precedência)
             report["prices_upserted"] = len(prices)
             report["note"] = (
-                "consolidado (dry-run): preços/categorias seriam aplicados; "
+                "consolidado (dry-run): preços seriam aplicados; "
                 "ops vêm de movimentação/negociação"
             )
             return report
@@ -113,7 +114,7 @@ async def import_b3_workbook(
         report["prices_upserted"] = upserted
         report["prices_skipped_manual"] = len(prices) - upserted
         report["note"] = (
-            "consolidado: preços/categorias aplicados; ops vêm de movimentação/negociação"
+            "consolidado: preços aplicados; ops vêm de movimentação/negociação"
         )
         return report
 

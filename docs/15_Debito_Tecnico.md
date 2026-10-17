@@ -28,6 +28,68 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ---
 
+## Retomada 2026-10-17 — consolidação m4→main + plano Goodies v2
+
+> **Review `main...m4-broker` (`/code-review high`, 10 achados) antes do merge.** Corrigidos
+> com TDD na `m4-broker` (suite 530→544):
+> - `/portfolio/transit`: `response_model` podava `status`/`caixa_corretora_brl`/
+>   `dividendos_juros_brl` → a tela Trânsito renderizava NaN/badge vazio.
+> - Sweep de carteira: scan **completo e vazio** (tudo vendido) não varria a fonte →
+>   posição fantasma eterna. Fetchers declaram `SOURCES`; o sweep usa a lista.
+> - Alerta de overspend somava `ABS(amount)` → estorno contava como gasto. Agora
+>   `SUM(-amount)` (mesma convenção da view `monthly_summary`).
+> - `DELETE /market/prices/{t}/manual` em ativo sem fetcher (Renda Fixa/caixinha) deixava
+>   o preço stale para sempre → 409; o ↺ some em Posições para essas categorias.
+> - `PUT /defi/positions/{id}` com `null` em coluna NOT NULL → 500. Agora 422.
+> - Catch-up × `/jobs/status` contraditórios (heartbeat × `scanned_at`): o catch-up usa a
+>   idade do dado (`JobSpec.data_since`), como a tela.
+> - **Cron não gravava `job_runs`** → status cego aos runs do scheduler e catch-up
+>   re-buscando (quota BRAPI). Cron e catch-up passam por `run_and_record`.
+> - `price_crypto`: só extras sem mapeamento CoinGecko + zero cotações virava "apagão"
+>   (`partial`). `CoinGeckoFetcher.supports()` distingue.
+> - Front: mutações de wallet/DeFi não invalidavam `["portfolio"]` (sleeve/XIRR stale).
+> - Extras da exploração: `/cashflow/projection` usa `kind='income'`; Hermes respeita o
+>   `kind` investment/transfer da categoria; nota do import B3 consolidado deixou de
+>   afirmar "categorias aplicadas" (não aplica — ver abaixo); `test_ttl_expiration` flaky.
+
+### 🟡 Abertos desta retomada
+- **Binance on-demand via catch-up (decisão pendente do Vitor).** `POST /jobs/refresh`
+  (botão "Atualizar tudo" e catch-up ao abrir o app) roda `run_wallet_scan` →
+  `BinanceFetcher`, contrariando "Binance cron only" do CLAUDE.md. Como o app é
+  local-on-demand, o catch-up *é* o substituto do cron. Opções: (a) emendar a regra
+  ("cron ou catch-up com limiar TTL; nunca por request de dados") ou (b) excluir Binance
+  do refresh on-demand.
+- **B3 C2** (cobertura cruza T × T+2) — reconfirmado pelo review; resolver no hub de
+  ingestão v2.
+- **Import B3 consolidado não aplica categorias** das abas 'Posição'
+  (`parse_b3_categories` só é usado pela CLI). Aplicar sobrescreveria correções manuais
+  → decidir no hub de ingestão v2 (proveniência de categoria).
+- **Projeção de caixa sem dado:** nenhuma transação tem `is_recurring` → receita
+  projetada = 0. Redesenhar no PRD v2 (média de receita por `kind` dos últimos N meses?).
+- **`/cashflow/by-category` soma `ABS(amount)`** (mesma classe do overspend): estorno
+  infla o gasto da categoria e não bate com `monthly_summary`.
+- **Categorias:** `transactions.category` sem FK (rename/delete não propagam); regras não
+  reaplicáveis sem o destrutivo `reset_ledger`; sem proveniência (rule × manual).
+- **Import Nubank** sem transação de banco (crash = import parcial) e sem lote/
+  proveniência (`source`, `import_batch`); sem parser de fatura de cartão.
+- **RF/caixinhas:** ops derivadas só via seeds manuais (`seed_caixinhas`,
+  `seed_cdb_guanabara`, `seed_debentures_flash`); CDI constante (`config.cdi_anual`)
+  enquanto `benchmark_data` é coletado e não lido.
+- **`ir-crypto` e reconciliação de wallets** leem Cripto de `asset_operations`, onde a
+  cripto não vive mais (sleeve = ledger + carteiras).
+- **Qualidade:** `engines/portfolio/service.py` (~680 linhas, muitas responsabilidades);
+  agregação por `kind` repetida em 3 SQLs; `_to_float` duplicado (`b3_import`/
+  `migration`); dois estilos de router (`Annotated` × `Depends`+`noqa`); docstrings
+  obsoletas (`importer.py:1-6`, "preço manual" em `service.py`); `/test` usa
+  `--cov=api` (não mede `engines`) e não há `fail_under`.
+
+### Pendências por branch (consolidação)
+- `m1-ledger`, `m2-portfolio`, `m3-market`: já mergeadas, sem pendência própria.
+- `m4-broker`: mergeada nesta retomada. Única pendência: `register_tesouro_sale_return.py`
+  não aplicado (aguarda confirmação de que a venda do Tesouro devolveu caixa ao Nubank).
+
+---
+
 ## 🟡 MÉDIO
 
 > **Pass de review m4 (2026-06-10).** `/code-review` (high, 7 ângulos × verify) +

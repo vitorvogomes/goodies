@@ -91,3 +91,55 @@ async def test_concurrent_refresh_is_coalesced(pool: Any) -> None:
     finally:
         await held.fetchval("SELECT pg_advisory_unlock($1)", _LOCK_KEY)
         await pool.release(held)
+
+
+@pytest.mark.asyncio
+async def test_cron_job_records_heartbeat(pool: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    # review m4→main: o cron só logava — /jobs/status não via os runs do scheduler e o
+    # catch-up re-buscava (gastando quota BRAPI). O cron grava job_runs como o refresh.
+    from workers import scheduler
+
+    await _clear(pool)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "workers.refresh.default_jobs", lambda: [_spec("price_b3", calls)]
+    )
+    monkeypatch.setattr("workers.scheduler.get_pool", lambda: pool)
+    await scheduler._job_price_b3()
+    assert calls == ["price_b3"]
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT ok, stats FROM job_runs WHERE job = 'price_b3'")
+    assert row is not None and row["ok"] is True
+
+
+def test_every_cron_job_maps_to_a_jobspec() -> None:
+    # cada job do scheduler grava o heartbeat sob o nome de um JobSpec do catch-up
+    from workers.refresh import default_jobs
+    from workers.scheduler import CRON_JOB_SPEC, build_scheduler
+
+    spec_names = {s.name for s in default_jobs()}
+    cron_ids = {j.id for j in build_scheduler().get_jobs()}
+    assert set(CRON_JOB_SPEC) == cron_ids
+    assert set(CRON_JOB_SPEC.values()) <= spec_names
+
+
+@pytest.mark.asyncio
+async def test_due_by_data_age_even_if_heartbeat_fresh(pool: Any) -> None:
+    # review m4→main: /jobs/status marca wallet_scan stale pela idade do DADO
+    # (scanned_at); o catch-up tem de decidir pelo mesmo critério (senão diz "fresh"
+    # e nunca roda enquanto a tela mostra "desatualizado").
+    await _clear(pool)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO job_runs (job, last_run, ok) VALUES ('job_w', $1, true)", _NOW
+        )
+    calls: list[str] = []
+    base = _spec("job_w", calls)
+
+    async def old_data(_conn: Any) -> datetime:
+        return _NOW - timedelta(hours=5)
+
+    spec = JobSpec(base.name, base.run, base.threshold_seconds, data_since=old_data)
+    res = await refresh_stale(pool, now=_NOW, jobs=[spec])
+    assert res["jobs"]["job_w"] == "ok"
+    assert calls == ["job_w"]

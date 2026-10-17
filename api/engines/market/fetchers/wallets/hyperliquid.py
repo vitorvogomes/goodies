@@ -36,6 +36,8 @@ _EVM_SOURCE = "hyperevm"
 class HyperliquidFetcher:
     """Escaneia saldo spot na Hyperliquid. `symbols`/`client`/`sleep` injetáveis p/ teste."""
 
+    SOURCES = (_SOURCE, _EVM_SOURCE)  # fontes que um scan completo cobre (sweep de scan vazio)
+
     def __init__(
         self,
         address: str | None = None,

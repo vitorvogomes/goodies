@@ -210,3 +210,11 @@ class TestTransitEndpoint:
         body = resp.json()
         assert any(r["rail"] == "B3 (corretoras)" for r in body["rails"])
         assert "net_invested_brl" in body["crypto"]
+        # review m4→main: o response_model não pode podar os campos que a tela usa
+        for r in body["rails"]:
+            assert {"dividendos_juros_brl", "caixa_corretora_brl", "status"} <= r.keys()
+            assert r["status"] in {
+                "reconciled",
+                "caixa_em_corretora",
+                "rendimento_reinvestido",
+            }

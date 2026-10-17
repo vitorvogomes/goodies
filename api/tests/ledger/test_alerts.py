@@ -71,3 +71,38 @@ async def test_overspend_excludes_investment(api: Any, auth_headers: dict, pool:
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
         await conn.execute("DELETE FROM accounts WHERE id = $1", acc)
+
+async def test_overspend_nets_refunds(api: Any, auth_headers: dict, pool: Any) -> None:
+    """Estorno (+) numa categoria de consumo ABATE o gasto (mesma convenção da view
+    monthly_summary: SUM(-amount)); não pode somar como despesa e disparar o alerta."""
+    today = datetime.date.today()
+    cur = datetime.date(today.year, today.month, 5)
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ('alert-refund', 'bank') RETURNING id"
+        )
+
+        async def _tx(d: datetime.date, amt: str, ext: str) -> None:
+            await conn.execute(
+                "INSERT INTO transactions (account_id, date, amount, category, kind, "
+                "description, external_id) VALUES ($1,$2,$3,'ZZUber','expense','x',$4)",
+                acc, d, Decimal(amt), ext,
+            )
+
+        # mês atual: gasto 100 + estorno 300 → líquido -200 (abaixo da média de 100)
+        await _tx(cur, "-100", "r-cur-1")
+        await _tx(cur, "300", "r-cur-2")
+        for n in (1, 2, 3):
+            await _tx(_month_back(cur, n), "-100", f"r-{n}")
+
+    resp = await api.get("/api/v1/cashflow/alerts", headers=auth_headers)
+    cats = {
+        a["data"]["category"]
+        for a in resp.json()
+        if a["type"] == "category_overspend"
+    }
+    assert "ZZUber" not in cats
+
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
+        await conn.execute("DELETE FROM accounts WHERE id = $1", acc)

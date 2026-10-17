@@ -236,7 +236,8 @@ async def projection(
     account_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CashflowProjection:
     # Saldo atual = soma de todas as transações (opc. por conta). Receita recorrente
-    # mensal = is_recurring & amount>0. Despesa fixa mensal = custos fixos ativos.
+    # mensal = is_recurring & kind='income' (resgate/transferência positivos não são
+    # receita). Despesa fixa mensal = custos fixos ativos.
     current_balance = await db.fetchval(
         "SELECT COALESCE(SUM(amount), 0) FROM transactions "
         "WHERE ($1::uuid IS NULL OR account_id = $1)",
@@ -244,7 +245,7 @@ async def projection(
     )
     monthly_income = await db.fetchval(
         "SELECT COALESCE(SUM(amount), 0) FROM transactions "
-        "WHERE is_recurring AND amount > 0 AND ($1::uuid IS NULL OR account_id = $1)",
+        "WHERE is_recurring AND kind = 'income' AND ($1::uuid IS NULL OR account_id = $1)",
         account_id,
     )
     monthly_expenses = await db.fetchval(

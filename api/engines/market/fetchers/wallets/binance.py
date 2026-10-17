@@ -41,6 +41,8 @@ _EARN_MAX_PAGES = 50  # guarda anti-loop (5.000 posições — muito além do re
 class BinanceFetcher:
     """Escaneia spot + earn na Binance (assinado). Args injetáveis p/ teste."""
 
+    SOURCES = (_SOURCE,)  # fontes que um scan completo cobre (sweep de scan vazio)
+
     def __init__(
         self,
         api_key: str | None = None,

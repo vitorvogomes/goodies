@@ -103,6 +103,33 @@ async def test_revert_manual_price_to_auto(api: Any, pool: Any, portfolio_user: 
 
 
 @pytest.mark.asyncio
+async def test_revert_manual_rejected_without_market_source(
+    api: Any, pool: Any, portfolio_user: dict
+) -> None:
+    """Review m4→main: caixinha/Renda Fixa não têm fetcher — liberar o is_manual deixaria
+    o preço stale para sempre. Reverter é 409 e a flag continua true."""
+    uid = portfolio_user["user_id"]
+    headers = portfolio_user["headers"]
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, "
+            "tipo, quantidade, valor_unitario, data_operacao) "
+            "VALUES ($1, 'Test', 'MKT_RFCX', 'Renda Fixa', 'compra', 1, 100, '2026-01-01')",
+            uid,
+        )
+    await api.post(
+        "/api/v1/market/prices/MKT_RFCX", json={"price_brl": 105.0}, headers=headers
+    )
+    resp = await api.delete("/api/v1/market/prices/MKT_RFCX/manual", headers=headers)
+    assert resp.status_code == 409
+    async with pool.acquire() as conn:
+        flag = await conn.fetchval(
+            "SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_RFCX'"
+        )
+    assert flag is True
+
+
+@pytest.mark.asyncio
 async def test_list_prices_covers_holdings(api: Any, pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     headers = portfolio_user["headers"]

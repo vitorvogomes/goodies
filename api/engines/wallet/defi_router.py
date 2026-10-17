@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
@@ -46,6 +46,19 @@ class DefiPositionUpdate(BaseModel):
     maturity_date: datetime.date | None = None
     is_active: bool | None = None
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _no_null_on_required(self) -> "DefiPositionUpdate":
+        # PUT parcial: ausente = não altera; null explícito só vale p/ colunas nullable
+        # (protocol/maturity_date/notes). Nas NOT NULL viraria NotNullViolation → 500.
+        nulled = [
+            f
+            for f in ("asset_symbol", "balance", "is_active")
+            if f in self.model_fields_set and getattr(self, f) is None
+        ]
+        if nulled:
+            raise ValueError(f"campos não aceitam null: {', '.join(nulled)}")
+        return self
 
 
 class DefiPositionResponse(BaseModel):
