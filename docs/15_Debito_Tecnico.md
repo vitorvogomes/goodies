@@ -53,12 +53,12 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 >   afirmar "categorias aplicadas" (não aplica — ver abaixo); `test_ttl_expiration` flaky.
 
 ### 🟡 Abertos desta retomada
-- **Binance on-demand via catch-up (decisão pendente do Vitor).** `POST /jobs/refresh`
-  (botão "Atualizar tudo" e catch-up ao abrir o app) roda `run_wallet_scan` →
-  `BinanceFetcher`, contrariando "Binance cron only" do CLAUDE.md. Como o app é
-  local-on-demand, o catch-up *é* o substituto do cron. Opções: (a) emendar a regra
-  ("cron ou catch-up com limiar TTL; nunca por request de dados") ou (b) excluir Binance
-  do refresh on-demand.
+- ~~Binance on-demand via catch-up~~ **RESOLVIDO (decisão do Vitor: excluir).** O
+  catch-up/"Atualizar tudo" escaneia as carteiras **sem** a Binance; só o cron
+  (`JobSpec.cron_run`) chama a API assinada. A idade agregada do wallet_scan ignora a
+  linha Binance (senão ficaria vencido para sempre no uso local); a idade dela segue
+  visível por posição em /wallets. Efeito: rodando só local, o saldo Binance só atualiza
+  quando o servidor estiver de pé no horário do cron (8/14/20h).
 - **B3 C2** (cobertura cruza T × T+2) — reconfirmado pelo review; resolver no hub de
   ingestão v2.
 - **Import B3 consolidado não aplica categorias** das abas 'Posição'
@@ -85,8 +85,9 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 
 ### Pendências por branch (consolidação)
 - `m1-ledger`, `m2-portfolio`, `m3-market`: já mergeadas, sem pendência própria.
-- `m4-broker`: mergeada nesta retomada. Única pendência: `register_tesouro_sale_return.py`
-  não aplicado (aguarda confirmação de que a venda do Tesouro devolveu caixa ao Nubank).
+- `m4-broker`: mergeada nesta retomada e apagada do origin. A pendência
+  (`register_tesouro_sale_return`) foi **aplicada em 2026-10-17** após o Vitor confirmar que a
+  venda devolveu caixa ao Nubank — resíduo do Tesouro 145,94 → 31,35.
 
 ---
 
@@ -137,8 +138,8 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
   ledger Nubank; **R$31,35** = artefato consolidado-vs-transferência (taxas) espalhado nas
   40 compras, irredutível sem o detalhe de taxas do Nubank (imaterial, ~1%). O script
   `api/scripts/oneoff/register_tesouro_sale_return.py` (dry-run/idempotente/reversível) insere a
-  devolução de R$114,59 → resíduo cai p/ R$31,35; **não aplicado** por tocar a Saldo
-  Acumulado (+R$114,59) — aguarda confirmação de que a venda devolveu caixa ao Nubank.
+  devolução de R$114,59 → resíduo cai p/ R$31,35. **Aplicado em 2026-10-17** (Vitor
+  confirmou o retorno ao Nubank; Saldo Acumulado +R$114,59). Resta só o artefato de ~R$31,35.
 
 ### Observabilidade (m6)
 - **Fetchers `except Exception: return []` sem log no nível do fetcher.** Um bug de parse

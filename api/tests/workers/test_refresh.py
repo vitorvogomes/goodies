@@ -143,3 +143,60 @@ async def test_due_by_data_age_even_if_heartbeat_fresh(pool: Any) -> None:
     res = await refresh_stale(pool, now=_NOW, jobs=[spec])
     assert res["jobs"]["job_w"] == "ok"
     assert calls == ["job_w"]
+
+
+@pytest.mark.asyncio
+async def test_catch_up_wallet_scan_skips_binance(
+    pool: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Decisão 2026-10-17 (CLAUDE.md "Binance cron only"): o catch-up/"Atualizar tudo"
+    # escaneia as carteiras SEM a Binance; só o cron chama a API assinada.
+    from engines.market.fetchers.wallets.binance import BinanceFetcher
+    from workers import refresh
+
+    seen: dict[str, list[type]] = {}
+
+    async def fake_scan(_pool: Any, _uid: str, *, fetchers: Any = None) -> dict[str, Any]:
+        seen["fetchers"] = [type(f) for f in fetchers]
+        return {}
+
+    async def fake_owner(_pool: Any) -> str:
+        return "u1"
+
+    monkeypatch.setattr(refresh, "run_wallet_scan", fake_scan)
+    monkeypatch.setattr(refresh, "resolve_owner_id", fake_owner)
+    spec = next(s for s in refresh.default_jobs() if s.name == "wallet_scan")
+
+    await spec.run(pool)  # caminho do catch-up
+    assert BinanceFetcher not in seen["fetchers"]
+    assert seen["fetchers"]  # as demais fontes continuam
+
+    assert spec.cron_run is not None
+    await spec.cron_run(pool)  # caminho do cron
+    assert BinanceFetcher in seen["fetchers"]
+
+
+@pytest.mark.asyncio
+async def test_oldest_wallet_scan_ignores_binance(pool: Any) -> None:
+    # sem cron local, a linha Binance envelhece; ela não pode deixar o wallet_scan
+    # eternamente vencido no catch-up (que nem a atualiza).
+    from workers.refresh import oldest_wallet_scan
+
+    async with pool.acquire() as conn:
+        uid = await conn.fetchval(
+            "INSERT INTO users (email, password_hash) VALUES ('zz-oldest@t', 'x') RETURNING id"
+        )
+        try:
+            await conn.execute(
+                "INSERT INTO wallet_positions (user_id, chain, wallet_address, asset_symbol, "
+                "quantity, source, scanned_at) VALUES "
+                "($1,'binance','spot','BTC',1,'binance', $2), "
+                "($1,'solana','sol1','SOL',1,'solana', $3)",
+                uid,
+                _NOW - timedelta(days=10),
+                _NOW - timedelta(hours=1),
+            )
+            assert await oldest_wallet_scan(conn) == _NOW - timedelta(hours=1)
+        finally:
+            await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
+            await conn.execute("DELETE FROM users WHERE id = $1", uid)

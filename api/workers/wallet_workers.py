@@ -30,17 +30,22 @@ async def resolve_owner_id(pool: asyncpg.Pool) -> str | None:
     return str(uid) if uid is not None else None
 
 
-def _default_fetchers() -> list[BalanceFetcher]:
-    """Os 5 fetchers reais lendo credenciais/endereços de `settings`. Sem credencial
-    → o fetcher é no-op (devolve []), então faltar uma fonte não quebra o scan."""
-    return [
+def _default_fetchers(*, include_binance: bool = True) -> list[BalanceFetcher]:
+    """Os fetchers reais lendo credenciais/endereços de `settings`. Sem credencial
+    → o fetcher é no-op (devolve []), então faltar uma fonte não quebra o scan.
+
+    `include_binance=False` no catch-up on-demand: a API assinada da Binance é só via
+    cron (CLAUDE.md, decisão 2026-10-17)."""
+    fetchers: list[BalanceFetcher] = [
         EtherscanFetcher(),  # ETH (mainnet) + ARB (Arbitrum)
         HyperliquidFetcher(),  # HYPE (Hyperliquid L1)
         SolanaFetcher(),  # SOL + SPL
         LiquidFetcher(),  # L-BTC + USDT (ADR-005)
         BitcoinFetcher(),  # BTC mainchain (ADR-005, client separado do Liquid)
-        BinanceFetcher(),  # spot + earn (assinado)
     ]
+    if include_binance:
+        fetchers.append(BinanceFetcher())  # spot + earn (assinado) — cron only
+    return fetchers
 
 
 async def run_wallet_scan(

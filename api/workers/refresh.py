@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -19,7 +19,7 @@ import asyncpg
 from config import settings
 from workers.benchmark_workers import run_benchmark_daily
 from workers.price_workers import run_price_b3, run_price_crypto
-from workers.wallet_workers import resolve_owner_id, run_wallet_scan
+from workers.wallet_workers import _default_fetchers, resolve_owner_id, run_wallet_scan
 
 _LOCK_KEY = 0x60D1E5  # chave fixa do advisory lock do refresh on-demand
 
@@ -32,12 +32,20 @@ class JobSpec:
     # idade do DADO (não do heartbeat): se mais velho que last_run, decide o vencimento.
     # Mesmo critério do /jobs/status (wallet_scan envelhece pelo scanned_at real).
     data_since: Callable[[asyncpg.Connection], Awaitable[datetime | None]] | None = None
+    # variante do cron (mesmo heartbeat): o catch-up roda `run`; o scheduler roda
+    # `cron_run` quando existir (ex.: wallet_scan COM Binance — cron only).
+    cron_run: Callable[[asyncpg.Pool], Awaitable[dict[str, Any]]] | None = None
 
 
 async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
-    """scanned_at mais antigo das posições escaneadas (idade real do dado de carteira)."""
+    """scanned_at mais antigo das posições escaneadas (idade real do dado de carteira).
+
+    Ignora a Binance: ela só é atualizada pelo cron, então no uso local envelheceria e
+    deixaria o wallet_scan eternamente vencido num catch-up que nem a atualiza. A idade
+    da linha Binance segue visível por posição em /wallets."""
     value: datetime | None = await conn.fetchval(
-        "SELECT MIN(scanned_at) FROM wallet_positions WHERE NOT is_manual"
+        "SELECT MIN(scanned_at) FROM wallet_positions "
+        "WHERE NOT is_manual AND source <> 'binance'"
     )
     return value
 
@@ -50,11 +58,22 @@ async def _job_crypto(pool: asyncpg.Pool) -> dict[str, Any]:
     return await run_price_crypto(pool)
 
 
-async def _job_wallet(pool: asyncpg.Pool) -> dict[str, Any]:
+async def _wallet_scan(pool: asyncpg.Pool, *, include_binance: bool) -> dict[str, Any]:
     uid = await resolve_owner_id(pool)
     if uid is None:
         return {"skipped": "no_user"}
-    return await run_wallet_scan(pool, uid)
+    return await run_wallet_scan(
+        pool, uid, fetchers=_default_fetchers(include_binance=include_binance)
+    )
+
+
+async def _job_wallet(pool: asyncpg.Pool) -> dict[str, Any]:
+    """Catch-up on-demand: carteiras sem a Binance (API assinada é cron only)."""
+    return await _wallet_scan(pool, include_binance=False)
+
+
+async def _job_wallet_cron(pool: asyncpg.Pool) -> dict[str, Any]:
+    return await _wallet_scan(pool, include_binance=True)
 
 
 async def _job_benchmark(pool: asyncpg.Pool) -> dict[str, Any]:
@@ -66,7 +85,13 @@ def default_jobs() -> list[JobSpec]:
     return [
         JobSpec("price_b3", _job_b3, settings.ttl_b3),
         JobSpec("price_crypto", _job_crypto, settings.ttl_crypto),
-        JobSpec("wallet_scan", _job_wallet, settings.ttl_wallet, oldest_wallet_scan),
+        JobSpec(
+            "wallet_scan",
+            _job_wallet,
+            settings.ttl_wallet,
+            data_since=oldest_wallet_scan,
+            cron_run=_job_wallet_cron,
+        ),
         JobSpec("benchmark", _job_benchmark, settings.ttl_benchmark),
     ]
 
@@ -115,6 +140,8 @@ async def run_and_record(
 async def run_named_job(pool: asyncpg.Pool, name: str, now: datetime) -> bool:
     """Roda o JobSpec `name` de `default_jobs()` gravando o heartbeat (entrada do cron)."""
     spec = next(s for s in default_jobs() if s.name == name)
+    if spec.cron_run is not None:
+        spec = replace(spec, run=spec.cron_run)
     return await run_and_record(pool, spec, now)
 
 
