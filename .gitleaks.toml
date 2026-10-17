@@ -11,6 +11,7 @@ description = "Falsos-positivos conhecidos do Goodies"
 paths = [
   '''\.env\.example$''',
   '''^\.claude/skills/''',
+  '''^_bmad/_config/files-manifest\.csv$''',  # hashes de arquivo do BMAD (falso-positivo)
   '''skills-lock\.json$''',
   '''package-lock\.json$''',
   '''pnpm-lock\.yaml$''',
