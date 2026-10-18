@@ -311,3 +311,10 @@ REPORTED_BALANCES = """
     SELECT as_of, balance FROM account_balances WHERE account_id = $1 ORDER BY as_of
 """
 ACCOUNT_MOVEMENTS = "SELECT date, amount FROM transactions WHERE account_id = $1 ORDER BY date"
+INTERVAL_TRANSACTIONS = """
+    SELECT t.id, t.date, t.description, t.amount,
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE t.account_id = $1 AND t.date > $2 AND t.date <= $3
+"""

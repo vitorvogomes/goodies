@@ -251,7 +251,7 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
 
       <Section title="Selo de estado">
         <div className="flex flex-wrap gap-2">
-          <StatusBadge>conferido</StatusBadge>
+          <StatusBadge tooltip="Saldo do extrato bate ao centavo até 16/10/2026.">conferido</StatusBadge>
           <StatusBadge tone="warning">a revisar</StatusBadge>
           <StatusBadge tone="divergence">divergente</StatusBadge>
         </div>
@@ -324,9 +324,9 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
         <div className="overflow-hidden rounded-lg border border-border">
           <SourcesBlock
             sources={[
-              { key: "nubank_pf", label: "Nubank PF", kind: "OFX ou CSV", updated_until: "2026-10-16", stale: false },
-              { key: "nubank_mei", label: "Nubank MEI", kind: "OFX ou CSV", updated_until: "2026-08-31", stale: true },
-              { key: "b3_negociacao", label: "B3 negociação", kind: "xlsx", updated_until: null, stale: false },
+              { key: "nubank_pf", label: "Nubank PF", kind: "OFX ou CSV", updated_until: "2026-10-16", stale: false, balance_status: "divergente", balance_as_of: "2026-10-16", balance_difference: 37.2 },
+              { key: "nubank_mei", label: "Nubank MEI", kind: "OFX ou CSV", updated_until: "2026-08-31", stale: true, balance_status: null, balance_as_of: null, balance_difference: null },
+              { key: "b3_negociacao", label: "B3 negociação", kind: "xlsx", updated_until: null, stale: false, balance_status: null, balance_as_of: null, balance_difference: null },
             ]}
           />
         </div>

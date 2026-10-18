@@ -298,3 +298,21 @@ class RuleCreate(BaseModel):
 class RuleCreated(BaseModel):
     rule: RuleRow
     applied: int
+
+
+# ---- Conferência de saldo na tela (Story 3.13) ----
+
+
+class BalanceCandidate(BaseModel):
+    id: str
+    date: dt.date
+    description: str | None
+    amount: Money
+    category_label: str
+
+
+class BalanceCandidates(BaseModel):
+    start: dt.date
+    end: dt.date
+    difference: Money
+    items: list[BalanceCandidate]

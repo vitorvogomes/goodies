@@ -8,6 +8,7 @@ import { invalidateAfter } from "@/lib/invalidate";
 import type {
   Account,
   Alert,
+  BalanceCandidates,
   CashflowProjection,
   Category,
   CategoryBreakdown,
@@ -472,5 +473,18 @@ export function useCreateRule() {
         body: JSON.stringify(body),
       }),
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- v2: conferência de saldo — transações candidatas (Story 3.13) ----
+
+export function useBalanceCandidates(range: { start: string; end: string } | null) {
+  return useQuery({
+    queryKey: ["ledger", "balance-candidates", range?.start, range?.end],
+    queryFn: () =>
+      apiFetch<BalanceCandidates>(
+        `/api/v1/ledger/balance-check/candidates?inicio=${range?.start}&fim=${range?.end}`,
+      ),
+    enabled: range !== null,
   });
 }

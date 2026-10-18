@@ -343,6 +343,13 @@ async def csv_unconfirmed_alerts(conn: asyncpg.Connection, ctx: AlertContext) ->
 
 HolderResolver = Callable[[asyncpg.Connection], Awaitable[dict[str, str]]]
 _holders: list[HolderResolver] = []
+BalanceResolver = Callable[[asyncpg.Connection], Awaitable[dict[str, dict[str, Any]]]]
+_balances: list[BalanceResolver] = []
+
+
+def register_source_balances(resolver: BalanceResolver) -> None:
+    """`ledger` informa a conferência de saldo por fonte (`nubank_pf`) para o Bloco Fontes."""
+    _balances[:] = [resolver]
 
 
 def register_account_holders(resolver: HolderResolver) -> None:
@@ -368,9 +375,11 @@ async def _coverage(conn: asyncpg.Connection) -> dict[str, list[calc.Coverage]]:
 
 async def sources(conn: asyncpg.Connection, today: date) -> list[SourceRow]:
     coverage = await _coverage(conn)
+    balances = await _balances[0](conn) if _balances else {}
     rows: list[SourceRow] = []
     for key, label, kind in calc.SOURCES:
         until = max((c.end for c in coverage[key]), default=None)
+        balance = balances.get(key, {})
         rows.append(
             SourceRow(
                 key=key,
@@ -378,6 +387,9 @@ async def sources(conn: asyncpg.Connection, today: date) -> list[SourceRow]:
                 kind=kind,
                 updated_until=until,
                 stale=calc.is_stale(key, until, today),
+                balance_status=balance.get("status"),
+                balance_as_of=balance.get("as_of"),
+                balance_difference=balance.get("difference"),
             )
         )
     return rows

@@ -40,4 +40,7 @@ export interface SourceRow {
   kind: string;
   updated_until: string | null;
   stale: boolean;
+  balance_status: "conferido" | "divergente" | null;
+  balance_as_of: string | null;
+  balance_difference: number | null;
 }

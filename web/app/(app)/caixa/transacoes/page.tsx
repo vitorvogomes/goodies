@@ -4,9 +4,11 @@
 // "Grupo › Subcategoria", origem da categoria, pagador e conta; a linha expandida mostra fonte,
 // lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual).
 import { PlusIcon } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
+import { BalanceCandidates } from "@/components/caixa/BalanceCandidates";
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { RuleProposalStrip } from "@/components/caixa/RuleProposalStrip";
 import { TransactionForm } from "@/components/caixa/TransactionForm";
@@ -59,6 +61,17 @@ const NO_OPTIONS: CategoryOption[] = [];
 
 function Transacoes() {
   const { periodo } = usePeriodo();
+  // Ação "Ver transações" do aviso de saldo divergente: ?conferencia=<início>_<fim> (Story 3.13).
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const [cStart, cEnd] = (params.get("conferencia") ?? "").split("_");
+  const conferencia = cStart && cEnd ? { start: cStart, end: cEnd } : null;
+  const closeConferencia = () => {
+    const next = new URLSearchParams(params);
+    next.delete("conferencia");
+    router.replace(next.size ? `${pathname}?${next}` : pathname);
+  };
   const txs = useLedgerTransactions(periodo);
   const options = useCategoryOptions();
   const setCategory = useSetTransactionCategory();
@@ -137,6 +150,7 @@ function Transacoes() {
   }
   return (
     <div className="space-y-3">
+      {conferencia && <BalanceCandidates range={conferencia} onClose={closeConferencia} />}
       <div className="flex justify-end">
         <Button variant="secondary" onClick={() => setForm({ open: true, tx: null })}>
           <PlusIcon aria-hidden />

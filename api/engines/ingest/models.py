@@ -109,3 +109,6 @@ class SourceRow(BaseModel):
     kind: str
     updated_until: date | None
     stale: bool
+    balance_status: Literal["conferido", "divergente"] | None = None  # só a conta PF
+    balance_as_of: date | None = None
+    balance_difference: Money | None = None

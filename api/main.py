@@ -47,6 +47,7 @@ ingest_service.register_adapter(B3Adapter())
 ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
 ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo)
 ingest_service.register_account_holders(ledger_service.account_holders)
+ingest_service.register_source_balances(ledger_service.source_balances)
 # Central de avisos (AD-10): cada engine registra seu provider; nenhuma importa `alerts`.
 for _provider in (
     ledger_service.fixed_cost_alerts,
@@ -56,6 +57,7 @@ for _provider in (
     ingest_service.csv_unconfirmed_alerts,
     ingest_service.source_alerts,
     ledger_service.pending_review_alerts,
+    ledger_service.balance_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 

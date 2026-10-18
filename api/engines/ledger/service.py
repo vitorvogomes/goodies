@@ -7,11 +7,12 @@ As funções de alerta recebem `today` injetado -> determinísticas e testáveis
 import calendar
 import datetime
 import re
+import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 import asyncpg
 
@@ -41,6 +42,8 @@ from .models import (
     KIND_LABEL,
     ROLE_LABEL,
     ROLES_BY_KIND,
+    BalanceCandidate,
+    BalanceCandidates,
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
@@ -1132,3 +1135,79 @@ async def pf_balance_check(conn: asyncpg.Connection) -> BalanceCheck | None:
         (r["date"], r["amount"]) for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, account["id"])
     ]
     return BalanceCheck(str(account["id"]), chained_check(reported, movements))
+
+
+# --------------------------------------------------------------------------------------------
+# Conferência na tela e aviso de saldo divergente (Story 3.13 — FR-5, FR-14)
+# --------------------------------------------------------------------------------------------
+
+
+async def source_balances(conn: asyncpg.Connection) -> dict[str, dict[str, Any]]:
+    """Bloco Fontes: conta PF "divergente" (o intervalo divergente mais recente) ou "conferido"
+    (o intervalo mais recente). A conta MEI não confere."""
+    check = await pf_balance_check(conn)
+    if check is None or check.latest is None:
+        return {}
+    divergent = [i for i in check.intervals if not i.ok]
+    if divergent:
+        d = divergent[-1]
+        return {"nubank_pf": {"status": "divergente", "as_of": d.end, "difference": d.difference}}
+    return {
+        "nubank_pf": {"status": "conferido", "as_of": check.latest.end, "difference": Decimal(0)}
+    }
+
+
+async def balance_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Provider: um aviso de divergência por intervalo da PF que não fecha ao centavo."""
+    check = await pf_balance_check(conn)
+    if check is None:
+        return []
+    return [
+        Alert(
+            key=f"saldo_divergente:pf:{i.end.isoformat()}",
+            fingerprint=fingerprint(i.start, i.end, i.difference),
+            severity="divergencia",
+            message=f"Saldo divergente em {brl(abs(i.difference))} na conta PF.",
+            action=AlertAction(
+                label="Ver transações",
+                route="/caixa/transacoes",
+                params={
+                    "periodo": f"{i.end:%Y-%m}",
+                    "conferencia": f"{i.start.isoformat()}_{i.end.isoformat()}",
+                },
+            ),
+            as_of=i.end,
+        )
+        for i in check.intervals
+        if not i.ok
+    ]
+
+
+async def balance_candidates(
+    conn: asyncpg.Connection, start: date, end: date
+) -> BalanceCandidates | None:
+    """Transações do intervalo, das que têm valor mais perto da diferença para as mais longe."""
+    check = await pf_balance_check(conn)
+    if check is None:
+        return None
+    interval = next((i for i in check.intervals if (i.start, i.end) == (start, end)), None)
+    if interval is None:
+        return None
+    rows = await conn.fetch(queries.INTERVAL_TRANSACTIONS, uuid.UUID(check.account_id), start, end)
+    target = abs(interval.difference)
+    ordered = sorted(rows, key=lambda r: (abs(abs(r["amount"]) - target), r["date"]))
+    return BalanceCandidates(
+        start=start,
+        end=end,
+        difference=interval.difference,
+        items=[
+            BalanceCandidate(
+                id=str(r["id"]),
+                date=r["date"],
+                description=r["description"],
+                amount=r["amount"],
+                category_label=r["category_label"],
+            )
+            for r in ordered
+        ],
+    )

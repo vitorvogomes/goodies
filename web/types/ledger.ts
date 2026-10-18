@@ -321,3 +321,17 @@ export interface RuleProposal {
   category_label: string;
   affected: number;
 }
+
+// ---- v2: conferência de saldo (Story 3.13) ----
+export interface BalanceCandidates {
+  start: string;
+  end: string;
+  difference: number;
+  items: {
+    id: string;
+    date: string;
+    description: string | null;
+    amount: number;
+    category_label: string;
+  }[];
+}

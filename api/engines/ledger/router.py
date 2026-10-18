@@ -5,6 +5,7 @@ agregador é incluído uma vez no main.py. Novos sub-routers (transactions,
 cashflow, ...) entram aqui conforme as stories avançam.
 """
 
+import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -22,6 +23,7 @@ from engines.ledger.transactions import router as transactions_router
 
 from . import service
 from .models import (
+    BalanceCandidates,
     CategoryChangeIn,
     CategoryGroupNode,
     CategoryNode,
@@ -299,6 +301,22 @@ async def reapply_rules(body: ReapplyIn, user: AuthUser, db: Db) -> ReapplyResul
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_PERIOD) from None
     except ValueError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _INVALID_PERIOD) from None
+
+
+# ---- Conferência de saldo (Story 3.13) ----
+
+
+@v2.get("/balance-check/candidates", response_model=BalanceCandidates)
+async def balance_candidates(
+    user: AuthUser, db: Db, inicio: datetime.date, fim: datetime.date
+) -> BalanceCandidates:
+    found = await service.balance_candidates(db, inicio, fim)
+    if found is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            {"error": "intervalo_inexistente", "message": "Intervalo de conferência não existe."},
+        )
+    return found
 
 
 # ---- Revisão de transações (Story 3.10) ----
