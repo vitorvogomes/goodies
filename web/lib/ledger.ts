@@ -28,6 +28,7 @@ import type {
   ReviewList,
   RuleDirection,
   RulePreview,
+  RuleProposal,
   Suggestion,
   Transaction,
   TransactionCreate,
@@ -437,6 +438,36 @@ export function useConfirmReview() {
       lote: string | null;
     }) =>
       apiFetch<{ confirmed: number; remaining: number }>("/api/v1/ledger/review/confirm", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- v2: proposta de regra a partir da correção (Story 3.11) ----
+
+export function useRuleProposal(transactionId: string, categoryId: string) {
+  return useQuery({
+    queryKey: ["ledger", "rule-proposal", transactionId, categoryId],
+    queryFn: () =>
+      apiFetch<RuleProposal>("/api/v1/ledger/rules/propose", {
+        method: "POST",
+        body: JSON.stringify({ transaction_id: transactionId, category_id: categoryId }),
+      }),
+  });
+}
+
+export function useCreateRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      pattern: string;
+      direction: RuleDirection;
+      category_id: string;
+      lote?: string | null;
+    }) =>
+      apiFetch<{ rule: CategoryRule; applied: number }>("/api/v1/ledger/rules", {
         method: "POST",
         body: JSON.stringify(body),
       }),

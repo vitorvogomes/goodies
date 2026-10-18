@@ -60,6 +60,7 @@ export function DataTable<T extends RowData>({
   columns,
   getRowId,
   renderExpanded,
+  renderBelow,
   caption,
   empty,
 }: {
@@ -68,6 +69,8 @@ export function DataTable<T extends RowData>({
   columns: DataColumn<T>[];
   getRowId: (row: T) => string;
   renderExpanded?: (row: T) => ReactNode;
+  /** Faixa sob a linha (ex.: "Criar regra?"), largura total; null = nada. */
+  renderBelow?: (row: T) => ReactNode | null;
   caption: string;
   empty?: ReactNode;
 }) {
@@ -291,6 +294,16 @@ export function DataTable<T extends RowData>({
                     </td>
                   </tr>
                 ) : null,
+                (() => {
+                  const below = renderBelow?.(row.original);
+                  return below ? (
+                    <tr key={`${row.id}-below`}>
+                      <td colSpan={visible.length + (renderExpanded ? 1 : 0)} className="px-4 pb-2">
+                        {below}
+                      </td>
+                    </tr>
+                  ) : null;
+                })(),
               ];
             })}
           </tbody>

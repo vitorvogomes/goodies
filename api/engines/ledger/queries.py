@@ -287,3 +287,20 @@ SYSTEM_CATEGORIES = """
     SELECT c.id FROM categories c JOIN category_groups g ON g.id = c.group_id
     WHERE g.is_system AND c.id = ANY($1::uuid[])
 """
+RULE_TARGETS = """
+    SELECT t.id, t.category_id FROM transactions t
+    WHERE position(lower($1) IN lower(coalesce(t.description, ''))) > 0
+      AND ($2 = 'ambos' OR ($2 = 'entrada' AND t.amount > 0) OR ($2 = 'saida' AND t.amount < 0))
+      AND t.category_source <> 'manual' AND t.category_id <> $3::uuid
+      AND ($4::uuid IS NULL OR t.id <> $4::uuid)
+"""
+UPSERT_RULE = """
+    INSERT INTO category_rules (pattern, direction, category_id, origin, created_in_batch)
+    VALUES ($1, $2, $3::uuid, $4, $5::uuid)
+    ON CONFLICT (pattern, direction, category_id) DO UPDATE SET is_active = true
+    RETURNING id
+"""
+CATEGORY_LABEL_BY_ID = """
+    SELECT CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END
+    FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.id = $1::uuid
+"""

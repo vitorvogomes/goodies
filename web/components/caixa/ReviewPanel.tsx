@@ -9,6 +9,7 @@ import { Fragment, type KeyboardEvent, type MouseEvent, useEffect, useRef, useSt
 import { toast } from "sonner";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { RuleProposalStrip } from "@/components/caixa/RuleProposalStrip";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,8 @@ export function ReviewPanel() {
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
   const [choices, setChoices] = useState<Map<string, CategoryOption>>(new Map());
   const [onlyEmpty, setOnlyEmpty] = useState(false);
+  // Linhas de regra/sugestão trocadas: mostram a faixa "Criar regra?" (Story 3.11).
+  const [proposals, setProposals] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
   const lastTouched = useRef<number | null>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -68,6 +71,7 @@ export function ReviewPanel() {
     next.delete("revisar");
     setUnchecked(new Set());
     setChoices(new Map());
+    setProposals(new Set());
     setFailed(false);
     router.replace(next.size ? `${pathname}?${next}` : pathname);
   };
@@ -142,6 +146,7 @@ export function ReviewPanel() {
           );
           setChoices(new Map());
           setUnchecked(new Set());
+          setProposals(new Set()); // confirmar sem responder à faixa vale como "Agora não"
           if (remaining === 0) close();
         },
         onError: () => setFailed(true),
@@ -275,6 +280,12 @@ export function ReviewPanel() {
                             onSelect={(o) => {
                               setChoices((prev) => new Map(prev).set(it.id, o));
                               toggle(it.id, true);
+                              if (
+                                (it.origin === "regra" || it.origin === "sugestao") &&
+                                o.id !== it.category_id
+                              ) {
+                                setProposals((prev) => new Set(prev).add(it.id));
+                              }
                             }}
                           />
                         </td>
@@ -284,6 +295,25 @@ export function ReviewPanel() {
                           </StatusBadge>
                         </td>
                       </tr>
+                      {proposals.has(it.id) && choice && (
+                        <tr>
+                          <td />
+                          <td colSpan={5} className="px-2 pb-2">
+                            <RuleProposalStrip
+                              transactionId={it.id}
+                              categoryId={choice.id}
+                              lote={lote && lote !== "todas" ? lote : null}
+                              onClose={() =>
+                                setProposals((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(it.id);
+                                  return next;
+                                })
+                              }
+                            />
+                          </td>
+                        </tr>
+                      )}
                     </Fragment>
                   );
                 })}

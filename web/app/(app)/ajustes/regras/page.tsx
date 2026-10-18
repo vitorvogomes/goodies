@@ -4,7 +4,7 @@
 // categoria e estado. Editar em Formulário em painel lateral com prévia das transações afetadas
 // (`rules/preview`, não grava); desativar não mexe no que a regra já categorizou. Reaplicar a um
 // período mostra antes × depois e nunca altera categoria manual.
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ReapplyDiff } from "@/components/ajustes/ReapplyDiff";
@@ -26,6 +26,7 @@ import {
   useUpdateRule,
 } from "@/lib/ledger";
 import { MIN_MONTH, currentMonthBRT } from "@/lib/period";
+import { useDebounced } from "@/lib/use-debounced";
 import type { CategoryOption, CategoryRule, RuleDirection } from "@/types/ledger";
 
 const DIRECTION_LABEL: Record<RuleDirection, string> = {
@@ -33,15 +34,6 @@ const DIRECTION_LABEL: Record<RuleDirection, string> = {
   entrada: "Entrada",
   ambos: "Entrada e saída",
 };
-
-function useDebounced<T>(value: T, ms = 300): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return debounced;
-}
 
 function RuleForm({ rule, options, onClose }: { rule: CategoryRule; options: CategoryOption[]; onClose: () => void }) {
   const update = useUpdateRule();

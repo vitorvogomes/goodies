@@ -313,3 +313,11 @@ export interface ReviewList {
   months: ReviewMonth[];
   total: number;
 }
+
+export interface RuleProposal {
+  pattern: string;
+  direction: RuleDirection;
+  category_id: string;
+  category_label: string;
+  affected: number;
+}

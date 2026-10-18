@@ -270,3 +270,31 @@ class ReviewConfirmIn(BaseModel):
 class ReviewConfirmOut(BaseModel):
     confirmed: int
     remaining: int
+
+
+# ---- Proposta de regra (Story 3.11) ----
+
+
+class RuleProposalIn(BaseModel):
+    transaction_id: Uuid
+    category_id: Uuid
+
+
+class RuleProposal(BaseModel):
+    pattern: str
+    direction: Direction
+    category_id: str
+    category_label: str
+    affected: int  # outras transações não manuais que a regra mudaria
+
+
+class RuleCreate(BaseModel):
+    pattern: str = Field(min_length=1, max_length=120)
+    direction: Direction
+    category_id: Uuid
+    lote: Uuid | None = None  # vinda da Revisão: created_in_batch
+
+
+class RuleCreated(BaseModel):
+    rule: RuleRow
+    applied: int

@@ -36,8 +36,12 @@ from .models import (
     ReviewConfirmIn,
     ReviewConfirmOut,
     ReviewList,
+    RuleCreate,
+    RuleCreated,
     RulePreviewIn,
     RulePreviewOut,
+    RuleProposal,
+    RuleProposalIn,
     RuleRow,
     RuleUpdate,
     SubcategoryCreate,
@@ -249,6 +253,27 @@ async def update_rule(rule_id: Uuid, body: RuleUpdate, user: AuthUser, db: Db) -
             {"error": "regra_inexistente", "message": "Regra não existe."},
         )
     return row
+
+
+@v2.post("/rules/propose", response_model=RuleProposal)
+async def propose_rule(body: RuleProposalIn, user: AuthUser, db: Db) -> RuleProposal:
+    proposal = await service.propose_rule(db, body)
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+    return proposal
+
+
+@v2.post("/rules", response_model=RuleCreated, status_code=status.HTTP_201_CREATED)
+async def create_rule(body: RuleCreate, user: AuthUser, db: Db) -> RuleCreated:
+    try:
+        return await service.create_rule(db, body)
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "condicao_vazia", "message": "Informe o texto da condição."},
+        ) from None
+    except LookupError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_CATEGORY) from None
 
 
 @v2.post("/rules/preview", response_model=RulePreviewOut)

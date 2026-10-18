@@ -8,6 +8,7 @@ import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { RuleProposalStrip } from "@/components/caixa/RuleProposalStrip";
 import { TransactionForm } from "@/components/caixa/TransactionForm";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
@@ -67,11 +68,21 @@ function Transacoes() {
     tx: null,
   });
   const [toDelete, setToDelete] = useState<LedgerTransaction | null>(null);
+  // Categoria de regra/sugestão corrigida na linha: faixa "Criar regra?" sob ela (Story 3.11).
+  const [proposal, setProposal] = useState<{ id: string; categoryId: string } | null>(null);
 
   const change = (tx: LedgerTransaction, option: CategoryOption) =>
     setCategory.mutate(
       { id: tx.id, categoryId: option.id },
       {
+        onSuccess: () => {
+          if (
+            (tx.category_source === "rule" || tx.category_source === "suggestion") &&
+            option.id !== tx.category_id
+          ) {
+            setProposal({ id: tx.id, categoryId: option.id });
+          }
+        },
         onError: (err) =>
           toast(
             err instanceof ApiError
@@ -177,6 +188,15 @@ function Transacoes() {
         txs.isLoading
           ? "Carregando…"
           : `Nenhuma transação em ${formatMonth(periodo)}. Importe o extrato do Nubank.`
+      }
+      renderBelow={(t) =>
+        proposal?.id === t.id ? (
+          <RuleProposalStrip
+            transactionId={t.id}
+            categoryId={proposal.categoryId}
+            onClose={() => setProposal(null)}
+          />
+        ) : null
       }
       renderExpanded={(t) => (
         <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 type-body-sm">

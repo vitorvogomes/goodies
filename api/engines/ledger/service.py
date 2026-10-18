@@ -6,6 +6,7 @@ As funções de alerta recebem `today` injetado -> determinísticas e testáveis
 
 import calendar
 import datetime
+import re
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
@@ -50,9 +51,13 @@ from .models import (
     ReviewItem,
     ReviewList,
     ReviewMonth,
+    RuleCreate,
+    RuleCreated,
     RuleMatch,
     RulePreviewIn,
     RulePreviewOut,
+    RuleProposal,
+    RuleProposalIn,
     RuleRow,
     RuleUpdate,
     SubcategoryCreate,
@@ -1016,3 +1021,77 @@ async def pending_review_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> 
             as_of=ctx.today,
         )
     ]
+
+
+# --------------------------------------------------------------------------------------------
+# Proposta de regra a partir da correção (Story 3.11 — FR-10)
+# --------------------------------------------------------------------------------------------
+
+_NO_DIGITS = re.compile(r"\d")
+
+
+def propose_pattern(description: str) -> str:
+    """Condição proposta: o trecho que nomeia o estabelecimento ou a pessoa (no memo do Nubank, o
+    que vem depois do primeiro " - "), em minúscula e sem as partes com número."""
+    parts = [p.strip() for p in description.split(" - ") if p.strip()]
+    core = parts[1] if len(parts) > 1 else (parts[0] if parts else "")
+    words = [w for w in core.lower().split() if not _NO_DIGITS.search(w)]
+    return " ".join(words).strip(" -.,")
+
+
+async def propose_rule(conn: asyncpg.Connection, body: RuleProposalIn) -> RuleProposal | None:
+    tx = await conn.fetchrow(
+        "SELECT description, amount FROM transactions WHERE id = $1::uuid", body.transaction_id
+    )
+    label = await conn.fetchval(queries.CATEGORY_LABEL_BY_ID, body.category_id)
+    if tx is None or label is None:
+        return None
+    pattern = propose_pattern(tx["description"] or "")
+    direction = "entrada" if tx["amount"] > 0 else "saida"
+    affected = 0
+    if pattern:
+        affected = len(
+            await conn.fetch(
+                queries.RULE_TARGETS, pattern, direction, body.category_id, body.transaction_id
+            )
+        )
+    return RuleProposal(
+        pattern=pattern,
+        direction=direction,
+        category_id=body.category_id,
+        category_label=label,
+        affected=affected,
+    )
+
+
+async def create_rule(conn: asyncpg.Connection, body: RuleCreate) -> RuleCreated:
+    """Grava a regra (origem `review` com `created_in_batch` quando vem da Revisão; `manual` fora
+    dela) e a aplica às transações afetadas que não são manuais, por categorize() (cause
+    rule_created)."""
+    pattern = body.pattern.strip().lower()
+    if not pattern:
+        raise ValueError("padrão vazio")
+    if not await queries.category_exists(conn, body.category_id):
+        raise LookupError("categoria")
+    async with conn.transaction():
+        rule_id = str(
+            await conn.fetchval(
+                queries.UPSERT_RULE,
+                pattern,
+                body.direction,
+                body.category_id,
+                "review" if body.lote else "manual",
+                body.lote,
+            )
+        )
+        targets = await conn.fetch(
+            queries.RULE_TARGETS, pattern, body.direction, body.category_id, None
+        )
+        result = await categorize(
+            conn,
+            [CategoryChange(str(t["id"]), body.category_id, "rule", rule_id) for t in targets],
+            cause="rule_created",
+            batch_id=body.lote,
+        )
+    row = next(r for r in await list_rules(conn) if r.id == rule_id)
+    return RuleCreated(rule=row, applied=len(result.changed))
