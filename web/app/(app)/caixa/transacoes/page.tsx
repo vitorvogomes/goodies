@@ -79,12 +79,22 @@ function Transacoes() {
   const clearCategory = () => {
     const next = new URLSearchParams(params);
     next.delete("categoria");
+    next.delete("grupo");
     router.replace(next.size ? `${pathname}?${next}` : pathname);
   };
+  // Clique numa barra do gráfico de gastos do Histórico: ?grupo=<chave do grupo> (Story 9.3).
+  const groupFilter = params.get("grupo");
+  const groupCategories = new Set(
+    (options.data ?? []).filter((o) => o.group_key === groupFilter).map((o) => o.id),
+  );
   const shown = categoryFilter
     ? (txs.data?.items ?? EMPTY).filter((t) => t.category_id === categoryFilter)
-    : (txs.data?.items ?? EMPTY);
-  const filterLabel = options.data?.find((o) => o.id === categoryFilter)?.label;
+    : groupFilter
+      ? (txs.data?.items ?? EMPTY).filter((t) => groupCategories.has(t.category_id))
+      : (txs.data?.items ?? EMPTY);
+  const filterLabel = categoryFilter
+    ? options.data?.find((o) => o.id === categoryFilter)?.label
+    : options.data?.find((o) => o.group_key === groupFilter)?.group_name;
   const setCategory = useSetTransactionCategory();
   const remove = useDeleteManualTransaction();
   const [form, setForm] = useState<{ open: boolean; tx: LedgerTransaction | null }>({
@@ -162,9 +172,9 @@ function Transacoes() {
   return (
     <div className="space-y-3">
       {conferencia && <BalanceCandidates range={conferencia} onClose={closeConferencia} />}
-      {categoryFilter && (
+      {(categoryFilter || groupFilter) && (
         <p className="type-body-sm" role="status">
-          Só {filterLabel ?? "a categoria do aviso"} em {formatMonth(periodo)} ({shown.length}).{" "}
+          Só {filterLabel ?? (groupFilter ? "o grupo" : "a categoria do aviso")} em {formatMonth(periodo)} ({shown.length}).{" "}
           <button type="button" className="text-positive underline" onClick={clearCategory}>
             Ver todas
           </button>

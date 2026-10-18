@@ -12,6 +12,7 @@ from engines.planning.models import MonthBudget
 
 from . import growth as growth_service
 from . import history as history_service
+from . import series as series_service
 from . import service
 from .checks import run_checks
 from .models import (
@@ -141,6 +142,13 @@ async def growth(
 ) -> growth_service.Growth:
     """Story 9.2: crescimento do patrimônio = aporte + resultado e o melhor desempenho."""
     return await growth_service.growth(db, _period(periodo, leitura), leitura)
+
+
+@router.get("/series", response_model=series_service.Series)
+async def series(user: AuthUser, db: Db, ate: str | None = None) -> series_service.Series:
+    """Story 9.3: as séries mensais dos gráficos, do primeiro mês fechado até `ate`."""
+    mes = _period(ate, "mes")
+    return await series_service.series(db, _month(mes))
 
 
 @router.get("/positions", response_model=PositionsReport)

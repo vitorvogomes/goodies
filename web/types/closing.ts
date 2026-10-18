@@ -119,3 +119,18 @@ export interface Growth {
   assets: GrowthAsset[];
   best: GrowthAsset | null;
 }
+
+// Séries dos gráficos do Histórico (Story 9.3).
+export interface SeriesPoint {
+  month: string;
+  source: "live" | "snapshot";
+  patrimonio: number | null;
+  aplicado: number | null;
+  planejado: number | null;
+  realizado: number;
+}
+
+export interface Series {
+  points: SeriesPoint[];
+  realizado_media12: number | null;
+}

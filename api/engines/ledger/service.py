@@ -1968,9 +1968,10 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
 
 
 async def category_groups(conn: asyncpg.Connection) -> dict[str, tuple[str, str]]:
-    """Story 9.1: categoria → (id e nome do grupo) — o Histórico compara gastos por grupo."""
+    """Story 9.1: categoria → (chave e nome do grupo) — o Histórico compara gastos por grupo e o
+    clique leva às transações do grupo (`?grupo=<chave>`)."""
     rows = await conn.fetch(
-        "SELECT c.id::text AS id, g.id::text AS group_id, g.name AS group_name "
+        "SELECT c.id::text AS id, coalesce(g.key, g.id::text) AS group_key, g.name AS group_name "
         "FROM categories c JOIN category_groups g ON g.id = c.group_id"
     )
-    return {r["id"]: (r["group_id"], r["group_name"]) for r in rows}
+    return {r["id"]: (r["group_key"], r["group_name"]) for r in rows}

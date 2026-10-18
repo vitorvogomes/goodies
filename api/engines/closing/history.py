@@ -151,8 +151,8 @@ async def _month(
     def by_group(per_category: dict[str, Decimal]) -> dict[str, Decimal]:
         out: dict[str, Decimal] = {}
         for category, value in per_category.items():
-            name = groups.get(category, ("", "Sem grupo"))[1]
-            out[name] = out.get(name, Decimal(0)) + value
+            key = groups.get(category, ("sem_grupo", "Sem grupo"))[0]
+            out[key] = out.get(key, Decimal(0)) + value
         return out
 
     close = await latest_close(conn, month)
@@ -309,10 +309,11 @@ async def history(conn: asyncpg.Connection, periodo: str, leitura: str) -> Histo
         set(current.por_grupo) | set(previous.por_grupo if previous else {}),
         key=lambda n: -current.por_grupo.get(n, Decimal(0)),
     )
+    group_names = {key: name for key, name in groups.values()}
     group_rows = [
         _row(
             f"grupo:{n}",
-            n,
+            group_names.get(n, "Sem grupo"),
             "money",
             current.por_grupo.get(n, Decimal(0)),
             previous.por_grupo.get(n, Decimal(0)) if previous else None,

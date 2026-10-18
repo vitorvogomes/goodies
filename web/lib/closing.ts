@@ -5,7 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Checklist, ChecklistItem, Growth, History, MonthState, Recovery, ReopenPreview } from "@/types/closing";
+import type {
+  Checklist,
+  ChecklistItem,
+  Growth,
+  History,
+  MonthState,
+  Recovery,
+  ReopenPreview,
+  Series,
+} from "@/types/closing";
 
 export function useMonthStates(de?: string, ate?: string) {
   const qs = new URLSearchParams();
@@ -79,5 +88,13 @@ export function useGrowth(periodo: string, leitura: string) {
   return useQuery({
     queryKey: ["closing", "growth", periodo, leitura],
     queryFn: () => apiFetch<Growth>(`/api/v1/closing/growth?periodo=${periodo}&leitura=${leitura}`),
+  });
+}
+
+// Séries mensais dos gráficos (Story 9.3).
+export function useSeries(ate: string) {
+  return useQuery({
+    queryKey: ["closing", "series", ate],
+    queryFn: () => apiFetch<Series>(`/api/v1/closing/series?ate=${ate}`),
   });
 }
