@@ -12,7 +12,8 @@ Renda Fixa & afins não têm fonte de mercado → `tipo=None` (preço sempre is_
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 import asyncpg
@@ -24,6 +25,7 @@ from engines.common.assets import (
     TREASURY_CATEGORIES,
 )
 from engines.common.cache import cache
+from engines.common.models import Valued
 
 _TTL_BY_TYPE = {
     "b3": settings.ttl_b3,
@@ -372,3 +374,17 @@ async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
 async def latest_index_date(conn: asyncpg.Connection) -> Any:
     """Último dia com CDI publicado (o IPCA é mensal e sai depois)."""
     return await conn.fetchval("SELECT max(ref_date) FROM benchmark_data WHERE series = 'CDI'")
+
+
+async def price_as_of(conn: asyncpg.Connection, ticker: str, day: date) -> Valued[Decimal]:
+    """Preço de `ticker` até `day` (Story 5.1, AD-8): o último do histórico com data ≤ `day`. Sem
+    nenhum, `Valued` nulo com `sem_preco` — nunca o preço de hoje para um mês passado."""
+    row = await conn.fetchrow(
+        "SELECT ref_date, price_brl, source FROM asset_price_history "
+        "WHERE ticker = $1 AND ref_date <= $2 ORDER BY ref_date DESC LIMIT 1",
+        ticker,
+        day,
+    )
+    if row is None:
+        return Valued[Decimal](unavailable_reason="sem_preco")
+    return Valued[Decimal](value=row["price_brl"], as_of=row["ref_date"], source=row["source"])

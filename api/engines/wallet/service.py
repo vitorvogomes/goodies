@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import asyncpg
@@ -310,3 +310,20 @@ async def oldest_scan(conn: asyncpg.Connection) -> datetime | None:
         "SELECT min(scanned_at) FROM wallet_positions WHERE NOT is_manual AND source <> 'binance'"
     )
     return found
+
+
+async def positions_as_of(conn: asyncpg.Connection, day: date) -> list[dict[str, Any]]:
+    """Carteiras no fim de `day` (Story 5.1): a última linha do histórico ≤ `day` de cada ativo,
+    cadeia e endereço, sem as zeradas."""
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT ON (h.asset_id, h.chain, h.wallet_address)
+               h.asset_id, a.price_ref AS asset_symbol, h.chain, h.wallet_address, h.ref_date,
+               h.quantity, h.source
+        FROM wallet_position_history h JOIN assets a ON a.id = h.asset_id
+        WHERE h.ref_date <= $1
+        ORDER BY h.asset_id, h.chain, h.wallet_address, h.ref_date DESC
+        """,
+        day,
+    )
+    return [dict(r) for r in rows if r["quantity"] > 0]

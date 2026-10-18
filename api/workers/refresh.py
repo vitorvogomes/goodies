@@ -42,6 +42,8 @@ class JobSpec:
     cron_run: Callable[[asyncpg.Pool], Awaitable[dict[str, Any]]] | None = None
     # vencimento próprio (last_run, now) -> bool; substitui o limiar (ex.: mensal).
     is_due: Callable[[datetime | None, datetime], bool] | None = None
+    # vencimento extra, além do limiar (ex.: o scan do último dia do mês).
+    extra_due: Callable[[datetime | None, datetime], bool] | None = None
     # "Atualizar tudo" (force) roda o job mesmo fresco? Backup e conferência de restauração não:
     # rodam só no vencimento (cron ou catch-up), nunca a cada clique.
     forceable: bool = True
@@ -71,6 +73,15 @@ def b3_due(last_run: datetime | None, now: datetime) -> bool:
     """price_b3 vence só quando passou um horário de cron (dia útil 19:00) desde o último run:
     no fim de semana nada vence (e o catch-up não gasta a cota do BRAPI à toa)."""
     return last_run is None or last_run < _last_b3_slot(now)
+
+
+def month_end_scan_due(last_run: datetime | None, now: datetime) -> bool:
+    """No último dia do mês (BRT), o scan de carteiras vence se ainda não rodou nesse dia: o fim de
+    cada mês fica com a carteira daquele dia no histórico (Story 5.1)."""
+    local = now.astimezone(_BRT).date()
+    if (local + timedelta(days=1)).day != 1:
+        return False
+    return last_run is None or last_run.astimezone(_BRT).date() < local
 
 
 def monthly_due(last_run: datetime | None, now: datetime) -> bool:
@@ -158,6 +169,7 @@ def default_jobs() -> list[JobSpec]:
             _job_wallet,
             settings.ttl_wallet,
             data_since=oldest_wallet_scan,
+            extra_due=month_end_scan_due,
             cron_run=_job_wallet_cron,
         ),
         JobSpec("benchmark", _job_benchmark, settings.ttl_benchmark),
