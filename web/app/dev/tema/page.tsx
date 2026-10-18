@@ -22,6 +22,7 @@ import {
 import { Suspense, useState } from "react";
 
 import { ReapplyDiff } from "@/components/ajustes/ReapplyDiff";
+import { AlertRow } from "@/components/alerts/AlertRow";
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
@@ -32,6 +33,7 @@ import { ThemeSwitch } from "@/components/shell/ThemeSwitch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { AppAlert } from "@/types/alerts";
 
 const COLORS = [
   "background", "foreground", "card", "card-foreground", "popover", "popover-foreground",
@@ -96,6 +98,27 @@ function SideFormDemo({ failed = false }: { failed?: boolean }) {
     </>
   );
 }
+
+const DEMO_ALERTS: AppAlert[] = [
+  {
+    key: "saldo_divergente:pf",
+    fingerprint: "a",
+    severity: "divergencia",
+    message: "Saldo divergente em R$\u00a037,20 na conta PF.",
+    action: { label: "Ver transações", route: "/caixa/transacoes", params: { periodo: "2026-10" } },
+    as_of: "2026-10-16",
+    dismissible: true,
+  },
+  {
+    key: "custo_fixo_vencendo:1",
+    fingerprint: "b",
+    severity: "aviso",
+    message: "Internet vence em 20/10/2026.",
+    action: { label: "Ver custos fixos", route: "/ajustes/custos-fixos", params: {} },
+    as_of: "2026-10-18",
+    dismissible: true,
+  },
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -249,6 +272,17 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
           getRowId={(d) => d.id}
           renderExpanded={(d) => <span className="type-body-sm">Detalhe de {d.nome}</span>}
         />
+      </Section>
+
+      <Section title="Linha de aviso">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+          {DEMO_ALERTS.map((a) => (
+            <li key={a.key}>
+              <AlertRow alert={a} onDismiss={() => toast("Aviso dispensado.")} />
+            </li>
+          ))}
+        </ul>
+        <AlertRow alert={DEMO_ALERTS[1]} compact />
       </Section>
 
       <Section title="Prévia de reaplicação (antes × depois)">

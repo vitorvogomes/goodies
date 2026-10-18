@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field, model_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.alerts import LegacyAlert as Alert
 from engines.common.cache import invalidate_xirr_cache
 from engines.common.dates import today_brt
 from engines.common.numbers import as_decimal, value_of
-from engines.ledger.service import Alert
 from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 from engines.wallet.service import prices_by_ticker
 

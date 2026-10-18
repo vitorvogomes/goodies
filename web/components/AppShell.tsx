@@ -7,6 +7,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 
+import { AlertsBell } from "@/components/alerts/AlertsBell";
 import { PeriodSelector } from "@/components/shell/PeriodSelector";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
@@ -61,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
         <Suspense fallback={<TopBar />}>
-          <TopBar left={<PeriodSelector />} />
+          <TopBar left={<PeriodSelector />} bell={<AlertsBell />} />
         </Suspense>
         <main className="mx-auto w-full max-w-content flex-1 px-page-gutter py-section-gap">
           {children}

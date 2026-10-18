@@ -1,7 +1,7 @@
 "use client";
 
 // Barra superior (56px, fixa no scroll): Seletor de período à esquerda; Sino de avisos e Switch de
-// tema à direita. O Seletor chega na Story 1.8 e o Sino na 3.1 (os slots já existem).
+// tema à direita.
 import type { ReactNode } from "react";
 
 import { ThemeSwitch } from "@/components/shell/ThemeSwitch";

@@ -9,7 +9,11 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 
-from engines.ledger.service import Alert
+import asyncpg
+
+from engines.common.alerts import Alert as AlertV2
+from engines.common.alerts import AlertAction, AlertContext, fingerprint
+from engines.common.alerts import LegacyAlert as Alert
 
 
 @dataclass
@@ -54,4 +58,30 @@ def defi_maturity_alerts(
                 },
             )
         )
+    return alerts
+
+
+async def defi_maturity_provider(conn: asyncpg.Connection, ctx: AlertContext) -> list[AlertV2]:
+    """Provider da Central de avisos (Story 3.1): "{Posição} vence em {dd/mm/aaaa}."."""
+    rows = await conn.fetch(
+        "SELECT id, asset_symbol, maturity_date FROM defi_positions "
+        "WHERE user_id = $1::uuid AND is_active AND maturity_date IS NOT NULL",
+        ctx.owner_id,
+    )
+    alerts: list[AlertV2] = []
+    for r in rows:
+        days = (r["maturity_date"] - ctx.today).days
+        if 0 <= days <= 30:
+            alerts.append(
+                AlertV2(
+                    key=f"defi_vencendo:{r['id']}",
+                    fingerprint=fingerprint(r["maturity_date"]),
+                    severity="aviso",
+                    message=f"{r['asset_symbol']} vence em {r['maturity_date']:%d/%m/%Y}.",
+                    action=AlertAction(
+                        label="Ver posições manuais", route="/ajustes/posicoes-manuais"
+                    ),
+                    as_of=ctx.today,
+                )
+            )
     return alerts

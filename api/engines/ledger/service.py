@@ -13,8 +13,15 @@ from decimal import Decimal
 from typing import Literal
 
 import asyncpg
-from pydantic import BaseModel
 
+from engines.common.alerts import (
+    Alert,
+    AlertAction,
+    AlertContext,
+    LegacyAlert,
+    brl,
+    fingerprint,
+)
 from engines.common.dates import parse_periodo
 from engines.common.month_status import month_status
 
@@ -48,16 +55,6 @@ from .models import (
     TransactionRow,
 )
 
-AlertData = dict[str, float | int | str]
-
-
-class Alert(BaseModel):
-    type: str
-    severity: str
-    title: str
-    message: str
-    data: AlertData
-
 
 @dataclass
 class FixedCostDue:
@@ -90,14 +87,14 @@ def _next_occurrence(due_day: int, today: datetime.date) -> datetime.date:
 
 def upcoming_due_alerts(
     items: list[FixedCostDue], today: datetime.date, horizon: int = 5
-) -> list[Alert]:
+) -> list[LegacyAlert]:
     """Custos fixos com vencimento nos próximos `horizon` dias."""
-    alerts: list[Alert] = []
+    alerts: list[LegacyAlert] = []
     for fc in items:
         days_until = (_next_occurrence(fc.due_day, today) - today).days
         if 0 <= days_until <= horizon:
             alerts.append(
-                Alert(
+                LegacyAlert(
                     type="fixed_cost_due",
                     severity="warning",
                     title="Custo fixo vencendo",
@@ -120,7 +117,7 @@ def _month_minus(month_start: datetime.date, n: int) -> datetime.date:
 
 def category_overspend_alerts(
     rows: list[MonthCategoryTotal], today: datetime.date, factor: float = 1.2
-) -> list[Alert]:
+) -> list[LegacyAlert]:
     """Categorias cujo gasto do mês atual passa de `factor`x a média dos 3 meses anteriores."""
     current = datetime.date(today.year, today.month, 1)
     prev_months = {_month_minus(current, n) for n in (1, 2, 3)}
@@ -133,7 +130,7 @@ def category_overspend_alerts(
         elif r.month in prev_months:
             prev_by_cat[r.category] = prev_by_cat.get(r.category, 0.0) + r.total
 
-    alerts: list[Alert] = []
+    alerts: list[LegacyAlert] = []
     for category, current_total in current_by_cat.items():
         if category not in prev_by_cat:
             continue
@@ -141,7 +138,7 @@ def category_overspend_alerts(
         if avg > 0 and current_total > factor * avg:
             pct = round((current_total / avg - 1) * 100)
             alerts.append(
-                Alert(
+                LegacyAlert(
                     type="category_overspend",
                     severity="warning",
                     title="Categoria acima da média",
@@ -157,6 +154,60 @@ def category_overspend_alerts(
                 )
             )
     return alerts
+
+
+# --------------------------------------------------------------------------------------------
+# Providers da Central de avisos (AD-10 — Story 3.1), registrados em `main.py`
+# --------------------------------------------------------------------------------------------
+
+
+async def fixed_cost_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Custo fixo vencendo em até 5 dias: "{Custo} vence em {dd/mm/aaaa}." (catálogo da UX)."""
+    alerts: list[Alert] = []
+    for r in await conn.fetch(queries.ACTIVE_FIXED_COSTS):
+        due = _next_occurrence(r["due_day"], ctx.today)
+        if (due - ctx.today).days > 5:
+            continue
+        alerts.append(
+            Alert(
+                key=f"custo_fixo_vencendo:{r['id']}",
+                fingerprint=fingerprint(due),
+                severity="aviso",
+                message=f"{r['name']} vence em {due:%d/%m/%Y}.",
+                action=AlertAction(label="Ver custos fixos", route="/ajustes/custos-fixos"),
+                as_of=ctx.today,
+            )
+        )
+    return alerts
+
+
+async def overspend_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Consumo do mês corrente acima de 120% da média dos 3 meses anteriores, por subcategoria."""
+    rows = await conn.fetch(queries.CONSUMPTION_BY_CATEGORY, ctx.today)
+    ids = {r["label"]: str(r["category_id"]) for r in rows}
+    totals = [
+        MonthCategoryTotal(month=r["month"], category=r["label"], total=float(r["total"]))
+        for r in rows
+    ]
+    periodo = f"{ctx.today:%Y-%m}"
+    return [
+        Alert(
+            key=f"gasto_acima_da_media:{ids[str(a.data['category'])]}",
+            fingerprint=fingerprint(periodo),
+            severity="aviso",
+            message=(
+                f"{a.data['category']} em {brl(float(a.data['current']))}, "
+                f"{a.data['pct_above']}% acima da média de 3 meses."
+            ),
+            action=AlertAction(
+                label="Ver transações",
+                route="/caixa/transacoes",
+                params={"periodo": periodo, "categoria": ids[str(a.data["category"])]},
+            ),
+            as_of=ctx.today,
+        )
+        for a in category_overspend_alerts(totals, ctx.today)
+    ]
 
 
 # --------------------------------------------------------------------------------------------

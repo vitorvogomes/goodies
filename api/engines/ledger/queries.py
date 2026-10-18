@@ -237,3 +237,14 @@ CATEGORY_HAS_HISTORY = """
     SELECT EXISTS (SELECT 1 FROM categorization_events
                    WHERE before_category_id = $1::uuid OR after_category_id = $1::uuid)
 """
+ACTIVE_FIXED_COSTS = "SELECT id, name, due_day FROM fixed_costs WHERE is_active"
+CONSUMPTION_BY_CATEGORY = """
+    SELECT date_trunc('month', t.date)::date AS month, c.id AS category_id,
+           g.name || ' › ' || c.name AS label, SUM(-t.amount) AS total
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE c.role = 'consumo'
+      AND t.date >= (date_trunc('month', $1::date) - interval '3 months')
+      AND t.date <  (date_trunc('month', $1::date) + interval '1 month')
+    GROUP BY 1, 2, 3
+"""
