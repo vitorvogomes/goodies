@@ -135,3 +135,23 @@ def test_months_before_cutoff_keep_the_amount_rule() -> None:
     """Os meses até out/2026 já foram conferidos: seguem a regra do valor (nada muda neles)."""
     m = match_fixed_costs([_c("a", "100.00", 10)], [_t("x", "100.00", 10)], [])
     assert m["a"].status == "pago"
+
+
+def test_undone_cost_gets_no_automatic_replacement() -> None:
+    """P13 (mai/2025): desfeito o casamento, o custo não ganha outro automático pelo valor — a
+    próxima saída de valor parecido fica só como candidata."""
+    m = match_fixed_costs(
+        [_c("a", "100.00", 10)],
+        [_t("x", "100.00", 10), _t("y", "101.00", 11)],
+        [Decision("a", "desfeito", "x")],
+    )
+    assert m["a"].status == "pendente" and m["a"].candidates == ["y"]
+
+
+def test_every_undone_transaction_stays_out() -> None:
+    m = match_fixed_costs(
+        [_c("a", "100.00", 10)],
+        [_t("x", "100.00", 10), _t("y", "101.00", 11)],
+        [Decision("a", "desfeito", "x"), Decision("a", "desfeito", "y")],
+    )
+    assert m["a"].status == "pendente" and m["a"].candidates == []

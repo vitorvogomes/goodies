@@ -100,6 +100,39 @@ async def test_month_list_and_decisions(api, auth_headers, pool, account) -> Non
 
 
 @pytest.mark.asyncio
+async def test_undo_accumulates_and_confirm_replaces(api, auth_headers, pool, account) -> None:
+    """P13: desfazer uma candidata não traz de volta a desfeita antes; confirmar depois de desfazer
+    paga e a transação confirmada sai das desfeitas."""
+    ids = await _seed(pool, account)
+    mes, url = "2097-05", f"{URL}/{ids['plano']}/decisions"
+    for tx in ("t_p1", "t_p2"):
+        r = await api.post(
+            url,
+            json={"mes": mes, "kind": "desfeito", "transaction_id": ids[tx]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+    async with pool.acquire() as conn:
+        view = await ledger.fixed_cost_month(conn, MONTH, today=date(2097, 5, 26))
+        item = next(i for i in view.items if i.id == ids["plano"])
+        assert item.transaction is None and item.candidates == []
+    r = await api.post(
+        url,
+        json={"mes": mes, "kind": "confirmado", "transaction_id": ids["t_p1"]},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    async with pool.acquire() as conn:
+        kinds = sorted(
+            r["kind"]
+            for r in await conn.fetch(
+                "SELECT kind FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid", ids["plano"]
+            )
+        )
+        assert kinds == ["confirmado", "desfeito"]
+
+
+@pytest.mark.asyncio
 async def test_closed_month_is_read_only(api, auth_headers, pool, account) -> None:
     ids = await _seed(pool, account)
     async with pool.acquire() as conn:

@@ -194,7 +194,8 @@ MATCH_DAYS_BEFORE = 5  # até 5 dias antes do vencimento
 MATCH_DAYS_AFTER = 5  # até 5 dias depois
 # P13: a palavra do custo na descrição casa (no mês, valor ±50%); o valor aproximado sozinho só
 # sugere a candidata. Os meses até out/2026 já foram conferidos (e os casamentos deles gravados
-# como decisão): seguem a regra do valor para nada mudar neles.
+# como decisão): seguem a regra do valor para nada mudar neles — exceto o custo com um casamento
+# desfeito no mês, que não ganha outro automático pelo valor (só candidatas).
 MATCH_BY_NAME_FROM = date(2026, 11, 1)
 MATCH_NAME_VALUE_TOLERANCE = Decimal("0.50")
 _GENERIC_WORDS = frozenset(
@@ -282,7 +283,8 @@ def match_fixed_costs(
     """Decisões primeiro; depois o guloso global 1:1 por (pelo nome antes, |Δvalor|, |Δdata|,
     custo, transação). Um custo que, depois do guloso, ainda tem outra candidata livre fica pendente
     com as candidatas (casamento ambíguo: nada pago até a escolha). Desde nov/2026 (P13) só o
-    casamento pelo nome paga sozinho; o do valor aproximado fica como candidata."""
+    casamento pelo nome paga sozinho; o do valor aproximado fica como candidata — e também no custo
+    com casamento desfeito no mês, em qualquer mês."""
     out: dict[str, CostMatch] = {}
     tx_ids = {t.transaction_id for t in txs}
     taken: set[str] = set()
@@ -313,7 +315,10 @@ def match_fixed_costs(
             if named or _eligible(c, t)
         ),
     )
-    by_name_rule = {c.cost_id: c.due >= MATCH_BY_NAME_FROM for c in free_costs}
+    undone = {cid for cid, _ in rejected}
+    by_name_rule = {
+        c.cost_id: c.due >= MATCH_BY_NAME_FROM or c.cost_id in undone for c in free_costs
+    }
     eligible: dict[str, list[str]] = {}
     named_ok: dict[str, list[str]] = {}  # desde nov/2026: as candidatas pelo nome
     for tier, *_, cid, tid in pairs:

@@ -4,10 +4,12 @@ no ativo (`assets.valuation = 'cdi'`, `assets.pct_cdi`) sobre o CDI diário publ
 
 Cada aporte rende Π(1 + CDI do dia × %CDI) pelos dias úteis de CDI publicado desde a data dele até a
 data pedida; o resgate sai pelo valor que renderia (a aproximação de sempre, desprezível com pouco
-resgate). Depois do último CDI publicado não rende — o "CDI até". Dia útil (seg–sex) sem CDI entre
-dois publicados, até 2 seguidos (`HOLIDAY_RUN`), é feriado: não rende. Lacuna maior, ou antes do
-primeiro CDI publicado, usa o CDI publicado mais próximo e o valor sai `estimated`. Na caixinha, o
-`juros` é o rendimento resgatado (o resgate foi reduzido dele): sai do saldo como o resgate.
+resgate). Com saldo informado (P28, `rf_anchors`), o mais recente até a data substitui as operações
+até ele e rende dali em diante. Depois do último CDI publicado não rende — o "CDI até". Dia útil
+(seg–sex) sem CDI entre dois publicados, até 2 seguidos (`HOLIDAY_RUN`), é feriado: não rende.
+Lacuna maior, ou antes do primeiro CDI publicado, usa o CDI publicado mais próximo e o valor sai
+`estimated`. Na caixinha, o `juros` é o rendimento resgatado (o resgate foi reduzido dele): sai do
+saldo como o resgate.
 """
 
 from __future__ import annotations
@@ -54,8 +56,10 @@ def _daily_rates(
     for d in _business_days(first, until):
         if d in published:
             rates[d] = published[d]
-        elif missing and (d - missing[-1][-1]).days <= 3 and not _published_between(
-            known, missing[-1][-1], d
+        elif (
+            missing
+            and (d - missing[-1][-1]).days <= 3
+            and not _published_between(known, missing[-1][-1], d)
         ):
             missing[-1].append(d)
         else:
@@ -83,8 +87,20 @@ def cdi_value(
     as_of: date,
     pct_cdi: Decimal,
     cdi: Sequence[tuple[date, Decimal]],
+    anchors: Sequence[tuple[date, Decimal]] = (),
 ) -> CdiValue:
     ops = [op for op in ops if op["data_operacao"] <= as_of]
+    anchor = max((a for a in anchors if a[0] <= as_of), default=None)
+    if anchor is not None:  # o saldo informado é o de fim do dia: as operações do dia já estão nele
+        ops = [
+            {
+                "tipo": "aporte",
+                "quantidade": anchor[1],
+                "valor_unitario": Decimal(1),
+                "data_operacao": anchor[0],
+            },
+            *(op for op in ops if op["data_operacao"] > anchor[0]),
+        ]
     published = [(d, r) for d, r in cdi if d < as_of]
     until = max((d for d, _ in published), default=None)
     if until is None or not ops:

@@ -47,6 +47,7 @@ from engines.portfolio.debentures_router import router as portfolio_debentures_r
 from engines.portfolio.manual_prices import router as portfolio_manual_prices_router
 from engines.portfolio.operations_router import router as portfolio_operations_router
 from engines.portfolio.reconciliation_router import router as portfolio_reconciliation_router
+from engines.portfolio.rf_router import router as portfolio_rf_router
 from engines.wallet import service as wallet_service
 from engines.wallet.defi import defi_maturity_provider
 from engines.wallet.defi_router import router as defi_router
@@ -141,6 +142,7 @@ app.include_router(ledger_router)
 app.include_router(portfolio_debentures_router)
 app.include_router(portfolio_brokers_router)
 app.include_router(portfolio_caixinha_router)
+app.include_router(portfolio_rf_router)
 app.include_router(portfolio_manual_prices_router)
 app.include_router(portfolio_operations_router)
 app.include_router(portfolio_reconciliation_router)

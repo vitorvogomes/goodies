@@ -179,3 +179,24 @@ def test_pre_value_stops_at_maturity() -> None:
     ops = [_op("aporte", "1000", date(2025, 7, 1))]
     at_maturity = pre_value(ops, date(2026, 7, 1), D("1.78"))
     assert pre_value(ops, date(2026, 10, 18), D("1.78"), date(2026, 7, 1)) == at_maturity
+
+
+def test_anchor_replaces_history_before_it() -> None:
+    """P28: o saldo informado (o que o app do banco mostra) numa data vira o ponto de partida:
+    as operações até essa data saem, o saldo rende o %CDI dali em diante e as operações depois
+    entram normalmente."""
+    ops = [_op("aporte", "1000", date(2025, 1, 6)), _op("aporte", "200", date(2025, 1, 8))]
+    anchor = [(date(2025, 1, 7), D("1500"))]
+    at = cdi_value(ops, date(2025, 1, 7), D(100), CDI, anchors=anchor)
+    assert at.value == D("1500.00")
+    v = cdi_value(ops, date(2025, 1, 9), D(100), CDI, anchors=anchor)
+    assert v.value == (D(1500) * D("1.0005") ** 2 + D(200) * D("1.0005")).quantize(D("0.01"))
+    before = cdi_value(ops, date(2025, 1, 6), D(100), CDI, anchors=anchor)
+    assert before.value == D("1000.00")  # antes da âncora, o histórico de sempre
+
+
+def test_latest_anchor_wins() -> None:
+    ops = [_op("aporte", "1000", date(2025, 1, 6))]
+    anchors = [(date(2025, 1, 7), D("1500")), (date(2025, 1, 8), D("1600"))]
+    v = cdi_value(ops, date(2025, 1, 9), D(100), CDI, anchors=anchors)
+    assert v.value == (D(1600) * D("1.0005")).quantize(D("0.01"))

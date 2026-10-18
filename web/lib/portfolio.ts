@@ -5,6 +5,45 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
+// ---- Ajustes › Preços manuais › Renda fixa pelo CDI (P28) ----
+
+export interface RfBalance {
+  ticker: string;
+  label: string;
+  pct_cdi: string | null;
+  anchor_date: string | null;
+  value: string | number | null;
+  quotas: string | null;
+  quota_value: string | null;
+}
+
+export interface RfBalanceIn {
+  as_of: string;
+  value?: string;
+  quotas?: string;
+  quota_value?: string;
+  pct_cdi?: string;
+}
+
+export function useRfBalances() {
+  return useQuery({
+    queryKey: ["portfolio", "renda-fixa"],
+    queryFn: () => apiFetch<RfBalance[]>("/api/v1/portfolio/renda-fixa"),
+  });
+}
+
+export function useSaveRfBalance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ticker, body }: { ticker: string; body: RfBalanceIn }) =>
+      apiFetch<RfBalance>(`/api/v1/portfolio/renda-fixa/${encodeURIComponent(ticker)}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "portfolio"),
+  });
+}
+
 // ---- Ajustes › Preços manuais (Story 10.2) ----
 
 export interface ManualPrice {

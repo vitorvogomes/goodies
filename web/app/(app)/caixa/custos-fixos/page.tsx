@@ -2,9 +2,9 @@
 
 // Caixa › Custos fixos (Story 6.2 — FR-18, UX-DR37): a Lista de custos fixos com casamento do mês.
 // Ordem atrasado → pago; Selo de estado; a transação casada (±10%, −5 a +5 dias). Ações: Confirmar ·
-// Trocar (transações do mês, com busca) · Marcar pago manualmente · Desfazer casamento. Duas
-// candidatas: "pendente" + "2 candidatas" em opções sob a linha (borda de aviso), nada pago até
-// escolher. Mês fechado: só leitura até reabrir. O casamento vem da API; a tela não calcula.
+// Trocar (transações do mês, com busca) · Marcar pago manualmente · Desfazer casamento. Candidatas
+// (uma sugestão pelo valor ou "2 candidatas"): opções sob a linha (borda de aviso), nada pago até
+// escolher; "Não é esta" descarta a candidata (desfeito, P13). Mês fechado: só leitura até reabrir. O casamento vem da API; a tela não calcula.
 import { MoreHorizontalIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -88,30 +88,40 @@ function Candidates({
   item,
   disabled,
   onConfirm,
+  onReject,
 }: {
   item: FixedCostMonthItem;
   disabled: boolean;
   onConfirm: (txId: string) => void;
+  onReject: (txId: string) => void;
 }) {
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(item.candidates.length === 1 ? item.candidates[0].id : null);
   const name = `candidatas-${item.id}`;
+  const one = item.candidates.length === 1;
   return (
     <fieldset className="space-y-1.5 border-l-2 border-warning pl-3">
       <legend className="type-body-sm font-semibold">
-        {item.candidates.length} candidatas para {item.name}. Escolha a transação certa.
+        {one
+          ? `Sugestão para ${item.name} pelo valor parecido. Confirme se for este pagamento.`
+          : `${item.candidates.length} candidatas para ${item.name}. Escolha a transação certa.`}
       </legend>
       {item.candidates.map((t) => (
-        <label key={t.id} className="flex items-center gap-2 type-body-sm">
-          <input
-            type="radio"
-            name={name}
-            value={t.id}
-            disabled={disabled}
-            checked={picked === t.id}
-            onChange={() => setPicked(t.id)}
-          />
-          {txLabel(t)}
-        </label>
+        <div key={t.id} className="flex items-center gap-2 type-body-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={name}
+              value={t.id}
+              disabled={disabled}
+              checked={picked === t.id}
+              onChange={() => setPicked(t.id)}
+            />
+            {txLabel(t)}
+          </label>
+          <Button type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => onReject(t.id)}>
+            Não é esta
+          </Button>
+        </div>
       ))}
       <Button size="sm" disabled={disabled || picked === null} onClick={() => picked && onConfirm(picked)}>
         Confirmar
@@ -162,8 +172,10 @@ export default function CustosFixosMesPage() {
       cell: (i) => (
         <span className="inline-flex items-center gap-2">
           <StatusBadge tone={TONE[i.status]}>{i.status}</StatusBadge>
-          {i.candidates.length > 1 && (
-            <span className="type-caption text-warning">{i.candidates.length} candidatas</span>
+          {i.candidates.length > 0 && (
+            <span className="type-caption text-warning">
+              {i.candidates.length === 1 ? "1 sugestão" : `${i.candidates.length} candidatas`}
+            </span>
           )}
         </span>
       ),
@@ -268,8 +280,13 @@ export default function CustosFixosMesPage() {
         getRowId={(i) => i.id}
         empty={view.isLoading ? "Carregando…" : "Nenhum custo fixo neste mês."}
         renderBelow={(i) =>
-          i.candidates.length > 1 ? (
-            <Candidates item={i} disabled={readOnly || decide.isPending} onConfirm={(tx) => act(i, "confirmado", tx)} />
+          i.candidates.length > 0 ? (
+            <Candidates
+              item={i}
+              disabled={readOnly || decide.isPending}
+              onConfirm={(tx) => act(i, "confirmado", tx)}
+              onReject={(tx) => act(i, "desfeito", tx)}
+            />
           ) : null
         }
       />

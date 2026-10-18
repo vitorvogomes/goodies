@@ -29,6 +29,7 @@ from engines.wallet import service as wallet_service
 
 from . import calc
 from .rf import cdi_value, pre_value, rf_cdi_assets, rf_rate_assets
+from .rf_anchors import anchor_map
 from .xirr import xirr
 
 _CRYPTO = [str(c) for c in CRYPTO_CATEGORIES]
@@ -210,6 +211,7 @@ async def _past(
     rate_assets = await rf_rate_assets(conn)
     rate_valued = False
     cdi_series: list[tuple[date, Decimal]] | None = None
+    anchors: dict[str, list[tuple[date, Decimal]]] = {}
     cdi_until: date | None = None
     cdi_estimated = False
     for symbol, sops in by_symbol.items():
@@ -231,7 +233,8 @@ async def _past(
         elif symbol in cdi_assets:  # Story 7.4: %CDI do ativo sobre o CDI publicado
             if cdi_series is None:
                 cdi_series = await market_service.cdi_daily(conn, date(2000, 1, 1), as_of)
-            cdi = cdi_value(sops, as_of, cdi_assets[symbol], cdi_series)
+                anchors = await anchor_map(conn)
+            cdi = cdi_value(sops, as_of, cdi_assets[symbol], cdi_series, anchors.get(symbol, ()))
             value = cdi.value
             if cdi.cdi_until is not None:
                 cdi_until = max(cdi_until or cdi.cdi_until, cdi.cdi_until)

@@ -1804,15 +1804,43 @@ async def decide_fixed_cost(
             )
             if other is not None:
                 raise TransactionInUseError(other)
-    await conn.execute(
-        "INSERT INTO fixed_cost_payments (fixed_cost_id, month, kind, transaction_id) "
-        "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (fixed_cost_id, month) DO UPDATE "
-        "SET kind = EXCLUDED.kind, transaction_id = EXCLUDED.transaction_id, created_at = now()",
-        cost_id,
-        month,
-        body.kind,
-        str(body.transaction_id) if body.transaction_id else None,
-    )
+    tx_id = str(body.transaction_id) if body.transaction_id else None
+    async with conn.transaction():
+        if body.kind == "desfeito":
+            # P13: as desfeitas se acumulam; desfazer a transação paga tira o pagamento dela
+            await conn.execute(
+                "DELETE FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid AND month = $2 "
+                "AND kind <> 'desfeito' AND transaction_id = $3::uuid",
+                cost_id,
+                month,
+                tx_id,
+            )
+            await conn.execute(
+                "INSERT INTO fixed_cost_payments (fixed_cost_id, month, kind, transaction_id) "
+                "VALUES ($1::uuid, $2, 'desfeito', $3::uuid) ON CONFLICT (fixed_cost_id, month, "
+                "transaction_id) WHERE kind = 'desfeito' DO NOTHING",
+                cost_id,
+                month,
+                tx_id,
+            )
+            return
+        await conn.execute(
+            "DELETE FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid AND month = $2 "
+            "AND kind = 'desfeito' AND transaction_id = $3::uuid",
+            cost_id,
+            month,
+            tx_id,
+        )
+        await conn.execute(
+            "INSERT INTO fixed_cost_payments (fixed_cost_id, month, kind, transaction_id) "
+            "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (fixed_cost_id, month) "
+            "WHERE kind <> 'desfeito' DO UPDATE SET kind = EXCLUDED.kind, "
+            "transaction_id = EXCLUDED.transaction_id, created_at = now()",
+            cost_id,
+            month,
+            body.kind,
+            tx_id,
+        )
 
 
 async def clear_fixed_cost_decision(conn: asyncpg.Connection, cost_id: str, mes: str) -> None:

@@ -19,6 +19,7 @@ from engines.common.owner import get_owner_id
 from engines.market import service as market_service
 from engines.portfolio import calc
 from engines.portfolio.rf import cdi_value, pre_value, rf_cdi_assets, rf_rate_assets
+from engines.portfolio.rf_anchors import anchor_map
 
 MAX_ESTIMATED_SHARE = 0.05  # mais que isso estimado: o histórico está faltando, não grava
 
@@ -44,11 +45,12 @@ async def run_rf_cdi(pool: asyncpg.Pool, *, today: date | None = None) -> dict[s
         series = await market_service.cdi_daily(
             conn, min((o[0]["data_operacao"] for o in ops.values() if o), default=today), today
         )
+        anchors = await anchor_map(conn)
         for symbol, pct in assets.items():
             qty = calc.quantity(ops[symbol])
             if qty <= 0 or not series:
                 continue
-            value = cdi_value(ops[symbol], today, pct, series)
+            value = cdi_value(ops[symbol], today, pct, series, anchors[symbol])
             if value.estimated_share > MAX_ESTIMATED_SHARE:
                 incomplete += 1
                 continue

@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { RfBalances } from "@/components/investimentos/RfBalances";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
@@ -91,6 +92,15 @@ function Row({ item, saving, onSave }: { item: ManualPrice; saving: boolean; onS
 }
 
 export default function PrecosManuaisPage() {
+  return (
+    <div className="space-y-8">
+      <ManualPrices />
+      <RfBalances />
+    </div>
+  );
+}
+
+function ManualPrices() {
   const prices = useManualPrices();
   const save = useSaveManualPrice();
   const onSave = (item: ManualPrice): Save => (price, asOf, onError) =>
