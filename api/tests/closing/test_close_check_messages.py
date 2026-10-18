@@ -78,3 +78,21 @@ async def test_crypto_check_after_first_scan_names_the_last_scan(pool: Any) -> N
             await conn.execute("DELETE FROM wallet_position_history WHERE chain = 'zz'")
     assert [c["kind"] for c in checks] == ["confirma"]
     assert "10/02/1992" in checks[0]["message"]
+
+
+@pytest.mark.asyncio
+async def test_crypto_scan_in_the_same_month_is_info(pool: Any) -> None:
+    """Scan no próprio mês (jun/2026: 07/06): as quantidades do mês, sem pendência."""
+    async with pool.acquire() as conn:
+        asset = await conn.fetchval("SELECT id FROM assets WHERE class = 'cripto' LIMIT 1")
+        await conn.execute(
+            "INSERT INTO wallet_position_history (asset_id, ref_date, quantity, chain, "
+            "wallet_address, source) VALUES ($1, '1993-06-07', 1, 'zz', 'zz', 'teste')",
+            asset,
+        )
+        try:
+            checks = await wallet.close_checks(conn, date(1993, 6, 1))
+        finally:
+            await conn.execute("DELETE FROM wallet_position_history WHERE chain = 'zz'")
+    assert [c["kind"] for c in checks] == ["info"]
+    assert "07/06/1993" in checks[0]["message"]

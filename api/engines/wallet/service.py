@@ -341,11 +341,16 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
         "SELECT max(ref_date) FROM wallet_position_history WHERE ref_date <= $1", end
     )
     if last is not None:
+        same_month = (last.year, last.month) == (end.year, end.month)
         return [
             {
                 "code": "sem_scan_cripto",
-                "kind": "confirma",
-                "message": f"Sem scan de cripto no fim de {month_label(month)}: o bloco usa as "
+                # scan no próprio mês: as quantidades são do mês (informativo, não é pendência)
+                "kind": "info" if same_month else "confirma",
+                "message": f"Cripto de {month_label(month)} pelo scan de {last:%d/%m/%Y} com o "
+                "preço do fim do mês."
+                if same_month
+                else f"Sem scan de cripto no fim de {month_label(month)}: o bloco usa as "
                 f"quantidades de {last:%d/%m/%Y} com o preço do fim do mês.",
             }
         ]
