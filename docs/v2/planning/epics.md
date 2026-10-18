@@ -36,7 +36,7 @@ arquitetura (AD-1..AD-19) do Goodies v2.0. Escopo: os 4 marcos do PRD §6.1. A v
 
 FR1: Importar num mesmo fluxo arquivos de qualquer fonte (Nubank CPF/MEI OFX e CSV; B3 movimentação, negociação e consolidado), com a fonte detectada por arquivo; formato desconhecido é recusado com "formato não reconhecido" + lista de aceitos; OFX associado à conta (CPF/MEI) pelo próprio arquivo; CSV Nubank aceito sem conferência de saldo, com aviso.
 FR2: Prévia do lote por fonte (novos, existentes, período, conta/corretora) antes de gravar; nada é gravado sem confirmação; reimportar o mesmo arquivo dá zero novos e o aviso "arquivo já importado".
-FR3: "Atualizado até" por fonte no painel e no hub, com aviso de defasagem: Nubank 7 dias; B3 movimentação/negociação só via transferência não coberta (FR4); B3 consolidado se o do mês anterior não chegou até o dia 15.
+FR3: "Atualizado até" por fonte no painel e no hub, com aviso de defasagem: Nubank PF 7 dias; Nubank MEI pelo mês anterior até o dia 15; B3 movimentação/negociação só via transferência não coberta (FR4); B3 consolidado se o do mês anterior não chegou até o dia 15.
 FR4: Aviso "lacuna" com o intervalo a importar; aviso "transferência não coberta" para dinheiro a caminho ("importe o relatório B3 a partir de {data}").
 FR5: Após cada OFX da conta PF (CPF), comparar saldo informado × calculado ao centavo (a conta MEI fica sempre zerada e não confere; o OFX dela pode cobrir vários meses); diferença gera "saldo divergente" com valor e transações candidatas; quando bate, o painel marca "conferido" na data.
 FR6: Desfazer o último lote de import feito nos últimos 7 dias, removendo transações, operações, categorizações e regras criadas na revisão desse lote; lote em mês fechado segue FR33.
@@ -52,7 +52,7 @@ FR15: Receitas do mês por pagador e, em linha própria, os resgates; pagador nu
 FR16: Gastos por grupo e subcategoria (só tipo gasto); total direcionado a investimentos em linha própria; fatura do cartão como uma transação com o valor pago.
 FR17: Orçamento do mês: disponível para consumo (trabalho + resgates − custos fixos − aporte planejado − dívidas do mês), quanto já foi gasto (consumido) e quanto resta; consumo financiado por resgate em linha própria (por objetivo × por carteira).
 FR18: Casar cada custo fixo com uma transação (±10%, −5/+5 dias do vencimento) e marcar pago; Vitor confirma, corrige ou marca manualmente; aviso "vencendo" 3 dias antes, "atrasado" depois do vencimento.
-FR19: Reclassificar uma vez, em todo o histórico, os resgates gravados como investimento (ADR-011) para resgate = receita; taxa de poupança histórica e gate jun/2026 = 55,48% inalterados.
+FR19: Reclassificar uma vez, em todo o histórico, os resgates gravados como investimento (ADR-011) para resgate = receita; a taxa de poupança histórica muda só nos meses com Repasse (que vira Devolução), com os deltas listados; gate jun/2026 = 55,48% inalterado.
 FR20: Taxa de poupança = (receita do trabalho − (gastos − devoluções)) / receita do trabalho; ao lado, aporte (realizado total) ÷ receita do trabalho.
 FR21: Posições e alocação em dois níveis (classe → ativo): aplicado, valor atual, resultado, alocação × meta ± banda; cripto como bloco cripto (valor atual por ativo entra na alocação); ativos vinculados a objetivos ficam num bloco "Objetivos", fora da base da alocação.
 FR22: Rentabilidade só por XIRR, por mês, trimestre, ano e desde o início; nominal × real (IPCA efetivo; "aguardando IPCA" se faltar) por classe e consolidada; mensal por ativo em % a.m. exceto RF e Cripto; leitura por período a partir do primeiro mês fechado.
@@ -107,14 +107,14 @@ Da arquitetura (AD-1..AD-19) e das decisões do party mode. **Não há starter t
 - AR14 (AD-13): tolerâncias de conciliação como constantes em `portfolio/calc` e `ledger/calc`; tabelas de fato `broker_position_snapshots`, `broker_cash_checks`.
 - AR15 (AD-14): `periodo=YYYY-MM`, `leitura ∈ {mes, tri, ano, inicio}`, `common.dates.resolve_period`, `today_brt()`, mês = date dia 1, timestamps UTC, vigência (`valid_from`/`valid_to`) em `fixed_costs` e metas.
 - AR16 (AD-15): rotas `/api/v1/<engine>/<recurso>`, `response_model` obrigatório, erro `{"error","message"}`, paginação `{items,total,limit,offset}`, `Valued[T]` com `unavailable_reason`/`as_of`/`source`/`stale`, rotas `POST .../preview` para recálculos.
-- AR17 (AD-16): ordem das revisões Alembic — 1) `user_id` no ledger; 2) `import_batches` + lotes `legacy`; 3) grupos, roles, `category_id`, `category_rules` legado, `category_source`; 4) reclassificações (resgates FR19, faturas em Dívidas → Cartão de crédito, Repasse → Devoluções); 5) `assets`. Depois, `close_retro`. Cada revisão de dado com teste de invariantes (55,48%, contagem, zero órfãs, deltas esperados). Nome `NNNN_snake_name.py` (próxima = 0016).
+- AR17 (AD-16): ordem das revisões Alembic — 1) `user_id` no ledger; 2) `import_batches` + lotes `legacy`; 3) grupos, roles, `category_id`, `category_rules` legado, `category_source`; 4) reclassificações (resgates FR19, faturas em Dívidas → Cartão de crédito, Repasse → Devoluções); 5) `assets`. Depois, `close_retro`. Cada revisão de dado com teste de invariantes (55,48%, contagem, zero órfãs, deltas esperados). Nome `NNNN_snake_name.py`, na ordem da AD-16; as stories não cravam número de revisão.
 - AR18 (AD-17): rotas `web/app/(app)/{visao-geral,caixa,investimentos,ajustes}/<aba>`, período/leitura na URL; navegação só 4 áreas + Importar desde o marco 1; rotas antigas apagadas no marco 4; shadcn `init -b radix` new-york (nunca `-d`), `components.json` commitado, `web/components/ui/` substitui `ui.tsx`; hooks em `web/lib/<engine>.ts` com queryKey `[engine, recurso, periodo?, ...]` e invalidação cruzada; tipos em `web/types/<engine>.ts`; auth 401 → refresh → repete → `/login?next=`.
 - AR19 (AD-18): `docker compose` (postgres 15, redis 7, api) + `pnpm dev`; container da api: backup → `alembic upgrade head` → uvicorn; job diário `db_backup` + backup antes de toda migração, `pg_dump` fora do repo (diretório no `.env`), guarda 30, restauração em `docs/LOCAL_DEV.md`; CORS só `http://localhost:3000`; cookie `samesite=lax` sem `secure`; `common.owner.get_owner_id`; tabelas novas com `user_id` NOT NULL.
 - AR20 (AD-19): golden tests — poupança jun/2026 = 55,48%; números dos mockups (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77; aportes 2.200 = 1.700 + 500); distribuição fecha ao centavo; snapshot = ao vivo no instante do fechamento; Vitest só em utilitários puros.
 - AR21 (Docs vivos): a primeira story atualiza `conventions.md` (sem `queries.py` fantasma nem Server Components por padrão; fontes do DESIGN; erro em dict), reescreve o CLAUDE.md (stack local, sem Supabase/Upstash/Fly/Vercel, gates v2, ADR-014/015) e o `.env.example` (às cegas), e marca o ADR-011 como substituído em `docs/07_Decisoes.md`.
 - AR22 (Logs): `structlog` em tudo (scheduler sai do `logging`); nunca segredo nem valor financeiro.
 - AR23 (Party mode — categorias): grupos iniciais aprovados (Casa, Alimentação, Transporte, Lazer, Saúde e educação, Obrigações, Outros + "Cartão de crédito"; Trabalho = Recorrente/Extra; Resgates por destino; Devoluções = Repasse/Reembolso; Investimentos; Transferências); renomear "Cripto Nubnak" → "Cripto Nubank"; pagador semeado das subcategorias atuais (Flash Capital, Betuel → Recorrente); `category_source` = rule se padrão atual bate, senão manual; as 4 faturas em Assinaturas ficam.
-- AR24 (Party mode — termos): consumido = gastos − custos fixos casados − devoluções − transações em Dívidas (cada transação em um balde); dívidas do mês manual (padrão 0; pré-preenchido nos retroativos); Caixinha Turbo e Extra são carteira (RF); vínculo objetivo × caixinha pelo nome no OFX.
+- AR24 (Party mode — termos): consumido = gastos − custos fixos casados − devoluções − transações em Dívidas (cada transação em um balde); dívidas do mês pré-preenchidas com Σ das transações em Dívidas não casadas a custo fixo, sobrescrevíveis (decisão da checagem de prontidão, 2026-10-18); Caixinha Turbo e Extra são carteira (RF); vínculo objetivo × caixinha pelo nome no OFX.
 - AR25 (Party mode — gráficos): patrimônio = chart-1 com aplicado em chart-3; gastos por categoria = período chart-2, anterior chart-3, média 12m marcador; aporte = realizado chart-1, planejado chart-2.
 
 ### UX Design Requirements
@@ -208,30 +208,33 @@ UX-DR45: Login com o visual novo (mesmo fluxo JWT da v1); sessão expirada volta
 
 ### UX-DR Coverage Map
 
-| UX-DR | Story | | UX-DR | Story |
+| UX-DR | Stories | | UX-DR | Stories |
 |---|---|---|---|---|
-| UX-DR1, 2 | 1.4 | | UX-DR24 | 1.7 |
-| UX-DR3, 4 | 1.5 | | UX-DR25 | 1.4 (base), 10.3 (teclado) |
-| UX-DR5 | 1.4 | | UX-DR26 | 1.6 |
-| UX-DR6, 7 | 1.6 | | UX-DR27 | 4.1, 4.2 (+ 6.3, 6.5, 7.2, 8.8) |
-| UX-DR8 | 1.7 (+ Selo em 5.3, 5.5) | | UX-DR28 | 3.8 |
-| UX-DR9 | 7.1 (+ 9.1) | | UX-DR29 | 3.12 |
-| UX-DR10 | 1.4 | | UX-DR30 | 3.9 |
-| UX-DR11 | 3.1 | | UX-DR31 | 2.6 |
-| UX-DR12 | 4.1 | | UX-DR32 | 3.10 |
-| UX-DR13 | 3.1, 4.2 | | UX-DR33 | 3.8, 3.11, 4.2 |
-| UX-DR14 | 2.6 | | UX-DR34 | 8.8 |
-| UX-DR15 | 4.1, 9.1 | | UX-DR35 | 6.3 |
-| UX-DR16 | 3.11 | | UX-DR36 | 6.5, 6.6, 8.1 |
-| UX-DR17 | 3.8, 4.1 | | UX-DR37 | 6.2 |
-| UX-DR18 | 8.7 | | UX-DR38 | 8.5, 8.6, 8.7 |
-| UX-DR19 | 1.4 (Sonner), 3.9 (primeiro uso) | | UX-DR39 | 7.5 |
-| UX-DR20 | 2.7 | | UX-DR40 | 5.3, 5.4 |
-| UX-DR21 | 3.12 | | UX-DR41 | 5.7 |
-| UX-DR22 | 1.6, 3.8, 4.1 | | UX-DR42 | 9.3 |
-| UX-DR23 | 1.6 | | UX-DR43 | 2.7, 2.8, 6.1, 7.4, 8.1, 8.2, 10.1, 10.2, 10.3 |
-| | | | UX-DR44 | 3.1 (catálogo) + cada story que emite aviso |
-| | | | UX-DR45 | 1.8 |
+| UX-DR1 | 1.4 | | UX-DR24 | 1.7 |
+| UX-DR2 | 1.4 | | UX-DR25 | 1.4, 10.3 |
+| UX-DR3 | 1.5, 10.5 | | UX-DR26 | 1.6 |
+| UX-DR4 | 1.5 | | UX-DR27 | 4.1 |
+| UX-DR5 | 1.4 | | UX-DR28 | 3.8 |
+| UX-DR6 | 1.6 | | UX-DR29 | 3.12 |
+| UX-DR7 | 1.6 | | UX-DR30 | 3.9, 7.5 |
+| UX-DR8 | 1.7, 5.4 | | UX-DR31 | 2.7 |
+| UX-DR9 | 7.1, 9.1 | | UX-DR32 | 3.10 |
+| UX-DR10 | 1.4 | | UX-DR33 | 3.8, 3.11, 4.2 |
+| UX-DR11 | 3.1 | | UX-DR34 | 8.8 |
+| UX-DR12 | 4.1 | | UX-DR35 | 6.3 |
+| UX-DR13 | 3.1, 4.2 | | UX-DR36 | 6.5, 6.6 |
+| UX-DR14 | 2.7, 7.1 | | UX-DR37 | 6.2 |
+| UX-DR15 | 4.1, 9.1 | | UX-DR38 | 8.5, 8.6, 8.7 |
+| UX-DR16 | 3.11 | | UX-DR39 | 7.6 |
+| UX-DR17 | 3.8, 4.1 | | UX-DR40 | 5.4, 5.5 |
+| UX-DR18 | 8.7 | | UX-DR41 | 5.8 |
+| UX-DR19 | 1.4, 3.9 | | UX-DR42 | 9.3 |
+| UX-DR20 | 2.8 | | UX-DR43 | 2.8, 2.9, 6.1, 7.5, 8.1, 8.2, 10.1, 10.2, 10.3 |
+| UX-DR21 | 3.12, 5.4 | | UX-DR44 | 3.1 |
+| UX-DR22 | 1.6, 3.8, 4.1 | | UX-DR45 | 1.8 |
+| UX-DR23 | 1.6 | |  |  |
+
+Gerado das linhas **Requisitos** de cada story. UX-DR44 (voz e catálogo de avisos) vale também para toda story que emite aviso.
 
 ## Epic List
 
@@ -252,7 +255,7 @@ nasce onde é usado pela primeira vez; o épico não acumula componente sem tela
 O Vitor passa a ver o histórico nos grupos aprovados, com a origem de cada categoria e o lote de cada transação, edita
 categorias e regras em Ajustes e reaplica regras com prévia. Os resgates contam como receita em todo o histórico.
 **FRs covered:** FR8, FR10 (edição em Ajustes), FR11, FR12, FR19, FR35 (Categorias, Regras).
-**Notas:** começa pelas migrações 1–2 da AD-16 (`user_id` + `import_batches` com lotes `legacy`), depois 3–4 (grupos,
+**Notas:** começa pela base comum do backend (`common`: dinheiro, dono, `Valued`, cache, `MonthStatusPort`) e pelas migrações 1–2 da AD-16 (`user_id` + `import_batches` com lotes `legacy`), depois 3–4 (grupos,
 roles, `category_id`, `category_rules`, `category_source`; reclassificações). `categorize()` vira chokepoint e o Hermes é
 ajustado na mesma story. `categories.key` imutável: código nunca lê nome de categoria. Testes de invariantes: 55,48%, contagem, zero órfãs, deltas esperados, mais um script de comparação **mês × categoria
 antes e depois** com a lista dos deltas esperados (faturas → Cartão de crédito, Repasse → Devoluções, resgates);
@@ -265,8 +268,8 @@ partir da correção, ver o saldo "conferido", desfazer o último lote — e os 
 revisão, fonte desatualizada).
 **Notas:** `SourceAdapter` + adapters Nubank e B3 (AD-5); a tabela `assets` (migração 5 da AD-16) nasce aqui, antes dos
 adapters B3, porque os snapshots do consolidado referenciam o ativo; base de avisos (AD-10: `Alert`/`AlertContext` em `common`,
-engine `alerts`, `alert_dismissals`, Sino, Central). `MonthStatusPort` nasce em `common` com implementação padrão
-"todos os meses abertos"; `ingest`, `categorize` e o desfazer já chamam `mark_dirty`, que o Épico 5 liga ao fechamento.
+engine `alerts`, `alert_dismissals`, Sino, Central). `ingest`, `categorize`, a reaplicação e o desfazer chamam
+`MonthStatusPort.mark_dirty` (criado na Story 2.1), que o Épico 5 liga ao fechamento.
 
 ### Epic 4: Painel principal
 A primeira tela responde como está o mês antes de qualquer tabela: KPIs com Carimbo de data, Linhas de aviso e Bloco Fontes.
@@ -377,17 +380,17 @@ So that a única cópia dos meus dados nunca se perca numa migração ou num err
 
 **Given** o scheduler da API
 **When** chega o horário diário do job `db_backup`
-**Then** um `pg_dump` é gravado no diretório configurado no `.env` (fora do repositório, via volume) com data no nome
+**Then** um `pg_dump` 15 (cliente instalado na imagem da api) é gravado no diretório configurado no `.env` (fora do repositório, via volume) com data no nome
 **And** só os 30 backups mais recentes são mantidos
 **And** a execução fica em `job_runs` como os demais jobs (catch-up incluído)
 
 **Given** um arquivo de backup
 **When** o Vitor segue o passo a passo de restauração do `docs/LOCAL_DEV.md` num banco vazio
-**Then** o banco volta com as mesmas contagens de `transactions` e `asset_operations` (verificado num teste de restauração em `goodies_test`)
+**Then** o banco volta com as mesmas contagens de `transactions` e `asset_operations` (verificado num teste de restauração num banco descartável)
 
-**Given** `python -m scripts.ops.restore_test_db`
+**Given** `python -m scripts.ops.restore_dados_db`
 **When** roda
-**Then** restaura o backup mais recente em `goodies_test`, que vira a base dos testes de dado real (gate 55,48%, contagens, deltas)
+**Then** restaura o backup mais recente em `goodies_dados` (banco próprio, separado do `goodies_test` da suíte unitária), que vira a base dos testes de dado real (gate 55,48%, contagens, deltas)
 **And** esses testes levam o marcador `@pytest.mark.dados_reais` e são pulados com aviso explícito quando a base não existe, nunca dando falso verde
 **And** a base de teste fica só na máquina local, como a base real
 
@@ -395,6 +398,9 @@ So that a única cópia dos meus dados nunca se perca numa migração ou num err
 **When** registram eventos
 **Then** usam `structlog` (o scheduler sai do `logging`), com evento snake e campos, nunca segredo nem valor financeiro
 
+**Given** uma escrita de dado fora da subida do container (`alembic upgrade` manual, `close_retro`, `refechar`, rederivações)
+**When** começa contra um banco que não é de teste
+**Then** exige um backup com menos de 1 hora ou faz um antes (guarda no `env.py` do Alembic e no início de cada comando)
 ### Story 1.3: Versões da stack atualizadas
 
 As a Vitor,
@@ -474,6 +480,10 @@ So that o visual não se degrade a cada story nova.
 **Given** uma story futura que cria componente
 **When** termina
 **Then** o componente aparece no `/dev/tema` (regra registrada em `conventions.md`)
+
+**Given** o `web/package.json`
+**When** a story termina
+**Then** tem Vitest e o script `test`, que roda o teste "no raw color" e os testes de utilitários
 ### Story 1.6: Navegação em 4 áreas
 
 As a Vitor,
@@ -491,7 +501,7 @@ So that eu ache tudo em no máximo dois cliques, em vez de 16 links soltos.
 
 **Given** as rotas `web/app/(app)/{visao-geral,caixa,investimentos,ajustes}/<aba>`
 **When** o Vitor entra numa área
-**Then** as sub-telas aparecem como Abas na URL (←/→ trocam de aba), e as telas v1 ficam acessíveis como abas ou links dentro da área correspondente (ex.: Investimentos › Posições abre a tela atual de posições)
+**Then** as sub-telas aparecem como Abas na URL (←/→ trocam de aba), e as telas v1 ficam acessíveis por links dentro da área correspondente, abrindo a URL antiga (AD-17: rotas antigas ficam por URL, nunca viram abas)
 **And** as URLs antigas continuam abrindo as telas v1
 
 **Given** o botão Importar
@@ -570,7 +580,34 @@ So that eu não perca o contexto no meio do ritual.
 O Vitor passa a ver o histórico nos grupos aprovados, com a origem de cada categoria e o lote de cada transação, edita
 categorias e regras em Ajustes e reaplica regras com prévia. Os resgates contam como receita em todo o histórico.
 
-### Story 2.1: Proveniência do histórico em lotes legado
+### Story 2.1: Base comum do backend
+
+As a Vitor (e os agentes que implementam o Goodies),
+I want os tipos e serviços compartilhados num lugar só antes da primeira migração da v2,
+So that toda engine nova use o mesmo dinheiro, o mesmo dono, o mesmo cache e o mesmo status de mês.
+
+**Requisitos:** AR2, AR4, AR5, AR15, AR16, AR19, NFR1.
+
+**Acceptance Criteria:**
+
+**Given** `api/engines/common`
+**When** a story termina
+**Then** existem `common.owner.get_owner_id(conn)`, `common.money` (`Money` e `Pct` como `Annotated[Decimal, ...]`, 2 casas, `ROUND_HALF_EVEN`), `common.models.Valued[T]` (value, `unavailable_reason`, `as_of`, `source`, `stale`), `common.deps` (`Db`, `AuthUser`) e `common.cache` (instância única, chaves `<engine>:<tipo>:<id>`)
+**And** `invalidate_xirr_cache` e o `PriceCache` passam para `common.cache`, e `wallet`, `market` e `portfolio` passam a importá-los dali (AD-1)
+
+**Given** `common.MonthStatusPort`
+**When** a story termina
+**Then** existe com `status`, `is_closed` e `mark_dirty` e a implementação padrão "todos os meses abertos"; `main.py` faz o registro
+
+**Given** os testes
+**When** rodam
+**Then** `Money`/`Pct` serializam como number com 2 casas, nunca `float` no meio, com `mypy --strict` no pacote `common`
+
+**Given** a ordem de precedência da AD-1
+**When** uma story tem atribuição explícita de um movimento
+**Then** a atribuição explícita vence a regra "primeira story que tocar" (registrado em `conventions.md`)
+
+### Story 2.2: Proveniência do histórico em lotes legado
 
 As a Vitor,
 I want que cada transação e operação já gravada saiba de qual lote e fonte veio,
@@ -581,24 +618,25 @@ So that o histórico tenha a mesma proveniência dos imports novos e nada fique 
 **Acceptance Criteria:**
 
 **Given** a base atual
-**When** a revisão Alembic `0016` roda
+**When** a primeira revisão Alembic da v2 roda
 **Then** as tabelas do ledger ganham `user_id` NOT NULL preenchido pelo owner único (`common.owner.get_owner_id`)
 **And** a revisão é idempotente e roda depois do backup da Story 1.2
 
-**Given** a revisão `0017`
+**Given** a revisão seguinte
 **When** roda
 **Then** existem `import_batches` (status `staged`, `applied`, `undone`, `legacy`) e `import_batch_files` (fonte, conta/corretora, `period_start`, `period_end`, hash do arquivo, saldo informado), donas da engine `ingest`
-**And** é criado um lote `legacy` por fonte e conta, com `period_start`/`period_end` tirados das linhas existentes, e toda linha de `transactions` e `asset_operations` recebe `batch_id` e `source`
+**And** é criado um lote `legacy` por fonte e conta, com `period_start`/`period_end` tirados das linhas existentes, e toda linha importada de `transactions` e `asset_operations` recebe `batch_id` e `source`
+**And** linhas lançadas à mão ou pelo Hermes recebem `source ∈ {manual, hermes}` com `batch_id` nulo, e os caminhos de escrita atuais passam a gravar `source`
 
 **Given** o teste de invariantes da revisão
 **When** roda em `goodies_test` com a cópia dos dados
-**Then** a contagem de `transactions` e `asset_operations` é a mesma de antes, nenhuma linha fica sem `batch_id` e a taxa de poupança de jun/2026 continua 55,48%
+**Then** a contagem de `transactions` e `asset_operations` é a mesma de antes, nenhuma linha importada fica sem `batch_id`, nenhuma linha fica sem `source` e a taxa de poupança de jun/2026 continua 55,48%
 
 **Given** a engine `ingest`
 **When** a story termina
 **Then** ela segue o layout da AD-2 e expõe por `service`/`queries` a leitura dos lotes e arquivos, sem SQL de outra engine sobre essas tabelas
 
-### Story 2.2: Categorias em dois níveis com o histórico migrado
+### Story 2.3: Categorias em dois níveis com o histórico migrado
 
 As a Vitor,
 I want que minhas 33 categorias virem subcategorias dos grupos aprovados, sem perder nenhuma transação,
@@ -608,14 +646,16 @@ So that eu leia gastos e receitas por grupo e subcategoria em todo o histórico.
 
 **Acceptance Criteria:**
 
-**Given** a revisão `0018`
+**Given** a revisão da story
 **When** roda
 **Then** existe `category_groups` com `kind` (receita, gasto, investimento, transferência) e `categories` ganha `group_id` e `role` (CHECK: `work_income`, `resgate`, `devolucao`, `divida`, `consumo`, `investimento`, `transferencia`, `a_classificar`)
 **And** os grupos e subcategorias iniciais aprovados no party mode existem (incluindo a nova "Cartão de crédito", Trabalho = Recorrente/Extra, Resgates por destino, Devoluções = Repasse/Reembolso), com os roles certos
 
 **Given** as transações e custos fixos com categoria em texto
-**When** a revisão preenche `transactions.category_id` e `fixed_costs.category_id` por nome
-**Then** zero linhas ficam órfãs e a coluna de texto continua existindo (sai numa versão posterior)
+**When** a revisão preenche `transactions.category_id` e `fixed_costs.category_id`
+**Then** usa uma tabela explícita na própria revisão — (nome legado, `kind` gravado) → subcategoria — que cobre os 33 nomes, inclusive `income` gravado em "outros", "Salário" e "Resgate" inativos
+**And** zero linhas ficam órfãs e a coluna de texto continua existindo (sai na Story 10.5)
+**And** transação cujo `kind` gravado diverge do grupo de destino é listada no teste, com o destino decidido na tabela; estornos positivos em gasto seguem brutos (AD-7)
 **And** "Cripto Nubnak" passa a se chamar "Cripto Nubank"
 
 **Given** a coluna `categories.key` (imutável, única, ex.: `invest:toro_b3`, `invest:cripto_nubank`, `invest:caixinha_rdb`)
@@ -629,9 +669,9 @@ So that eu leia gastos e receitas por grupo e subcategoria em todo o histórico.
 
 **Given** o script de comparação mês × categoria
 **When** roda antes e depois da revisão
-**Then** os totais por mês e categoria são idênticos (esta revisão não reclassifica nada) e a contagem de transações não muda
+**Then** os totais por mês e categoria são idênticos, salvo os deltas listados (fusão de Flash Capital e Betuel em Recorrente, com o pagador preservado), e a contagem de transações não muda
 
-### Story 2.3: Regras e origem da categoria no histórico
+### Story 2.4: Regras e origem da categoria no histórico
 
 As a Vitor,
 I want que as regras atuais virem regras editáveis e que cada transação saiba de onde veio a categoria,
@@ -641,9 +681,9 @@ So that minha curadoria manual fique protegida e eu saiba por que cada transaç�
 
 **Acceptance Criteria:**
 
-**Given** a revisão `0019`
+**Given** a revisão da story
 **When** roda
-**Then** existem `category_rules` ("descrição contém", categoria, ativa, `created_in_batch`), migradas de `categories.match_patterns` com origem legado, e `categorization_events` (antes, depois, origem, lote; append-only)
+**Then** existem `category_rules` ("descrição contém", `direction` ∈ {entrada, saida, ambos}, categoria, ativa, `created_in_batch`), migradas de `categories.match_patterns` com origem legado, e `categorization_events` (antes, depois, origem, lote; append-only)
 **And** `transactions` ganha `category_source` ∈ {rule, suggestion, manual}, `review_status` ∈ {pending, confirmed}, `category_rule_id` (FK `ON DELETE SET NULL`) e `payer`
 
 **Given** o histórico existente
@@ -655,7 +695,11 @@ So that minha curadoria manual fique protegida e eu saiba por que cada transaç�
 **When** roda antes e depois da revisão
 **Then** os totais são idênticos e a contagem de transações não muda
 
-### Story 2.4: Categorização por um caminho só
+**Given** os padrões que casam aplicação e resgate (`caixinha`, `rdb`, `dinheiro guardado`)
+**When** viram regras
+**Then** cada um vira duas regras com `direction`: saída → categoria de investimento; entrada → a subcategoria de Resgates correspondente
+**And** a detecção de transferência interna (contas próprias + `LEDGER_SELF_IDENTIFIERS`, `importer.py`) não vira regra: continua no adapter Nubank
+### Story 2.5: Categorização por um caminho só
 
 As a Vitor,
 I want que toda mudança de categoria passe por uma única função,
@@ -682,19 +726,28 @@ So that regra, sugestão e correção manual sigam as mesmas regras e nada sobre
 **Given** o Hermes (`api/hermes/`)
 **When** grava uma transação
 **Then** usa `ledger.service` e `categorize()`, e os testes dele continuam passando
-### Story 2.5: Resgates como receita e reclassificações do histórico
+
+**Given** o esquema duplo até a Story 10.5
+**When** `categorize()` grava
+**Then** grava também a coluna de texto `transactions.category`, para as telas v1 e os leitores legados continuarem certos
+**And** chama `MonthStatusPort.mark_dirty(month)` para o mês da transação
+
+**Given** a migração ou a gravação
+**When** algo falha no meio
+**Then** nada fica pela metade: a revisão é idempotente e `categorize()` roda dentro da transação de quem o chama
+### Story 2.6: Resgates como receita e reclassificações do histórico
 
 As a Vitor,
 I want que os resgates antigos contem como receita e que as faturas e o Repasse fiquem nos grupos certos,
-So that o histórico siga as regras de leitura do dinheiro da v2 sem mudar a minha taxa de poupança.
+So that o histórico siga as regras de leitura do dinheiro da v2, com a taxa de poupança mudando só onde houve Repasse.
 
 **Requisitos:** FR19, FR20, AR8, AR17, AR23, NFR3.
 
 **Acceptance Criteria:**
 
-**Given** a revisão `0020`
+**Given** a revisão da story
 **When** roda
-**Then** os resgates gravados como investimento pela regra do ADR-011 passam para subcategorias de Resgates (role `resgate`, tipo receita), as 18 "Pagamento de fatura" em Dívidas (2024–nov/2025) vão para "Cartão de crédito", e o Repasse sai de Trabalho para Devoluções
+**Then** os resgates gravados como investimento pela regra do ADR-011 — inclusive as entradas vindas de Binance, Liquid e outras carteiras cripto — passam para subcategorias de Resgates (role `resgate`, tipo receita), as 18 "Pagamento de fatura" em Dívidas (2024–nov/2025) vão para "Cartão de crédito", e o Repasse sai de Trabalho para Devoluções
 **And** as 4 faturas em Assinaturas (abr–mai/2026) não mudam
 **And** cada mudança gera linha em `categorization_events` e a revisão é idempotente (rodar duas vezes não muda nada)
 
@@ -705,16 +758,19 @@ So that o histórico siga as regras de leitura do dinheiro da v2 sem mudar a min
 **Given** o script de comparação mês × categoria
 **When** compara antes e depois da revisão
 **Then** só aparecem os deltas da lista esperada (resgates, faturas → Cartão de crédito, Repasse → Devoluções) e qualquer outro delta reprova o teste
+**And** a lista traz também a taxa de poupança de cada mês que teve Repasse, antes e depois (ela muda porque devolução abate gasto); jun/2026 continua 55,48%
 
-**Given** as `asset_operations` derivadas de caixinhas
+**Given** o par investimento ↔ resgate por trilho
 **When** a revisão roda
-**Then** continuam iguais
+**Then** cada subcategoria de investimento tem a `key` do seu resgate registrada (`invest:caixinha_rdb` ↔ `resgate:caixinha_rdb`, `invest:cripto_nubank` ↔ `resgate:cripto_nubank`, ...), e `transit._saiu`, `crypto_sleeve` e `caixinhas.build_caixinha_ops` passam a ler as duas keys
+**And** o teste de invariante prova que XIRR consolidado e por classe, saiu/aplicado/resíduo de cada trilho, o bloco cripto e a saída de `build_caixinha_ops` são iguais antes e depois
+**And** as `asset_operations` gravadas não mudam
 
 **Given** as telas v1 (dashboard e análise)
 **When** abrem depois da revisão
-**Then** a taxa de poupança exibida continua a mesma, usando as funções de `ledger/calc` em vez de somar `kind = income`
+**Then** a taxa de poupança exibida é a de `ledger/calc` (em vez de somar `kind = income`): igual à anterior nos meses sem Repasse e igual à lista de deltas nos meses com Repasse
 
-### Story 2.6: Caixa › Transações com origem e correção de categoria
+### Story 2.7: Caixa › Transações com origem e correção de categoria
 
 As a Vitor,
 I want ver as transações do mês com categoria, origem e lote, e corrigir uma categoria na linha,
@@ -743,7 +799,7 @@ So that eu saiba de onde veio cada número e conserte o que estiver errado.
 **When** a aba abre
 **Then** mostra "Nenhuma transação em {mês}. Importe o extrato do Nubank."
 
-### Story 2.7: Ajustes › Categorias
+### Story 2.8: Ajustes › Categorias
 
 As a Vitor,
 I want criar, renomear e arquivar grupos e subcategorias no app,
@@ -779,7 +835,10 @@ So that eu ajuste a classificação sem mexer em código.
 **When** abre
 **Then** mostra "Nenhuma categoria. Crie o primeiro grupo." com a ação Nova categoria
 
-### Story 2.8: Ajustes › Regras e reaplicar regras ao histórico
+**Given** uma falha ao salvar
+**When** a API recusa ou cai
+**Then** o formulário mostra "Não foi possível salvar. Nada foi perdido. Tentar de novo.", mantém o preenchido e o foco vai para "Tentar de novo"
+### Story 2.9: Ajustes › Regras e reaplicar regras ao histórico
 
 As a Vitor,
 I want editar e desativar regras e reaplicá-las a um período com prévia,
@@ -807,6 +866,9 @@ So that o histórico fique coerente com as regras sem tocar no que categorizei �
 **When** novas transações chegam
 **Then** ela não é aplicada, mas as transações que já categorizou mantêm a categoria
 
+**Given** a reaplicação confirmada
+**When** grava
+**Then** chama `mark_dirty` para cada mês tocado (sem efeito até o Épico 5)
 ## Epic 3: Hub de import, revisão em lote e central de avisos
 
 O ritual da UJ-1 de ponta a ponta: arrastar os arquivos, ver a prévia, confirmar, revisar pelo teclado, criar regra a
@@ -825,7 +887,7 @@ So that nenhum tropeço passe despercebido.
 
 **Given** `common`
 **When** a story termina
-**Then** existem `Alert` (key `<tipo>:<sujeito>`, fingerprint, severity ∈ {divergencia, aviso}, mensagem pt-BR, ação com rota e parâmetros, `as_of`, `dismissible`), `AlertContext` (hoje BRT, período, status dos meses, owner) e `MonthStatusPort` com a implementação padrão "todos os meses abertos"
+**Then** existem `Alert` (key `<tipo>:<sujeito>`, fingerprint, severity ∈ {divergencia, aviso}, mensagem pt-BR, ação com rota e parâmetros, `as_of`, `dismissible`), `AlertContext` (hoje BRT, período, status dos meses pelo `MonthStatusPort` da Story 2.1, owner)
 **And** o `Alert` do ledger passa para `common` (AD-1) e os avisos de vencimento atuais viram um provider, para a tela v1 continuar funcionando
 
 **Given** a engine `alerts`
@@ -852,10 +914,11 @@ So that posições, operações e metas falem do mesmo ativo sem rótulos diverg
 
 **Acceptance Criteria:**
 
-**Given** a revisão `0021` (migração 5 da AD-16, depois das reclassificações)
+**Given** a revisão da story (migração 5 da AD-16, depois das reclassificações)
 **When** roda
 **Then** existe `assets` (dono `portfolio`: `id` uuid, `key` imutável como `b3:BBAS3`, `td:IPCA+2032`, `caixinha:turbo`, `crypto:BTC`, classe, `price_ref`, valoração, %CDI) e `asset_aliases(asset_id, chain, symbol)`
-**And** `asset_operations`, `portfolio_targets` e `wallet_positions` ganham `asset_id` preenchido por um mapa explícito dos rótulos legados, com zero órfãos
+**And** `asset_operations` e `wallet_positions` ganham `asset_id` preenchido por um mapa explícito dos rótulos legados, com zero órfãos
+**And** `portfolio_targets` (hoje por classe) ganha `asset_id` nulo, e os rótulos de classe gravados ("Ações Nacionais", ...) são mapeados para o enum da AD-11 (`acoes_br`, `etfs`, `fiis`, `renda_fixa`, `aposentadoria`, `cripto`)
 
 **Given** os enums de `portfolio/constants.py`
 **When** a story toca o módulo
@@ -869,6 +932,9 @@ So that posições, operações e metas falem do mesmo ativo sem rótulos diverg
 **When** abrem depois da revisão
 **Then** mostram os mesmos números
 
+**Given** a revisão rodada duas vezes
+**When** termina
+**Then** não muda nada na segunda (idempotente)
 ### Story 3.3: Import com prévia e lote — protocolo e OFX do Nubank
 
 As a Vitor,
@@ -889,11 +955,12 @@ So that nada seja gravado sem eu confirmar e reimportar nunca duplique.
 
 **Given** um OFX do Nubank
 **When** é detectado
-**Then** é associado à conta pelo número da conta no próprio arquivo e a dedup usa o FITID
+**Then** é associado à conta pelo `account_number` lido do próprio arquivo e a dedup usa o FITID
+**And** a detecção de transferência interna (contas próprias + `LEDGER_SELF_IDENTIFIERS`) continua no adapter, antes das regras
 
 **Given** `POST /api/v1/ingest/confirm` com o lote e o hash
 **When** confirma
-**Then** re-planeja, exige o mesmo hash e roda todos os `apply` numa única transação; o lote vira `applied`, grava `import_batch_files` e o cache de XIRR é invalidado
+**Then** re-planeja, exige o mesmo hash e roda todos os `apply` numa única transação; o lote vira `applied`, grava `import_batch_files` e o cache de XIRR é invalidado por `common.cache`
 **And** cada transação nova entra via `categorize()` por regra, por sugestão ou em "Entrada/Saída a classificar", sempre `pending`, com `batch_id` e `source`
 **And** `ingest` chama `MonthStatusPort.mark_dirty(month)` para os meses tocados (sem efeito até o Épico 5)
 
@@ -905,6 +972,13 @@ So that nada seja gravado sem eu confirmar e reimportar nunca duplique.
 **When** a story termina
 **Then** passa pelo protocolo, e a página v1 continua funcionando (ou redireciona para o Painel provisório de Importar)
 
+**Given** o upload multiarquivo
+**When** a rota recebe os arquivos
+**Then** usa `python-multipart` (dependência adicionada nesta story)
+
+**Given** o mesmo lote confirmado duas vezes (duplo clique, retry)
+**When** a segunda confirmação chega
+**Then** é recusada sem gravar nada, porque o lote já está `applied`
 ### Story 3.4: OFX completo — titular, pagador, saldo informado e caixinhas
 
 As a Vitor,
@@ -917,18 +991,21 @@ So that receitas, conferência e posições fiquem certas desde o import.
 
 **Given** a revisão da story
 **When** roda
-**Then** `accounts` ganha `holder` ∈ {pf, mei} (Nubank_CPF → pf, Nubank_CNPJ → mei) e existe `account_balances` (conta, data, saldo informado, `batch_id`), dona de `ledger`
-**And** `asset_operations` ganha `transaction_id` com FK `ON DELETE RESTRICT`
+**Then** `accounts` ganha `holder` ∈ {pf, mei}, preenchido pelo `account_number` das contas Nubank (PF e MEI) e existe `account_balances` (conta, data, saldo informado, `batch_id`), dona de `ledger`
+**And** `asset_operations` ganha `transaction_id` com FK `ON DELETE RESTRICT`, preenchido no histórico pelo `external_id` (`caixinha:{sym}:{fitid}` e a chave de fallback `{date}:{amount}` de `caixinhas.py` para transação sem FITID); operações curadas (`caixinha-yield:*`, o resgate da Turbo reduzido em R$ 123,91 por `register_caixinha_yields`, o bucket Nubank-Encerradas) ganham `protected = true`
+**And** o teste exige zero operação de caixinha não protegida sem `transaction_id`
 
 **Given** um OFX aplicado
 **When** as transações são gravadas
 **Then** o pagador é extraído (nome no Pix ou CNPJ) para `transactions.payer`, nunca atribui categoria, e o `LEDGERBAL` vai para `account_balances`
+**And** reimportar um OFX com 0 transações novas ainda grava o saldo informado dele (é assim que o histórico ganha saldos)
 **And** um OFX do MEI que cobre vários meses é aceito normalmente
 
 **Given** o hook `on_batch_applied`
 **When** um lote Nubank é aplicado
 **Then** o `portfolio` deriva as operações de caixinhas/CDB com a lógica atual (`caixinhas.py`), idempotente por `transaction_id`, na mesma transação, para a tela v1 de posições não ficar defasada
-**And** reimportar ou reaplicar o hook não duplica operações
+**And** reimportar ou reaplicar o hook não duplica operações e nunca altera nem apaga operação `protected`
+**And** o teste de invariante prova que net, aplicado e XIRR de cada caixinha/CDB não mudam com a revisão nem com a reimportação dos OFX de 2024–2026
 ### Story 3.5: Sugestão de categoria para toda transação nova
 
 As a Vitor,
@@ -964,7 +1041,7 @@ So that eu não fique travado quando só tiver o CSV.
 
 **Given** um CSV do Nubank
 **When** entra na prévia
-**Then** é detectado, associado à conta e deduplicado contra o que já existe
+**Then** é detectado e deduplicado contra o que já existe; como o CSV não traz a conta, a linha da prévia pede a conta num seletor antes de confirmar
 **And** a prévia avisa "CSV não permite conferir o saldo. Prefira o OFX."
 
 **Given** um lote aplicado com CSV
@@ -1002,6 +1079,10 @@ So that operações e posições entrem sem duplicar e o consolidado fique guard
 **When** são importados num banco de teste com a base atual
 **Then** dão 0 operações novas onde a base já cobre e o XIRR B3+TD não muda
 
+**Given** o período de cada arquivo B3 (o conteúdo não traz data de referência nem período)
+**When** a prévia lê o arquivo
+**Then** o período sai do nome do arquivo (movimentação/negociação: datas do nome; consolidado mensal: fim do mês; anual: 31/12) e aparece editável na linha da prévia; o valor confirmado é o que vai para `import_batch_files`
+**And** nome fora do padrão exige o período informado antes de confirmar
 ### Story 3.8: Hub de import
 
 As a Vitor,
@@ -1027,7 +1108,7 @@ So that o import da semana seja um passo só.
 **Then** mostra uma linha por fonte de arquivo (Nubank PF e MEI; B3 movimentação, negociação e consolidado) com tipo e o atualizado até derivado só de `import_batch_files` dos lotes `applied` e `legacy`
 
 **Given** os limites do FR-3
-**When** uma fonte passa do limite (Nubank 7 dias; consolidado do mês anterior não importado até o dia 15)
+**When** uma fonte passa do limite (Nubank PF 7 dias; Nubank MEI e consolidado: mês anterior não coberto até o dia 15)
 **Then** o provider emite "{Fonte} sem import desde {dd/mm/aaaa}." e o Bloco Fontes mostra o ponto de aviso
 
 **Given** um intervalo sem arquivo entre o primeiro e o último import de uma fonte
@@ -1075,6 +1156,9 @@ So that eu categorize a semana em poucos minutos.
 **When** não há linhas a mostrar
 **Then** aparece "Nenhuma transação sem categoria." (com Limpar filtro) ou "Nada a revisar. Todas as transações do lote vieram de regras."
 
+**Given** uma falha ao confirmar o lote
+**When** a API recusa ou cai
+**Then** o painel mostra "Não foi possível confirmar as transações. Nada foi perdido. Tentar de novo.", mantém as marcações e correções e o foco vai para "Tentar de novo"
 ### Story 3.10: Proposta de regra a partir da correção
 
 As a Vitor,
@@ -1110,13 +1194,18 @@ So that eu tenha certeza de que não falta nem sobra nenhuma transação.
 
 **Given** a revisão da story
 **When** roda
-**Then** `accounts` ganha `opening_balance` e `opening_balance_date`, e a conta PF é ancorada no saldo informado mais antigo (o OFX de jun/2026): `opening_balance` = saldo informado na âncora − Σ transações até essa data, com a âncora registrada
-**And** datas anteriores à âncora não são conferidas
+**Then** `accounts` ganha `opening_balance` e `opening_balance_date`
+**And** `python -m scripts.ops.ancorar_saldo` (idempotente, com backup antes) lê os OFX mensais da PF de `files/nubank/` em **modo só-saldo** (grava o `LEDGERBAL` em `account_balances` e nunca insere transação), limitado aos meses que a base já cobre (jul/2024 até o fim do bloco; jun/2026 em diante entra pelo Assistente de recuperação) e ancora no saldo informado mais antigo da base (o fim de jul/2024; o OFX de jun/2024 fica de fora porque o fluxo começa em jul/2024): `opening_balance` = saldo informado na âncora − Σ transações até essa data
+**And** o comando recalcula a âncora se chegarem transações anteriores a ela ou se o lote da âncora for desfeito; datas anteriores à âncora não são conferidas
+
+**Given** a âncora no fim de jul/2024
+**When** os meses seguintes são conferidos
+**Then** cada mês com OFX da PF tem conferência real (o mês da âncora é o único que confere por construção), inclusive os meses do bloco jul/2024–mai/2026
 
 **Given** um OFX da conta PF aplicado depois da âncora
 **When** o saldo calculado (`opening_balance` + Σ transações até a data, em `ledger/calc`) é comparado ao saldo informado
 **Then** com diferença de R$ 0,00 o Bloco Fontes mostra o Selo de estado "conferido" com a data
-**And** com qualquer diferença mostra "divergente · R$ {valor}", e o provider emite "Saldo divergente em R$ {valor} na conta PF." (severidade divergência) com a ação Ver transações, que leva às transações candidatas
+**And** com qualquer diferença mostra "divergente · R$ {valor}", e o provider emite "Saldo divergente em R$ {valor} na conta PF." (severidade divergência) com a ação Ver transações, que leva às transações candidatas: as da conta desde o último saldo conferido, ordenadas pela proximidade do valor com a diferença
 
 **Given** um OFX da conta MEI (`holder = mei`)
 **When** é aplicado
@@ -1148,8 +1237,13 @@ So that um engano não suje a base.
 **When** o desfazer roda
 **Then** numa transação: os hooks `on_batch_undo` rodam em ordem decrescente de camada (`portfolio` remove as operações derivadas), depois o `undo` de cada adapter; saem as transações, as `categorization_events` delas e as regras com `created_in_batch` do lote
 **And** transações de fora do lote categorizadas por uma regra removida voltam por `categorize()` sem ela (`suggestion`, `pending`)
+**And** saem também os `account_balances`, os `broker_position_snapshots` e os `import_batch_files` do lote, e a âncora do saldo PF é recalculada se o lote a continha
 **And** o lote vira `undone`, os meses tocados chamam `mark_dirty` e o cache de XIRR é invalidado
+**And** operações `protected` nunca saem
 
+**Given** uma falha ao desfazer
+**When** a API recusa ou cai
+**Then** nada é removido (uma transação só) e o diálogo mostra "Não foi possível desfazer o lote. Nada foi perdido. Tentar de novo."
 ## Epic 4: Painel principal
 
 A primeira tela responde como está o mês antes de qualquer tabela: KPIs com Carimbo de data, Linhas de aviso e Bloco
@@ -1188,6 +1282,9 @@ So that eu saiba como estou antes de abrir qualquer tabela.
 **When** o Painel abre
 **Then** carrega em menos de 3 s
 
+**Given** o Painel antes do Épico 5
+**When** lê o mês
+**Then** `overview` chama direto os construtores de `ledger`/`portfolio`; a leitura passa a ir por `closing` na Story 5.2 (transitório registrado aqui, AD-8)
 ### Story 4.2: Avisos, transações a revisar e Bloco Fontes no Painel
 
 As a Vitor,
@@ -1226,8 +1323,9 @@ So that eu não confie em preço ou carteira velhos sem perceber.
 **Then** ela passa para `api/workers/` (AD-1), e a tela v1 de Atualização continua funcionando
 
 **Given** `job_runs`
-**When** um job falhou na última execução ou passou do seu intervalo esperado
-**Then** o provider de `jobs` emite um aviso com o nome do job, a última execução bem-sucedida e a ação de ir para a atualização (inclui o `db_backup`: "backup falhou")
+**When** um job falhou na última execução ou passou do seu intervalo esperado (`JobSpec.threshold_seconds`)
+**Then** o provider de `jobs` emite "{Job} sem atualização desde {dd/mm/aaaa hh:mm}." (ou "Backup do banco falhou em {dd/mm/aaaa}." para o `db_backup`), com a ação de ir para a atualização
+**And** `job_runs` ganha `last_success_at` (a tabela de hoje só tem `last_run` e `ok`), e as duas mensagens entram no catálogo de avisos
 **And** o aviso some quando o job volta a rodar
 
 ## Epic 5: Fechamento de mês e recuperação da base
@@ -1235,13 +1333,39 @@ So that eu não confie em preço ou carteira velhos sem perceber.
 O Vitor fecha o mês com checklist, reabre vendo congelado × recalculado e recebe o aviso de ajuste em mês fechado.
 Jul/2024–mai/2026 entram fechados em bloco, e o Assistente de recuperação conduz do mês seguinte ao bloco até o mês anterior.
 
-### Story 5.1: Resumo do mês ao vivo
+### Story 5.1: Histórico de preço e preço num lugar só
+
+As a Vitor,
+I want que o app guarde o preço de cada dia em que coleta,
+So that um mês passado possa ser lido com o preço daquele mês, e não com o de hoje.
+
+**Requisitos:** AR2, AR9, NFR5.
+
+**Acceptance Criteria:**
+
+**Given** a revisão da story
+**When** roda
+**Then** existe `market.asset_price_history` (ativo, data, preço, fonte, `is_manual`), dona de `market`
+
+**Given** os workers de preço
+**When** coletam
+**Then** gravam o preço do dia no histórico, além do preço atual
+
+**Given** `upsert_price` e `clear_manual_price`
+**When** a story termina
+**Then** moram em `market.service` (AD-1), com as chamadas atuais atualizadas, a precedência `is_manual` e a invalidação de cache preservadas (testes de regressão do ADR-012)
+
+**Given** uma leitura de preço até uma data
+**When** não há preço no histórico até ela
+**Then** devolve `Valued` nulo com `sem_preco`, nunca o preço de hoje
+
+### Story 5.2: Resumo do mês ao vivo
 
 As a Vitor,
 I want que todo número de um mês aberto saia de um cálculo único,
 So that Painel, Caixa e fechamento nunca mostrem números diferentes para o mesmo mês.
 
-**Requisitos:** FR32, AR2, AR8, AR9, AR15.
+**Requisitos:** FR32, AR8, AR9, AR15.
 
 **Acceptance Criteria:**
 
@@ -1251,15 +1375,14 @@ So that Painel, Caixa e fechamento nunca mostrem números diferentes para o mesm
 **And** o Painel passa a ler o mês por `closing`
 
 **Given** um mês passado
-**When** o resumo usa preços
-**Then** o preço vem de `market.asset_price_history` até `as_of`; B3 de meses passados vem do consolidado (`broker_position_snapshots`); RF, do CDI até `as_of`
-**And** `asset_price_history` é dona de `market`, gravada pelos workers de preço a cada coleta; `upsert_price`/`clear_manual_price` passam para `market.service` e o `PriceCache` para `common.cache` (AD-1, com a precedência `is_manual` e a invalidação preservadas)
+**When** o resumo valora posições
+**Then** o preço vem de `market.asset_price_history` até `as_of`; B3 de meses passados vem do consolidado (`broker_position_snapshots`); RF pelo método vigente (CDI fixo até a Story 7.3, CDI real depois), gravado na cobertura
+**And** cripto sem histórico de carteira naquele fim de mês = aplicado do bloco, com cobertura "estimada"
 
 **Given** `common.dates`
 **When** a story termina
 **Then** existe `resolve_period(periodo, leitura) -> list[month]`, com testes, e "hoje" usa `today_brt()`
-
-### Story 5.2: Fechar o mês — serviço e snapshot
+### Story 5.3: Fechar o mês — serviço e snapshot
 
 As a Vitor,
 I want que fechar um mês congele o resumo exatamente como o calculado,
@@ -1278,14 +1401,18 @@ So that o passado fique como eu o conferi.
 **Given** `POST /api/v1/closing/months/{mes}/close`
 **When** há transações `pending` ou saldo PF divergente
 **Then** recusa com o motivo
-**And** posição divergente, dinheiro a caminho ou mês sem saldo PF informado no fim do mês exigem a confirmação "fechar mesmo assim", que fica gravada
+
+**Given** as precondições de fechamento
+**When** o fechamento as avalia
+**Then** vêm de um registro em `closing`: cada engine registra em `main.py` verificações `bloqueia` ou `confirma` (o ledger registra pendentes e saldo PF divergente como `bloqueia` e mês sem saldo PF informado no fim do mês como `confirma`; posição divergente e dinheiro a caminho são registrados pelo Épico 7)
+**And** as do tipo `confirma` exigem "fechar mesmo assim", que fica gravado
 
 **Given** um fechamento aceito
 **When** grava
 **Then** salva a versão 1 com o resumo de `build_month_summary`; termos cuja engine ainda não existe ficam nulos com `unavailable_reason = fora_do_resumo`
 **And** o golden test "snapshot = ao vivo no instante do fechamento" passa
 
-### Story 5.3: Checklist de fechamento na tela
+### Story 5.4: Checklist de fechamento na tela
 
 As a Vitor,
 I want fechar o mês por um checklist que mostra o que está pendente,
@@ -1310,7 +1437,7 @@ So that eu decida fechar sabendo o que fica para trás.
 **Given** uma falha ao fechar
 **When** a API recusa ou cai
 **Then** o diálogo mostra "Não foi possível fechar {mês}. Nada foi perdido. Tentar de novo." com o foco em "Tentar de novo"
-### Story 5.4: Ler mês fechado do snapshot, reabrir e fechar de novo
+### Story 5.5: Ler mês fechado do snapshot, reabrir e fechar de novo
 
 As a Vitor,
 I want que mês fechado mostre sempre o que congelei, e poder reabrir quando quiser recalcular,
@@ -1335,9 +1462,13 @@ So that o passado não mude sozinho, mas eu possa corrigir quando decidir.
 
 **Given** `python -m scripts.ops.refechar --meses 2026-06..2026-09`
 **When** roda
-**Then** reabre e fecha cada mês pelo serviço (nunca por SQL), com o mesmo `origin`, e lista os meses que mudaram
+**Then** faz backup antes, reabre e fecha cada mês pelo serviço (nunca por SQL), com o mesmo `origin`, e lista os meses que mudaram
 **And** é o caminho para atualizar meses fechados quando um termo novo ou um método de valoração novo chega
-### Story 5.5: Ajuste em mês fechado
+
+**Given** uma falha ao reabrir
+**When** a API recusa ou cai
+**Then** o mês continua como estava e o diálogo mostra "Não foi possível reabrir {mês}. Nada foi perdido. Tentar de novo."
+### Story 5.6: Ajuste em mês fechado
 
 As a Vitor,
 I want ser avisado quando um dado novo cai num mês já fechado,
@@ -1350,7 +1481,7 @@ So that eu decida se reabro, sem o resumo mudar por baixo.
 **Given** o `MonthStatusPort` real registrado por `closing` em `main.py`
 **When** `ingest`, `categorize`, a reaplicação de regras ou o desfazer tocam um mês fechado
 **Then** o dado é aceito, o mês fica `dirty` e o resumo congelado não muda
-**And** o provider emite "Ajuste em {mês}, já fechado. O resumo congelado não mudou." com a ação Reabrir mês, e o Seletor de período mostra "ajuste"; o `dirty` zera ao fechar de novo
+**And** o provider emite "Ajuste em {mês}, já fechado. O resumo congelado não mudou. Se reabrir, {métrica} passa de R$ {congelado} para R$ {ao vivo}." (a métrica de fluxo com a maior diferença; "e mais {n}" se houver outras), com a ação Reabrir mês, e o Seletor de período mostra "ajuste"; o `dirty` zera ao fechar de novo
 
 **Given** o teste de contrato
 **When** roda
@@ -1364,7 +1495,7 @@ So that eu decida se reabro, sem o resumo mudar por baixo.
 **When** os avisos são lidos
 **Then** aparece "{Mês} segue aberto. Confira o saldo e feche." com a ação Ir para Histórico
 
-### Story 5.6: Fechamento retroativo em bloco
+### Story 5.7: Fechamento retroativo em bloco
 
 As a Vitor,
 I want que jul/2024–mai/2026 já entrem fechados,
@@ -1376,7 +1507,7 @@ So that eu compare o fluxo desde jul/2024 sem refazer 23 meses.
 
 **Given** `python -m scripts.ops.close_retro --from 2024-07 --to 2026-05`
 **When** roda
-**Then** aborta se o Alembic estiver antes da revisão de reclassificação (`0020`)
+**Then** faz backup antes e aborta se o Alembic não estiver em `head` (precisa das reclassificações, de `assets` e dos snapshots)
 **And** fecha cada mês por `build_month_summary` com `origin = retro`, nunca por SQL de migração
 
 **Given** consolidados em `files/b3/relatorio-consolidado/` que ainda não foram importados
@@ -1395,7 +1526,11 @@ So that eu compare o fluxo desde jul/2024 sem refazer 23 meses.
 **Given** o comando rodado duas vezes
 **When** os meses já estão fechados
 **Then** não cria versões novas
-### Story 5.7: Assistente de recuperação
+
+**Given** um mês retroativo sem saldo PF informado no fim do mês
+**When** é fechado
+**Then** a confirmação "fechar mesmo assim" é gravada automaticamente com o motivo "retroativo"; os meses com OFX conferido (âncora de jun/2024) ficam "conferido"
+### Story 5.8: Assistente de recuperação
 
 As a Vitor,
 I want um passo a passo para recuperar os meses que faltam, um mês por vez,
@@ -1422,6 +1557,9 @@ So that eu chegue até hoje com cada mês importado, revisado, conferido e fecha
 **When** o Painel abre
 **Then** o assistente some
 
+**Given** o passo Fechar de um mês recuperado
+**When** o mês não tem histórico de carteira cripto naquele fim de mês
+**Then** o cripto entra como aplicado do bloco, com cobertura "estimada" (mesma regra do retroativo)
 ## Epic 6: Orçamento do mês e custos fixos
 
 O Vitor vê receitas por pagador, a Conta do orçamento (disponível, consumido, restante, consumo financiado por resgate),
@@ -1439,7 +1577,8 @@ So that eu saiba o que já paguei sem marcar à mão.
 
 **Given** a revisão da story
 **When** roda
-**Then** `fixed_costs` ganha vigência (`valid_from`, `valid_to`) e `fixed_cost_payments` guarda só as decisões (confirmação, correção, manual)
+**Then** `fixed_costs` ganha vigência (`valid_from`, `valid_to`), com o backfill dos atuais em `valid_from` ≤ jul/2024 (para o `refechar` retroativo enxergá-los), e `fixed_cost_payments` guarda só as decisões (confirmação, correção, manual), com FK para a transação `ON DELETE CASCADE`
+**And** a revisão é idempotente e um teste de regressão do desfazer (Story 3.12) prova que desfazer um lote com transação casada remove a decisão junto
 
 **Given** `ledger/calc`
 **When** o casamento do mês roda
@@ -1450,6 +1589,9 @@ So that eu saiba o que já paguei sem marcar à mão.
 **Then** usa o Formulário em painel lateral, valida "Vencimento entre 1 e 31." e a edição de valor único é inline (Enter grava, Esc reverte)
 **And** sem itens, mostra "Nenhum custo fixo. Cadastre para acompanhar pago × pendente."
 
+**Given** uma falha ao salvar um custo fixo
+**When** a API recusa ou cai
+**Then** o formulário ou a linha mostra "Não foi possível salvar. Nada foi perdido. Tentar de novo." e mantém o preenchido
 ### Story 6.2: Caixa › Custos fixos com casamento
 
 As a Vitor,
@@ -1513,6 +1655,7 @@ So that o orçamento bata com os números que conferi nos mockups.
 **When** a story termina
 **Then** `planning/calc` tem disponível para consumo (trabalho + resgates − custos fixos [pago: valor pago; pendente: valor cadastrado] − aporte planejado − dívidas do mês), restante e consumo financiado por resgate (mín(resgates, máx(0, consumido − disponível sem resgates)))
 **And** `ledger/calc` tem consumido: gastos − deduções, cada transação num balde só (custo fixo casado > dívida > devolução)
+**And** `planning/calc` tem também "restante sem os resgates" (restante − resgates), como termo próprio
 
 **Given** os números dos mockups
 **When** os golden tests rodam
@@ -1522,6 +1665,10 @@ So that o orçamento bata com os números que conferi nos mockups.
 **When** chamadas
 **Then** devolvem `Valued`/`Money` (AD-15); a escrita das dívidas é recusada em mês fechado
 
+**Given** um mês ao vivo sem valor informado em "Dívidas do mês"
+**When** o orçamento é calculado
+**Then** as dívidas do mês vêm pré-preenchidas com Σ das transações de role `divida` não casadas a custo fixo; o valor que o Vitor informar substitui o pré-preenchido
+**And** um golden test cobre o mês com pagamento em Dívidas e campo não informado (o pagamento sai do consumido e entra no disponível, sem inflar o restante)
 ### Story 6.5: Caixa › Orçamento
 
 As a Vitor,
@@ -1540,12 +1687,13 @@ So that eu saiba se o mês cabe no que ganho.
 
 **Given** Dívidas do mês
 **When** o Vitor digita e aperta Enter
-**Then** grava, a conta recalcula pela API e anuncia "Disponível: R$ {valor}"; Esc reverte; vazio conta zero com "sem dívidas informadas"
+**Then** grava, a conta recalcula pela API e anuncia "Disponível: R$ {valor}"; Esc reverte
+**And** sem valor informado, o campo mostra o pré-preenchido com a legenda "calculado das transações em Dívidas"; sem transações em Dívidas, R$ 0,00 com "sem dívidas informadas"
 **And** num mês fechado o campo é só leitura
 
 **Given** aporte planejado não definido
 **When** a conta aparece
-**Then** "− Aporte planejado" mostra R$ 0,00 + "não definido · Definir em Aportes"
+**Then** "− Aporte planejado" mostra R$ 0,00 + "não definido"; o link "Definir em Aportes" só aparece quando a aba Aportes existir (Story 8.4)
 
 **Given** disponível ou restante negativo
 **When** a conta aparece
@@ -1554,6 +1702,10 @@ So that eu saiba se o mês cabe no que ganho.
 **Given** o Painel
 **When** abre
 **Then** o Cartão KPI Disponível para consumo aparece ao lado de Resultado do mês e leva a Caixa › Orçamento
+
+**Given** uma falha ao gravar as dívidas do mês
+**When** a API recusa ou cai
+**Then** a linha mostra "Não foi possível salvar as dívidas. Nada foi perdido. Tentar de novo." e mantém o valor digitado
 ### Story 6.6: Taxa de poupança e rodapé do orçamento
 
 As a Vitor,
@@ -1618,6 +1770,7 @@ So that eu saiba onde está meu dinheiro sem abrir a corretora.
 **Given** o Seletor de leitura (Mês · Trimestre · Ano · Desde o início, na URL, só desta aba)
 **When** o Vitor troca a leitura
 **Then** muda o resultado do período; aplicado e valor atual seguem o fim do mês
+**And** `closing.build_period_summary` nasce nesta story: soma os meses do período (fechados do snapshot, aberto ao vivo), devolve `source` por mês e nunca inclui mês posterior
 
 **Given** um preço desatualizado ou ausente
 **When** a linha aparece
@@ -1633,14 +1786,15 @@ So that eu saiba quanto a carteira rendeu acima da inflação.
 
 **Acceptance Criteria:**
 
-**Given** `closing.build_period_summary`
-**When** calcula a rentabilidade de um período
+**Given** `closing.build_period_summary` (Story 7.1)
+**When** passa a calcular a rentabilidade de um período
 **Then** usa XIRR (`portfolio/xirr.py`) sobre o valor investido no início e no fim e os fluxos líquidos datados; o valor inicial vem do mês anterior (snapshot se fechado; senão `build_month_summary`), e sem nenhum volta `antes_do_primeiro_fechamento`
 
 **Given** o IPCA de `benchmark_data`
 **When** o real é calculado
 **Then** desconta o IPCA efetivo do período; se o IPCA do último mês não saiu, o real é o Selo "aguardando IPCA" e a nominal aparece normalmente
 **And** o SQL de `benchmark_workers.py` passa para `market.service` (AD-1)
+**And** o fetcher do BCB passa a buscar por intervalo (`dataInicial`/`dataFinal` do SGS) e um backfill grava CDI e IPCA desde jun/2024; o catch-up preenche os dias que faltarem, idempotente
 
 **Given** Posições
 **When** abre
@@ -1650,24 +1804,22 @@ So that eu saiba quanto a carteira rendeu acima da inflação.
 **When** abre
 **Then** o Cartão KPI Rentabilidade real aparece ao lado da nominal, com o carimbo do IPCA
 
+**Given** o resumo do mês
+**When** a story termina
+**Then** `build_month_summary` passa a incluir a rentabilidade do mês (nominal e real), e o golden "snapshot = ao vivo" cobre esses campos
 ### Story 7.3: Renda fixa pelo CDI real
 
 As a Vitor,
 I want que caixinhas e CDBs sejam valorados pelo CDI que de fato saiu,
-So that o valor atual da renda fixa não dependa de uma taxa fixa nem de seed manual.
+So that o valor atual da renda fixa não dependa de uma taxa fixa.
 
-**Requisitos:** FR23, AR7, AR12.
+**Requisitos:** FR23, AR12.
 
 **Acceptance Criteria:**
 
 **Given** uma caixinha ou CDB com %CDI cadastrado no ativo
 **When** o valor atual é calculado
-**Then** usa o %CDI aplicado ao CDI efetivo de `benchmark_data` até a data, e `settings.cdi_anual` deixa de ser usado
-
-**Given** os hooks `on_batch_applied` e `on_transactions_changed`
-**When** um import ou uma recategorização mexe em transações de caixinha/CDB
-**Then** as operações derivadas são refeitas idempotentes por `transaction_id`, na mesma transação, e os seeds `seed_caixinhas`/`seed_cdb_guanabara` deixam de ser necessários
-**And** a revisão da story cria `transactions.asset_id`, preenchido pelo resolver que `portfolio` registra em `ledger` ("Caixinha SnowTrip" → `caixinha:snowtrip`), com backfill do histórico
+**Then** usa o %CDI aplicado ao CDI efetivo de `benchmark_data` até a data (histórico da Story 7.2), e `settings.cdi_anual` deixa de ser usado
 
 **Given** Posições
 **When** mostra um ativo de RF
@@ -1677,19 +1829,45 @@ So that o valor atual da renda fixa não dependa de uma taxa fixa nem de seed ma
 **When** são lidos
 **Then** mantêm a valoração antiga ("RF: CDI fixo" na cobertura) até o Vitor rodar o `refechar` neles
 
-### Story 7.4: Debêntures cadastradas no app
+### Story 7.4: Caixinhas e CDBs derivados das transações
 
 As a Vitor,
-I want cadastrar minhas debêntures e que os aportes nelas sejam sugeridos na revisão,
-So that eu largue o JSON mantido à mão.
+I want que as operações de caixinha e CDB acompanhem cada import e cada recategorização,
+So that eu largue os seeds manuais sem perder a curadoria que já fiz.
 
-**Requisitos:** FR24, FR35, AR12, UX-DR43.
+**Requisitos:** FR23, AR7, AR12.
 
 **Acceptance Criteria:**
 
 **Given** a revisão da story
 **When** roda
-**Then** existe `debentures` (dona `portfolio`, ligada a `assets`: emissor, taxa, início, vencimento) e as integralizações de `files/debentures-flash/integralizacoes.json` são migradas com os mesmos valores
+**Then** cria `transactions.asset_id`, preenchido pelo resolver que `portfolio` registra em `ledger` ("Caixinha SnowTrip" → `caixinha:snowtrip`), com backfill do histórico, idempotente e com backup antes
+**And** caixinhas encerradas (Extra, Reserva, HotCash, Potencial) resolvem para o ativo do bucket `Nubank-Encerradas`, como hoje
+
+**Given** os hooks `on_batch_applied` e `on_transactions_changed`
+**When** um import ou uma recategorização mexe em transações de caixinha/CDB
+**Then** as operações derivadas são refeitas idempotentes por `transaction_id`, na mesma transação, lendo o par investimento ↔ resgate de cada trilho
+**And** operação sem `transaction_id` ou `protected` nunca é alterada nem apagada
+
+**Given** o teste de invariante
+**When** a rederivação roda sobre o histórico inteiro
+**Then** net, aplicado e XIRR de cada caixinha/CDB são iguais aos de antes
+**And** `seed_caixinhas` e `seed_cdb_guanabara` deixam de ser necessários
+### Story 7.5: Debêntures cadastradas no app
+
+As a Vitor,
+I want cadastrar minhas debêntures e que os aportes nelas sejam sugeridos na revisão,
+So that eu largue o JSON mantido à mão.
+
+**Requisitos:** FR24, FR35, AR12, UX-DR43, UX-DR30.
+
+**Acceptance Criteria:**
+
+**Given** a revisão da story
+**When** roda
+**Then** existe `debentures` (dona `portfolio`, ligada a `assets`: emissor, taxa, início, vencimento) e `debenture_contributions` (aporte sugerido: transação, debênture, valor, status)
+**And** as 12 integralizações que já estão em `asset_operations` (do `seed_debentures_flash`) são ligadas a `debentures`/`assets` sem reinserir; o JSON fica só como conferência
+**And** o teste de invariante prova que o aplicado Flash continua R$ 12.000,00 e a revisão é idempotente
 
 **Given** Ajustes › Debêntures
 **When** o Vitor cadastra ou edita
@@ -1697,7 +1875,7 @@ So that eu largue o JSON mantido à mão.
 
 **Given** uma saída do Nubank com categoria de investimento em debênture
 **When** aparece na Revisão de transações
-**Then** traz o campo "Debênture" sugerido; o aporte derivado tem status `suggested`, `confirmed` ou `dismissed`, e entradas do mesmo pagador (ex.: receita da Flash) nunca viram aporte
+**Then** traz o campo "Debênture" sugerido só se a transação ainda não tem operação ligada; o aporte derivado tem status `suggested`, `confirmed` ou `dismissed`, e entradas do mesmo pagador (ex.: receita da Flash) nunca viram aporte
 
 **Given** uma debênture
 **When** é valorada
@@ -1705,7 +1883,7 @@ So that eu largue o JSON mantido à mão.
 **And** cupons e o resgate no vencimento entram como resgates no Nubank
 **And** meses fechados antes desta story mantêm a valoração do JSON até serem fechados de novo pelo `refechar`
 
-### Story 7.5: Caixa em corretora e dinheiro a caminho
+### Story 7.6: Caixa em corretora e dinheiro a caminho
 
 As a Vitor,
 I want saber quanto dinheiro está parado na corretora e quanto ainda está a caminho,
@@ -1732,7 +1910,14 @@ So that o patrimônio e o aporte não fiquem errados entre a transferência e o 
 **When** o Vitor informa
 **Then** fica gravado em `broker_cash_checks` e o cartão mostra calculado × informado; diferença acima de R$ 1,00 mostra o Selo "divergente" e o aviso "Caixa na {corretora}: calculado R$ {a}, informado R$ {b}."
 
-### Story 7.6: Conciliação com o consolidado B3 e com as carteiras
+**Given** Investimentos › Posições
+**When** abre
+**Then** mostra também as linhas "Caixa em corretora" (no patrimônio) e "A caminho" (Selo + "importe o relatório B3 a partir de dd/mm/aaaa", fora do patrimônio)
+
+**Given** o fechamento de mês
+**When** a story termina
+**Then** `portfolio` registra a verificação `confirma` "dinheiro a caminho" no registro de precondições de `closing`, e `build_month_summary` inclui caixa em corretora e a caminho, com o golden "snapshot = ao vivo"
+### Story 7.7: Conciliação com o consolidado B3 e com as carteiras
 
 As a Vitor,
 I want comparar minhas posições com o consolidado B3 e com o scan das carteiras,
@@ -1750,7 +1935,8 @@ So that eu saiba que o app bate com a origem.
 **Given** Investimentos › Conciliação
 **When** abre
 **Then** abaixo dos cartões, mostra posições × consolidado B3 e × scan das carteiras (app, origem, diferença, Selo de estado, Carimbo de data)
-**And** divergência gera "{Ativo}: {q} no app, {q'} no consolidado B3." (severidade divergência), e scan com mais de 14 h gera aviso de idade
+**And** divergência gera "{Ativo}: {q} no app, {q'} no consolidado B3." (severidade divergência), e scan com mais de 14 h gera "Carteiras sem scan desde {dd/mm/aaaa hh:mm}." (mensagem que entra no catálogo de avisos)
+**And** `portfolio` registra a verificação `confirma` "posição divergente" no registro de precondições de `closing`
 
 **Given** tudo dentro da tolerância
 **When** a aba abre
@@ -1808,11 +1994,12 @@ So that a distribuição do aporte tenha uma base que eu controlo.
 
 **Given** a revisão da story
 **When** roda
-**Then** `portfolio_targets` passa a ser dona de `planning`, com `class`, `asset_id` nulo (= meta da classe), %, banda (p.p.), piso (R$) e vigência, migrando os valores de `portfolio/targets.py` / `seed_portfolio_targets`
+**Then** `portfolio_targets` passa a ser dona de `planning`, com `class`, `asset_id` nulo (= meta da classe), %, banda (p.p.), piso (R$) e vigência, migrando os valores de `portfolio/targets.py` / `seed_portfolio_targets`, idempotente e com teste de invariante (mesmas metas por classe antes e depois)
+**And** a tela v1 de alocação passa a ler as metas por `planning`
 
 **Given** Ajustes › Metas
 **When** o Vitor edita classe → ativo
-**Then** cada nível precisa somar 100%; senão aparece "Soma em {x}%. Ajuste para 100%." e Salvar fica desabilitado
+**Then** cada nível precisa somar 100%, conferido por `POST /api/v1/planning/targets/preview` (o navegador não soma); senão aparece "Soma em {x}%. Ajuste para 100%." e Salvar fica desabilitado
 **And** sem metas, "Nenhuma meta. Sem metas, a distribuição do aporte não tem base." com a ação Definir metas
 
 ### Story 8.3: Alocação × meta e bloco Objetivos em Posições
@@ -1907,6 +2094,9 @@ So that eu siga meu julgamento sem desmontar a conta.
 **When** a prévia roda
 **Then** aparece "Travas somam R$ {x}, acima do planejado."
 
+**Given** uma falha ao gravar uma trava
+**When** a API recusa ou cai
+**Then** a célula mostra "Não foi possível salvar. Nada foi perdido. Tentar de novo." e mantém o valor digitado
 ### Story 8.7: Realizado, a caminho e pendente na distribuição
 
 As a Vitor,
@@ -1930,6 +2120,9 @@ So that eu feche o mês com o plano cumprido.
 **When** aparece (Aportes e objetivos)
 **Then** tem três trechos (realizado em ativo sólido, a caminho hachurado, pendente vazio), trilho com contorno `input`, legenda com os mesmos rótulos e os números escritos ao lado
 
+**Given** o resumo do mês
+**When** a story termina
+**Then** `build_month_summary` inclui aporte planejado, realizado total, realizado por classe e ativo, a caminho e pendente, e o golden "snapshot = ao vivo" cobre esses campos
 ### Story 8.8: Resumo do aporte no Painel e aviso de pendente
 
 As a Vitor,
@@ -2013,7 +2206,7 @@ So that eu perceba tendências sem perder os números exatos.
 
 **Given** o Gráfico de aporte planejado × realizado
 **When** aparece
-**Then** barras agrupadas por mês (planejado `chart-2`, realizado `chart-1`); sem planejado, só realizado
+**Then** barras agrupadas por mês (planejado `chart-2`, realizado `chart-1`), com a média 12m do realizado como marcador em `chart-3`; sem planejado, só realizado
 
 **Given** qualquer dos três
 **When** o Vitor usa "Ver como tabela"
@@ -2120,4 +2313,4 @@ So that não existam dois caminhos para a mesma informação.
 
 **Given** endpoints legados sem uso no web nem no Hermes
 **When** a story termina
-**Then** foram removidos ou migrados para `/api/v1/<engine>/<recurso>` com `response_model`, e a coluna de texto de categoria (`transactions.category`, `fixed_costs.category`) sai numa revisão Alembic
+**Then** foram removidos ou migrados para `/api/v1/<engine>/<recurso>` com `response_model`, e a coluna de texto de categoria (`transactions.category`, `fixed_costs.category`) e `categories.match_patterns` saem numa revisão Alembic, com backup antes, idempotente e com teste de invariante (contagens e totais por mês × categoria iguais)

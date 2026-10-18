@@ -85,7 +85,8 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
 - **Binds:** all
 - **Prevents:** os ciclos atuais (market↔portfolio, portfolio↔wallet, wallet→ledger) e novos ciclos.
 - **Rule:** engine só importa engine de camada **menor**; mesma camada não se importa. Engine baixa que
-  precisa de algo de cima recebe por **registro** feito em `main.py` (AD-5, AD-6, AD-10).
+  precisa de algo de cima recebe por **registro** feito em `main.py` (AD-5, AD-6, AD-10). Atribuição explícita de
+  um movimento a uma story vence a regra "primeira story que tocar".
   Movimentos obrigatórios, feitos pela primeira story que tocar o módulo:
 
   | De | Para |
@@ -197,6 +198,10 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   - `categories.key` é imutável e única (ex.: `invest:toro_b3`, `invest:cripto_nubank`). Código que precisa de
     uma categoria específica (trilhos de `transit`, `CaixinhaSpec`, bloco cripto) lê `key`; nunca nome. Renomear
     muda só o rótulo.
+  - Cada subcategoria de investimento tem o par de resgate registrado (`invest:x` ↔ `resgate:x`); quem
+    precisa do líquido de um trilho (`transit`, bloco cripto, caixinhas) lê as duas keys.
+  - `category_rules` têm `direction ∈ {entrada, saida, ambos}`; a detecção de transferência interna fica no
+    adapter Nubank, antes das regras.
   - `transactions.category_source ∈ {rule, suggestion, manual}`; `manual` nunca é sobrescrito.
     `review_status ∈ {pending, confirmed}`. Toda mudança gera linha em `categorization_events`
     (append-only: antes, depois, origem, lote) — base de SM-5, SM-6 e SM-C1.
@@ -231,8 +236,9 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   | a caminho, caixa em corretora | `portfolio/calc` | resíduo por corretora × cobertura de `ingest` (FR-25) |
   | valor investido | `portfolio/calc` | posições + bloco cripto + caixa em corretora (base do XIRR) |
   | patrimônio | `portfolio/calc` | valor investido + saldo das contas |
-  | disponível para consumo | `planning/calc` | trabalho + resgates − custos fixos (pago: valor pago; pendente: valor cadastrado) − aporte planejado − dívidas do mês |
+  | disponível para consumo | `planning/calc` | trabalho + resgates − custos fixos (pago: valor pago; pendente: valor cadastrado) − aporte planejado − dívidas do mês (sem valor informado: Σ role `divida` não casada) |
   | restante | `planning/calc` | disponível − consumido |
+  | restante sem os resgates | `planning/calc` | restante − resgates |
   | consumo financiado por resgate | `planning/calc` | mín(resgates, máx(0, consumido − disponível sem resgates)), separado em por objetivo × por carteira |
   | realizado / pendente | `planning/calc` | realizado total inclui a caminho; por classe só quando vira ativo; pendente = planejado − realizado total |
 
@@ -275,7 +281,8 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
       `class` → enum de classe, `asset` → `assets.id`, `goal` → `goals.id`, `account` →
       `accounts.id`.
     - Tela de mês fechado só mostra campos do snapshot. Campo novo = coluna nova + refechar.
-  - Precondições: bloqueia com transações pendentes ou saldo divergente da conta PF (sem saldo informado
+  - Precondições: registro em `closing`, em que cada engine registra verificações `bloqueia` ou `confirma`. Bloqueia
+    com transações pendentes ou saldo divergente da conta PF (sem saldo informado
     no fim do mês = pendência com "fechar mesmo assim"); posição divergente e a
     caminho pedem "fechar mesmo assim", que fica gravado.
   - Reabrir muda o status; fechar de novo cria `version + 1`. Versões antigas nunca são apagadas nem
@@ -287,9 +294,9 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   - Num mês fechado, `month_plans` e `fixed_cost_payments` são só leitura até reabrir.
   - **Retroativo (FR-7):** `closing.close_retro(months)` é comando de serviço
     (`python -m scripts.ops.close_retro`), rodado **depois** das revisões de dados de AD-16 (aborta
-    se o Alembic estiver antes da revisão de reclassificação). Usa
-    `planning.ensure_month_plan(month, mode='retro')`: dívidas do mês = Σ transações de role
-    `divida` não casadas a custo fixo; aporte planejado e pendente = null (`nao_definido`). Patrimônio B3 do consolidado (mensal 2026; anual = dezembro); cripto retroativa =
+    se o Alembic não estiver em `head`). Termos ainda sem engine ficam `fora_do_resumo`; quando `planning`
+    existir, `planning.ensure_month_plan(month, mode='retro')` dá as dívidas do mês = Σ transações de role
+    `divida` não casadas a custo fixo, e aporte planejado e pendente = null (`nao_definido`), via `refechar`. Patrimônio B3 do consolidado (mensal 2026; anual = dezembro); cripto retroativa =
     aplicado do bloco, cobertura "estimada"; mês sem consolidado = "patrimônio não coberto".
 
 ### AD-9 — Derivar por padrão, persistir só decisões
@@ -558,7 +565,7 @@ erDiagram
 | `market` | `asset_prices`, `asset_price_history`, `benchmark_data` |
 | `ledger` | `accounts`, `account_balances`, `transactions`, `category_groups`, `categories`, `category_rules`, `categorization_events`, `fixed_costs`, `fixed_cost_payments` |
 | `wallet` | `wallet_positions`, `defi_positions`, `crypto_cost_basis` |
-| `portfolio` | `assets`, `asset_operations`, `debentures`, `broker_position_snapshots`, `broker_cash_checks` |
+| `portfolio` | `assets`, `asset_aliases`, `asset_operations`, `debentures`, `debenture_contributions`, `broker_position_snapshots`, `broker_cash_checks` |
 | `planning` | `goals`, `goal_assets`, `portfolio_targets` (metas, banda, piso), `month_plans` (aporte planejado, dívidas, travas) |
 | `closing` | `month_closes`, `month_summary_totals`, `month_summary_lines` |
 | `alerts` | `alert_dismissals` |

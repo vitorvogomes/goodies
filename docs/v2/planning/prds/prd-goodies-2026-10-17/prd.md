@@ -113,10 +113,11 @@ brief. Elas foram decididas pelo Vitor e não estão em aberto.
   de movimento** e **pagador** (quando houver).
 - **Tipo de movimento** — receita, gasto, investimento ou transferência. **Gasto** é só consumo;
   **investimento** é o dinheiro direcionado a investimentos.
-- **Resgate** — dinheiro que volta de caixinha, RF ou corretora para a conta Nubank. É receita e é
-  exibido em linha própria.
+- **Resgate** — dinheiro que volta de caixinha, RF, corretora ou carteira/exchange cripto para a conta
+  Nubank. É receita e é exibido em linha própria.
 - **Receita** — tudo que entra de fora, inclusive os resgates.
-- **Receita do trabalho** — receita sem os resgates. É a base da taxa de poupança.
+- **Receita do trabalho** — receita sem os resgates e sem as devoluções (role `work_income`). É a base da
+  taxa de poupança.
 - **Pagador** — quem enviou uma receita (ex.: Flash, Betuel). Serve só para exibição.
 - **Categoria** — classificação em dois níveis: **grupo** > **subcategoria**. Pode ser
   **arquivada**: some das sugestões e mantém o histórico.
@@ -132,9 +133,10 @@ brief. Elas foram decididas pelo Vitor e não estão em aberto.
 - **Custo fixo** — despesa recorrente cadastrada em Ajustes, com valor e dia de vencimento. Em cada
   mês está **pago** ou **pendente**. A soma dos custos fixos é a base do orçamento e da reserva de
   emergência.
-- **Orçamento do mês** — receitas (inclusive resgates) − custos fixos − aporte planejado − dívidas
+- **Orçamento do mês** — receita do trabalho + resgates − custos fixos − aporte planejado − dívidas
   do mês = **disponível para consumo**.
-- **Dívidas do mês** — valor manual informado no orçamento do mês. Pode ser zero.
+- **Dívidas do mês** — valor do orçamento do mês, pré-preenchido com as transações em Dívidas não
+  casadas a custo fixo; o Vitor pode sobrescrever. Pode ser zero.
 
 **Investimentos**
 
@@ -161,8 +163,8 @@ brief. Elas foram decididas pelo Vitor e não estão em aberto.
 - **Meta de alocação** — percentual-alvo de uma classe na carteira, ou de um ativo na classe.
 - **Banda** — tolerância em pontos percentuais em torno da meta de alocação.
 - **Piso** — aporte mínimo que uma classe recebe todo mês.
-- **Objetivo** — meta de poupança com nome, valor-alvo e prazo (ex.: Snow Trip). O progresso é a
-  soma dos aportes destinados a ele, menos os resgates dele. A **reserva de emergência** é um
+- **Objetivo** — meta de poupança com nome, valor-alvo e prazo (ex.: Snow Trip). O progresso é o
+  valor atual dos ativos vinculados a ele, com o aportado (aportes − resgates) ao lado. A **reserva de emergência** é um
   objetivo cujo valor-alvo é 6 × custos fixos (multiplicador editável).
 - **Aporte planejado** — valor total que o Vitor decide aportar no mês.
 - **Distribuição do aporte** — sugestão de quanto vai para cada objetivo, classe e ativo.
@@ -201,7 +203,9 @@ corretora.
 #### FR-3: Atualizado até e defasagem por fonte
 O app mostra o **atualizado até** de cada fonte no painel principal e no hub, e avisa quando uma
 fonte passa do limite de defasagem:
-- Nubank: 7 dias.
+- Nubank conta PF: 7 dias.
+- Nubank conta MEI: aviso só se o mês anterior não estiver coberto até o dia 15 (o OFX do MEI
+  costuma cobrir vários meses).
 - B3 movimentação e negociação: sem limite fixo; o aviso surge quando o FR-4 detecta transferência
   não coberta.
 - B3 consolidado: aviso só se o consolidado do mês anterior não tiver sido importado até o dia 15
@@ -340,11 +344,13 @@ dias do vencimento e o marca como pago. O Vitor confirma, corrige ou marca manua
 #### FR-19: Resgates no histórico
 Os resgates gravados como investimento pela regra antiga (ADR-011) são reclassificados como
 resgate, ou seja, receita. Isso vale para todo o histórico, uma vez, na migração.
-- A taxa de poupança histórica não muda, porque usa a receita do trabalho (FR-20). O gate de
-  jun/2026 (55,48%) continua válido.
+- A reclassificação de resgates não muda a taxa de poupança histórica, porque ela usa a receita do
+  trabalho (FR-20). O gate de jun/2026 (55,48%) continua válido.
+- A taxa muda só nos meses com Repasse, que passa de Trabalho para Devoluções e abate gasto; os
+  deltas por mês ficam listados no teste da migração.
 
 #### FR-20: Taxa de poupança
-A taxa de poupança do mês é (receita do trabalho − gastos) / receita do trabalho. Ao lado, o app
+A taxa de poupança do mês é (receita do trabalho − (gastos − devoluções)) / receita do trabalho. Ao lado, o app
 mostra o aporte em relação à receita do trabalho.
 
 ### 4.5 Investimentos

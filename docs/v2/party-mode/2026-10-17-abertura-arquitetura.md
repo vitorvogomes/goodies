@@ -106,7 +106,8 @@ fechamentos retroativos):
     Consumido por grupo.
   - Investimento nunca é gasto.
 - **Dívidas do mês:**
-  - É um campo manual, padrão R$ 0,00.
+  - É um campo manual, padrão R$ 0,00. *Emenda 2026-10-18 (checagem de prontidão): vem pré-preenchido com as
+    transações em Dívidas não casadas a custo fixo também nos meses ao vivo; o Vitor sobrescreve.*
   - Nos meses fechados retroativamente, vem pré-preenchido com a soma das transações em Dívidas
     daquele mês.
   - A transação em Dívidas não entra no consumido, porque já foi descontada no orçamento.
