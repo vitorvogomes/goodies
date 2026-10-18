@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 import type {
   DefiPosition,
   DefiPositionInput,
+  ManualItem,
   ManualPositionInput,
   Reconciliation,
   WalletPosition,
@@ -16,7 +17,7 @@ import type {
 
 // Tudo que depende do saldo cripto (wallet/DeFi) — ver comentário do topo.
 function invalidateCrypto(qc: QueryClient) {
-  for (const key of ["wallets", "defi", "portfolio"]) {
+  for (const key of ["wallets", "defi", "portfolio", "closing", "overview", "alerts"]) {
     qc.invalidateQueries({ queryKey: [key] });
   }
 }
@@ -96,5 +97,13 @@ export function useDeleteDefi() {
     mutationFn: (id: string) =>
       apiFetch<unknown>(`/api/v1/defi/positions/${id}`, { method: "DELETE" }),
     onSuccess: () => invalidateCrypto(qc),
+  });
+}
+
+// Ajustes › Posições manuais (Story 7.8): carteira manual + DeFi numa lista só.
+export function useManualPositions() {
+  return useQuery({
+    queryKey: ["wallets", "manual"],
+    queryFn: () => apiFetch<ManualItem[]>("/api/v1/wallets/manual"),
   });
 }

@@ -69,7 +69,12 @@ async def upsert_wallet_position(
 
 
 async def upsert_manual_wallet_position(
-    conn: asyncpg.Connection, user_id: str, chain: str, asset_symbol: str, quantity: float
+    conn: asyncpg.Connection,
+    user_id: str,
+    chain: str,
+    asset_symbol: str,
+    quantity: float,
+    as_of: date | None = None,
 ) -> None:
     """Grava/atualiza uma posição MANUAL (ex.: Liquid confidencial, não escaneável).
 
@@ -91,17 +96,19 @@ async def upsert_manual_wallet_position(
         """
         INSERT INTO wallet_positions
           (user_id, chain, wallet_address, asset_symbol, quantity, source, scanned_at, is_manual)
-        VALUES ($1, $2, 'manual', $3, $4, 'manual', now(), true)
+        VALUES ($1, $2, 'manual', $3, $4, 'manual',
+                COALESCE(($5::date + time '12:00') AT TIME ZONE 'America/Sao_Paulo', now()), true)
         ON CONFLICT (user_id, chain, wallet_address, asset_symbol) DO UPDATE
           SET quantity = EXCLUDED.quantity,
               source = 'manual',
               is_manual = true,
-              scanned_at = now()
+              scanned_at = EXCLUDED.scanned_at
         """,
         user_id,
         chain,
         asset_symbol,
         quantity,
+        as_of,
     )
 
 
@@ -346,4 +353,51 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
             "kind": "confirma",
             "message": f"Sem scan de cripto no fim de {month_label(month)}.",
         }
+    ]
+
+
+
+async def manual_positions(conn: asyncpg.Connection, user_id: str) -> list[dict[str, Any]]:
+    """Posições manuais (Story 7.8): carteira `is_manual` + DeFi, com a data informada."""
+    wallets = await conn.fetch(
+        "SELECT chain, asset_symbol, quantity, scanned_at FROM wallet_positions "
+        "WHERE user_id = $1 AND is_manual ORDER BY chain, asset_symbol",
+        user_id,
+    )
+    defi = await conn.fetch(
+        "SELECT id, protocol, asset_symbol, balance, maturity_date, is_active, notes, updated_at "
+        "FROM defi_positions WHERE user_id = $1::uuid ORDER BY is_active DESC, maturity_date, "
+        "asset_symbol",
+        user_id,
+    )
+    from engines.common.dates import today_brt
+
+    return [
+        {
+            "kind": "carteira",
+            "id": f"{r['chain']}/{r['asset_symbol']}",
+            "asset_symbol": r["asset_symbol"],
+            "quantity": float(r["quantity"]),
+            "chain": r["chain"],
+            "protocol": None,
+            "as_of": today_brt(r["scanned_at"]) if r["scanned_at"] else None,
+            "maturity_date": None,
+            "notes": None,
+            "is_active": True,
+        }
+        for r in wallets
+    ] + [
+        {
+            "kind": "defi",
+            "id": str(r["id"]),
+            "asset_symbol": r["asset_symbol"],
+            "quantity": float(r["balance"]),
+            "chain": None,
+            "protocol": r["protocol"],
+            "as_of": today_brt(r["updated_at"]) if r["updated_at"] else None,
+            "maturity_date": r["maturity_date"],
+            "notes": r["notes"],
+            "is_active": r["is_active"],
+        }
+        for r in defi
     ]

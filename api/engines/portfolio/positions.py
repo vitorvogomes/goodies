@@ -88,10 +88,19 @@ async def _crypto_assets(
     conn: asyncpg.Connection, owner: str, as_of: date, live: bool
 ) -> list[PositionAsset]:
     found: dict[str, Decimal] = defaultdict(Decimal)
+    manual: dict[str, date] = {}  # Story 7.8: posição manual → a data informada
     if live:
         for w in await wallet_service.list_wallet_positions(conn, owner):
             if w["value_brl"] is not None:
                 found[w["asset_symbol"]] += _dec(w["value_brl"])
+            if w["is_manual"]:
+                manual[w["asset_symbol"]] = date.fromisoformat(w["scanned_at"][:10])
+        for d in await wallet_service.manual_positions(conn, owner):
+            if d["kind"] == "defi" and d["is_active"] and d["as_of"] is not None:
+                manual.setdefault(d["asset_symbol"], d["as_of"])
+        for d in await wallet_service.list_defi_valued(conn, owner):
+            if d["value_brl"] is not None:
+                found[d["asset_symbol"]] += _dec(d["value_brl"])
     else:
         wallets = await wallet_service.positions_as_of(conn, as_of)
         prices = await market_service.prices_as_of(
@@ -105,8 +114,14 @@ async def _crypto_assets(
         PositionAsset(
             symbol=s,
             aplicado=None,
-            valor=Valued[Decimal](value=v.quantize(_CENT), as_of=as_of, source="carteiras"),
+            valor=Valued[Decimal](
+                value=v.quantize(_CENT),
+                as_of=manual.get(s, as_of),
+                source="manual" if s in manual else "carteiras",
+            ),
             resultado=None,
+            manual=s in manual,
+            nota=f"informado em {manual[s]:%d/%m/%Y}" if s in manual else None,
         )
         for s, v in sorted(found.items(), key=lambda i: -i[1])
     ]

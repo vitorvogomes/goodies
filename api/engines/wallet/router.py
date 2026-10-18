@@ -4,6 +4,7 @@
 `/api/v1/wallets/reconciliation` (escaneado vs registrado em asset_operations). Só
 leitura: a escrita é do worker `wallet_scan` (cron). Escopo por usuário.
 """
+from datetime import date
 from typing import Annotated
 
 import asyncpg
@@ -41,6 +42,7 @@ class ManualPositionIn(BaseModel):
     chain: str = Field(min_length=1)
     asset_symbol: str = Field(min_length=1)
     quantity: float = Field(ge=0)
+    as_of: date | None = None  # Story 7.8: a data em que o Vitor viu a posição
 
     @field_validator("chain", "asset_symbol")
     @classmethod
@@ -78,7 +80,7 @@ async def create_manual_position(
     """Entrada manual (ex.: Liquid confidencial). Upsert por (chain, asset_symbol)."""
     try:
         await service.upsert_manual_wallet_position(
-            db, user["id"], body.chain, body.asset_symbol, body.quantity
+            db, user["id"], body.chain, body.asset_symbol, body.quantity, body.as_of
         )
     except ManualPositionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -107,3 +109,25 @@ async def delete_manual_position(
 @router.get("/reconciliation", response_model=list[ReconciliationOut])
 async def reconciliation(user: AuthUser, db: Db) -> list[dict[str, object]]:
     return await service.reconcile(db, user["id"])
+
+
+
+class ManualItem(BaseModel):
+    """Ajustes › Posições manuais (Story 7.8): o que nenhum scan alcança — carteira manual
+    (SideSwap/Liquid confidencial) e posições DeFi (hyUSD, xSOL…), com vencimento."""
+
+    kind: str  # carteira | defi
+    id: str  # carteira: "{chain}/{ativo}"; defi: o id da posição
+    asset_symbol: str
+    quantity: float
+    chain: str | None
+    protocol: str | None
+    as_of: date | None  # a data informada
+    maturity_date: date | None
+    notes: str | None
+    is_active: bool
+
+
+@router.get("/manual", response_model=list[ManualItem])
+async def manual_positions(user: AuthUser, db: Db) -> list[ManualItem]:
+    return [ManualItem(**i) for i in await service.manual_positions(db, user["id"])]

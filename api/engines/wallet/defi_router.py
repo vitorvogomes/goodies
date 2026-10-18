@@ -15,11 +15,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
-from engines.common.alerts import LegacyAlert as Alert
 from engines.common.cache import invalidate_xirr_cache
-from engines.common.dates import today_brt
 from engines.common.numbers import as_decimal, value_of
-from engines.wallet.defi import DefiMaturity, defi_maturity_alerts
 from engines.wallet.service import prices_by_ticker
 
 router = APIRouter(prefix="/api/v1/defi", tags=["wallet:defi"])
@@ -193,23 +190,3 @@ async def delete_position(position_id: uuid.UUID, user: AuthUser, db: Db) -> Non
     if result == "DELETE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
     await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
-
-
-@router.get("/alerts", response_model=list[Alert])
-async def defi_alerts(user: AuthUser, db: Db) -> list[Alert]:
-    """Alertas de vencimento (30d/7d) das posições DeFi ativas — compute-on-read."""
-    today = today_brt()  # fuso BRT — em prod UTC daria off-by-one nas bordas (débito m4)
-    rows = await db.fetch(
-        "SELECT asset_symbol, maturity_date, protocol FROM defi_positions "
-        "WHERE user_id = $1 AND is_active AND maturity_date IS NOT NULL",
-        uuid.UUID(user["id"]),
-    )
-    positions = [
-        DefiMaturity(
-            asset_symbol=r["asset_symbol"],
-            maturity_date=r["maturity_date"],
-            protocol=r["protocol"],
-        )
-        for r in rows
-    ]
-    return defi_maturity_alerts(positions, today)

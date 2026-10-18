@@ -42,6 +42,20 @@ export interface ManualPositionInput {
   chain: string;
   asset_symbol: string;
   quantity: number;
+  as_of?: string | null; // a data em que o Vitor viu a posição (Story 7.8)
+}
+
+export interface ManualItem {
+  kind: "carteira" | "defi";
+  id: string;
+  asset_symbol: string;
+  quantity: number;
+  chain: string | null;
+  protocol: string | null;
+  as_of: string | null;
+  maturity_date: string | null;
+  notes: string | null;
+  is_active: boolean;
 }
 
 export interface DefiPositionInput {
