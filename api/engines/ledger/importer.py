@@ -188,6 +188,22 @@ def parse_ledger_balance(content: str) -> tuple[Decimal, datetime.date] | None:
         return None
 
 
+def parse_statement_period(content: str) -> tuple[datetime.date, datetime.date] | None:
+    """Período do extrato OFX (`<BANKTRANLIST>` `DTSTART`/`DTEND`): mais fiel que as datas das
+    transações para a cobertura e as lacunas (Story 3.9)."""
+    start = _ofx_tag(content, "DTSTART")
+    end = _ofx_tag(content, "DTEND")
+    if not (start and end):
+        return None
+    try:
+        return (
+            datetime.date(int(start[0:4]), int(start[4:6]), int(start[6:8])),
+            datetime.date(int(end[0:4]), int(end[4:6]), int(end[6:8])),
+        )
+    except ValueError:
+        return None
+
+
 def parse_account_number(content: str) -> str | None:
     """Extrai o ACCTID (nº da conta) do OFX BANKACCTFROM. CSV não carrega conta -> None."""
     match = re.search(r"<ACCTID>([^\r\n<]*)", content)

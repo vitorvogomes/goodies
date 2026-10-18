@@ -99,3 +99,13 @@ class ConfirmOut(BaseModel):
     imported: int
     files: list[FilePlanOut]
     applied: list[dict[str, Any]] = []  # detalhe de cada adapter, na ordem dos arquivos aplicados
+
+
+class SourceRow(BaseModel):
+    """Linha do Bloco Fontes (Story 3.9)."""
+
+    key: str
+    label: str
+    kind: str
+    updated_until: date | None
+    stale: bool

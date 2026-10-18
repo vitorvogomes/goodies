@@ -21,7 +21,7 @@ from engines.common.cache import invalidate_xirr_cache
 from engines.common.month_status import month_status
 from engines.common.owner import get_owner_id
 
-from . import queries
+from . import calc, queries
 from .models import (
     BatchFileIn,
     BatchFileResponse,
@@ -29,6 +29,7 @@ from .models import (
     ConfirmOut,
     FilePlanOut,
     PreviewOut,
+    SourceRow,
 )
 from .protocol import FilePlan, ParsedFile, PlanError, SourceAdapter
 
@@ -334,3 +335,89 @@ async def csv_unconfirmed_alerts(conn: asyncpg.Connection, ctx: AlertContext) ->
         )
         for r in await conn.fetch(queries.CSV_WITHOUT_OFX)
     ]
+
+
+# --------------------------------------------------------------------------------------------
+# Bloco Fontes, atraso e lacunas (FR-3/FR-4 — Story 3.9)
+# --------------------------------------------------------------------------------------------
+
+HolderResolver = Callable[[asyncpg.Connection], Awaitable[dict[str, str]]]
+_holders: list[HolderResolver] = []
+
+
+def register_account_holders(resolver: HolderResolver) -> None:
+    """`ledger` (dono de `accounts`) informa o titular (pf/mei) de cada conta (AD-1: registro)."""
+    _holders[:] = [resolver]
+
+
+async def _coverage(conn: asyncpg.Connection) -> dict[str, list[calc.Coverage]]:
+    holders = await _holders[0](conn) if _holders else {}
+    by_key: dict[str, list[calc.Coverage]] = {key: [] for key, _, _ in calc.SOURCES}
+    for r in await conn.fetch(queries.COVERAGE):
+        if r["source"].startswith("nubank_"):
+            holder = holders.get(r["account_id"] or "")
+            if holder not in ("pf", "mei"):
+                continue
+            key = f"nubank_{holder}"
+        else:
+            key = r["source"]
+        if key in by_key:
+            by_key[key].append(calc.Coverage(r["period_start"], r["period_end"]))
+    return by_key
+
+
+async def sources(conn: asyncpg.Connection, today: date) -> list[SourceRow]:
+    coverage = await _coverage(conn)
+    rows: list[SourceRow] = []
+    for key, label, kind in calc.SOURCES:
+        until = max((c.end for c in coverage[key]), default=None)
+        rows.append(
+            SourceRow(
+                key=key,
+                label=label,
+                kind=kind,
+                updated_until=until,
+                stale=calc.is_stale(key, until, today),
+            )
+        )
+    return rows
+
+
+_IMPORT = AlertAction(label="Importar", route="/visao-geral/painel", params={"importar": "1"})
+
+
+async def source_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Providers de fonte (FR-3/FR-4): "{Fonte} sem import desde …" e "Lacuna em {fonte}: …"."""
+    coverage = await _coverage(conn)
+    labels = {key: label for key, label, _ in calc.SOURCES}
+    alerts: list[Alert] = []
+    for row in await sources(conn, ctx.today):
+        if row.stale and row.updated_until is not None:
+            alerts.append(
+                Alert(
+                    key=f"fonte_desatualizada:{row.key}",
+                    fingerprint=fingerprint(row.updated_until),
+                    severity="aviso",
+                    message=f"{row.label} sem import desde {row.updated_until:%d/%m/%Y}.",
+                    action=_IMPORT,
+                    as_of=row.updated_until,
+                )
+            )
+    gap_rules = {
+        "nubank_pf": calc.interval_gaps,
+        "nubank_mei": calc.interval_gaps,
+        "b3_consolidado": calc.consolidado_gaps,
+    }
+    for key, rule in gap_rules.items():
+        for start, end in rule(coverage[key]):
+            alerts.append(
+                Alert(
+                    key=f"lacuna:{key}:{start.isoformat()}",
+                    fingerprint=fingerprint(start, end),
+                    severity="aviso",
+                    message=f"Lacuna em {labels[key]}: {start:%d/%m/%Y} a {end:%d/%m/%Y}.",
+                    action=_IMPORT,
+                    as_of=end,
+                )
+            )
+    return alerts

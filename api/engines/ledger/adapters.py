@@ -24,6 +24,7 @@ from .importer import (
     parse_csv,
     parse_ledger_balance,
     parse_ofx,
+    parse_statement_period,
 )
 
 
@@ -86,6 +87,10 @@ class NubankStatementAdapter:
         plan.new = len(plan.rows)
         plan.existing = len(entries) - plan.new
         if parsed.source == "nubank_ofx":
+            period = parse_statement_period(_text(parsed.content))
+            if period is not None:
+                plan.period_start = min(period[0], plan.period_start)
+                plan.period_end = max(period[1], plan.period_end)
             balance = parse_ledger_balance(_text(parsed.content))
             if balance is not None:
                 plan.reported_balance, plan.reported_balance_date = balance

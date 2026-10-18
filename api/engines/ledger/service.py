@@ -903,3 +903,9 @@ async def reapply_rules(conn: asyncpg.Connection, body: ReapplyIn) -> ReapplyRes
         _, plan = await _reapply_plan(conn, body.de, body.ate)
         result = await categorize(conn, plan, cause="reapply")
     return ReapplyResult(changed=len(result.changed))
+
+
+async def account_holders(conn: asyncpg.Connection) -> dict[str, str]:
+    """Titular (pf/mei) de cada conta: a engine `ingest` agrupa o Bloco Fontes por ele."""
+    rows = await conn.fetch("SELECT id::text AS id, holder FROM accounts WHERE holder IS NOT NULL")
+    return {r["id"]: r["holder"] for r in rows}

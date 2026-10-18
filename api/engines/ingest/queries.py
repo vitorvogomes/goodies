@@ -105,3 +105,9 @@ CSV_WITHOUT_OFX = """
         AND o.account_id = l.account_id AND o.period_end >= l.period_end
     )
 """
+COVERAGE = """
+    SELECT f.source, f.account_id::text AS account_id, f.period_start, f.period_end
+    FROM import_batch_files f JOIN import_batches b ON b.id = f.batch_id
+    WHERE b.status IN ('applied', 'legacy') AND f.period_start IS NOT NULL
+      AND f.period_end IS NOT NULL
+"""

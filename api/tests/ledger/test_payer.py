@@ -21,3 +21,16 @@ def test_outgoing_and_unknown_have_no_payer() -> None:
     assert extract_payer("Transferência enviada pelo Pix - Fulano - x", Decimal("-5")) is None
     assert extract_payer("Pagamento de boleto efetuado", Decimal("-5")) is None
     assert extract_payer("Rendimento", Decimal("1")) is None
+
+
+def test_statement_period_from_ofx() -> None:
+    import datetime
+
+    from engines.ledger.importer import parse_statement_period
+
+    content = "<BANKTRANLIST>\n<DTSTART>20260401000000[-3:BRT]\n<DTEND>20260430000000[-3:BRT]\n"
+    assert parse_statement_period(content) == (
+        datetime.date(2026, 4, 1),
+        datetime.date(2026, 4, 30),
+    )
+    assert parse_statement_period("<OFX></OFX>") is None

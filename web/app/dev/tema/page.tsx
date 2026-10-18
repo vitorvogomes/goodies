@@ -27,7 +27,8 @@ import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
-import { ImportSheet } from "@/components/shell/ImportSheet";
+import { ImportHub } from "@/components/ingest/ImportHub";
+import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { PeriodSelector } from "@/components/shell/PeriodSelector";
 import { ThemeSwitch } from "@/components/shell/ThemeSwitch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -311,9 +312,23 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
         </Suspense>
       </Section>
 
-      <Section title="Botão Importar e painel lateral">
+      <Section title="Botão Importar e Hub de import">
         <div className="w-60">
-          <ImportSheet />
+          <Suspense>
+            <ImportHub />
+          </Suspense>
+        </div>
+      </Section>
+
+      <Section title="Bloco Fontes">
+        <div className="overflow-hidden rounded-lg border border-border">
+          <SourcesBlock
+            sources={[
+              { key: "nubank_pf", label: "Nubank PF", kind: "OFX ou CSV", updated_until: "2026-10-16", stale: false },
+              { key: "nubank_mei", label: "Nubank MEI", kind: "OFX ou CSV", updated_until: "2026-08-31", stale: true },
+              { key: "b3_negociacao", label: "B3 negociação", kind: "xlsx", updated_until: null, stale: false },
+            ]}
+          />
         </div>
       </Section>
 

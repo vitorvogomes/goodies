@@ -7,10 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
+from engines.common.dates import today_brt
 from engines.common.deps import AuthUser, Db
 
 from . import service
-from .models import ConfirmIn, ConfirmOut, PreviewOut, ReplanIn
+from .models import ConfirmIn, ConfirmOut, PreviewOut, ReplanIn, SourceRow
 
 router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 
@@ -36,6 +37,11 @@ async def preview(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_OVERRIDES)
     contents = [(f.filename or "arquivo", await f.read()) for f in files]
     return await service.preview(db, contents, chosen)
+
+
+@router.get("/sources", response_model=list[SourceRow])
+async def list_sources(user: AuthUser, db: Db) -> list[SourceRow]:
+    return await service.sources(db, today_brt())
 
 
 @router.post("/replan", response_model=PreviewOut)

@@ -7,7 +7,7 @@ import { LayoutDashboardIcon, type LucideIcon, SettingsIcon, TrendingUpIcon, Wal
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { ImportSheet } from "@/components/shell/ImportSheet";
+import { ImportHub } from "@/components/ingest/ImportHub";
 import { AREAS, type AreaKey, areaOf, tabHref } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ export function Sidebar() {
         <span aria-hidden className="size-3 rounded-xs bg-positive" />
         goodies
       </Link>
-      <ImportSheet />
+      <ImportHub />
       <nav aria-label="Áreas" className="flex flex-wrap gap-1 lg:flex-col">
         {AREAS.map((area) => {
           const Icon = ICONS[area.key];
