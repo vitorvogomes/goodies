@@ -18,8 +18,11 @@ from engines.alerts import service as alerts_service
 from engines.alerts.router import router as alerts_router
 from engines.common.cache import check_redis
 from engines.common.month_status import AllMonthsOpen, register_month_status
+from engines.ingest import service as ingest_service
+from engines.ingest.router import router as ingest_router
 from engines.jobs.router import router as jobs_router
 from engines.ledger import service as ledger_service
+from engines.ledger.adapters import NubankStatementAdapter
 from engines.ledger.router import router as ledger_router
 from engines.ledger.service import register_on_transactions_changed
 from engines.market.router import router as market_router
@@ -37,11 +40,15 @@ from hermes.router import router as hermes_router
 # Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
 register_month_status(AllMonthsOpen())
 register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
+# Ingestão (AD-5): adapters vivem na engine dona; derivações de cima por hook de lote.
+ingest_service.register_adapter(NubankStatementAdapter())
+ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
 # Central de avisos (AD-10): cada engine registra seu provider; nenhuma importa `alerts`.
 for _provider in (
     ledger_service.fixed_cost_alerts,
     ledger_service.overspend_alerts,
     defi_maturity_provider,
+    ingest_service.already_imported_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 
@@ -90,6 +97,7 @@ app.include_router(defi_router)
 app.include_router(wallet_router)
 app.include_router(jobs_router)
 app.include_router(alerts_router)
+app.include_router(ingest_router)
 
 
 @app.get("/api/v1/health")

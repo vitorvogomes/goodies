@@ -50,6 +50,7 @@ class ImportReport:
     errors: int = 0
     # breakdown das NOVAS importadas por kind (income/expense/investment/transfer)
     by_kind: dict[str, int] = field(default_factory=dict)
+    new_ids: list[str] = field(default_factory=list)
 
 
 _TRNTAG = re.compile(r"<STMTTRN>(.*?)</STMTTRN>", re.DOTALL)
@@ -149,6 +150,90 @@ def source_for(filename: str) -> str:
     return "nubank_csv" if filename.lower().endswith(".csv") else "nubank_ofx"
 
 
+async def own_identifiers(
+    conn: asyncpg.Connection, self_identifiers: Sequence[str] = ()
+) -> list[str]:
+    """Números das contas cadastradas + `LEDGER_SELF_IDENTIFIERS`: transferência interna."""
+    own = await conn.fetch("SELECT account_number FROM accounts WHERE account_number IS NOT NULL")
+    return [r["account_number"] for r in own] + list(self_identifiers)
+
+
+async def insert_entries(
+    conn: asyncpg.Connection,
+    account_id: uuid.UUID,
+    entries: Sequence[StatementEntry],
+    identifiers: Sequence[str],
+    *,
+    source: str,
+    batch_id: str | None,
+) -> ImportReport:
+    """Grava os lançamentos do lote (dedup por external_id), cada um "a classificar" e `pending`, e
+    passa a categoria proposta por `categorize()` (cause `import`, sem hooks: a derivação roda pelo
+    lote). Investimento e transferência interna também são gravados (consertam o saldo); o `kind`
+    vem da categoria. Quem chama abre a transação."""
+    rules = await _load_rules(conn)
+    report = ImportReport()
+    pending_by_sign = {
+        True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
+        False: await ledger_queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
+    }
+    key_ids: dict[str, str] = {}
+    changes: list[ledger_service.CategoryChange] = []
+    for entry in entries:
+        result = classify(entry, rules, identifiers)
+        positive = entry.amount > 0
+        try:
+            # Savepoint por linha: linha ruim conta como erro sem abortar o lote.
+            async with conn.transaction():
+                inserted = await conn.fetchval(
+                    "INSERT INTO transactions "
+                    "(account_id, date, amount, category, category_id, kind, description, "
+                    "external_id, batch_id, source, category_source, review_status) "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
+                    "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
+                    "RETURNING id",
+                    account_id,
+                    entry.date,
+                    entry.amount,
+                    "Entrada a classificar" if positive else "Saída a classificar",
+                    pending_by_sign[positive],
+                    "income" if positive else "expense",
+                    entry.description,
+                    entry.external_id,
+                    batch_id,
+                    source,
+                )
+        except (asyncpg.PostgresError, InvalidOperation):
+            report.errors += 1
+            continue
+        if inserted is None:
+            report.duplicates += 1
+            continue
+        report.imported += 1
+        report.new_ids.append(str(inserted))
+        report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
+        target = result.category_id
+        if target is None and result.category_key is not None:
+            if result.category_key not in key_ids:
+                key_ids[result.category_key] = await ledger_queries.category_id_by_key(
+                    conn, result.category_key
+                )
+            target = key_ids[result.category_key]
+        if target is not None and target != pending_by_sign[positive]:
+            changes.append(
+                ledger_service.CategoryChange(
+                    transaction_id=str(inserted),
+                    category_id=target,
+                    source="rule",
+                    rule_id=result.rule_id,
+                )
+            )
+    await ledger_service.categorize(
+        conn, changes, cause="import", batch_id=batch_id, fire_hooks=False
+    )
+    return report
+
+
 async def import_statement(
     conn: asyncpg.Connection,
     account_id: uuid.UUID,
@@ -158,24 +243,13 @@ async def import_statement(
     source: str = "nubank_ofx",
     file_name: str | None = None,
 ) -> ImportReport:
-    """Grava todos os lançamentos com o `kind` classificado (dedup por external_id).
-
-    Investimento e transferência interna TAMBÉM são gravados (consertam o saldo); o
-    relatório (view monthly_summary) é que decide o que é consumo via `kind`. Os
-    números das contas cadastradas entram como identificadores de transferência
-    interna: um lançamento cuja origem/destino é uma conta própria (nº na descrição)
-    vira `transfer` e fica fora da receita/despesa (evita dupla contagem CPF↔CNPJ).
-    """
-    own = await conn.fetch("SELECT account_number FROM accounts WHERE account_number IS NOT NULL")
-    identifiers = [r["account_number"] for r in own] + list(self_identifiers)
-    rules = await _load_rules(conn)
-    report = ImportReport()
-    new_ids: list[str] = []
+    """Import direto, sem prévia (scripts e testes): lote `applied` + `insert_entries` numa
+    transação só; sem linha nova, o lote é apagado. O app importa pelo protocolo da engine
+    `ingest` (Story 3.3)."""
+    identifiers = await own_identifiers(conn, self_identifiers)
     # Tudo ou nada: lote, linhas e categorização numa transação só (falha no meio não deixa linha
     # presa "a classificar" que o reimport, deduplicado por external_id, nunca consertaria).
     async with conn.transaction():
-        # Story 2.2: toda linha vinda de arquivo tem lote. Até o SourceAdapter (Story 3.3), o import
-        # v1 registra um lote `applied` com o período do arquivo; sem linha nova, o lote é apagado.
         batch_id = None
         if entries:
             batch_id = await ingest_service.record_applied_batch(
@@ -190,69 +264,11 @@ async def import_statement(
                     )
                 ],
             )
-        pending_by_sign = {
-            True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
-            False: await ledger_queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
-        }
-        key_ids: dict[str, str] = {}
-        changes: list[ledger_service.CategoryChange] = []
-        for entry in entries:
-            result = classify(entry, rules, identifiers)
-            positive = entry.amount > 0
-            try:
-                # Entra "a classificar" (sugestão, pendente); a categoria final vem por
-                # categorize(). Savepoint por linha: linha ruim conta como erro sem abortar o lote.
-                async with conn.transaction():
-                    inserted = await conn.fetchval(
-                        "INSERT INTO transactions "
-                        "(account_id, date, amount, category, category_id, kind, description, "
-                        "external_id, batch_id, source, category_source, review_status) "
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
-                        "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
-                        "RETURNING id",
-                        account_id,
-                        entry.date,
-                        entry.amount,
-                        "Entrada a classificar" if positive else "Saída a classificar",
-                        pending_by_sign[positive],
-                        "income" if positive else "expense",
-                        entry.description,
-                        entry.external_id,
-                        batch_id,
-                        source,
-                    )
-            except (asyncpg.PostgresError, InvalidOperation):
-                report.errors += 1
-                continue
-            if inserted is None:
-                report.duplicates += 1
-                continue
-            report.imported += 1
-            new_ids.append(str(inserted))
-            report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
-            target = result.category_id
-            if target is None and result.category_key is not None:
-                if result.category_key not in key_ids:
-                    key_ids[result.category_key] = await ledger_queries.category_id_by_key(
-                        conn, result.category_key
-                    )
-                target = key_ids[result.category_key]
-            if target is not None and target != pending_by_sign[positive]:
-                changes.append(
-                    ledger_service.CategoryChange(
-                        transaction_id=str(inserted),
-                        category_id=target,
-                        source="rule",
-                        rule_id=result.rule_id,
-                    )
-                )
-        # AD-5: dentro do import a derivação roda uma vez pelo lote (todas as linhas novas), não por
-        # categorize().
-        await ledger_service.categorize(
-            conn, changes, cause="import", batch_id=batch_id, fire_hooks=False
+        report = await insert_entries(
+            conn, account_id, entries, identifiers, source=source, batch_id=batch_id
         )
-        if new_ids:
-            await ledger_service.run_transaction_hooks(conn, new_ids)
+        if report.new_ids:
+            await ledger_service.run_transaction_hooks(conn, report.new_ids)
         if batch_id is not None and report.imported == 0:
             await conn.execute(
                 "DELETE FROM import_batches WHERE id = $1 AND NOT EXISTS "

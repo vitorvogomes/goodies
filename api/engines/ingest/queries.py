@@ -64,3 +64,30 @@ async def select_batches(
 async def select_files(conn: asyncpg.Connection, batch_ids: list[str]) -> list[asyncpg.Record]:
     rows: list[asyncpg.Record] = await conn.fetch(SELECT_FILES, batch_ids)
     return rows
+
+
+# ---- prévia → confirmação (Story 3.3) ----
+
+INSERT_STAGED = """
+    INSERT INTO import_batches (user_id, status, plan, plan_hash, expires_at)
+    VALUES ($1, 'staged', $2::jsonb, $3, now() + interval '24 hours')
+    RETURNING id, expires_at
+"""
+STAGED_FOR_UPDATE = """
+    SELECT id, status, plan, plan_hash, expires_at <= now() AS expired
+    FROM import_batches WHERE id = $1::uuid FOR UPDATE
+"""
+MARK_APPLIED = """
+    UPDATE import_batches SET status = 'applied', applied_at = now(), expires_at = NULL
+    WHERE id = $1::uuid
+"""
+DROP_EXPIRED = "DELETE FROM import_batches WHERE status = 'staged' AND expires_at <= now()"
+APPLIED_HASHES = """
+    SELECT DISTINCT f.file_hash FROM import_batch_files f
+    JOIN import_batches b ON b.id = f.batch_id
+    WHERE b.status IN ('applied', 'legacy') AND f.file_hash = ANY($1::text[])
+"""
+RECENT_STAGED = """
+    SELECT id, plan FROM import_batches
+    WHERE status = 'staged' AND expires_at > now() ORDER BY created_at DESC LIMIT 20
+"""

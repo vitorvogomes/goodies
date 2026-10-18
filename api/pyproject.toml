@@ -22,6 +22,7 @@ dependencies = [
     "structlog>=25.5.0",      # logs estruturados (AD-18/AR22)
     "alembic>=1.18.4",          # migrations Postgres (00-03)
     "openpyxl>=3.1",
+    "python-multipart>=0.0.20",
 ]
 
 # Dev/test tools (PEP 735) — instalados por padrão no `uv sync`; excluídos com `--no-dev` (imagem).

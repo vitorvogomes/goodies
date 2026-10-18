@@ -14,3 +14,8 @@ from engines.common.owner import get_owner_id
 
 async def on_transactions_changed(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
     await invalidate_xirr_cache(await get_owner_id(conn))
+
+
+async def on_batch_applied(conn: asyncpg.Connection, batch_id: str) -> None:
+    """Lote aplicado (AD-5): mesma derivação, uma vez por lote."""
+    await invalidate_xirr_cache(await get_owner_id(conn))

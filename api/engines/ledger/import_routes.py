@@ -1,10 +1,11 @@
-"""Endpoint de import de extrato Nubank (STORY-01-13-14).
+"""Endpoint de import de extrato Nubank da página v1 (STORY-01-13-14).
 
 POST /api/v1/ledger/import?account_id=<uuid>&filename=<nome>
-Corpo = conteúdo do arquivo (OFX ou CSV). Upload por corpo cru (sem
-python-multipart). Idempotente (dedup por external_id). Protegido por JWT.
+Corpo = conteúdo do arquivo (OFX ou CSV). Desde a Story 3.3 passa pelo protocolo `SourceAdapter`
+(prévia + confirmação de uma vez); o Hub de import usa `/api/v1/ingest/*`.
 """
 
+import hashlib
 import uuid
 from typing import Annotated
 
@@ -13,14 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from auth.dependencies import get_current_user
-from config import settings
 from db.connection import get_db
-from engines.ledger.importer import (
-    import_statement,
-    parse_account_number,
-    parse_statement,
-    source_for,
-)
+from engines.ingest import service as ingest_service
+from engines.ledger.importer import parse_account_number
 
 router = APIRouter(prefix="/api/v1/ledger", tags=["ledger:import"])
 
@@ -35,10 +31,6 @@ class ImportReport(BaseModel):
     skipped: int
     errors: int
     by_kind: dict[str, int] = {}  # novas por kind (income/expense/investment/transfer)
-
-
-def _self_identifiers() -> list[str]:
-    return [s.strip() for s in settings.ledger_self_identifiers.split(",") if s.strip()]
 
 
 async def _resolve_account(
@@ -76,23 +68,28 @@ async def import_endpoint(
     account_id: Annotated[uuid.UUID | None, Query()] = None,
     filename: Annotated[str, Query()] = "",
 ) -> ImportReport:
-    content = (await request.body()).decode("utf-8", errors="replace")
+    """Página v1: prévia e confirmação de uma vez, pelo protocolo da engine `ingest` (Story 3.3)."""
+    raw = await request.body()
+    content = raw.decode("utf-8", errors="replace")
     target = await _resolve_account(db, parse_account_number(content), account_id)
-
-    entries = parse_statement(filename, content)
-    if not entries:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "nenhuma transação reconhecida no arquivo"
-        )
-
-    report = await import_statement(
-        db, target, entries, _self_identifiers(), source=source_for(filename), file_name=filename
+    name = filename or ("extrato.ofx" if parse_account_number(content) else "extrato.csv")
+    digest = hashlib.sha256(raw).hexdigest()
+    preview = await ingest_service.preview(
+        db, [(name, raw)], {digest: {"account_id": str(target)}}
     )
+    plan = preview.files[0]
+    if plan.error is not None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, plan.error)
+    try:
+        result = await ingest_service.confirm(db, preview.batch_id, preview.hash)
+    except ingest_service.BatchError as exc:
+        raise HTTPException(exc.status, exc.message) from None
+    detail = result.applied[0] if result.applied else {}
     return ImportReport(
-        parsed=len(entries),
-        imported=report.imported,
-        duplicates=report.duplicates,
-        skipped=report.skipped,
-        errors=report.errors,
-        by_kind=report.by_kind,
+        parsed=plan.new + plan.existing,
+        imported=result.imported,
+        duplicates=plan.existing,
+        skipped=plan.skipped,
+        errors=int(detail.get("errors", 0)),
+        by_kind=dict(detail.get("by_kind", {})),
     )
