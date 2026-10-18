@@ -6,14 +6,13 @@ a maior diferença; o cálculo fica em cache por mês e versão, refeito só qua
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 
 import asyncpg
 
 from engines.common.alerts import Alert, AlertAction, AlertContext, brl, fingerprint
 from engines.common.cache import cache
-from engines.common.dates import MIN_MONTH, month_label
+from engines.common.dates import add_months, month_label, months_between
 from engines.ledger import service as ledger_service
 
 # Métrica de fluxo do snapshot → atributo de `LedgerMonth` e nome na mensagem.
@@ -28,10 +27,6 @@ _FLOWS = (
 )
 _CENT = Decimal("0.01")
 _TTL = 30 * 86400
-
-
-def _next(month: date) -> date:
-    return date(month.year + month.month // 12, month.month % 12 + 1, 1)
 
 
 async def _diffs(conn: asyncpg.Connection, close: asyncpg.Record) -> list[list[str]]:
@@ -100,29 +95,27 @@ async def adjustment_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list
 async def open_month_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
     """Provider: mês aberto depois do dia 15 do mês seguinte (o consolidado B3 e o OFX do MEI já
     deveriam ter chegado) — "{Mês} segue aberto. Confira o saldo e feche.". Conta a partir do mês
-    seguinte ao último fechado (o atraso anterior é a trilha do Assistente de recuperação)."""
+    seguinte ao último fechado; sem nenhum fechado, nada (o atraso é a trilha do Assistente)."""
     last_closed = await conn.fetchval("SELECT max(month) FROM month_closes WHERE status = 'closed'")
-    month = _next(last_closed) if last_closed is not None else MIN_MONTH
-    cutoff = ctx.today.replace(day=1)
-    if ctx.today.day <= 15:
-        cutoff = date(cutoff.year - (cutoff.month == 1), (cutoff.month - 2) % 12 + 1, 1)
+    if last_closed is None:
+        return []
+    # o mês M vence no dia 16 de M+1: os meses que vencem até hoje terminam em `cutoff - 1`
+    cutoff = add_months(ctx.today, 0 if ctx.today.day > 15 else -1)
     out: list[Alert] = []
-    while _next(month) <= cutoff:
-        if not await ctx.months.is_closed(conn, month):
-            name = month_label(month)
-            out.append(
-                Alert(
-                    key=f"mes_aberto:{month:%Y-%m}",
-                    fingerprint=fingerprint(month),
-                    severity="aviso",
-                    message=f"{name[0].upper()}{name[1:]} segue aberto. Confira o saldo e feche.",
-                    action=AlertAction(
-                        label="Ir para Histórico",
-                        route="/visao-geral/historico",
-                        params={"periodo": f"{month:%Y-%m}"},
-                    ),
-                    as_of=ctx.today,
-                )
+    for month in months_between(add_months(last_closed, 1), add_months(cutoff, -1)):
+        name = month_label(month)  # depois do último fechado, todo mês está aberto
+        out.append(
+            Alert(
+                key=f"mes_aberto:{month:%Y-%m}",
+                fingerprint=fingerprint(month),
+                severity="aviso",
+                message=f"{name[0].upper()}{name[1:]} segue aberto. Confira o saldo e feche.",
+                action=AlertAction(
+                    label="Ir para Histórico",
+                    route="/visao-geral/historico",
+                    params={"periodo": f"{month:%Y-%m}"},
+                ),
+                as_of=ctx.today,
             )
-        month = _next(month)
+        )
     return out

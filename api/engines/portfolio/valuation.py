@@ -80,12 +80,15 @@ def _cls(category: str) -> str:
 async def valuation_as_of(
     conn: asyncpg.Connection, user_id: str, as_of: date
 ) -> PortfolioValuation:
+    from .crypto_sleeve import sleeve_cashflows
+
+    crypto_flows = await sleeve_cashflows(conn)  # uma vez: o passado e os fluxos do mês leem
     if as_of >= today_brt():
         out = await _live(conn, user_id, as_of)
     else:
-        out = await _past(conn, user_id, as_of)
+        out = await _past(conn, user_id, as_of, crypto_flows)
     await _asset_ids(conn, out)
-    await _month_flows(conn, user_id, out)
+    await _month_flows(conn, user_id, out, crypto_flows)
     return out
 
 
@@ -101,9 +104,12 @@ async def _asset_ids(conn: asyncpg.Connection, out: PortfolioValuation) -> None:
             out.by_asset_id[ids[symbol]] = out.by_asset_id.get(ids[symbol], Decimal(0)) + value
 
 
-async def _month_flows(conn: asyncpg.Connection, user_id: str, out: PortfolioValuation) -> None:
-    from .crypto_sleeve import sleeve_cashflows
-
+async def _month_flows(
+    conn: asyncpg.Connection,
+    user_id: str,
+    out: PortfolioValuation,
+    crypto_flows: list[tuple[date, float]],
+) -> None:
     start = out.as_of.replace(day=1)
     ops = await conn.fetch(
         "SELECT asset_category, tipo, quantidade, valor_unitario, data_operacao "
@@ -119,7 +125,7 @@ async def _month_flows(conn: asyncpg.Connection, user_id: str, out: PortfolioVal
             continue
         key = (_cls(op["asset_category"]), op["data_operacao"])
         out.flows[key] = out.flows.get(key, Decimal(0)) + _signed(op)
-    for day, amount in await sleeve_cashflows(conn):
+    for day, amount in crypto_flows:
         if start <= day <= out.as_of:
             key = ("cripto", day)
             out.flows[key] = out.flows.get(key, Decimal(0)) + _dec(amount)
@@ -130,7 +136,7 @@ async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
 
     snap = await service.portfolio_snapshot(conn, user_id)
     out = PortfolioValuation(as_of=as_of, data_as_of=snap.as_of, stale=snap.stale)
-    for p in await service.calculate_positions(conn, user_id):
+    for p in snap.positions:
         if p["valor_atual"] is None:
             continue
         value = _dec(p["valor_atual"])
@@ -150,9 +156,12 @@ async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
     return out
 
 
-async def _past(conn: asyncpg.Connection, user_id: str, as_of: date) -> PortfolioValuation:
-    from .crypto_sleeve import sleeve_cashflows
-
+async def _past(
+    conn: asyncpg.Connection,
+    user_id: str,
+    as_of: date,
+    all_crypto_flows: list[tuple[date, float]],
+) -> PortfolioValuation:
     out = PortfolioValuation(as_of=as_of, data_as_of=as_of)
     ops = await conn.fetch(
         "SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario, data_operacao "
@@ -176,6 +185,10 @@ async def _past(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
         )
     }
     b3_method = f"consolidado de {as_of:%d/%m/%Y}" if snapshot else "histórico de preço"
+    wallets = await wallet_service.positions_as_of(conn, as_of)
+    prices = await market_service.prices_as_of(
+        conn, [*by_symbol, *(w["asset_symbol"] for w in wallets)], as_of
+    )
     estimated_rf = False
     unpriced: set[str] = set()
     for symbol, sops in by_symbol.items():
@@ -189,14 +202,14 @@ async def _past(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
             if symbol in snapshot:
                 value = Decimal(snapshot[symbol])
             else:
-                price = await market_service.price_as_of(conn, symbol, as_of)
+                price = prices[symbol]
                 value = price.value * qty if price.value is not None else None
         elif symbol in _SPECS:
             spec = _SPECS[symbol]
             spec_ops = [dict(op) for op in sops]
             value = _dec(compute_value(spec_ops, as_of, settings.cdi_anual, spec.pct_cdi))
         else:
-            price = await market_service.price_as_of(conn, symbol, as_of)
+            price = prices[symbol]
             if price.value is not None:
                 value = price.value * qty
             else:  # RF sem preço na data (ex.: debênture): o aplicado, estimado
@@ -214,13 +227,12 @@ async def _past(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
     out.contributed = calc.net_contributed(priced_ops)
     out.income = calc.income_received(priced_ops)
 
-    crypto_flows = [(d, a) for d, a in await sleeve_cashflows(conn) if d <= as_of]
+    crypto_flows = [(d, a) for d, a in all_crypto_flows if d <= as_of]
     crypto_net = -sum((_dec(a) for _, a in crypto_flows), Decimal(0))
-    wallets = await wallet_service.positions_as_of(conn, as_of)
     crypto_value = Decimal(0)
     priced_all = bool(wallets)
     for w in wallets:
-        price = await market_service.price_as_of(conn, w["asset_symbol"], as_of)
+        price = prices[w["asset_symbol"]]
         if price.value is None:
             priced_all = False
             break

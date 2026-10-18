@@ -50,6 +50,10 @@ async def test_review_list_confirm_and_alert(api, auth_headers, account, pool) -
     assert [(m["month"], m["count"]) for m in body["months"]] == [("2099-05", 1), ("2099-06", 2)]
     june = body["months"][1]
     assert (june["entradas"], june["saidas"]) == (15.0, -9.0)
+    # só um mês (passo Revisar do Assistente de recuperação, Story 5.8)
+    only = (await api.get(f"{URL}?lote={batch}&mes=2099-06", headers=auth_headers)).json()
+    assert [(m["month"], m["count"]) for m in only["months"]] == [("2099-06", 2)]
+    assert (await api.get(f"{URL}?mes=2099-13", headers=auth_headers)).status_code == 422
 
     async with pool.acquire() as conn:
         alerts = await alerts_service.active_alerts(conn)

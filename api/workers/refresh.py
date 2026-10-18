@@ -84,6 +84,18 @@ def month_end_scan_due(last_run: datetime | None, now: datetime) -> bool:
     return last_run is None or last_run.astimezone(_BRT).date() < local
 
 
+def job_due(spec: JobSpec, last_run: datetime | None, now: datetime, *, forced: bool) -> bool:
+    """Vence: forçado; pelo vencimento próprio; ou pelo limiar — mais o vencimento extra (o scan
+    do último dia do mês)."""
+    if forced:
+        return True
+    if spec.is_due is not None:
+        return spec.is_due(last_run, now)
+    if last_run is None or (now - last_run).total_seconds() >= spec.threshold_seconds:
+        return True
+    return spec.extra_due is not None and spec.extra_due(last_run, now)
+
+
 def monthly_due(last_run: datetime | None, now: datetime) -> bool:
     """Vence uma vez por mês civil (BRT): nunca rodou ou rodou antes do dia 1 deste mês."""
     if last_run is None:
@@ -265,14 +277,7 @@ async def refresh_stale(
                     since = await spec.data_since(lock_conn)
                     if since is not None and since < lr:
                         lr = since  # dado mais velho que o heartbeat (fonte falhando)
-                forced = force and spec.forceable
-                if spec.is_due is not None:
-                    due = forced or spec.is_due(lr, now)
-                else:
-                    due = (
-                        forced or lr is None or (now - lr).total_seconds() >= spec.threshold_seconds
-                    )
-                if not due:
+                if not job_due(spec, lr, now, forced=force and spec.forceable):
                     results[spec.name] = "fresh"
                     continue
                 ok = await run_and_record(pool, spec, now, lock_conn)

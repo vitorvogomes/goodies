@@ -7,7 +7,6 @@ telas: mês aberto, ao vivo; mês fechado, a versão vigente do snapshot, nunca 
 
 from __future__ import annotations
 
-import calendar
 import json
 from datetime import date
 from decimal import Decimal
@@ -16,7 +15,7 @@ from typing import Any
 import asyncpg
 
 from engines.common.alerts import brl
-from engines.common.dates import MIN_MONTH, today_brt
+from engines.common.dates import MIN_MONTH, add_months, month_end, today_brt
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
@@ -39,10 +38,6 @@ from .models import (
     ReopenPreview,
     ReopenRow,
 )
-
-
-def month_end(month: date) -> date:
-    return month.replace(day=calendar.monthrange(month.year, month.month)[1])
 
 
 def default_as_of(month: date) -> date:
@@ -142,10 +137,11 @@ async def close_month(
     month: date,
     confirmed: list[str],
     *,
-    origin: str = "live",
+    origin: str | None = None,
 ) -> CloseOut:
     """Fecha o mês: recusa com bloqueio; pede "fechar mesmo assim" das `confirma` (fica gravado);
-    grava a versão seguinte com o resumo de `build_month_summary` (as_of = fim do mês)."""
+    grava a versão seguinte com o resumo de `build_month_summary` (as_of = fim do mês). Fechar de
+    novo mantém a origem da versão anterior (um mês retroativo continua `retro`)."""
     async with conn.transaction():
         await conn.execute("SELECT pg_advisory_xact_lock(hashtext('close:' || $1))", str(month))
         last = await latest_close(conn, month)
@@ -163,6 +159,7 @@ async def close_month(
         accepted = [c for c in checks if c.kind == "confirma"]
         summary = await build_month_summary(conn, month, month_end(month))
         version = (last["version"] if last is not None else 0) + 1
+        origin = origin or (last["origin"] if last is not None else "live")
         await _store(conn, summary, version, accepted, origin)
     return CloseOut(month=month, version=version, confirmations=accepted)
 
@@ -238,6 +235,9 @@ async def _store(
     origin: str,
 ) -> None:
     totals, unavailable = _totals(s)
+    coverage = dict(s.coverage)
+    if origin == "retro":
+        _retro_adjust(unavailable, coverage)
     await _write_version(
         conn,
         s.month,
@@ -246,7 +246,7 @@ async def _store(
         totals=totals,
         unavailable=unavailable,
         lines=_lines(s),
-        coverage=s.coverage,
+        coverage=coverage,
         confirmations=[c.model_dump(mode="json") for c in accepted],
         origin=origin,
     )
@@ -304,6 +304,14 @@ async def _write_version(
 _RETRO_UNDEFINED = ("pendente", "aporte_planejado")
 
 
+def _retro_adjust(unavailable: dict[str, str], coverage: dict[str, str]) -> None:
+    """Regras do retroativo (Story 5.7), aplicadas em toda versão de um mês `retro`: aporte
+    planejado/pendente `nao_definido`; sem consolidado B3, "patrimônio não coberto"."""
+    unavailable.update({t: "nao_definido" for t in _RETRO_UNDEFINED})
+    if not coverage.get("B3", "").startswith("consolidado"):
+        coverage["B3"] = "patrimônio não coberto"
+
+
 async def close_retro(conn: asyncpg.Connection, month: date) -> CloseOut | None:
     """Fecha um mês passado com origin `retro`, pelo mesmo resumo (`build_month_summary`).
 
@@ -328,23 +336,7 @@ async def close_retro(conn: asyncpg.Connection, month: date) -> CloseOut | None:
             else:
                 accepted.append(c.model_copy(update={"reason": "retroativo"}))
         summary = await build_month_summary(conn, month, month_end(month))
-        totals, unavailable = _totals(summary)
-        unavailable.update({t: "nao_definido" for t in _RETRO_UNDEFINED})
-        coverage = dict(summary.coverage)
-        if any(c.code == "consolidado_ausente" for c in accepted):
-            coverage["B3"] = "patrimônio não coberto"
-        await _write_version(
-            conn,
-            month,
-            1,
-            as_of=summary.as_of,
-            totals=totals,
-            unavailable=unavailable,
-            lines=_lines(summary),
-            coverage=coverage,
-            confirmations=[c.model_dump(mode="json") for c in accepted],
-            origin="retro",
-        )
+        await _store(conn, summary, 1, accepted, "retro")
     return CloseOut(month=month, version=1, confirmations=accepted)
 
 
@@ -427,6 +419,25 @@ async def month_summary(conn: asyncpg.Connection, month: date) -> MonthSummary:
     return await build_month_summary(conn, month)
 
 
+async def month_result(
+    conn: asyncpg.Connection, month: date
+) -> ledger_service.DatedAmount | None:
+    """Só o resultado do mês (barato — a variação do Painel): fechado → o congelado; aberto →
+    `ledger/calc.month_result`. Sem dado → None."""
+    close = await latest_close(conn, month)
+    if close is not None and close["status"] == "closed":
+        row = await conn.fetchrow(
+            "SELECT resultado_mes, as_of FROM month_summary_totals "
+            "WHERE month = $1 AND version = $2",
+            month,
+            close["version"],
+        )
+        if row is not None and row["resultado_mes"] is not None:
+            return ledger_service.DatedAmount(row["resultado_mes"], row["as_of"])
+        return None
+    return await ledger_service.month_result_for(conn, month)
+
+
 def _cents(v: Decimal | None) -> Decimal | None:
     return v.quantize(_CENT) if v is not None else None
 
@@ -482,7 +493,9 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
         confirmations = list(json.loads(close["confirmations"]))
         if mode == "recalcular":
             totals, unavailable, lines = live_totals, live_unavailable, _lines(live)
-            coverage, dirty = live.coverage, False
+            coverage, dirty = dict(live.coverage), False
+            if close["origin"] == "retro":
+                _retro_adjust(unavailable, coverage)
         else:
             frozen, frozen_lines = await _frozen(conn, month, version)
             was = dict(json.loads(frozen["unavailable"]))
@@ -495,9 +508,10 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
                 c: live_totals[c] if c in missing else frozen[c]
                 for c in (*_TERMS, "saldo_conferido")
             }
-            unavailable = {
-                t: r for t, r in live_unavailable.items() if t in _FUTURE_TERMS or t in missing
-            }
+            # os motivos congelados ficam (inclusive os do retroativo); o que foi preenchido agora
+            # leva o motivo de agora
+            unavailable = {t: r for t, r in was.items() if t not in missing}
+            unavailable.update({t: r for t, r in live_unavailable.items() if t in missing})
             lines = [
                 (r["metric"], r["dimension_kind"], r["dimension_id"], r["flow_date"], r["value"])
                 for r in frozen_lines
@@ -581,7 +595,7 @@ async def month_states(conn: asyncpg.Connection, start: date, end: date) -> list
                 origin=r["origin"] if r is not None else None,
             )
         )
-        month = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+        month = add_months(month, 1)
     return out
 
 
@@ -650,7 +664,7 @@ def recovery_steps(
             "Revisar",
             pending == 0,
             f"{pending} a revisar" if pending else None,
-            f"/caixa/transacoes?periodo={periodo}&revisar=todas",
+            f"/caixa/transacoes?periodo={periodo}&revisar=mes",
         ),
         (
             "conferir",
@@ -681,10 +695,7 @@ async def recovery(
     `start`, sem buraco) até o mês anterior a hoje; o mês atual é o primeiro aberto. Some quando a
     trilha inteira está fechada."""
     today = today or today_brt()
-    current_month = today.replace(day=1)
-    last = date(
-        current_month.year - (current_month.month == 1), (current_month.month - 2) % 12 + 1, 1
-    )
+    last = add_months(today, -1)
     states = await month_states(conn, start, last) if last >= start else []
     i = 0
     while i < len(states) and states[i].status != "aberto" and states[i].origin == "retro":

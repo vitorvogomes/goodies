@@ -24,7 +24,7 @@ from engines.common.alerts import (
     brl,
     fingerprint,
 )
-from engines.common.dates import month_label, parse_periodo, today_brt
+from engines.common.dates import add_months, month_end, month_label, parse_periodo, today_brt
 from engines.common.month_status import month_status
 
 from . import queries
@@ -434,7 +434,7 @@ def to_row(r: asyncpg.Record) -> TransactionRow:
 async def list_transactions(
     conn: asyncpg.Connection, month: date, limit: int, offset: int
 ) -> TransactionList:
-    end = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+    end = add_months(month, 1)
     rows, total = await queries.transactions_page(conn, month, end, limit, offset)
     return TransactionList(items=[to_row(r) for r in rows], total=total, limit=limit, offset=offset)
 
@@ -975,8 +975,11 @@ def _origin(r: asyncpg.Record) -> Origin:
     return "sugestao" if r["category_source"] == "suggestion" else "manual"
 
 
-async def review_list(conn: asyncpg.Connection, batch_id: str | None) -> ReviewList:
-    rows = await conn.fetch(queries.REVIEW_ITEMS, batch_id)
+async def review_list(
+    conn: asyncpg.Connection, batch_id: str | None, month: date | None = None
+) -> ReviewList:
+    """Pendentes do lote (ou todas), opcionalmente só de um mês (Assistente de recuperação)."""
+    rows = await conn.fetch(queries.REVIEW_ITEMS, batch_id, month)
     items = [
         ReviewItem(
             id=str(r["id"]),
@@ -1366,7 +1369,7 @@ async def pending_review_count(conn: asyncpg.Connection) -> int:
 
 async def pending_in_month(conn: asyncpg.Connection, month: date) -> int:
     """Transações `pending` do mês (passo Revisar do Assistente de recuperação)."""
-    end = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+    end = add_months(month, 1)
     return int(
         await conn.fetchval(
             "SELECT count(*) FROM transactions WHERE review_status = 'pending' "
@@ -1443,13 +1446,8 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
     from engines.ingest import service as ingest_service
 
     found: list[dict[str, Any]] = []
-    end = date(month.year + month.month // 12, month.month % 12 + 1, 1) - datetime.timedelta(1)
-    pending = await conn.fetchval(
-        "SELECT count(*) FROM transactions WHERE review_status = 'pending' "
-        "AND date >= $1 AND date <= $2",
-        month,
-        end,
-    )
+    end = month_end(month)
+    pending = await pending_in_month(conn, month)
     label = month_label(month)
     if pending:
         found.append(

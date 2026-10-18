@@ -21,7 +21,7 @@ import asyncpg
 
 from config import settings
 from engines.closing import service as closing
-from engines.common.dates import month_label, parse_periodo
+from engines.common.dates import month_label, months_between, parse_periodo
 from workers.backup import make_pre_migration_backup
 
 
@@ -31,12 +31,7 @@ def parse_months(spec: str) -> list[date]:
     start, end = parse_periodo(first), parse_periodo(last or first)
     if end < start:
         raise ValueError("intervalo invertido")
-    out: list[date] = []
-    month = start
-    while month <= end:
-        out.append(month)
-        month = date(month.year + month.month // 12, month.month % 12 + 1, 1)
-    return out
+    return months_between(start, end)
 
 
 async def run(

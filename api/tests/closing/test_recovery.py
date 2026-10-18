@@ -96,7 +96,7 @@ def test_steps_single_current() -> None:
         ("fechar", "a_fazer"),
     ]
     assert steps[2].detail == "divergente"
-    assert steps[1].href == "/caixa/transacoes?periodo=2026-06&revisar=todas"
+    assert steps[1].href == "/caixa/transacoes?periodo=2026-06&revisar=mes"
     done = closing.recovery_steps(
         "2026-06", imported=True, pending=0, balance="conferido", closed=False
     )

@@ -81,3 +81,40 @@ def test_month_end_scan_is_due_on_the_last_day() -> None:
     assert month_end_scan_due(datetime(2026, 10, 31, 13, 0, tzinfo=UTC), last_day) is False
     mid = datetime(2026, 10, 15, 15, 0, tzinfo=UTC)
     assert month_end_scan_due(datetime(2026, 10, 15, 13, 0, tzinfo=UTC), mid) is False
+
+
+def test_month_end_scan_forces_wallet_job() -> None:
+    """Revisão do Épico 5: o vencimento extra do fim do mês entra na decisão do catch-up — scan às
+    20h do dia 30 com limiar de 14h ainda roda no dia 31."""
+    from datetime import UTC, datetime
+
+    from workers.refresh import JobSpec, job_due, month_end_scan_due
+
+    async def _noop(pool):  # pragma: no cover
+        return {}
+
+    spec = JobSpec("wallet_scan", _noop, 14 * 3600, extra_due=month_end_scan_due)
+    last = datetime(2026, 10, 30, 23, 0, tzinfo=UTC)  # 20h BRT do dia 30
+    assert job_due(spec, last, datetime(2026, 10, 31, 12, 0, tzinfo=UTC), forced=False)
+    plain = JobSpec("wallet_scan", _noop, 14 * 3600)
+    assert not job_due(plain, last, datetime(2026, 10, 31, 12, 0, tzinfo=UTC), forced=False)
+
+
+@pytest.mark.asyncio
+async def test_prices_as_of_batch_matches_single(pool) -> None:
+    """Revisão do Épico 5: `prices_as_of` (uma consulta) = `price_as_of` ticker a ticker."""
+    from datetime import date
+
+    from engines.market import service as market
+
+    async with pool.acquire() as conn:
+        tickers = [
+            r["ticker"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT ticker FROM asset_price_history ORDER BY ticker LIMIT 5"
+            )
+        ] + ["NAO-EXISTE-XYZ"]
+        day = date(2026, 10, 1)
+        batch = await market.prices_as_of(conn, tickers, day)
+        for t in tickers:
+            assert batch[t] == await market.price_as_of(conn, t, day), t

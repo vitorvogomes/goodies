@@ -101,7 +101,7 @@ export function ReopenDialog({ periodo, onClose }: { periodo: string | null; onC
         <AlertDialogFooter>
           <AlertDialogCancel autoFocus>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={reopen.isPending}
+            disabled={reopen.isPending || !preview.isSuccess}
             onClick={(e) => {
               e.preventDefault();
               submit();

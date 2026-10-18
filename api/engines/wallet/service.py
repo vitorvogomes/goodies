@@ -332,11 +332,9 @@ async def positions_as_of(conn: asyncpg.Connection, day: date) -> list[dict[str,
 async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
     """Precondição do fechamento (Story 5.3): sem scan de cripto no último dia do mês, o bloco é
     estimado — pede "fechar mesmo assim"."""
-    import calendar
+    from engines.common.dates import month_end, month_label
 
-    from engines.common.dates import month_label
-
-    end = month.replace(day=calendar.monthrange(month.year, month.month)[1])
+    end = month_end(month)
     has = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM wallet_position_history WHERE ref_date = $1)", end
     )

@@ -3,7 +3,8 @@
 // Revisão de transações (Story 3.10 — FR-9, FR-14, UX-DR19, UX-DR30): painel largo com as pendentes
 // do lote (ou todas), agrupadas por mês com subtotais da API. Todas vêm marcadas, com a tag de
 // origem. Teclado: ↑↓ movem, Espaço marca, C abre a categoria, Enter confirma; Shift+clique marca o
-// intervalo. Trocar a categoria vira "manual". Abre por `?revisar=<lote|todas>`.
+// intervalo. Trocar a categoria vira "manual". Abre por `?revisar=<lote|todas|mes>` (`mes` = só as do
+// `?periodo`, pelo Assistente de recuperação).
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,7 +38,9 @@ export function ReviewPanel() {
   const pathname = usePathname();
   const params = useSearchParams();
   const lote = params.get("revisar");
-  const review = useReview(lote);
+  const review = useReview(lote, params.get("periodo") ?? undefined);
+  // id de um lote de verdade ("todas" e "mes" são filtros, não lote)
+  const batchId = lote && lote !== "todas" && lote !== "mes" ? lote : null;
   const options = useCategoryOptions();
   const confirm = useConfirmReview();
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
@@ -132,7 +135,7 @@ export function ReviewPanel() {
     setFailed(false);
     confirm.mutate(
       {
-        lote: lote && lote !== "todas" ? lote : null,
+        lote: batchId,
         items: marked.map((it) => ({
           transaction_id: it.id,
           category_id: choices.get(it.id)?.id ?? it.category_id,
@@ -202,7 +205,7 @@ export function ReviewPanel() {
                     Limpar filtro
                   </button>
                 </>
-              ) : lote && lote !== "todas" ? (
+              ) : batchId ? (
                 "Nada a revisar. Todas as transações do lote vieram de regras."
               ) : (
                 "Nada a revisar."

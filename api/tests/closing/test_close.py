@@ -95,3 +95,36 @@ async def test_current_month_cannot_close(api, auth_headers) -> None:
     periodo = f"{today_brt():%Y-%m}"
     checks = (await api.get(f"{URL}/{periodo}/checks", headers=auth_headers)).json()
     assert any(c["code"] == "mes_em_curso" and c["kind"] == "bloqueia" for c in checks)
+
+
+@pytest.mark.asyncio
+async def test_extreme_savings_rate_fits(pool) -> None:
+    """Revisão do Épico 5: trabalho de R$ 5 e gastos de R$ 6.000 dão −119.900 % — o snapshot
+    precisa guardar (antes estourava numeric(9,4) e o fechamento caía)."""
+    from decimal import Decimal
+
+    month = date(2003, 3, 1)
+    async with pool.acquire() as conn:
+        try:
+            async with conn.transaction():
+                await conn.execute(
+                    "INSERT INTO month_closes (month, version, status) VALUES ($1, 1, 'closed')",
+                    month,
+                )
+                await conn.execute(
+                    "INSERT INTO month_summary_totals (month, version, as_of, taxa_poupanca) "
+                    "VALUES ($1, 1, '2003-03-31', $2)",
+                    month,
+                    Decimal("-119900.00"),
+                )
+                value = await conn.fetchval(
+                    "SELECT taxa_poupanca FROM month_summary_totals WHERE month = $1", month
+                )
+                assert value == Decimal("-119900.00")
+                raise _Rollback
+        except _Rollback:
+            pass
+
+
+class _Rollback(Exception):
+    pass

@@ -12,7 +12,12 @@ import asyncpg
 import pytest
 
 from engines.alerts import service as alerts_service
-from engines.common.month_status import AllMonthsOpen, MonthState, register_month_status
+from engines.common.month_status import (
+    AllMonthsOpen,
+    MonthState,
+    month_status,
+    register_month_status,
+)
 from tests.dados_reais.conftest import restore_dados
 from workers.dbops import alembic_upgrade
 
@@ -30,6 +35,7 @@ async def test_p95_da_central_com_meses_em_ajuste() -> None:
     import main  # noqa: F401 — registra os providers reais
 
     dsn = await restore_dados()
+    original = month_status()
     register_month_status(TresMesesEmAjuste())
     try:
         await asyncio.to_thread(alembic_upgrade, dsn, "head")
@@ -48,5 +54,5 @@ async def test_p95_da_central_com_meses_em_ajuste() -> None:
         assert result.data_until is not None and result.data_until >= date(2026, 10, 1)
         assert all(a.severity in ("divergencia", "aviso") for a in result.items)
     finally:
-        register_month_status(AllMonthsOpen())
+        register_month_status(original)
         await restore_dados()

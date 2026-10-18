@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from engines.alerts import service as alerts_service
-from engines.common.month_status import AllMonthsOpen, register_month_status
+from engines.common.month_status import AllMonthsOpen, month_status, register_month_status
 from engines.ingest import service as ingest_service
 
 URL = "/api/v1/ingest"
@@ -93,6 +93,7 @@ async def test_preview_writes_nothing_and_confirm_applies(api, auth_headers, ofx
     assert staged["ttl"].total_seconds() == 24 * 3600
 
     port = RecordingPort()
+    original = month_status()
     register_month_status(port)
     try:
         c = await api.post(
@@ -101,7 +102,7 @@ async def test_preview_writes_nothing_and_confirm_applies(api, auth_headers, ofx
             headers=auth_headers,
         )
     finally:
-        register_month_status(AllMonthsOpen())
+        register_month_status(original)  # o real do `main` (ClosingMonthStatus)
     assert c.status_code == 200, c.text
     assert c.json()["imported"] == 3
     assert date(2099, 1, 1) in port.dirty

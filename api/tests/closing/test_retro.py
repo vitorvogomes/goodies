@@ -157,3 +157,39 @@ def test_scripts_register_engines() -> None:
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.returncode == 0, out.stderr[-2000:]
+
+
+@pytest.mark.asyncio
+async def test_retro_month_keeps_origin_and_reasons(pool, clean, tmp_path: Path) -> None:
+    """Revisão do Épico 5: reabrir e fechar de novo um mês retroativo mantém `retro` (e as regras
+    dele); `refechar` (completar e recalcular) não perde os motivos `nao_definido` nem a
+    cobertura."""
+    import main  # noqa: F401
+    from engines.closing import service as closing
+
+    month = MONTHS[0]
+    async with pool.acquire() as conn:
+        await close_retro.run(conn, month, month, files_dir=tmp_path)
+        await closing.reopen_month(conn, month)
+        checks = await closing.run_checks(conn, month)
+        await closing.close_month(conn, month, [c.code for c in checks if c.kind == "confirma"])
+        for mode in ("completar", "recalcular"):
+            await closing.refechar(conn, month, mode=mode)
+        rows = await conn.fetch(
+            "SELECT c.version, c.origin, c.coverage, t.unavailable FROM month_closes c "
+            "JOIN month_summary_totals t USING (month, version) WHERE c.month = $1 "
+            "ORDER BY c.version",
+            month,
+        )
+    assert [(r["version"], r["origin"]) for r in rows] == [
+        (1, "retro"),
+        (2, "retro"),
+        (3, "retro"),
+        (4, "retro"),
+    ]
+    for r in rows:
+        unavailable = json.loads(r["unavailable"])
+        assert unavailable["pendente"] == "nao_definido", r["version"]
+        assert unavailable["aporte_planejado"] == "nao_definido", r["version"]
+        assert unavailable["consumido"] == "fora_do_resumo", r["version"]
+        assert json.loads(r["coverage"])["B3"] == "patrimônio não coberto", r["version"]

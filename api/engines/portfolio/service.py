@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -595,6 +595,9 @@ class PortfolioSnapshot:
     stale: bool  # alguma posição sem preço
     prices_as_of: date | None = None  # Bloco Fontes "Preços": a mesma data do patrimônio
     wallets_as_of: date | None = None
+    # todas as posições de `calculate_positions` (com o bloco cripto): quem precisa delas não
+    # recalcula (revisão do Épico 5)
+    positions: list[dict[str, Any]] = field(default_factory=list)
 
 
 async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> PortfolioSnapshot:
@@ -609,11 +612,8 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
         user_id,
         _CRYPTO_CATS,
     )
-    positions = [
-        p
-        for p in await calculate_positions(conn, user_id)
-        if p["asset_category"] not in _CRYPTO_CATS
-    ]
+    all_positions = await calculate_positions(conn, user_id)
+    positions = [p for p in all_positions if p["asset_category"] not in _CRYPTO_CATS]
     stale = any(p["valor_atual"] is None for p in positions)
     # Posição aberta sem preço sai dos dois lados (como no XIRR): sem valor terminal, o aportado
     # dela derrubaria o resultado.
@@ -648,17 +648,16 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
         stale=stale or sleeve.stale or lagging,
         prices_as_of=prices_as_of,
         wallets_as_of=wallets_as_of,
+        positions=all_positions,
     )
 
 
 async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
     """Precondição do fechamento (Story 5.3): sem o consolidado B3 daquele fim de mês, a B3 é
     valorada pelo histórico de preço — pede "fechar mesmo assim"."""
-    import calendar
+    from engines.common.dates import month_end, month_label
 
-    from engines.common.dates import month_label
-
-    end = month.replace(day=calendar.monthrange(month.year, month.month)[1])
+    end = month_end(month)
     has = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date = $1)", end
     )

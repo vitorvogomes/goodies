@@ -8,7 +8,7 @@ Toda lógica de "hoje" dos alertas deve passar por `today_brt()`.
 from __future__ import annotations
 
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _BRT = ZoneInfo("America/Sao_Paulo")
@@ -35,9 +35,25 @@ def parse_periodo(periodo: str) -> date:
     return date(int(m[1]), int(m[2]), 1)
 
 
-def _add_months(d: date, n: int) -> date:
+def add_months(d: date, n: int) -> date:
+    """1º dia do mês `n` meses depois (ou antes, com `n` negativo) do mês de `d`."""
     index = d.year * 12 + d.month - 1 + n
     return date(index // 12, index % 12 + 1, 1)
+
+
+def month_end(month: date) -> date:
+    """Último dia do mês de `month`."""
+    return add_months(month, 1) - timedelta(days=1)
+
+
+def months_between(start: date, end: date) -> list[date]:
+    """Os meses de `start` até `end` (inclusive), em ordem."""
+    out: list[date] = []
+    month = start.replace(day=1)
+    while month <= end:
+        out.append(month)
+        month = add_months(month, 1)
+    return out
 
 
 def resolve_period(periodo: str, leitura: str) -> list[date]:
@@ -57,7 +73,7 @@ def resolve_period(periodo: str, leitura: str) -> list[date]:
     months: list[date] = []
     while start <= end:
         months.append(start)
-        start = _add_months(start, 1)
+        start = add_months(start, 1)
     return months
 
 

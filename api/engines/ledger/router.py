@@ -330,8 +330,17 @@ async def balance_candidates(
 
 
 @v2.get("/review", response_model=ReviewList)
-async def review_list(user: AuthUser, db: Db, lote: Uuid | None = None) -> ReviewList:
-    return await service.review_list(db, lote)
+async def review_list(
+    user: AuthUser, db: Db, lote: Uuid | None = None, mes: str | None = None
+) -> ReviewList:
+    try:
+        month = parse_periodo(mes) if mes else None
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "periodo_invalido", "message": "Período inválido (use AAAA-MM)."},
+        ) from None
+    return await service.review_list(db, lote, month)
 
 
 @v2.post("/review/confirm", response_model=ReviewConfirmOut)

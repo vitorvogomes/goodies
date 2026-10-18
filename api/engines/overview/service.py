@@ -11,7 +11,7 @@ from decimal import Decimal
 import asyncpg
 
 from engines.closing import service as closing
-from engines.common.dates import today_brt
+from engines.common.dates import add_months, today_brt
 from engines.common.models import Valued
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
@@ -22,16 +22,11 @@ from engines.portfolio import service as portfolio_service
 from .models import Fonte, Painel
 
 
-def _previous(month: date) -> date:
-    return date(month.year - 1, 12, 1) if month.month == 1 else month.replace(month=month.month - 1)
-
-
 async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     """KPIs do mês pelo resumo de `closing` (AD-8): o mesmo cálculo do fechamento."""
     pending = await ledger_service.pending_review_count(conn)
     summary = await closing.month_summary(conn, month)  # fechado → snapshot (5.5)
-    previous = await closing.month_summary(conn, _previous(month))
-    previous_has_data = previous.ledger_as_of is not None
+    previous = await closing.month_result(conn, add_months(month, -1))  # só o resultado
     if summary.ledger_as_of is not None:
         resultado = Valued[Decimal](
             value=summary.resultado_mes, as_of=summary.ledger_as_of, source="ledger"
@@ -39,17 +34,17 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     else:
         resultado = Valued[Decimal](unavailable_reason="nao_definido")
     anterior = (
-        Valued[Decimal](value=previous.resultado_mes, as_of=previous.ledger_as_of, source="ledger")
-        if previous_has_data
+        Valued[Decimal](value=previous.value, as_of=previous.as_of, source="ledger")
+        if previous is not None
         else Valued[Decimal](unavailable_reason="nao_definido")
     )
     variacao = (
         Valued[Decimal](
-            value=summary.resultado_mes - previous.resultado_mes,
+            value=summary.resultado_mes - previous.value,
             as_of=summary.ledger_as_of,
             source="ledger",
         )
-        if resultado.value is not None and previous_has_data
+        if resultado.value is not None and previous is not None
         else Valued[Decimal](unavailable_reason="nao_definido")
     )
     dates = [d for d in (summary.portfolio_as_of, summary.ledger_as_of) if d is not None]

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import calendar
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -24,7 +23,7 @@ import asyncpg
 
 from config import settings
 from engines.closing import service as closing
-from engines.common.dates import month_label, parse_periodo
+from engines.common.dates import month_end, month_label, months_between, parse_periodo, today_brt
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.b3_adapter import period_from_name
 from workers.backup import make_pre_migration_backup
@@ -43,14 +42,6 @@ class RetroReport:
     skipped: list[date] = field(default_factory=list)  # já tinham versão
     blocked: list[tuple[date, str]] = field(default_factory=list)
     divergent: list[date] = field(default_factory=list)
-
-
-def _months(start: date, end: date) -> list[date]:
-    out, month = [], start
-    while month <= end:
-        out.append(month)
-        month = date(month.year + month.month // 12, month.month % 12 + 1, 1)
-    return out
 
 
 def ensure_head(current: str | None, head: str) -> None:
@@ -75,6 +66,19 @@ def unimported_consolidados(
     return sorted(found)
 
 
+async def ensure_consolidados(
+    conn: asyncpg.Connection, start: date, end: date, files_dir: Path = CONSOLIDADOS_DIR
+) -> None:
+    missing = unimported_consolidados(
+        files_dir, await portfolio_service.consolidado_dates(conn), start, end
+    )
+    if missing:
+        names = ", ".join(month_label(m) for m in missing)
+        raise RetroAborted(
+            f"Consolidado B3 não importado: {names}. Importe pelo Hub ou use --sem-consolidado."
+        )
+
+
 async def run(
     conn: asyncpg.Connection,
     start: date,
@@ -85,16 +89,9 @@ async def run(
     echo: Callable[[str], None] = print,
 ) -> RetroReport:
     if not sem_consolidado:
-        missing = unimported_consolidados(
-            files_dir, await portfolio_service.consolidado_dates(conn), start, end
-        )
-        if missing:
-            names = ", ".join(month_label(m) for m in missing)
-            raise RetroAborted(
-                f"Consolidado B3 não importado: {names}. Importe pelo Hub ou use --sem-consolidado."
-            )
+        await ensure_consolidados(conn, start, end, files_dir)
     report = RetroReport()
-    for month in _months(start, end):
+    for month in months_between(start, end):
         try:
             out = await closing.close_retro(conn, month)
         except closing.CloseError as exc:
@@ -129,19 +126,14 @@ def register_engines() -> None:
 async def _main(start: date, end: date, sem_consolidado: bool) -> None:
     register_engines()
     ensure_head(await current_revision(settings.database_url), head_revision())
-    if end.replace(day=calendar.monthrange(end.year, end.month)[1]) >= date.today():
+    if month_end(end) >= today_brt():
         raise RetroAborted(f"{month_label(end)} ainda não terminou.")
     conn = await asyncpg.connect(settings.database_url)
     try:
         if not sem_consolidado:  # aborta antes do backup se faltar consolidado
-            missing = unimported_consolidados(
-                CONSOLIDADOS_DIR, await portfolio_service.consolidado_dates(conn), start, end
-            )
-            if missing:
-                names = ", ".join(month_label(m) for m in missing)
-                raise RetroAborted(f"Consolidado B3 não importado: {names}.")
+            await ensure_consolidados(conn, start, end)
         await make_pre_migration_backup(settings.database_url, "pre-close-retro")
-        await run(conn, start, end, sem_consolidado=sem_consolidado)
+        await run(conn, start, end, sem_consolidado=True)
     finally:
         await conn.close()
 

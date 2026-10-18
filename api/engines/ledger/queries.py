@@ -273,6 +273,7 @@ REVIEW_ITEMS = """
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN category_rules r ON r.id = t.category_rule_id
     WHERE t.review_status = 'pending' AND ($1::uuid IS NULL OR t.batch_id = $1::uuid)
+      AND ($2::date IS NULL OR date_trunc('month', t.date)::date = $2::date)
     ORDER BY t.date, t.id
 """
 PENDING_COUNT = """

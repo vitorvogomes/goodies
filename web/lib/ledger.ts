@@ -420,13 +420,14 @@ export function useReapplyRules() {
 // ---- v2: Revisão de transações (Story 3.10) ----
 
 /** `lote` = id do lote aplicado, ou "todas" para todas as pendentes. */
-export function useReview(lote: string | null) {
+// `lote` = id do lote, "todas" ou "mes" (só as do `periodo`, pelo Assistente de recuperação).
+export function useReview(lote: string | null, periodo?: string) {
+  const qs = new URLSearchParams();
+  if (lote && lote !== "todas" && lote !== "mes") qs.set("lote", lote);
+  if (lote === "mes" && periodo) qs.set("mes", periodo);
   return useQuery({
-    queryKey: ["ledger", "review", lote],
-    queryFn: () =>
-      apiFetch<ReviewList>(
-        `/api/v1/ledger/review${lote && lote !== "todas" ? `?lote=${lote}` : ""}`,
-      ),
+    queryKey: ["ledger", "review", lote, lote === "mes" ? (periodo ?? "") : ""],
+    queryFn: () => apiFetch<ReviewList>(`/api/v1/ledger/review${qs.size ? `?${qs}` : ""}`),
     enabled: lote !== null,
   });
 }

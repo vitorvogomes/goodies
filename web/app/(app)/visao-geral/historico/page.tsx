@@ -3,7 +3,7 @@
 // Visão geral › Histórico (Story 5.4, mínimo; a comparação entre meses chega na 9.1): os meses de
 // jul/2024 até hoje com o Selo de estado (fechado / aberto / ajuste) e "Fechar {mês}" nos meses
 // abertos que já terminaram, pelo Checklist de fechamento; "Reabrir {mês}" nos fechados (5.5).
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { CloseDialog } from "@/components/closing/CloseDialog";
@@ -18,8 +18,20 @@ export default function HistoricoPage() {
   const months = useMonthStates();
   const [closing, setClosing] = useState<string | null>(null);
   const params = useSearchParams();
-  // o aviso "Ajuste em {mês}" abre o diálogo pelo ?reabrir=AAAA-MM (Story 5.6)
-  const [reopening, setReopening] = useState<string | null>(params.get("reabrir"));
+  const router = useRouter();
+  const pathname = usePathname();
+  // o aviso "Ajuste em {mês}" abre o diálogo pelo ?reabrir=AAAA-MM (Story 5.6); fechar o diálogo
+  // tira o parâmetro, para voltar/recarregar não reabrir o diálogo de um mês já aberto
+  const [picked, setPicked] = useState<string | null>(null);
+  const reopening = picked ?? params.get("reabrir");
+  function closeReopen() {
+    setPicked(null);
+    if (params.has("reabrir")) {
+      const next = new URLSearchParams(params);
+      next.delete("reabrir");
+      router.replace(next.size ? `${pathname}?${next}` : pathname);
+    }
+  }
   const current = currentMonthBRT();
 
   if (months.isError) {
@@ -55,7 +67,7 @@ export default function HistoricoPage() {
                 </Button>
               )}
               {m.status !== "aberto" && (
-                <Button size="sm" variant="ghost" onClick={() => setReopening(periodo)}>
+                <Button size="sm" variant="ghost" onClick={() => setPicked(periodo)}>
                   Reabrir {formatMonth(periodo)}
                 </Button>
               )}
@@ -64,7 +76,7 @@ export default function HistoricoPage() {
         })}
       </ul>
       <CloseDialog periodo={closing} onClose={() => setClosing(null)} />
-      <ReopenDialog periodo={reopening} onClose={() => setReopening(null)} />
+      <ReopenDialog periodo={reopening} onClose={closeReopen} />
     </div>
   );
 }

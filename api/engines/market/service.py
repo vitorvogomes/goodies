@@ -376,6 +376,23 @@ async def latest_index_date(conn: asyncpg.Connection) -> Any:
     return await conn.fetchval("SELECT max(ref_date) FROM benchmark_data WHERE series = 'CDI'")
 
 
+async def prices_as_of(
+    conn: asyncpg.Connection, tickers: list[str], day: date
+) -> dict[str, Valued[Decimal]]:
+    """`price_as_of` de vários tickers numa consulta só (sem preço até `day` → `sem_preco`)."""
+    rows = await conn.fetch(
+        "SELECT DISTINCT ON (ticker) ticker, ref_date, price_brl, source FROM asset_price_history "
+        "WHERE ticker = ANY($1::text[]) AND ref_date <= $2 ORDER BY ticker, ref_date DESC",
+        list(set(tickers)),
+        day,
+    )
+    found = {
+        r["ticker"]: Valued[Decimal](value=r["price_brl"], as_of=r["ref_date"], source=r["source"])
+        for r in rows
+    }
+    return {t: found.get(t, Valued[Decimal](unavailable_reason="sem_preco")) for t in tickers}
+
+
 async def price_as_of(conn: asyncpg.Connection, ticker: str, day: date) -> Valued[Decimal]:
     """Preço de `ticker` até `day` (Story 5.1, AD-8): o último do histórico com data ≤ `day`. Sem
     nenhum, `Valued` nulo com `sem_preco` — nunca o preço de hoje para um mês passado."""

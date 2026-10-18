@@ -30,11 +30,7 @@ _BAD_MONTH = {"error": "periodo_invalido", "message": "Período inválido (use A
 
 @router.get("/months/{mes}/summary", response_model=MonthSummary)
 async def month_summary(mes: str, user: AuthUser, db: Db) -> MonthSummary:
-    try:
-        month = parse_periodo(mes)
-    except ValueError:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_MONTH) from None
-    return await service.month_summary(db, month)
+    return await service.month_summary(db, _month(mes))
 
 
 def _month(mes: str) -> date:
