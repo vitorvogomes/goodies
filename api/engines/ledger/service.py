@@ -1364,6 +1364,19 @@ async def pending_review_count(conn: asyncpg.Connection) -> int:
     return int(await conn.fetchval(queries.PENDING_COUNT, None))
 
 
+async def pending_in_month(conn: asyncpg.Connection, month: date) -> int:
+    """Transações `pending` do mês (passo Revisar do Assistente de recuperação)."""
+    end = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+    return int(
+        await conn.fetchval(
+            "SELECT count(*) FROM transactions WHERE review_status = 'pending' "
+            "AND date >= $1 AND date < $2",
+            month,
+            end,
+        )
+    )
+
+
 # --------------------------------------------------------------------------------------------
 # Construtores do mês para o resumo (Story 5.2 — AD-8): termos da AD-7 e as quebras
 # --------------------------------------------------------------------------------------------

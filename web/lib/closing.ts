@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Checklist, ChecklistItem, MonthState, ReopenPreview } from "@/types/closing";
+import type { Checklist, ChecklistItem, MonthState, Recovery, ReopenPreview } from "@/types/closing";
 
 export function useMonthStates(de?: string, ate?: string) {
   const qs = new URLSearchParams();
@@ -56,5 +56,12 @@ export function useReopenMonth() {
       queryClient.removeQueries({ queryKey: ["closing", "reopen-preview"] });
       return invalidateAfter(queryClient, "closing");
     },
+  });
+}
+
+export function useRecovery() {
+  return useQuery({
+    queryKey: ["closing", "recovery"],
+    queryFn: () => apiFetch<Recovery>("/api/v1/closing/recovery"),
   });
 }

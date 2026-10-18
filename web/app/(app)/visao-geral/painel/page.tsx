@@ -3,7 +3,8 @@
 // Visão geral › Painel (Story 4.1 — FR-13): KPIs datados na grade do DESIGN.md. Resultado do mês
 // (Disponível para consumo chega no Épico 6); Patrimônio | Resultado dos investimentos |
 // Rentabilidade nominal (a real chega com o IPCA). Cada bloco carrega, falha e tenta de novo
-// sozinho; durante a carga, Esqueleto com a geometria final.
+// sozinho; durante a carga, Esqueleto com a geometria final. O Assistente de recuperação (5.8) fica
+// acima de tudo enquanto a base estiver incompleta.
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -11,6 +12,7 @@ import { Suspense } from "react";
 import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { AlertsStrip } from "@/components/overview/AlertsStrip";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
+import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatPercent, formatSignedBRL } from "@/lib/format";
 import { useOverviewSources, usePainel } from "@/lib/overview";
@@ -69,6 +71,7 @@ function Painel() {
 
   return (
     <div className="space-y-section-gap">
+      <RecoveryWizard />
       <AlertsStrip />
       {data && data.a_revisar > 0 && (
         <p className="type-body-sm">

@@ -18,6 +18,7 @@ from .models import (
     CloseOut,
     MonthState,
     MonthSummary,
+    Recovery,
     ReopenOut,
     ReopenPreview,
 )
@@ -95,3 +96,8 @@ async def reopen_month(mes: str, user: AuthUser, db: Db) -> ReopenOut:
         return await service.reopen_month(db, _month(mes))
     except service.CloseError as exc:
         raise _conflict(exc) from None
+
+
+@router.get("/recovery", response_model=Recovery)
+async def recovery(user: AuthUser, db: Db) -> Recovery:
+    return await service.recovery(db)

@@ -16,7 +16,7 @@ from typing import Any
 import asyncpg
 
 from engines.common.alerts import brl
-from engines.common.dates import today_brt
+from engines.common.dates import MIN_MONTH, today_brt
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
@@ -32,6 +32,9 @@ from .models import (
     CloseOut,
     MonthState,
     MonthSummary,
+    Recovery,
+    RecoveryMonth,
+    RecoveryStep,
     ReopenOut,
     ReopenPreview,
     ReopenRow,
@@ -617,4 +620,113 @@ async def checklist(conn: asyncpg.Connection, month: date) -> Checklist:
         blocking=sum(1 for i in items if not i.ok and i.kind == "bloqueia"),
         pending=sum(1 for i in items if not i.ok and i.kind == "confirma"),
         summary=await build_month_summary(conn, month, min(month_end(month), today_brt())),
+    )
+
+
+# --------------------------------------------------------------------------------------------
+# Assistente de recuperação (Story 5.8 — FR-7, UX-DR41)
+# --------------------------------------------------------------------------------------------
+
+# Fontes que precisam cobrir o fim do mês para o passo Importar (a negociação só traz os dias com
+# negócio, então não entra).
+_RECOVERY_SOURCES = ("nubank_pf", "nubank_mei", "b3_movimentacao", "b3_consolidado")
+_BALANCE_DETAIL = {"conferido": "conferido", "divergente": "divergente", None: "não conferido"}
+
+
+def recovery_steps(
+    periodo: str, *, imported: bool, pending: int, balance: str | None, closed: bool
+) -> list[RecoveryStep]:
+    """Os 4 passos do mês: feito pelo dado; o primeiro que falta é o atual (único botão)."""
+    raw = [
+        (
+            "importar",
+            "Importar",
+            imported,
+            None,
+            f"/visao-geral/painel?periodo={periodo}&importar=1",
+        ),
+        (
+            "revisar",
+            "Revisar",
+            pending == 0,
+            f"{pending} a revisar" if pending else None,
+            f"/caixa/transacoes?periodo={periodo}&revisar=todas",
+        ),
+        (
+            "conferir",
+            "Conferir",
+            balance == "conferido",
+            _BALANCE_DETAIL.get(balance, "não conferido"),
+            f"/caixa/transacoes?periodo={periodo}",
+        ),
+        ("fechar", "Fechar", closed, None, None),
+    ]
+    steps: list[RecoveryStep] = []
+    current_taken = False
+    for key, label_, done, detail, href in raw:
+        if done:
+            state = "feito"
+        elif not current_taken:
+            state, current_taken = "atual", True
+        else:
+            state = "a_fazer"
+        steps.append(RecoveryStep(key=key, label=label_, state=state, detail=detail, href=href))
+    return steps
+
+
+async def recovery(
+    conn: asyncpg.Connection, today: date | None = None, *, start: date = MIN_MONTH
+) -> Recovery:
+    """Trilha do mês seguinte ao bloco retroativo (os meses fechados com origin `retro` desde
+    `start`, sem buraco) até o mês anterior a hoje; o mês atual é o primeiro aberto. Some quando a
+    trilha inteira está fechada."""
+    today = today or today_brt()
+    current_month = today.replace(day=1)
+    last = date(
+        current_month.year - (current_month.month == 1), (current_month.month - 2) % 12 + 1, 1
+    )
+    states = await month_states(conn, start, last) if last >= start else []
+    i = 0
+    while i < len(states) and states[i].status != "aberto" and states[i].origin == "retro":
+        i += 1
+    base_until = month_end(states[i - 1].month) if i > 0 else None
+    trail = states[i:]
+    pending_months = [m for m in trail if m.status == "aberto"]
+    if not pending_months:
+        return Recovery(
+            active=False, base_until=base_until, message=None, months=[], current=None, steps=[]
+        )
+    month = pending_months[0].month
+    periodo = f"{month:%Y-%m}"
+    end = month_end(month)
+    sources = {s.key: s for s in await ingest_service.sources(conn, today, with_balances=False)}
+    imported = all(
+        (src := sources.get(k)) is not None
+        and src.updated_until is not None
+        and src.updated_until >= end
+        for k in _RECOVERY_SOURCES
+    )
+    codes = {c.code for c in await run_checks(conn, month)}
+    if "saldo_pf_divergente" in codes:
+        balance: str | None = "divergente"
+    elif "saldo_pf_nao_conferido" in codes:
+        balance = None
+    else:
+        balance = "conferido"
+    message = "Recupere mês a mês até hoje."
+    if base_until is not None:
+        message = f"A base vai até {base_until:%d/%m/%Y}. {message}"
+    return Recovery(
+        active=True,
+        base_until=base_until,
+        message=message,
+        months=[RecoveryMonth(month=s.month, status=s.status) for s in trail],
+        current=month,
+        steps=recovery_steps(
+            periodo,
+            imported=imported,
+            pending=await ledger_service.pending_in_month(conn, month),
+            balance=balance,
+            closed=False,
+        ),
     )

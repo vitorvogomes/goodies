@@ -112,3 +112,27 @@ class ReopenOut(BaseModel):
     month: date
     version: int
     status: str
+
+
+class RecoveryStep(BaseModel):
+    key: str  # importar | revisar | conferir | fechar
+    label: str
+    state: str  # feito | atual | a_fazer
+    detail: str | None = None
+    href: str | None = None
+
+
+class RecoveryMonth(BaseModel):
+    month: date
+    status: str  # aberto | fechado | ajuste
+
+
+class Recovery(BaseModel):
+    """Assistente de recuperação (Story 5.8 — UX-DR41): tudo derivado dos dados."""
+
+    active: bool
+    base_until: date | None
+    message: str | None
+    months: list[RecoveryMonth]
+    current: date | None
+    steps: list[RecoveryStep]

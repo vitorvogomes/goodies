@@ -53,3 +53,20 @@ export interface ReopenPreview {
   version: number;
   rows: ReopenRow[];
 }
+
+export interface RecoveryStep {
+  key: "importar" | "revisar" | "conferir" | "fechar";
+  label: string;
+  state: "feito" | "atual" | "a_fazer";
+  detail: string | null;
+  href: string | null;
+}
+
+export interface Recovery {
+  active: boolean;
+  base_until: string | null;
+  message: string | null;
+  months: { month: string; status: MonthStatus }[];
+  current: string | null;
+  steps: RecoveryStep[];
+}
