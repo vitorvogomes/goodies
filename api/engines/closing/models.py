@@ -23,6 +23,12 @@ class MonthSummary(BaseModel):
     investido: Money
     taxa_poupanca: Pct | None  # em %
     resultado_mes: Money
+    # orçamento (planning/calc — Story 6.5)
+    consumido: Money
+    disponivel: Money
+    restante: Money
+    restante_sem_resgates: Money
+    consumo_financiado: Money
     receitas_por_pagador: dict[str, Money]
     gastos_por_categoria: dict[str, Money]
     ledger_as_of: date | None

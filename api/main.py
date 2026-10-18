@@ -31,6 +31,7 @@ from engines.ledger.service import register_on_transactions_changed
 from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.overview.router import router as overview_router
+from engines.planning.router import router as planning_router
 from engines.portfolio import hooks as portfolio_hooks
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
@@ -131,6 +132,7 @@ app.include_router(alerts_router)
 app.include_router(ingest_router)
 app.include_router(overview_router)
 app.include_router(closing_router)
+app.include_router(planning_router)
 
 
 @app.get("/api/v1/health")

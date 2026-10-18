@@ -32,15 +32,18 @@ from .calc import (
     MATCH_DAYS_AFTER,
     MATCH_DAYS_BEFORE,
     BalanceInterval,
+    Consumed,
     CostDue,
     CostMatch,
     Decision,
     Movement,
     Rule,
+    SpendTx,
     TxCandidate,
     best_rule,
     chained_check,
     computed_balance,
+    consumido,
     devolucoes,
     due_date,
     gastos,
@@ -1792,4 +1795,89 @@ async def clear_fixed_cost_decision(conn: asyncpg.Connection, cost_id: str, mes:
         "DELETE FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid AND month = $2",
         cost_id,
         month,
+    )
+
+
+# --------------------------------------------------------------------------------------------
+# Fatos do mês para o orçamento (Story 6.5 — AD-7): o que `planning/calc` precisa do caixa
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BudgetFacts:
+    trabalho: Decimal
+    por_pagador: dict[str, Decimal]
+    resgates: Decimal
+    resgates_itens: list[tuple[date, str, Decimal]]  # (data, descrição, valor)
+    gastos: Decimal
+    investido: Decimal
+    consumed: Consumed
+    fixed: list[tuple[Decimal, Decimal | None]]  # (cadastrado, pago ou None)
+    fixed_paid: Decimal
+    fixed_pending: Decimal
+    # consumido por grupo → subcategoria: (grupo, subcategoria) → (valor, nº de transações)
+    by_category: dict[tuple[str, str], tuple[Decimal, int]]
+    as_of: date | None
+    taxa_poupanca: Decimal | None  # fração
+
+
+async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
+    """Transações do mês por papel, o casamento dos custos fixos e o consumido em baldes."""
+    rows = await conn.fetch(
+        "SELECT t.id, t.date, t.amount, t.kind, c.role, t.payer, t.description, "
+        "g.name AS group_name, c.name AS category_name "
+        "FROM transactions t JOIN categories c ON c.id = t.category_id "
+        "JOIN category_groups g ON g.id = c.group_id "
+        "WHERE t.date >= $1 AND t.date < $2 ORDER BY t.date",
+        month,
+        add_months(month, 1),
+    )
+    moves = [Movement(r["amount"], r["kind"], r["role"]) for r in rows]
+    matches = await fixed_cost_matches(conn, month)
+    costs = {str(r["id"]): r["amount"] for r in await fixed_costs_due(conn, month)}
+    paid_amounts = {
+        str(r["id"]): -r["amount"]
+        for r in await conn.fetch(
+            "SELECT id, amount FROM transactions WHERE id = ANY($1::uuid[])",
+            [m.transaction_id for m in matches if m.transaction_id],
+        )
+    }
+    fixed: list[tuple[Decimal, Decimal | None]] = []
+    for m in matches:
+        if m.status == "manual":
+            fixed.append((costs[m.cost_id], costs[m.cost_id]))
+        elif m.status == "pago" and m.transaction_id:
+            fixed.append((costs[m.cost_id], paid_amounts.get(m.transaction_id)))
+        else:
+            fixed.append((costs[m.cost_id], None))
+    matched = {m.transaction_id for m in matches if m.transaction_id}
+    spend = [SpendTx(str(r["id"]), r["amount"], r["kind"], r["role"]) for r in rows]
+    by_category: dict[tuple[str, str], tuple[Decimal, int]] = {}
+    for r in rows:
+        if r["kind"] != "expense" or str(r["id"]) in matched or r["role"] == "divida":
+            continue
+        key = (r["group_name"], r["category_name"])
+        value, n = by_category.get(key, (Decimal(0), 0))
+        by_category[key] = (value - r["amount"], n + 1)
+    por_pagador: dict[str, Decimal] = {}
+    for r in rows:
+        if r["role"] == "work_income":
+            payer = r["payer"] or "Sem pagador"
+            por_pagador[payer] = por_pagador.get(payer, Decimal(0)) + r["amount"]
+    return BudgetFacts(
+        trabalho=work_income(moves),
+        por_pagador=por_pagador,
+        resgates=resgates(moves),
+        resgates_itens=[
+            (r["date"], r["description"] or "", r["amount"]) for r in rows if r["role"] == "resgate"
+        ],
+        gastos=gastos(moves),
+        investido=investido(moves),
+        consumed=consumido(spend, {t for t in matched if t is not None}),
+        fixed=fixed,
+        fixed_paid=sum((p for _, p in fixed if p is not None), Decimal(0)),
+        fixed_pending=sum((c for c, p in fixed if p is None), Decimal(0)),
+        by_category=by_category,
+        as_of=max((r["date"] for r in rows), default=None),
+        taxa_poupanca=savings_rate(moves),
     )

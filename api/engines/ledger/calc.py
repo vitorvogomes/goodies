@@ -285,3 +285,44 @@ def match_fixed_costs(
         else:
             out[c.cost_id] = CostMatch(c.cost_id, "pendente")
     return out
+
+
+# --------------------------------------------------------------------------------------------
+# Consumido (Story 6.5 — AD-7): gastos − deduções, cada transação num balde só
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SpendTx:
+    transaction_id: str
+    amount: Decimal  # com sinal
+    kind: str
+    role: str
+
+
+@dataclass(frozen=True)
+class Consumed:
+    gastos: Decimal  # gastos brutos do mês (kind expense, magnitude)
+    fixos: Decimal  # pagamentos casados a custo fixo
+    dividas: Decimal  # role `divida` não casada a custo fixo
+    devolucoes: Decimal  # role `devolucao` (entrada)
+
+    @property
+    def total(self) -> Decimal:
+        return self.gastos - self.fixos - self.dividas - self.devolucoes
+
+
+def consumido(spend: Sequence[SpendTx], matched_fixed: set[str]) -> Consumed:
+    """Consumido = gastos − deduções; o balde de cada transação, nessa ordem: custo fixo casado >
+    dívida > devolução."""
+    gastos_ = fixos = dividas = devolucoes_ = Decimal(0)
+    for t in spend:
+        if t.kind == "expense":
+            gastos_ -= t.amount
+            if t.transaction_id in matched_fixed:
+                fixos -= t.amount
+            elif t.role == "divida":
+                dividas -= t.amount
+        elif t.role == "devolucao":
+            devolucoes_ += t.amount
+    return Consumed(gastos_, fixos, dividas, devolucoes_)

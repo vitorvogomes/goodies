@@ -1,0 +1,595 @@
+{
+ "_doc": "Insumos do mockup key-orcamento.html (Caixa › Orçamento, out/2026) para os golden tests da Story 6.5 (adversarial-review A7).",
+ "month": "2026-10",
+ "today": "2026-10-16",
+ "transactions": [
+  {
+   "id": "t01",
+   "date": "2026-10-05",
+   "amount": "11200.00",
+   "kind": "income",
+   "role": "work_income",
+   "group": "Receitas",
+   "description": "Pix recebido - Flash",
+   "payer": "Flash"
+  },
+  {
+   "id": "t02",
+   "date": "2026-10-10",
+   "amount": "1280.00",
+   "kind": "income",
+   "role": "work_income",
+   "group": "Receitas",
+   "description": "Pix recebido - Betuel",
+   "payer": "Betuel"
+  },
+  {
+   "id": "t03",
+   "date": "2026-10-09",
+   "amount": "4487.99",
+   "kind": "income",
+   "role": "resgate",
+   "group": "Resgates",
+   "description": "Resgate caixinha Turbo",
+   "payer": null
+  },
+  {
+   "id": "t04",
+   "date": "2026-10-06",
+   "amount": "-2800.00",
+   "kind": "investment",
+   "role": "investimento",
+   "group": "Investimentos",
+   "description": "Aplicação Toro",
+   "payer": null
+  },
+  {
+   "id": "t05",
+   "date": "2026-10-05",
+   "amount": "-1500.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Casa",
+   "description": "Condomínio",
+   "payer": null
+  },
+  {
+   "id": "t06",
+   "date": "2026-10-10",
+   "amount": "-702.30",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Plano de saúde",
+   "payer": null
+  },
+  {
+   "id": "t07",
+   "date": "2026-10-14",
+   "amount": "-380.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Casa",
+   "description": "Internet",
+   "payer": null
+  },
+  {
+   "id": "t08",
+   "date": "2026-10-09",
+   "amount": "-2994.77",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Compras",
+   "description": "KABUM notebook",
+   "payer": null
+  },
+  {
+   "id": "t09",
+   "date": "2026-10-03",
+   "amount": "-1200.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Compras",
+   "description": "Loja",
+   "payer": null
+  },
+  {
+   "id": "t10",
+   "date": "2026-10-02",
+   "amount": "-418.22",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Compras",
+   "description": "Loja online",
+   "payer": null
+  },
+  {
+   "id": "t11",
+   "date": "2026-10-01",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 1",
+   "payer": null
+  },
+  {
+   "id": "t12",
+   "date": "2026-10-02",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 2",
+   "payer": null
+  },
+  {
+   "id": "t13",
+   "date": "2026-10-03",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 3",
+   "payer": null
+  },
+  {
+   "id": "t14",
+   "date": "2026-10-04",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 4",
+   "payer": null
+  },
+  {
+   "id": "t15",
+   "date": "2026-10-05",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 5",
+   "payer": null
+  },
+  {
+   "id": "t16",
+   "date": "2026-10-06",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 6",
+   "payer": null
+  },
+  {
+   "id": "t17",
+   "date": "2026-10-07",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 7",
+   "payer": null
+  },
+  {
+   "id": "t18",
+   "date": "2026-10-08",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 8",
+   "payer": null
+  },
+  {
+   "id": "t19",
+   "date": "2026-10-09",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 9",
+   "payer": null
+  },
+  {
+   "id": "t20",
+   "date": "2026-10-10",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 10",
+   "payer": null
+  },
+  {
+   "id": "t21",
+   "date": "2026-10-11",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 11",
+   "payer": null
+  },
+  {
+   "id": "t22",
+   "date": "2026-10-12",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 12",
+   "payer": null
+  },
+  {
+   "id": "t23",
+   "date": "2026-10-13",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 13",
+   "payer": null
+  },
+  {
+   "id": "t24",
+   "date": "2026-10-14",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 14",
+   "payer": null
+  },
+  {
+   "id": "t25",
+   "date": "2026-10-15",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 15",
+   "payer": null
+  },
+  {
+   "id": "t26",
+   "date": "2026-10-16",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 16",
+   "payer": null
+  },
+  {
+   "id": "t27",
+   "date": "2026-10-01",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 17",
+   "payer": null
+  },
+  {
+   "id": "t28",
+   "date": "2026-10-02",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 18",
+   "payer": null
+  },
+  {
+   "id": "t29",
+   "date": "2026-10-03",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 19",
+   "payer": null
+  },
+  {
+   "id": "t30",
+   "date": "2026-10-04",
+   "amount": "-61.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Mercado 20",
+   "payer": null
+  },
+  {
+   "id": "t31",
+   "date": "2026-10-16",
+   "amount": "-64.50",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Alimentação",
+   "description": "Padaria",
+   "payer": null
+  },
+  {
+   "id": "t32",
+   "date": "2026-10-01",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 1",
+   "payer": null
+  },
+  {
+   "id": "t33",
+   "date": "2026-10-03",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 2",
+   "payer": null
+  },
+  {
+   "id": "t34",
+   "date": "2026-10-05",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 3",
+   "payer": null
+  },
+  {
+   "id": "t35",
+   "date": "2026-10-07",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 4",
+   "payer": null
+  },
+  {
+   "id": "t36",
+   "date": "2026-10-09",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 5",
+   "payer": null
+  },
+  {
+   "id": "t37",
+   "date": "2026-10-11",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 6",
+   "payer": null
+  },
+  {
+   "id": "t38",
+   "date": "2026-10-13",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 7",
+   "payer": null
+  },
+  {
+   "id": "t39",
+   "date": "2026-10-15",
+   "amount": "-45.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Uber 8",
+   "payer": null
+  },
+  {
+   "id": "t40",
+   "date": "2026-10-16",
+   "amount": "-52.30",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Transporte",
+   "description": "Posto",
+   "payer": null
+  },
+  {
+   "id": "t41",
+   "date": "2026-10-02",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Farmácia 1",
+   "payer": null
+  },
+  {
+   "id": "t42",
+   "date": "2026-10-05",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Farmácia 2",
+   "payer": null
+  },
+  {
+   "id": "t43",
+   "date": "2026-10-08",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Farmácia 3",
+   "payer": null
+  },
+  {
+   "id": "t44",
+   "date": "2026-10-11",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Farmácia 4",
+   "payer": null
+  },
+  {
+   "id": "t45",
+   "date": "2026-10-15",
+   "amount": "-68.10",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Saúde",
+   "description": "Consulta",
+   "payer": null
+  },
+  {
+   "id": "t46",
+   "date": "2026-10-04",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Lazer",
+   "description": "Cinema 1",
+   "payer": null
+  },
+  {
+   "id": "t47",
+   "date": "2026-10-08",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Lazer",
+   "description": "Cinema 2",
+   "payer": null
+  },
+  {
+   "id": "t48",
+   "date": "2026-10-12",
+   "amount": "-50.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Lazer",
+   "description": "Cinema 3",
+   "payer": null
+  },
+  {
+   "id": "t49",
+   "date": "2026-10-13",
+   "amount": "-64.48",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Lazer",
+   "description": "Show",
+   "payer": null
+  },
+  {
+   "id": "t50",
+   "date": "2026-10-07",
+   "amount": "-60.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Casa",
+   "description": "Ferragem",
+   "payer": null
+  },
+  {
+   "id": "t51",
+   "date": "2026-10-12",
+   "amount": "-60.00",
+   "kind": "expense",
+   "role": "consumo",
+   "group": "Casa",
+   "description": "Limpeza",
+   "payer": null
+  }
+ ],
+ "fixed_costs": [
+  {
+   "id": "fc_condominio",
+   "name": "Condomínio",
+   "amount": "1500.00",
+   "due_day": 5
+  },
+  {
+   "id": "fc_plano",
+   "name": "Plano de saúde",
+   "amount": "700.00",
+   "due_day": 10
+  },
+  {
+   "id": "fc_internet",
+   "name": "Internet",
+   "amount": "380.00",
+   "due_day": 15
+  },
+  {
+   "id": "fc_academia",
+   "name": "Academia",
+   "amount": "400.00",
+   "due_day": 20
+  },
+  {
+   "id": "fc_cemig",
+   "name": "Cemig",
+   "amount": "430.10",
+   "due_day": 24
+  }
+ ],
+ "plan": {
+  "aporte_planejado": "4500.00",
+  "dividas": "650.00"
+ },
+ "expected": {
+  "trabalho": "12480.00",
+  "resgates": "4487.99",
+  "custos_fixos": "3412.40",
+  "custos_fixos_pagos": "2582.30",
+  "custos_fixos_a_pagar": "830.10",
+  "gastos": "9494.67",
+  "consumido": "6912.37",
+  "disponivel": "8405.59",
+  "restante": "1493.22",
+  "consumo_financiado": "2994.77",
+  "restante_sem_resgates": "-2994.77",
+  "investido": "2800.00",
+  "taxa_poupanca_pct": "23.92",
+  "aporte_sobre_trabalho_pct": "22.44",
+  "consumido_por_grupo": {
+   "Compras": [
+    "4612.99",
+    3
+   ],
+   "Alimentação": [
+    "1284.50",
+    21
+   ],
+   "Transporte": [
+    "412.30",
+    9
+   ],
+   "Saúde": [
+    "268.10",
+    5
+   ],
+   "Lazer": [
+    "214.48",
+    4
+   ],
+   "Casa": [
+    "120.00",
+    2
+   ]
+  }
+ }
+}

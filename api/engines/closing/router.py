@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from engines.common.dates import MIN_MONTH, parse_periodo, today_brt
 from engines.common.deps import AuthUser, Db
+from engines.planning.models import MonthBudget
 
 from . import service
 from .checks import run_checks
@@ -97,3 +98,8 @@ async def reopen_month(mes: str, user: AuthUser, db: Db) -> ReopenOut:
 @router.get("/recovery", response_model=Recovery)
 async def recovery(user: AuthUser, db: Db) -> Recovery:
     return await service.recovery(db)
+
+
+@router.get("/months/{mes}/budget", response_model=MonthBudget)
+async def month_budget(mes: str, user: AuthUser, db: Db) -> MonthBudget:
+    return await service.month_budget(db, _month(mes))

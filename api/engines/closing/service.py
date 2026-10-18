@@ -16,10 +16,13 @@ import asyncpg
 
 from engines.common.alerts import brl
 from engines.common.dates import MIN_MONTH, add_months, month_end, today_brt
+from engines.common.models import Valued
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
+from engines.planning import service as planning_service
+from engines.planning.models import MonthBudget
 from engines.portfolio import calc as portfolio_calc
 from engines.portfolio.valuation import valuation_as_of
 
@@ -66,6 +69,7 @@ async def build_month_summary(
     mei_until = mei.updated_until if mei is not None else None
     income_stale = mei_until is not None and mei_until < month_end(month) and as_of >= mei_until
     rate = ledger.taxa_poupanca
+    budget = await planning_service.month_budget(conn, month)
     return MonthSummary(
         month=month,
         as_of=as_of,
@@ -77,6 +81,11 @@ async def build_month_summary(
         investido=ledger.investido,
         taxa_poupanca=rate * 100 if rate is not None else None,
         resultado_mes=ledger.resultado,
+        consumido=budget.consumido.value or Decimal(0),
+        disponivel=budget.disponivel.value or Decimal(0),
+        restante=budget.restante.value or Decimal(0),
+        restante_sem_resgates=budget.restante_sem_resgates.value or Decimal(0),
+        consumo_financiado=budget.consumo_financiado.value or Decimal(0),
         receitas_por_pagador=ledger.receitas_por_pagador,
         gastos_por_categoria=ledger.gastos_por_categoria,
         ledger_as_of=ledger.data_as_of,
@@ -106,12 +115,7 @@ async def build_month_summary(
 
 # Termos da AD-7 sem engine ainda: congelados nulos com o motivo (AD-8).
 _FUTURE_TERMS = (
-    "consumido",
     "a_caminho",
-    "disponivel",
-    "restante",
-    "restante_sem_resgates",
-    "consumo_financiado",
     "realizado",
     "pendente",
 )
@@ -179,6 +183,11 @@ _MONEY = (
     "patrimonio",
     "aplicado",
     "resultado_investimentos",
+    "consumido",
+    "disponivel",
+    "restante",
+    "restante_sem_resgates",
+    "consumo_financiado",
 )
 _PCT = ("taxa_poupanca", "rentabilidade")
 _TERMS = (*_MONEY, *_PCT)
@@ -198,6 +207,11 @@ _LABELS = {
     "resultado_investimentos": "Resultado dos investimentos",
     "taxa_poupanca": "Taxa de poupança (%)",
     "rentabilidade": "Rentabilidade (% a.a.)",
+    "consumido": "Consumido",
+    "disponivel": "Disponível para consumo",
+    "restante": "Restante",
+    "restante_sem_resgates": "Restante sem os resgates",
+    "consumo_financiado": "Consumo financiado por resgate",
 }
 _CENT = Decimal("0.01")
 
@@ -419,9 +433,7 @@ async def month_summary(conn: asyncpg.Connection, month: date) -> MonthSummary:
     return await build_month_summary(conn, month)
 
 
-async def month_result(
-    conn: asyncpg.Connection, month: date
-) -> ledger_service.DatedAmount | None:
+async def month_result(conn: asyncpg.Connection, month: date) -> ledger_service.DatedAmount | None:
     """Só o resultado do mês (barato — a variação do Painel): fechado → o congelado; aberto →
     `ledger/calc.month_result`. Sem dado → None."""
     close = await latest_close(conn, month)
@@ -741,3 +753,36 @@ async def recovery(
             closed=False,
         ),
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Orçamento do mês (Story 6.5 — AD-8: a leitura do mês passa por `closing`)
+# --------------------------------------------------------------------------------------------
+
+
+async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
+    """O orçamento pelos termos de `planning`; mês fechado → os termos congelados no snapshot (o que
+    não existia quando o mês fechou sai `fora_do_resumo`)."""
+    budget = await planning_service.month_budget(conn, month)
+    close = await latest_close(conn, month)
+    if close is None or close["status"] != "closed":
+        return budget
+    frozen, _ = await _frozen(conn, month, close["version"])
+    reasons = dict(json.loads(frozen["unavailable"]))
+    update: dict[str, Any] = {"source": "snapshot", "as_of": frozen["as_of"]}
+    for term in (
+        "disponivel",
+        "consumido",
+        "restante",
+        "consumo_financiado",
+        "restante_sem_resgates",
+        "trabalho",
+        "resgates",
+    ):
+        value = frozen[term]
+        update[term] = (
+            Valued[Decimal](value=value, as_of=frozen["as_of"], source="snapshot")
+            if value is not None
+            else Valued[Decimal](unavailable_reason=reasons.get(term, "fora_do_resumo"))
+        )
+    return budget.model_copy(update=update)
