@@ -288,7 +288,7 @@ SYSTEM_CATEGORIES = """
     WHERE g.is_system AND c.id = ANY($1::uuid[])
 """
 RULE_TARGETS = """
-    SELECT t.id, t.category_id FROM transactions t
+    SELECT t.id, t.category_id, t.description, t.amount FROM transactions t
     WHERE position(lower($1) IN lower(coalesce(t.description, ''))) > 0
       AND ($2 = 'ambos' OR ($2 = 'entrada' AND t.amount > 0) OR ($2 = 'saida' AND t.amount < 0))
       AND t.category_source <> 'manual' AND t.category_id <> $3::uuid
@@ -335,4 +335,8 @@ ANCHORS_IN_BATCH = """
     SELECT DISTINCT a.id AS account_id FROM accounts a
     JOIN account_balances b ON b.account_id = a.id AND b.as_of = a.opening_balance_date
     WHERE b.batch_id = $1::uuid
+"""
+HISTORY_VERSION = """
+    SELECT (SELECT count(*) FROM transactions WHERE review_status = 'confirmed'),
+           (SELECT max(created_at) FROM categorization_events)
 """

@@ -70,7 +70,7 @@ async def test_create_edit_delete_manual(api, auth_headers, account, pool) -> No
 async def test_imported_only_changes_category(api, auth_headers, account, pool) -> None:
     async with pool.acquire() as conn:
         batch = await conn.fetchval(
-            "INSERT INTO import_batches (status) VALUES ('applied') RETURNING id"
+            "INSERT INTO import_batches (status, applied_at) VALUES ('applied', now()) RETURNING id"
         )
         tx = await conn.fetchval(
             "INSERT INTO transactions (account_id, date, amount, category, description, "

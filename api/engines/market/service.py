@@ -2,15 +2,16 @@
 
 Cadeia de fallback (CLAUDE.md, ADR-004): **Redis → Postgres `asset_prices` → null/stale**.
 Nunca levanta (sem HTTP 5xx por falha de fonte externa). É também o write path usado
-pelos workers (`cache_aside_write`): grava em Postgres (via `portfolio.service.upsert_price`,
+pelos workers (`cache_aside_write`): grava em Postgres (via `upsert_price`, daqui desde a 3.x,
 chokepoint §3.4 com precedência is_manual) e popula o Redis com a chave `price:{tipo}:{ticker}`.
 
 `tipo` (b3/crypto/tesouro) deriva da categoria canônica do ativo (`constants` frozensets);
 Renda Fixa & afins não têm fonte de mercado → `tipo=None` (preço sempre is_manual).
 """
+
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,7 +24,6 @@ from engines.common.assets import (
     TREASURY_CATEGORIES,
 )
 from engines.common.cache import cache
-from engines.portfolio import service as portfolio_service
 
 _TTL_BY_TYPE = {
     "b3": settings.ttl_b3,
@@ -255,7 +255,7 @@ async def cache_aside_write(
     manual); nesse caso NÃO popula o Redis (não contradiz o preço manual). Retorna
     True se gravou, False se foi ignorado.
     """
-    written = await portfolio_service.upsert_price(
+    written = await upsert_price(
         conn, ticker, price_brl, price_usd=price_usd, source=source, is_manual=False
     )
     if not written:
@@ -270,4 +270,95 @@ async def cache_aside_write(
         },
         ttl,
     )
+    return True
+
+
+# --------------------------------------------------------------------------------------------
+# Escrita de preço: chokepoint único (ADR-012), em `market` desde o Épico 3 (AD-1). Quem deriva do
+# preço (o XIRR do portfolio) registra `on_price_changed` em `main.py`.
+# --------------------------------------------------------------------------------------------
+
+PriceHook = Callable[[asyncpg.Connection, str], Awaitable[None]]
+_price_hooks: list[PriceHook] = []
+
+
+def register_on_price_changed(hook: PriceHook) -> None:
+    if hook not in _price_hooks:
+        _price_hooks.append(hook)
+
+
+async def _price_changed(conn: asyncpg.Connection, ticker: str) -> None:
+    for hook in _price_hooks:
+        await hook(conn, ticker)
+
+
+async def upsert_price(
+    conn: asyncpg.Connection,
+    ticker: str,
+    price_brl: float,
+    *,
+    price_usd: float | None = None,
+    source: str = "manual",
+    is_manual: bool = True,
+) -> dict[str, Any]:
+    """Chokepoint único de escrita de preço (PUT manual + worker do Market Engine).
+
+    Precedência is_manual (§3.4): uma escrita do worker (`is_manual=False`) NUNCA
+    sobrescreve uma linha manual (`is_manual=True`) — preços sem fonte de mercado
+    (Flash/RF/caixinhas/DeFi). Uma escrita manual sempre vence. Quando a gravação
+    de fato ocorre, invalida o cache de XIRR de todos os usuários que detêm o ticker
+    (ADR-008) — o worker chama esta função direto, sem passar pelo router.
+
+    `price_usd` é opcional (só CoinGecko fornece). Retorna a linha gravada, ou `{}`
+    quando a escrita foi ignorada pela precedência is_manual.
+    """
+    # CTE `prev` lê o preço anterior no mesmo statement (snapshot do início) p/ só
+    # invalidar o XIRR quando price_brl/price_usd realmente mudar (§debito m3 #3).
+    row = await conn.fetchrow(
+        """
+        WITH prev AS (SELECT price_brl, price_usd FROM asset_prices WHERE ticker = $1)
+        INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, fetched_at)
+        VALUES ($1, $2, $3, $4, $5, now())
+        ON CONFLICT (ticker) DO UPDATE
+          SET price_brl = EXCLUDED.price_brl,
+              -- só sobrescreve USD quando um novo é fornecido (manual BRL não apaga o USD)
+              price_usd = COALESCE(EXCLUDED.price_usd, asset_prices.price_usd),
+              source = EXCLUDED.source,
+              is_manual = EXCLUDED.is_manual,
+              fetched_at = now()
+          WHERE asset_prices.is_manual = false OR EXCLUDED.is_manual = true
+        RETURNING ticker, price_brl, price_usd, source, is_manual, fetched_at,
+                  (SELECT price_brl FROM prev) AS prev_brl,
+                  (SELECT price_usd FROM prev) AS prev_usd
+        """,
+        ticker,
+        price_brl,
+        price_usd,
+        source,
+        is_manual,
+    )
+    if row is None:
+        return {}  # escrita ignorada pela precedência is_manual
+    # XIRR é em BRL: só invalidar quando price_brl muda (mudança só de USD não afeta o XIRR).
+    # Comparação exata em Decimal (já arredondado pelo numeric); linha nova → prev None → mudou.
+    brl_changed = row["prev_brl"] is None or row["price_brl"] != row["prev_brl"]
+    if brl_changed:
+        await _price_changed(conn, ticker)
+    cols = ("ticker", "price_brl", "price_usd", "source", "is_manual", "fetched_at")
+    return {k: row[k] for k in cols}
+
+
+async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
+    """Libera um preço manual p/ o worker voltar a sobrescrever (is_manual=false).
+
+    NÃO apaga o preço — só limpa a flag (ação explícita do usuário, ADR-012 intacto).
+    Invalida o cache de XIRR de quem detém o ticker (o preço pode mudar no próximo scan).
+    Devolve False se o ticker não existe (o router responde 404). Idempotente.
+    """
+    updated = await conn.execute(
+        "UPDATE asset_prices SET is_manual = false WHERE ticker = $1", ticker
+    )
+    if updated == "UPDATE 0":
+        return False
+    await _price_changed(conn, ticker)
     return True

@@ -7,6 +7,7 @@ ASGITransport; o pool global é inicializado pela fixture `pool`, da qual
 
 import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 import pytest_asyncio
@@ -89,5 +90,32 @@ async def account(pool: object) -> AsyncIterator[str]:
         )
     yield str(acc)
     async with pool.acquire() as conn:  # type: ignore[attr-defined]
-        await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
+        await _drop_account_data(conn, acc)
         await conn.execute("DELETE FROM accounts WHERE id = $1", acc)
+
+
+async def _drop_account_data(conn: Any, acc: Any) -> None:
+    """Transações da conta com o que deriva delas (operações, saldos, regras e lotes)."""
+    batches = [
+        r["batch_id"]
+        for r in await conn.fetch(
+            "SELECT DISTINCT batch_id FROM transactions WHERE account_id = $1 "
+            "AND batch_id IS NOT NULL",
+            acc,
+        )
+    ]
+    await conn.execute(
+        "DELETE FROM asset_operations o USING transactions t "
+        "WHERE o.transaction_id = t.id AND t.account_id = $1",
+        acc,
+    )
+    await conn.execute("DELETE FROM account_balances WHERE account_id = $1", acc)
+    await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
+    await conn.execute(
+        "DELETE FROM category_rules WHERE created_in_batch = ANY($1::uuid[])", batches
+    )
+    await conn.execute(
+        "DELETE FROM import_batches WHERE id = ANY($1::uuid[]) AND NOT EXISTS "
+        "(SELECT 1 FROM asset_operations o WHERE o.batch_id = import_batches.id)",
+        batches,
+    )

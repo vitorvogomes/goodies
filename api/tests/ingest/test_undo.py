@@ -67,7 +67,8 @@ async def test_undo_last_batch(api, auth_headers, ofx_account, pool) -> None:
     mine = {b["id"]: b for b in batches["items"]}
     assert mine[last["batch_id"]]["undoable"] is True
     assert mine[old["batch_id"]]["undoable"] is False
-    assert batches["items"][0]["id"] == last["batch_id"]  # mais recente primeiro
+    order = [b["id"] for b in batches["items"]]
+    assert order.index(last["batch_id"]) < order.index(old["batch_id"])  # mais recente primeiro
 
     pv = await api.post(f"{URL}/batches/{last['batch_id']}/undo/preview", headers=auth_headers)
     assert pv.status_code == 200, pv.text

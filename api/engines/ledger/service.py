@@ -255,6 +255,21 @@ def unregister_on_transactions_changed(hook: TransactionsChangedHook) -> None:
         _hooks.remove(hook)
 
 
+_deleting_hooks: list[TransactionsChangedHook] = []
+
+
+def register_on_transactions_deleting(hook: TransactionsChangedHook) -> None:
+    """Antes de apagar transações: quem deriva delas (portfolio) remove o que derivou (a FK
+    `asset_operations.transaction_id` é RESTRICT)."""
+    if hook not in _deleting_hooks:
+        _deleting_hooks.append(hook)
+
+
+async def run_deleting_hooks(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
+    for hook in _deleting_hooks:
+        await hook(conn, transaction_ids)
+
+
 def clear_transaction_hooks() -> None:
     _hooks.clear()
 
@@ -557,6 +572,7 @@ async def delete_manual(conn: asyncpg.Connection, tx_id: str) -> bool:
             return False
         if current["source"] != "manual":
             raise ImportedTransactionError
+        await run_deleting_hooks(conn, [tx_id])
         await conn.execute("DELETE FROM transactions WHERE id = $1::uuid", tx_id)
         await mark_months(conn, current["date"])
     return True
@@ -1061,10 +1077,22 @@ async def propose_rule(conn: asyncpg.Connection, body: RuleProposalIn) -> RulePr
     direction = "entrada" if tx["amount"] > 0 else "saida"
     affected = 0
     if pattern:
-        affected = len(
-            await conn.fetch(
+        proposed = Rule(
+            pattern,
+            direction,
+            body.category_id,
+            label,
+            "",
+            rule_id="proposta",
+            created_at=datetime.datetime.now(datetime.UTC),
+        )
+        rules = [*await load_rules(conn), proposed]
+        affected = sum(
+            1
+            for t in await conn.fetch(
                 queries.RULE_TARGETS, pattern, direction, body.category_id, body.transaction_id
             )
+            if _wins(proposed.rule_id, t, rules)
         )
     return RuleProposal(
         pattern=pattern,
@@ -1073,6 +1101,11 @@ async def propose_rule(conn: asyncpg.Connection, body: RuleProposalIn) -> RulePr
         category_label=label,
         affected=affected,
     )
+
+
+def _wins(rule_id: str | None, tx: asyncpg.Record, rules: Sequence[Rule]) -> bool:
+    best = best_rule(tx["description"] or "", tx["amount"], rules)
+    return best is not None and best.rule_id == rule_id
 
 
 async def create_rule(conn: asyncpg.Connection, body: RuleCreate) -> RuleCreated:
@@ -1095,9 +1128,16 @@ async def create_rule(conn: asyncpg.Connection, body: RuleCreate) -> RuleCreated
                 body.lote,
             )
         )
-        targets = await conn.fetch(
-            queries.RULE_TARGETS, pattern, body.direction, body.category_id, None
-        )
+        # Só onde a nova regra vence (AD-6: a mais longa; empate → a mais recente): uma regra curta
+        # não passa por cima do que uma mais específica já categorizou.
+        rules = await load_rules(conn)
+        targets = [
+            t
+            for t in await conn.fetch(
+                queries.RULE_TARGETS, pattern, body.direction, body.category_id, None
+            )
+            if _wins(rule_id, t, rules)
+        ]
         result = await categorize(
             conn,
             [CategoryChange(str(t["id"]), body.category_id, "rule", rule_id) for t in targets],
@@ -1160,7 +1200,9 @@ async def source_balances(conn: asyncpg.Connection) -> dict[str, dict[str, Any]]
 
 async def balance_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
     """Provider: um aviso de divergência por intervalo da PF que não fecha ao centavo."""
-    check = await pf_balance_check(conn)
+    if "pf_balance_check" not in ctx.memo:
+        ctx.memo["pf_balance_check"] = await pf_balance_check(conn)
+    check: BalanceCheck | None = ctx.memo["pf_balance_check"]
     if check is None:
         return []
     return [

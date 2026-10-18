@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
@@ -44,6 +44,8 @@ class AlertContext:
     periodo: date  # 1º dia do mês em foco
     months: MonthStatusPort
     owner_id: str
+    # Cálculos caros compartilhados pelos providers numa leitura (ex.: a conferência da PF).
+    memo: dict[str, Any] = field(default_factory=dict)
 
 
 AlertProvider = Callable[[asyncpg.Connection, AlertContext], Awaitable[list[Alert]]]

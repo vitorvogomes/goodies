@@ -6,6 +6,7 @@ Story 2.5 — escolha da regra de categoria (AD-6): "descrição contém", com d
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -148,10 +149,20 @@ def chained_check(
     """Um intervalo por par de saldos informados consecutivos; cada um parte do saldo **informado**
     anterior, então um erro antigo fica isolado no intervalo em que aconteceu."""
     ordered = sorted(reported)
+    moves = sorted(transactions)
+    days = [d for d, _ in moves]
+    cumulative = [Decimal(0)]
+    for _, amount in moves:
+        cumulative.append(cumulative[-1] + amount)
+
+    def through(day: date) -> Decimal:  # Σ transações com data ≤ day
+        return cumulative[bisect_right(days, day)]
+
     intervals: list[BalanceInterval] = []
     for (start, previous), (end, current) in pairwise(ordered):
-        movement = sum((a for d, a in transactions if start < d <= end), Decimal(0))
-        intervals.append(BalanceInterval(start, end, previous, movement, current))
+        intervals.append(
+            BalanceInterval(start, end, previous, through(end) - through(start), current)
+        )
     return intervals
 
 

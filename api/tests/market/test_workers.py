@@ -68,7 +68,7 @@ async def test_worker_does_not_overwrite_manual(pool: Any, portfolio_user: dict)
     uid = portfolio_user["user_id"]
     await _add_op(pool, uid, "MKT_FLASH", "Ações Nacionais")
     async with pool.acquire() as conn:
-        await service.portfolio_service.upsert_price(
+        await service.upsert_price(
             conn, "MKT_FLASH", 100.0, source="manual", is_manual=True
         )
     fake = _FakeFetcher({"MKT_FLASH": PriceQuote(price_brl=999.0, price_usd=None, source="brapi")})

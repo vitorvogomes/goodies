@@ -39,9 +39,12 @@ export function undoSummary(p: UndoPreview): string {
     p.balances ? plural(p.balances, "saldo informado", "saldos informados") : null,
     p.snapshots ? plural(p.snapshots, "posição do consolidado", "posições do consolidado") : null,
   ].filter(Boolean);
+  const prices = p.prices
+    ? ` ${plural(p.prices, "preço volta", "preços voltam")} ao do consolidado anterior.`
+    : "";
   const all = [...parts, ...extra];
   const list = `${all.slice(0, -1).join(", ")} e ${all[all.length - 1]}`;
-  return `Remove ${list} do lote de ${formatDate(p.applied_at.slice(0, 10))}.`;
+  return `Remove ${list} do lote de ${formatDate(p.applied_at.slice(0, 10))}.${prices}`;
 }
 
 export function ImportHistory() {

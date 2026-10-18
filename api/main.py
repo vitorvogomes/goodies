@@ -25,8 +25,10 @@ from engines.ledger import service as ledger_service
 from engines.ledger.adapters import NubankStatementAdapter
 from engines.ledger.router import router as ledger_router
 from engines.ledger.service import register_on_transactions_changed
+from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.portfolio import hooks as portfolio_hooks
+from engines.portfolio import service as portfolio_service
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
@@ -41,6 +43,8 @@ from hermes.router import router as hermes_router
 # Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
 register_month_status(AllMonthsOpen())
 register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
+ledger_service.register_on_transactions_deleting(portfolio_hooks.on_transactions_deleting)
+market_service.register_on_price_changed(portfolio_service.invalidate_xirr_for_ticker)
 # Ingestão (AD-5): adapters vivem na engine dona; derivações de cima por hook de lote.
 ingest_service.register_adapter(NubankStatementAdapter())
 ingest_service.register_adapter(B3Adapter())

@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest_asyncio
 
-from tests.ledger.conftest import account, api, auth_headers  # noqa: F401
+from tests.ledger.conftest import _drop_account_data, account, api, auth_headers  # noqa: F401
 
 
 @pytest_asyncio.fixture
@@ -24,12 +24,5 @@ async def ofx_account(pool: Any) -> AsyncIterator[tuple[str, str]]:
         )
     yield str(acc), number
     async with pool.acquire() as conn:
-        batches = [
-            r["batch_id"]
-            for r in await conn.fetch(
-                "SELECT DISTINCT batch_id FROM transactions WHERE account_id = $1", acc
-            )
-        ]
-        await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
-        await conn.execute("DELETE FROM import_batches WHERE id = ANY($1::uuid[])", batches)
+        await _drop_account_data(conn, acc)
         await conn.execute("DELETE FROM accounts WHERE id = $1", acc)

@@ -325,6 +325,13 @@ async def update_transaction(
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(transaction_id: uuid.UUID, user: AuthUser, db: Db) -> None:
-    result = await db.execute("DELETE FROM transactions WHERE id = $1", transaction_id)
+    try:
+        async with db.transaction():
+            await ledger_service.run_deleting_hooks(db, [str(transaction_id)])
+            result = await db.execute("DELETE FROM transactions WHERE id = $1", transaction_id)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "uma operação protegida deriva desta transação"
+        ) from None
     if result == "DELETE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")

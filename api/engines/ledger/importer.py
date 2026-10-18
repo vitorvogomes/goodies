@@ -13,6 +13,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 import asyncpg
 
@@ -128,8 +129,17 @@ def classify(
     )
 
 
+_history_cache: dict[str, Any] = {}
+
+
 async def suggestion_history(conn: asyncpg.Connection) -> list[HistoryItem]:
-    """Confirmadas, da mais recente para a mais antiga, sem repetir (tokens, categoria, sinal)."""
+    """Confirmadas, da mais recente para a mais antiga, sem repetir (tokens, categoria, sinal).
+    Guardado enquanto a versão (confirmadas + último evento de categorização) não muda: um lote com
+    vários arquivos não relê e retokeniza o histórico a cada arquivo."""
+    version = tuple(await conn.fetchrow(ledger_queries.HISTORY_VERSION))
+    if _history_cache.get("version") == version:
+        cached: list[HistoryItem] = _history_cache["items"]
+        return cached
     seen: set[tuple[frozenset[str], str, bool]] = set()
     items: list[HistoryItem] = []
     for r in await conn.fetch(ledger_queries.CONFIRMED_HISTORY):
@@ -138,6 +148,7 @@ async def suggestion_history(conn: asyncpg.Connection) -> list[HistoryItem]:
         if item.tokens and key not in seen:
             seen.add(key)
             items.append(item)
+    _history_cache.update(version=version, items=items)
     return items
 
 

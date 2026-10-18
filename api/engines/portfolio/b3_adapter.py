@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import calendar
 import re
+from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import Any
 
@@ -27,7 +28,6 @@ from engines.common.owner import get_owner_id
 from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError
 from engines.market import service as market_service
 
-from . import service
 from .b3_import import (
     parse_b3_movimentacao,
     parse_b3_negociacao,
@@ -144,6 +144,28 @@ async def _paired(
         for op in trades
         if (op["asset_symbol"], op["tipo"], op["data_operacao"]) in paired_days
     }
+
+
+def _invalidate(ticker: str) -> Callable[[], Awaitable[None]]:
+    async def run() -> None:
+        await market_service.invalidate_price_cache(ticker)
+
+    return run
+
+
+_BATCH_PRICE_TICKERS = """
+    SELECT DISTINCT a.price_ref FROM broker_position_snapshots s
+    JOIN assets a ON a.id = s.asset_id
+    JOIN asset_prices p ON p.ticker = a.price_ref AND p.source = 'b3' AND NOT p.is_manual
+    WHERE s.batch_id = $1::uuid AND a.price_ref IS NOT NULL
+"""
+_PREVIOUS_SNAPSHOT = """
+    SELECT s.quantity, s.reported_value FROM broker_position_snapshots s
+    JOIN assets a ON a.id = s.asset_id
+    WHERE a.price_ref = $1 AND s.batch_id IS DISTINCT FROM $2::uuid AND s.quantity > 0
+      AND s.reported_value IS NOT NULL
+    ORDER BY s.ref_date DESC LIMIT 1
+"""
 
 
 def _chain(category: str) -> str:
@@ -322,6 +344,7 @@ class B3Adapter:
                 )
                 inserted += int(status.split()[-1])
         upserted = 0
+        written_tickers: list[str] = []
         newer = plan.period_end is not None and await conn.fetchval(
             "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date > $1)",
             plan.period_end,
@@ -341,11 +364,20 @@ class B3Adapter:
             }
             prices = {t: p for t, p in prices.items() if t not in fresher}
         for ticker, price in prices.items():
-            written = await service.upsert_price(conn, ticker, price, source="b3", is_manual=False)
+            written = await market_service.upsert_price(
+                conn, ticker, price, source="b3", is_manual=False
+            )
             if written:
                 upserted += 1
-                await market_service.invalidate_price_cache(ticker)
-        return Applied(inserted=inserted, detail={"prices_upserted": upserted})
+                written_tickers.append(ticker)
+        return Applied(
+            inserted=inserted,
+            detail={"prices_upserted": upserted},
+            wrote_other=upserted > 0,
+            # Depois do commit: invalidar antes deixaria uma leitura concorrente recachear o
+            # preço velho (ainda não commitado o novo) por 26 h.
+            after_commit=[_invalidate(t) for t in written_tickers],
+        )
 
     async def undo_preview(self, conn: asyncpg.Connection, batch_id: str) -> dict[str, int]:
         return {
@@ -362,6 +394,7 @@ class B3Adapter:
                     batch_id,
                 )
             ),
+            "prices": len(await conn.fetch(_BATCH_PRICE_TICKERS, batch_id)),
         }
 
     async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
@@ -373,6 +406,18 @@ class B3Adapter:
                 batch_id,
             )
         }
+        # Preço do consolidado desfeito volta ao do consolidado anterior (valor/quantidade).
+        for r in await conn.fetch(_BATCH_PRICE_TICKERS, batch_id):
+            previous = await conn.fetchrow(_PREVIOUS_SNAPSHOT, r["price_ref"], batch_id)
+            if previous is not None:
+                await market_service.upsert_price(
+                    conn,
+                    r["price_ref"],
+                    float(previous["reported_value"]) / float(previous["quantity"]),
+                    source="b3",
+                    is_manual=False,
+                )
+                await market_service.invalidate_price_cache(r["price_ref"])
         await conn.execute(
             "DELETE FROM broker_position_snapshots WHERE batch_id = $1::uuid", batch_id
         )

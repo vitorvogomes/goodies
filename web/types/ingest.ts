@@ -70,4 +70,5 @@ export interface UndoPreview {
   rules: number;
   balances: number;
   snapshots: number;
+  prices: number;
 }

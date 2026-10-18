@@ -13,6 +13,7 @@ Tipos:
   abas NÃO são aplicadas (sobrescreveria correções manuais) — débito do hub de ingestão v2.
 - movimentacao / negociacao: vira ops, sob a regra de cobertura.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -25,7 +26,6 @@ from engines.ingest import service as ingest_service
 from engines.ingest.models import BatchFileIn
 from engines.market import service as market_service
 
-from . import service
 from .b3_import import (
     parse_b3_movimentacao,
     parse_b3_negociacao,
@@ -50,12 +50,9 @@ _SHEET_BY_TYPE: dict[B3FileType, str] = {
 }
 
 
-async def _existing_category_map(
-    conn: asyncpg.Connection, user_id: str
-) -> dict[str, str]:
+async def _existing_category_map(conn: asyncpg.Connection, user_id: str) -> dict[str, str]:
     rows = await conn.fetch(
-        "SELECT DISTINCT asset_symbol, asset_category FROM asset_operations "
-        "WHERE user_id = $1",
+        "SELECT DISTINCT asset_symbol, asset_category FROM asset_operations WHERE user_id = $1",
         user_id,
     )
     return {r["asset_symbol"]: r["asset_category"] for r in rows}
@@ -103,15 +100,14 @@ async def import_b3_workbook(
             # preview: quantos NÃO seriam gravados por já serem manuais (precedência)
             report["prices_upserted"] = len(prices)
             report["note"] = (
-                "consolidado (dry-run): preços seriam aplicados; "
-                "ops vêm de movimentação/negociação"
+                "consolidado (dry-run): preços seriam aplicados; ops vêm de movimentação/negociação"
             )
             return report
         upserted = 0
         for ticker, price in prices.items():
             # upsert_price retorna {} quando a precedência is_manual ignora a escrita;
             # só conta (e invalida o cache Redis) o que de fato gravou. Achado C4.
-            written = await service.upsert_price(
+            written = await market_service.upsert_price(
                 conn, ticker, price, source="b3", is_manual=False
             )
             if written:
@@ -121,9 +117,7 @@ async def import_b3_workbook(
                 await market_service.invalidate_price_cache(ticker)
         report["prices_upserted"] = upserted
         report["prices_skipped_manual"] = len(prices) - upserted
-        report["note"] = (
-            "consolidado: preços aplicados; ops vêm de movimentação/negociação"
-        )
+        report["note"] = "consolidado: preços aplicados; ops vêm de movimentação/negociação"
         return report
 
     # --- movimentação / negociação: ops sob a regra de cobertura ---

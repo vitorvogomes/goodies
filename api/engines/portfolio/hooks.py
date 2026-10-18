@@ -51,3 +51,13 @@ async def count_derived_for_undo(conn: asyncpg.Connection, batch_id: str) -> dic
         batch_id,
     )
     return {"operations": int(n)}
+
+
+async def on_transactions_deleting(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
+    """Transação apagada leva junto a operação derivada dela; a protegida (curadoria) fica e a FK
+    RESTRICT recusa o apagar."""
+    await conn.execute(
+        "DELETE FROM asset_operations WHERE transaction_id = ANY($1::uuid[]) AND NOT protected",
+        transaction_ids,
+    )
+    await invalidate_xirr_cache(await get_owner_id(conn))

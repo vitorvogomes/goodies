@@ -14,6 +14,7 @@ describe("undoSummary", () => {
         rules: 2,
         balances: 0,
         snapshots: 0,
+        prices: 0,
       }),
     ).toBe("Remove 43 transações, 2 operações, 38 categorizações e 2 regras do lote de 17/10/2026.");
   });

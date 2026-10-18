@@ -8,6 +8,7 @@ cashflow, ...) entram aqui conforme as stories avançam.
 import datetime
 from typing import Annotated
 
+import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
 from engines.common.dates import parse_periodo
@@ -114,6 +115,10 @@ _IMPORTED = {
 _NOT_FOUND = {"error": "transacao_inexistente", "message": "Transação não encontrada."}
 _BAD_CATEGORY = {"error": "categoria_inexistente", "message": "Categoria não existe."}
 _BAD_ACCOUNT = {"error": "conta_inexistente", "message": "Conta não existe."}
+_PROTECTED = {
+    "error": "transacao_com_curadoria",
+    "message": "Uma operação protegida (curadoria) deriva desta transação.",
+}
 _ZERO = {"error": "valor_zero", "message": "Informe um valor diferente de zero."}
 
 
@@ -156,6 +161,8 @@ async def delete_manual_transaction(transaction_id: Uuid, user: AuthUser, db: Db
         found = await service.delete_manual(db, transaction_id)
     except service.ImportedTransactionError:
         raise HTTPException(status.HTTP_409_CONFLICT, _IMPORTED) from None
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(status.HTTP_409_CONFLICT, _PROTECTED) from None
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
 

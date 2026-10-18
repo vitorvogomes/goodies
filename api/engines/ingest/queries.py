@@ -118,7 +118,7 @@ HISTORY = """
 """
 LAST_APPLIED = """
     SELECT id, applied_at, applied_at >= now() - interval '7 days' AS in_window
-    FROM import_batches WHERE status = 'applied'
+    FROM import_batches WHERE status = 'applied' AND applied_at IS NOT NULL
     ORDER BY applied_at DESC, id LIMIT 1
 """
 LAST_ANY = """

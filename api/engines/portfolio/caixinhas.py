@@ -20,9 +20,10 @@ import asyncpg
 
 from engines.common.assets import AssetCategory
 from engines.ledger import queries as ledger_queries
+from engines.market.service import upsert_price
 from engines.portfolio.migration import import_operations
 from engines.portfolio.rf_cdi import valor_atual_cdi
-from engines.portfolio.service import net_quantity, upsert_price
+from engines.portfolio.service import net_quantity
 
 _CATEGORY = AssetCategory.RENDA_FIXA
 _PRICE_SOURCE = "nubank-cdi"

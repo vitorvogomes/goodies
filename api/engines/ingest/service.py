@@ -242,14 +242,22 @@ async def replan(
     conn: asyncpg.Connection, batch_id: str, overrides: dict[str, dict[str, str]]
 ) -> PreviewOut:
     """Escolha na linha da prévia (conta do CSV, período B3): novo `staged` com novo hash."""
-    row = await conn.fetchrow(queries.STAGED_FOR_UPDATE, batch_id)
-    if row is None or row["status"] != "staged":
-        raise BatchError("lote_inexistente", "Prévia não encontrada. Envie os arquivos de novo.")
-    files, previous = _stored_files(row["plan"])
-    merged = {**previous}
-    for file_hash, chosen in overrides.items():
-        merged[file_hash] = {**merged.get(file_hash, {}), **chosen}
-    return await preview(conn, files, merged)
+    async with conn.transaction():
+        row = await conn.fetchrow(queries.STAGED_FOR_UPDATE, batch_id)
+        if row is None or row["status"] != "staged":
+            raise BatchError(
+                "lote_inexistente", "Prévia não encontrada. Envie os arquivos de novo.", 404
+            )
+        if row["expired"]:
+            raise BatchError("previa_expirada", "A prévia expirou. Envie os arquivos de novo.")
+        files, previous = _stored_files(row["plan"])
+        merged = {**previous}
+        for file_hash, chosen in overrides.items():
+            merged[file_hash] = {**merged.get(file_hash, {}), **chosen}
+        fresh = await preview(conn, files, merged)
+        # A prévia nova substitui a antiga (os arquivos em base64 não ficam duplicados).
+        await conn.execute("DELETE FROM import_batches WHERE id = $1::uuid", batch_id)
+    return fresh
 
 
 async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> ConfirmOut:
@@ -274,6 +282,8 @@ async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> Co
         months: set[date] = set()
         imported = 0
         details: list[dict[str, Any]] = []
+        changed = False
+        after_commit: list[Callable[[], Awaitable[None]]] = []
         ready = [p for p in plans if p.error is None and p.source is not None]
         ready.sort(
             key=lambda p: (
@@ -287,6 +297,8 @@ async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> Co
             imported += applied.inserted
             months |= applied.months
             details.append(applied.detail)
+            changed = changed or applied.changed
+            after_commit.extend(applied.after_commit)
             await queries.insert_file(
                 conn,
                 batch_id,
@@ -303,6 +315,12 @@ async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> Co
                     "reported_balance_date": p.reported_balance_date,
                 },
             )
+        if not changed:
+            # Nada novo (reimport): sem lote vazio, que viraria o "último lote" a desfazer.
+            await conn.execute("DELETE FROM import_batches WHERE id = $1::uuid", batch_id)
+            return ConfirmOut(
+                batch_id=batch_id, imported=0, files=[_out(p) for p in plans], applied=details
+            )
         await conn.execute(queries.MARK_APPLIED, batch_id)
         for hook in _on_applied:
             await hook(conn, batch_id)
@@ -310,6 +328,8 @@ async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> Co
         for month in sorted(months):
             await port.mark_dirty(conn, month)
     await invalidate_xirr_cache(owner)  # AD-5: toda escrita de lote invalida o XIRR
+    for effect in after_commit:
+        await effect()
     return ConfirmOut(
         batch_id=batch_id, imported=imported, files=[_out(p) for p in plans], applied=details
     )
@@ -392,9 +412,15 @@ async def _coverage(conn: asyncpg.Connection) -> dict[str, list[calc.Coverage]]:
     return by_key
 
 
-async def sources(conn: asyncpg.Connection, today: date) -> list[SourceRow]:
-    coverage = await _coverage(conn)
-    balances = await _balances[0](conn) if _balances else {}
+async def sources(
+    conn: asyncpg.Connection,
+    today: date,
+    *,
+    coverage: dict[str, list[calc.Coverage]] | None = None,
+    with_balances: bool = True,
+) -> list[SourceRow]:
+    coverage = coverage if coverage is not None else await _coverage(conn)
+    balances = await _balances[0](conn) if _balances and with_balances else {}
     rows: list[SourceRow] = []
     for key, label, kind in calc.SOURCES:
         until = max((c.end for c in coverage[key]), default=None)
@@ -422,7 +448,7 @@ async def source_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Ale
     coverage = await _coverage(conn)
     labels = {key: label for key, label, _ in calc.SOURCES}
     alerts: list[Alert] = []
-    for row in await sources(conn, ctx.today):
+    for row in await sources(conn, ctx.today, coverage=coverage, with_balances=False):
         if row.stale and row.updated_until is not None:
             alerts.append(
                 Alert(

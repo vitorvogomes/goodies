@@ -1,10 +1,11 @@
 """Market Engine router — /api/v1/market/* (STORY-03-08/09).
 
 Leitura de preço (via cadeia de fallback `service.get_price`) + escrita manual
-(delega ao chokepoint `portfolio.service.upsert_price`, is_manual=True). Contrato
+(delega ao chokepoint `market.service.upsert_price`, is_manual=True). Contrato
 tipado em Pydantic (`models.py`). Migração total do antigo `PUT /portfolio/prices`
 para cá (decisão do m3).
 """
+
 from __future__ import annotations
 
 # ruff: noqa: B008
@@ -15,7 +16,6 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.market import service
 from engines.market.models import PriceOut, PricesResponse, SetPriceRequest
-from engines.portfolio import service as portfolio_service
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
@@ -54,7 +54,7 @@ async def set_manual_price(
     db: asyncpg.Connection = Depends(get_db),
 ) -> PriceOut:
     """Define/atualiza o preço manual de um ticker (is_manual=True; sempre vence)."""
-    await portfolio_service.upsert_price(db, ticker, body.price_brl)
+    await service.upsert_price(db, ticker, body.price_brl)
     # Invalida o cache Redis para o override manual não ficar mascarado por um preço
     # de mercado cacheado (manual sempre vence; ver invalidate_price_cache).
     await service.invalidate_price_cache(ticker)
@@ -78,7 +78,7 @@ async def revert_manual_price(
             status.HTTP_409_CONFLICT,
             "ativo sem fonte de mercado (Renda Fixa/caixinha): o preço é sempre manual",
         )
-    reverted = await portfolio_service.clear_manual_price(db, ticker)
+    reverted = await service.clear_manual_price(db, ticker)
     if not reverted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ticker sem preço cadastrado")
     await service.invalidate_price_cache(ticker)

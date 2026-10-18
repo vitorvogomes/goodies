@@ -9,6 +9,7 @@ das entradas (`transactions.payer`).
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date
 
@@ -29,6 +30,41 @@ from .importer import (
     parse_ofx,
     parse_statement_period,
 )
+
+_PT_MONTHS = {
+    "JAN": 1,
+    "FEV": 2,
+    "MAR": 3,
+    "ABR": 4,
+    "MAI": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AGO": 8,
+    "SET": 9,
+    "OUT": 10,
+    "NOV": 11,
+    "DEZ": 12,
+}
+_NU_NAME = re.compile(r"(\d{2})([A-Z]{3})(\d{4})_(\d{2})([A-Z]{3})(\d{4})")
+_ISO_NAME = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})")
+
+
+def period_from_nubank_name(file_name: str) -> tuple[date, date] | None:
+    """`NU_<conta>_01MAR2026_31MAR2026.ofx` ou `..._2026-01-01_2026-10-16.ofx` → período."""
+    upper = file_name.upper()
+    if m := _NU_NAME.search(upper):
+        d1, m1, y1, d2, m2, y2 = m.groups()
+        if m1 in _PT_MONTHS and m2 in _PT_MONTHS:
+            try:
+                return (
+                    date(int(y1), _PT_MONTHS[m1], int(d1)),
+                    date(int(y2), _PT_MONTHS[m2], int(d2)),
+                )
+            except ValueError:
+                return None
+    if m := _ISO_NAME.search(file_name):
+        return date.fromisoformat(m.group(1)), date.fromisoformat(m.group(2))
+    return None
 
 
 def _text(content: bytes) -> str:
@@ -71,6 +107,10 @@ class NubankStatementAdapter:
         plan = FilePlan(parsed.source, parsed.file_name, parsed.file_hash, parsed=parsed)
         plan.period_start = min(e.date for e in entries)
         plan.period_end = max(e.date for e in entries)
+        named = period_from_nubank_name(parsed.file_name)
+        if named is not None:  # o nome diz o período do extrato (dia sem transação nas bordas)
+            plan.period_start = min(named[0], plan.period_start)
+            plan.period_end = max(named[1], plan.period_end)
         account = await self._account(conn, parsed, overrides, plan)
         if account is not None:
             plan.account_id, plan.account_name = str(account["id"]), account["name"]
@@ -142,9 +182,10 @@ class NubankStatementAdapter:
             source=plan.source,
             batch_id=batch_id,
         )
+        balance_written = False
         if plan.reported_balance is not None and plan.reported_balance_date is not None:
             # Saldo informado entra mesmo com 0 transações novas (Story 3.4).
-            await conn.execute(
+            status = await conn.execute(
                 "INSERT INTO account_balances (account_id, as_of, balance, batch_id) "
                 "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (account_id, as_of) DO NOTHING",
                 plan.account_id,
@@ -152,8 +193,10 @@ class NubankStatementAdapter:
                 plan.reported_balance,
                 batch_id,
             )
+            balance_written = status.endswith(" 1")
         return Applied(
             inserted=report.imported,
+            wrote_other=balance_written,
             months={e.date.replace(day=1) for e in plan.rows},
             detail={"by_kind": report.by_kind, "errors": report.errors},
         )
@@ -179,7 +222,8 @@ class NubankStatementAdapter:
         await ledger_service.recategorize_without_rules(conn, outside, batch_id)
         anchored = await conn.fetch(ledger_queries.ANCHORS_IN_BATCH, batch_id)
         await conn.execute("DELETE FROM account_balances WHERE batch_id = $1::uuid", batch_id)
+        await conn.execute("DELETE FROM transactions WHERE batch_id = $1::uuid", batch_id)
+        # Depois de tirar as transações do lote: a âncora nova não pode contar com elas.
         for r in anchored:
             await ledger_service.recompute_anchor(conn, r["account_id"])
-        await conn.execute("DELETE FROM transactions WHERE batch_id = $1::uuid", batch_id)
         return months

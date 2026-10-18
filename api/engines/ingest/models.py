@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from engines.common.models import Uuid
 from engines.common.money import Money
 
 FileSource = Literal[
@@ -85,12 +86,12 @@ class PreviewOut(BaseModel):
 
 
 class ReplanIn(BaseModel):
-    batch_id: str
+    batch_id: Uuid
     overrides: dict[str, dict[str, str]]  # por file_hash
 
 
 class ConfirmIn(BaseModel):
-    batch_id: str
+    batch_id: Uuid
     hash: str
 
 
@@ -148,3 +149,4 @@ class UndoPreview(BaseModel):
     rules: int = 0
     balances: int = 0
     snapshots: int = 0
+    prices: int = 0  # preços do consolidado refeitos pelo consolidado anterior

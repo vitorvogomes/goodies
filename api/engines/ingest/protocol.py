@@ -3,6 +3,7 @@ apply (e undo). Cada adapter vive na engine dona dos fatos que grava e se regist
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -74,6 +75,14 @@ class Applied:
     inserted: int
     months: set[date] = field(default_factory=set)  # meses tocados (mark_dirty)
     detail: dict[str, Any] = field(default_factory=dict)
+    # Algo gravado além das linhas contadas em `inserted` (saldo informado, preço).
+    wrote_other: bool = False
+    # Efeitos fora do banco (cache de preço), rodados só depois do commit.
+    after_commit: list[Callable[[], Awaitable[None]]] = field(default_factory=list)
+
+    @property
+    def changed(self) -> bool:
+        return self.inserted > 0 or self.wrote_other
 
 
 class PlanError(ValueError):
