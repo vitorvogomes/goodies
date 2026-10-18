@@ -10,7 +10,6 @@ import httpx
 import pytest_asyncio
 
 from auth.security import hash_password
-from engines.portfolio.targets import seed_targets
 from main import app
 
 _PASSWORD = "portfolio-test-password"
@@ -50,6 +49,16 @@ async def _cleanup_user(pool: Any, uid: str) -> None:
         await conn.execute("DELETE FROM users WHERE id = $1", uid)
 
 
+DEFAULT_TARGETS = (
+    ("Ações Nacionais", 10.0),
+    ("Aposentadoria", 12.5),
+    ("Cripto", 5.0),
+    ("ETFs", 12.5),
+    ("FIIs", 10.0),
+    ("Renda Fixa", 50.0),
+)
+
+
 @pytest_asyncio.fixture
 async def api(pool: object) -> AsyncIterator[httpx.AsyncClient]:
     """AsyncClient with ASGI transport for FastAPI app."""
@@ -69,6 +78,10 @@ async def auth_headers(pool: Any) -> AsyncIterator[dict[str, str]]:
 async def portfolio_user(pool: Any) -> AsyncIterator[dict[str, Any]]:
     """Test user with portfolio targets seeded; yields {headers, user_id}."""
     uid, headers = await _create_user_and_login(pool)
-    await seed_targets(pool, uid)
+    async with pool.acquire() as conn:  # as metas padrão (as da revisão 0043)
+        await conn.executemany(
+            "INSERT INTO portfolio_targets (user_id, category, target_pct) VALUES ($1, $2, $3)",
+            [(uid, category, pct) for category, pct in DEFAULT_TARGETS],
+        )
     yield {"headers": headers, "user_id": uid}
     await _cleanup_user(pool, uid)

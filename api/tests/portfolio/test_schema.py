@@ -188,7 +188,7 @@ async def test_portfolio_targets_table_exists(pool: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_portfolio_targets_unique_category(pool: Any, _cleanup_test_data: Any) -> None:
-    """portfolio_targets must enforce UNIQUE(user_id, category)."""
+    """portfolio_targets: uma meta por (usuário, categoria, ativo, início da vigência) — 8.2."""
     email = f"test_unique_{uuid.uuid4().hex[:8]}@test.com"
     user_id = await pool.fetchval(
         "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id",

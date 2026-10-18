@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
-from . import goals, service
+from . import goals, service, targets
 from .models import DividasIn, MonthPlanOut
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
@@ -79,3 +79,32 @@ async def link_asset(goal_id: str, body: goals.LinkIn, user: AuthUser, db: Db) -
 @router.post("/goal-suggestions/{asset_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_suggestion(asset_id: str, user: AuthUser, db: Db) -> None:
     await goals.dismiss(db, asset_id)
+
+
+# ---- Metas de alocação (Story 8.2) ----
+
+
+@router.get("/targets", response_model=targets.TargetsOut)
+async def get_targets(user: AuthUser, db: Db) -> targets.TargetsOut:
+    return await targets.get_targets(db)
+
+
+@router.post("/targets/preview", response_model=targets.PreviewOut)
+async def preview_targets(body: targets.TargetsIn, user: AuthUser) -> targets.PreviewOut:
+    errors = targets.check_sums(body)
+    return targets.PreviewOut(ok=not errors, errors=errors)
+
+
+@router.put("/targets", response_model=targets.TargetsOut)
+async def save_targets(body: targets.TargetsIn, user: AuthUser, db: Db) -> targets.TargetsOut:
+    try:
+        return await targets.save_targets(db, body)
+    except targets.InvalidTargets as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {
+                "error": "metas_invalidas",
+                "message": exc.errors[0].message if exc.errors else "Classe desconhecida.",
+                "errors": [e.model_dump(mode="json") for e in exc.errors],
+            },
+        ) from None

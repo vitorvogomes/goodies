@@ -6,7 +6,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Goal, GoalIn, GoalsOut, MonthBudget } from "@/types/planning";
+import type {
+  Goal,
+  GoalIn,
+  GoalsOut,
+  MonthBudget,
+  TargetsIn,
+  TargetsOut,
+  TargetsPreview,
+} from "@/types/planning";
 
 export function useMonthBudget(periodo: string) {
   return useQuery({
@@ -73,6 +81,37 @@ export function useDismissGoalSuggestion() {
   return useMutation({
     mutationFn: (assetId: string) =>
       apiFetch<void>(`/api/v1/planning/goal-suggestions/${assetId}/dismiss`, { method: "POST" }),
+    onSuccess: () => invalidateAfter(queryClient, "planning"),
+  });
+}
+
+// ---- Metas de alocação (Story 8.2) ----
+
+export function useTargets() {
+  return useQuery({
+    queryKey: ["planning", "targets"],
+    queryFn: () => apiFetch<TargetsOut>("/api/v1/planning/targets"),
+  });
+}
+
+// A soma de cada nível é conferida pela API (o navegador não soma).
+export function useTargetsPreview(body: TargetsIn | null) {
+  return useQuery({
+    queryKey: ["planning", "targets-preview", body],
+    queryFn: () =>
+      apiFetch<TargetsPreview>("/api/v1/planning/targets/preview", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    enabled: body !== null,
+  });
+}
+
+export function useSaveTargets() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TargetsIn) =>
+      apiFetch<TargetsOut>("/api/v1/planning/targets", { method: "PUT", body: JSON.stringify(body) }),
     onSuccess: () => invalidateAfter(queryClient, "planning"),
   });
 }

@@ -14,9 +14,9 @@ from engines.common.assets import (
     TREASURY_CATEGORIES,
     AssetCategory,
 )
+from engines.planning.targets import CATEGORY_BY_CLASS
 from engines.portfolio.b3_import import b3_category
 from engines.portfolio.migration import CATEGORY_MAP
-from engines.portfolio.targets import PORTFOLIO_TARGETS
 
 
 def test_six_canonical_categories_exact_casing() -> None:
@@ -37,7 +37,8 @@ def test_strenum_compares_equal_to_string() -> None:
 
 
 def test_targets_use_canonical_categories() -> None:
-    assert {t["category"] for t in PORTFOLIO_TARGETS} == set(CATEGORIES)
+    # Story 8.2: as metas são de `planning`; a classe grava o rótulo canônico
+    assert set(CATEGORY_BY_CLASS.values()) == set(CATEGORIES)
 
 
 def test_category_map_values_are_canonical() -> None:

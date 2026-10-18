@@ -31,6 +31,7 @@ from engines.ledger.service import register_on_transactions_changed
 from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.overview.router import router as overview_router
+from engines.planning import targets as planning_targets
 from engines.planning.router import router as planning_router
 from engines.portfolio import brokers as portfolio_brokers
 from engines.portfolio import debentures as portfolio_debentures
@@ -68,6 +69,7 @@ ledger_service.register_asset_resolver(portfolio_hooks.transaction_assets)
 ingest_service.register_on_batch_applied(ledger_service.on_batch_applied_assets)
 # Story 7.6: aporte em debênture sugerido na Revisão e confirmado com ela.
 ledger_service.register_review_suggester(portfolio_debentures.review_suggestions)
+portfolio_service.register_targets_provider(planning_targets.legacy_category_targets)  # 8.2
 ledger_service.register_on_review_confirmed(portfolio_debentures.on_review_confirmed)
 ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo, layer=3)
 ingest_service.register_undo_counter(portfolio_hooks.count_derived_for_undo)

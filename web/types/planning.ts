@@ -94,3 +94,40 @@ export interface GoalIn {
   multiplier?: string;
   horizon_months?: number;
 }
+
+// Ajustes › Metas (Story 8.2).
+export interface TargetAsset {
+  asset_id: string;
+  label: string;
+  pct: number;
+}
+
+export interface TargetClass {
+  cls: string;
+  label: string;
+  pct: number;
+  band_pp: number;
+  floor: number;
+  assets: TargetAsset[];
+}
+
+export interface TargetsOut {
+  defined: boolean;
+  valid_from: string | null;
+  classes: TargetClass[];
+}
+
+export interface TargetsIn {
+  classes: {
+    cls: string;
+    pct: string;
+    band_pp: string;
+    floor: string;
+    assets: { asset_id: string; pct: string }[];
+  }[];
+}
+
+export interface TargetsPreview {
+  ok: boolean;
+  errors: { level: string; total: number; message: string }[];
+}

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -212,6 +212,16 @@ async def calculate_positions(conn: asyncpg.Connection, user_id: str) -> list[di
 # --------------------------------------------------------------------------- #
 # Alocacao atual vs meta (STORY-02-08)
 # --------------------------------------------------------------------------- #
+TargetsProvider = Callable[[asyncpg.Connection, str], Awaitable[dict[str, float]]]
+_targets_provider: TargetsProvider | None = None
+
+
+def register_targets_provider(provider: TargetsProvider) -> None:
+    """Story 8.2: a meta vigente por rótulo legado de classe vem de `planning`."""
+    global _targets_provider
+    _targets_provider = provider
+
+
 async def calculate_allocation(conn: asyncpg.Connection, user_id: str) -> dict[str, Any]:
     """Alocacao atual (valor de mercado) vs meta por categoria + desvio em pp.
 
@@ -219,11 +229,8 @@ async def calculate_allocation(conn: asyncpg.Connection, user_id: str) -> dict[s
     `pct_meta`/`desvio_pp` ficam null para categorias sem meta definida.
     """
     positions = await calculate_positions(conn, user_id)
-    target_rows = await conn.fetch(
-        "SELECT category, target_pct FROM portfolio_targets WHERE user_id = $1",
-        user_id,
-    )
-    target_map = {row["category"]: float(row["target_pct"]) for row in target_rows}
+    # Story 8.2: as metas são de `planning` (registrado em main.py — AD-1)
+    target_map = await _targets_provider(conn, user_id) if _targets_provider else {}
 
     value_by_cat: dict[str, float] = defaultdict(float)
     for pos in positions:
