@@ -111,3 +111,24 @@ def test_ad13_quantity_tolerances() -> None:
     assert quantity_status("aposentadoria", D("1.23"), D("1.25")) == "divergente"
     assert quantity_status("cripto", D("0.5"), D("0.5000001")) == "divergente"
     assert quantity_status("renda_fixa", D("1000"), None) == "valor calculado"
+
+
+@pytest.mark.asyncio
+async def test_only_b3_holds_cash(pool) -> None:
+    """Pedido de 18/10/2026: só a corretora (B3/Toro) guarda dinheiro esperando virar ativo; no
+    Tesouro, na renda fixa do Nubank e na Flash a aplicação vira ativo na hora — o resíduo desses
+    trilhos (tarifas, arredondamento, operação sem transação) é diferença de conciliação, fora do
+    patrimônio."""
+    from engines.common.dates import today_brt
+    from engines.common.owner import get_owner_id
+    from engines.portfolio.brokers import broker_cash_as_of
+
+    async with pool.acquire() as conn:
+        owner = await get_owner_id(conn)
+        cards = {b.rail: b for b in await broker_cash_as_of(conn, owner, today_brt())}
+    for rail in ("Tesouro Direto", "Renda Fixa Nubank", "Debêntures Flash"):
+        b = cards[rail]
+        assert b.caixa == 0 and b.a_caminho == 0, rail
+        assert b.diferenca == (b.saiu + b.proventos - b.aplicado).quantize(D("0.01")), rail
+    b3 = cards["B3 (corretoras)"]
+    assert b3.diferenca == 0

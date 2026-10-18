@@ -32,6 +32,9 @@ class Rail:
     ledger_keys: tuple[str, ...]  # `categories.key` do ledger (kind=investment) — Story 2.3
     asset_categories: tuple[str, ...]  # categorias em asset_operations
     asset_brokers: tuple[str, ...] | None  # None = qualquer broker
+    # pedido de 18/10/2026: só a corretora guarda dinheiro esperando virar ativo; nos outros
+    # trilhos a aplicação vira ativo na hora e o resíduo é diferença de conciliação
+    holds_cash: bool = False
 
 
 # Trilhos não-cripto. asset_brokers desambigua RF Nubank x Flash (mesma categoria).
@@ -41,6 +44,7 @@ RAILS: tuple[Rail, ...] = (
         ("invest:toro_b3",),
         ("Ações Nacionais", "ETFs", "FIIs"),
         ("Toro/B3", "B3-negociacao", "B3-movimentacao", "B3-consolidado"),
+        holds_cash=True,
     ),
     Rail("Tesouro Direto", ("invest:tesouro_nubank",), ("Aposentadoria",), None),
     Rail(

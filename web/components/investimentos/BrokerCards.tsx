@@ -4,7 +4,8 @@
 // aplicado, caixa em corretora (no patrimônio) e a caminho (Selo + "importe o relatório B3 a partir
 // de dd/mm/aaaa", fora do patrimônio), com o Carimbo de data do relatório. "Saldo que vejo na
 // corretora" (valor + data) grava a conferência; calculado × informado, diferença > R$ 1,00 =
-// Selo "divergente". Os números vêm da API.
+// Selo "divergente". Só a corretora (B3) guarda caixa; nos outros trilhos o resíduo é diferença de
+// conciliação, fora do patrimônio (pedido de 18/10/2026). Os números vêm da API.
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -114,41 +115,56 @@ export function BrokerCards() {
             <Row label="Saiu do Nubank" value={formatBRL(b.saiu)} />
             <Row label="Proventos" value={formatBRL(b.proventos)} />
             <Row label="Aplicado" value={formatBRL(b.aplicado)} />
-            <Row label="Caixa em corretora" value={formatBRL(b.caixa)} note={<span className="type-caption">(no patrimônio)</span>} />
-            <Row
-              label="A caminho"
-              value={formatBRL(b.a_caminho)}
-              note={
-                b.a_caminho > 0 ? (
-                  <span className="inline-flex flex-wrap items-center gap-1">
-                    <StatusBadge tone="warning">a caminho</StatusBadge>
-                    {b.import_from && (
-                      <span className="type-caption">importe a partir de {formatDate(b.import_from)}</span>
-                    )}
-                  </span>
-                ) : undefined
-              }
-            />
-            {b.informed !== null && b.informed_at && (
+            {b.holds_cash ? (
+              <>
+              <Row label="Caixa em corretora" value={formatBRL(b.caixa)} note={<span className="type-caption">(no patrimônio)</span>} />
               <Row
-                label={`Informado em ${formatDate(b.informed_at)}`}
-                value={formatBRL(b.informed)}
+                label="A caminho"
+                value={formatBRL(b.a_caminho)}
                 note={
-                  b.divergent ? (
-                    <StatusBadge
-                      tone="divergence"
-                      tooltip={`calculado em ${formatDate(b.informed_at)}: ${formatBRL(b.caixa_at_check ?? b.caixa)} — diferença acima de R$ 1,00`}
-                    >
-                      divergente
-                    </StatusBadge>
-                  ) : (
-                    <StatusBadge>conferido</StatusBadge>
-                  )
+                  b.a_caminho > 0 ? (
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <StatusBadge tone="warning">a caminho</StatusBadge>
+                      {b.import_from && (
+                        <span className="type-caption">importe a partir de {formatDate(b.import_from)}</span>
+                      )}
+                    </span>
+                  ) : undefined
+                }
+              />
+              {b.informed !== null && b.informed_at && (
+                <Row
+                  label={`Informado em ${formatDate(b.informed_at)}`}
+                  value={formatBRL(b.informed)}
+                  note={
+                    b.divergent ? (
+                      <StatusBadge
+                        tone="divergence"
+                        tooltip={`calculado em ${formatDate(b.informed_at)}: ${formatBRL(b.caixa_at_check ?? b.caixa)} — diferença acima de R$ 1,00`}
+                      >
+                        divergente
+                      </StatusBadge>
+                    ) : (
+                      <StatusBadge>conferido</StatusBadge>
+                    )
+                  }
+                />
+              )}
+              </>
+            ) : (
+              <Row
+                label="Diferença de conciliação"
+                value={formatBRL(b.diferenca)}
+                note={
+                  <span className="type-caption">
+                    (não é caixa: aqui a aplicação vira ativo na hora; tarifas, arredondamentos e operações sem
+                    transação)
+                  </span>
                 }
               />
             )}
           </dl>
-          <CheckForm card={b} />
+          {b.holds_cash && <CheckForm card={b} />}
         </section>
       ))}
     </div>

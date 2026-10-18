@@ -52,6 +52,9 @@ class BrokerCash:
     informed: Decimal | None = None  # "Saldo que vejo na corretora" (o mais recente até a data)
     informed_at: date | None = None
     caixa_at_check: Decimal | None = None  # o caixa calculado na data do saldo informado
+    # trilho sem caixa (Tesouro, renda fixa do Nubank, Flash): o resíduo saiu + proventos −
+    # aplicado é diferença de conciliação (tarifa, arredondamento, operação sem transação)
+    diferenca: Decimal = Decimal(0)
 
     @property
     def import_from(self) -> date | None:
@@ -113,6 +116,8 @@ async def _rail_cash(
         if rail.name in _REPORTED_BY_B3 and b3_until
         else (None if rail.name in _REPORTED_BY_B3 else as_of)
     )
+    if not rail.holds_cash:  # a aplicação vira ativo na hora: sem caixa nem a caminho
+        return saiu, proventos, aplicado, Decimal(0), Decimal(0), covered
     transfers = [(r["date"], -r["amount"]) for r in txs if r["amount"] < 0]
     caixa, a_caminho = calc.broker_split(residual, transfers, covered)
     return saiu, proventos, aplicado, caixa, a_caminho, covered
@@ -152,6 +157,9 @@ async def broker_cash_as_of(conn: asyncpg.Connection, owner: str, as_of: date) -
                 informed=check["balance"] if check else None,
                 informed_at=check["as_of"] if check else None,
                 caixa_at_check=caixa_at_check,
+                diferenca=(
+                    Decimal(0) if rail.holds_cash else (saiu + proventos - aplicado)
+                ).quantize(Decimal("0.01")),
             )
         )
     return out

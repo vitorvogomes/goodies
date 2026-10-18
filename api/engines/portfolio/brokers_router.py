@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
@@ -15,6 +16,9 @@ from engines.common.owner import get_owner_id
 
 from . import brokers as service
 from .brokers import FutureCheckError
+from .transit import RAILS
+
+_CASH_RAILS = {r.name for r in RAILS if r.holds_cash}
 
 router = APIRouter(prefix="/api/v1/portfolio/brokers", tags=["portfolio:brokers"])
 
@@ -33,6 +37,8 @@ class BrokerCard(BaseModel):
     informed_at: date | None
     caixa_at_check: Money | None  # o caixa calculado na data do saldo informado
     divergent: bool
+    holds_cash: bool = True  # False: Tesouro, renda fixa do Nubank, Flash (sem caixa)
+    diferenca: Money = Decimal(0)  # trilho sem caixa: diferença de conciliação (fora do patrimônio)
 
 
 class BrokerCheckIn(BaseModel):
@@ -56,6 +62,8 @@ def _card(b: service.BrokerCash) -> BrokerCard:
         informed_at=b.informed_at,
         caixa_at_check=b.caixa_at_check,
         divergent=b.divergent,
+        holds_cash=b.rail in _CASH_RAILS,
+        diferenca=b.diferenca,
     )
 
 

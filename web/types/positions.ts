@@ -102,6 +102,8 @@ export interface BrokerCard {
   informed_at: string | null;
   caixa_at_check: number | null; // o caixa calculado na data do saldo informado
   divergent: boolean;
+  holds_cash: boolean; // false: Tesouro, renda fixa do Nubank, Flash — a aplicação vira ativo na hora
+  diferenca: number; // trilho sem caixa: diferença de conciliação (fora do patrimônio)
 }
 
 // Investimentos › Conciliação — app × consolidado B3 × carteiras (Story 7.9, AD-13). Quantidades
