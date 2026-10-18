@@ -17,6 +17,7 @@ import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatPercent, formatSignedBRL } from "@/lib/format";
 import { useOverviewSources, usePainel } from "@/lib/overview";
+import { useMonthBudget } from "@/lib/planning";
 import { usePeriodo } from "@/lib/use-periodo";
 
 function Fontes() {
@@ -53,6 +54,7 @@ function Fontes() {
 function Painel() {
   const { periodo } = usePeriodo();
   const painel = usePainel(periodo);
+  const budget = useMonthBudget(periodo);
 
   if (painel.isError) {
     return (
@@ -91,6 +93,20 @@ function Painel() {
             signed
             support={variation}
             href={`/caixa/transacoes?periodo=${periodo}`}
+          />
+        ) : (
+          <KpiSkeleton />
+        )}
+        {budget.data ? (
+          <KpiCard
+            label="Disponível para consumo"
+            valued={budget.data.disponivel}
+            format={formatSignedBRL}
+            signed
+            support={
+              budget.data.restante.value !== null ? `restante ${formatSignedBRL(budget.data.restante.value)}` : undefined
+            }
+            href={`/caixa/orcamento?periodo=${periodo}`}
           />
         ) : (
           <KpiSkeleton />
