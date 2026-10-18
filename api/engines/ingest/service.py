@@ -572,7 +572,15 @@ async def undo_preview(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:
     for counter in _undo_counters:
         for k, v in (await counter(conn, batch_id)).items():
             counts[k] = counts.get(k, 0) + v
-    return UndoPreview(batch_id=batch_id, applied_at=last["applied_at"], **counts)
+    port = month_status()
+    closed = [
+        f"{r['month']:%Y-%m}"
+        for r in await conn.fetch(queries.BATCH_MONTHS, batch_id)
+        if await port.is_closed(conn, r["month"])
+    ]
+    return UndoPreview(
+        batch_id=batch_id, applied_at=last["applied_at"], closed_months=closed, **counts
+    )
 
 
 async def undo(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:

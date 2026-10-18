@@ -489,7 +489,8 @@ class ClosingMonthStatus:
 
     async def mark_dirty(self, conn: Any, month: date) -> None:
         await conn.execute(
-            "UPDATE month_closes SET dirty = true WHERE month = $1 AND status = 'closed' "
+            "UPDATE month_closes SET dirty = true, dirty_count = dirty_count + 1 "
+            "WHERE month = $1 AND status = 'closed' "
             "AND version = (SELECT max(version) FROM month_closes WHERE month = $1)",
             month,
         )

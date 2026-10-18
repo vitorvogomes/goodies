@@ -150,3 +150,4 @@ class UndoPreview(BaseModel):
     balances: int = 0
     snapshots: int = 0
     prices: int = 0  # preços do consolidado refeitos pelo consolidado anterior
+    closed_months: list[str] = []  # "AAAA-MM" dos meses fechados que o desfazer ajusta (5.6)

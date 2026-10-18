@@ -71,4 +71,5 @@ export interface UndoPreview {
   balances: number;
   snapshots: number;
   prices: number;
+  closed_months?: string[]; // "AAAA-MM" dos meses fechados que o desfazer ajusta
 }

@@ -76,3 +76,53 @@ async def test_fechamento_golden() -> None:
             await conn.close()
     finally:
         await restore_dados()
+
+
+async def test_ajuste_real() -> None:
+    """Story 5.6 na base real: recategorizar uma despesa de mar/2025 já fechado deixa o mês em
+    `ajuste`, o congelado não muda e o aviso diz a métrica que mudaria."""
+    import main  # noqa: F401
+    from engines.closing import alerts as closing_alerts
+    from engines.common.alerts import AlertContext
+    from engines.common.month_status import month_status
+    from engines.ledger import service as ledger
+
+    dsn = await restore_dados()
+    try:
+        await asyncio.to_thread(alembic_upgrade, dsn, "head")
+        conn = await asyncpg.connect(dsn)
+        try:
+            await anchor(conn, sorted(FILES_DIR.rglob("*.ofx")), write=True)
+            march = date(2025, 3, 1)
+            checks = await run_checks(conn, march)
+            await closing.close_month(conn, march, [c.code for c in checks if c.kind == "confirma"])
+            frozen = await closing.month_summary(conn, march)
+            tx = await conn.fetchrow(
+                "SELECT t.id, t.category_id FROM transactions t JOIN categories c "
+                "ON c.id = t.category_id WHERE t.date >= '2025-03-01' AND t.date < '2025-04-01' "
+                "AND c.role = 'consumo' ORDER BY t.amount LIMIT 1"
+            )
+            invest = await conn.fetchval(
+                "SELECT id FROM categories WHERE role = 'investimento' ORDER BY key LIMIT 1"
+            )
+            await ledger.categorize(
+                conn,
+                [ledger.CategoryChange(str(tx["id"]), str(invest), "manual")],
+                cause="inline_edit",
+            )
+            assert await month_status().status(conn, march) == "ajuste"
+            after = await closing.month_summary(conn, march)
+            assert (after.gastos, after.investido) == (frozen.gastos, frozen.investido)
+            ctx = AlertContext(
+                today=date(2026, 10, 18), periodo=march, months=month_status(), owner_id="x"
+            )
+            alert = next(
+                a
+                for a in await closing_alerts.adjustment_alerts(conn, ctx)
+                if a.key == "ajuste:2025-03"
+            )
+            assert "Se reabrir, " in alert.message and alert.action.label == "Reabrir mês"
+        finally:
+            await conn.close()
+    finally:
+        await restore_dados()

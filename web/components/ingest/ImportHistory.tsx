@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMonth } from "@/lib/format";
 import { useImportHistory, useUndoBatch, useUndoPreview } from "@/lib/ingest";
 import type { UndoPreview } from "@/types/ingest";
 
@@ -44,7 +44,10 @@ export function undoSummary(p: UndoPreview): string {
     : "";
   const all = [...parts, ...extra];
   const list = `${all.slice(0, -1).join(", ")} e ${all[all.length - 1]}`;
-  return `Remove ${list} do lote de ${formatDate(p.applied_at.slice(0, 10))}.${prices}`;
+  const closed = p.closed_months?.length
+    ? ` O desfazer vira ajuste em ${p.closed_months.map(formatMonth).join(", ")}, ${p.closed_months.length === 1 ? "já fechado" : "já fechados"}: o resumo congelado não muda.`
+    : "";
+  return `Remove ${list} do lote de ${formatDate(p.applied_at.slice(0, 10))}.${prices}${closed}`;
 }
 
 export function ImportHistory() {

@@ -16,6 +16,7 @@ from config import assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.alerts import service as alerts_service
 from engines.alerts.router import router as alerts_router
+from engines.closing import alerts as closing_alerts
 from engines.closing import service as closing_service
 from engines.closing.checks import register_close_check
 from engines.closing.router import router as closing_router
@@ -46,7 +47,7 @@ from hermes.router import router as hermes_router
 from workers.job_alerts import job_alerts
 from workers.router import router as jobs_router
 
-# Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
+# Status do mês (AD-8): o real, de `closing` (fechado / aberto / ajuste).
 register_month_status(closing_service.ClosingMonthStatus())
 register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
 ledger_service.register_on_transactions_deleting(portfolio_hooks.on_transactions_deleting)
@@ -77,6 +78,8 @@ for _provider in (
     ledger_service.pending_review_alerts,
     ledger_service.balance_alerts,
     job_alerts,
+    closing_alerts.adjustment_alerts,
+    closing_alerts.open_month_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 

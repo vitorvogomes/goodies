@@ -130,3 +130,12 @@ MARK_UNDONE = """
     UPDATE import_batches SET status = 'undone', undone_at = now() WHERE id = $1::uuid
 """
 DELETE_FILES = "DELETE FROM import_batch_files WHERE batch_id = $1::uuid"
+
+# Meses que o lote toca (transações e operações), para a prévia do desfazer (Story 5.6).
+BATCH_MONTHS = """
+SELECT DISTINCT date_trunc('month', d)::date AS month FROM (
+  SELECT date AS d FROM transactions WHERE batch_id = $1::uuid
+  UNION ALL
+  SELECT data_operacao AS d FROM asset_operations WHERE batch_id = $1::uuid
+) x ORDER BY 1
+"""

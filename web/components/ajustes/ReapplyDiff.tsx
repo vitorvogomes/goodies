@@ -1,5 +1,5 @@
 // Prévia da reaplicação de regras (Story 2.10): antes × depois por transação, com o aviso das
-// categorias manuais preservadas e dos meses fechados que reabrem.
+// categorias manuais preservadas e das transações em meses fechados (o congelado não muda — 5.6).
 import { ArrowRightIcon } from "lucide-react";
 
 import { formatDate, formatSignedBRL } from "@/lib/format";
@@ -14,7 +14,8 @@ export function ReapplyDiff({ preview }: { preview: ReapplyPreview }) {
           ? "Nada a mudar: as regras já batem com o histórico desse período."
           : `${changes.length} ${changes.length === 1 ? "transação muda" : "transações mudam"} de categoria.`}{" "}
         {manual_unchanged} {manual_unchanged === 1 ? "categoria manual não será alterada" : "categorias manuais não serão alteradas"}.
-        {closed_months > 0 && ` ${closed_months} ${closed_months === 1 ? "mudança cai" : "mudanças caem"} em mês fechado e o reabre.`}
+        {closed_months > 0 &&
+          ` ${closed_months} ${closed_months === 1 ? "transação em mês fechado" : "transações em meses fechados"}: o resumo congelado não muda.`}
       </p>
       {changes.length > 0 && (
         <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-card" tabIndex={0} role="region" aria-label="Antes e depois">
