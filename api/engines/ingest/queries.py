@@ -91,3 +91,17 @@ RECENT_STAGED = """
     SELECT id, plan FROM import_batches
     WHERE status = 'staged' AND expires_at > now() ORDER BY created_at DESC LIMIT 20
 """
+CSV_WITHOUT_OFX = """
+    WITH last_csv AS (
+      SELECT DISTINCT ON (f.account_id) f.account_id, f.file_hash, f.period_end
+      FROM import_batch_files f JOIN import_batches b ON b.id = f.batch_id
+      WHERE b.status = 'applied' AND f.source = 'nubank_csv' AND f.account_id IS NOT NULL
+      ORDER BY f.account_id, f.period_end DESC, b.applied_at DESC
+    )
+    SELECT l.account_id, l.file_hash, l.period_end FROM last_csv l
+    WHERE NOT EXISTS (
+      SELECT 1 FROM import_batch_files o JOIN import_batches b ON b.id = o.batch_id
+      WHERE b.status IN ('applied', 'legacy') AND o.source = 'nubank_ofx'
+        AND o.account_id = l.account_id AND o.period_end >= l.period_end
+    )
+"""

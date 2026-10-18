@@ -81,6 +81,10 @@ async def list_batches(conn: asyncpg.Connection, limit: int = 20) -> list[BatchR
 # Protocolo SourceAdapter: prévia → confirmação (AD-5 — Story 3.3)
 # --------------------------------------------------------------------------------------------
 
+UNKNOWN_FORMAT = (
+    "Formato não reconhecido. Aceitos: OFX Nubank, CSV Nubank, B3 movimentação, negociação e "
+    "consolidado (.xlsx)."
+)
 _adapters: list[SourceAdapter] = []
 BatchHook = Callable[[asyncpg.Connection, str], Awaitable[None]]
 _on_applied: list[BatchHook] = []
@@ -133,7 +137,7 @@ async def _plan_files(
             ((a, s) for a in _adapters if (s := a.detect(name, content)) is not None), None
         )
         if detected is None:
-            plans.append(FilePlan(None, name, digest, error="Formato não reconhecido."))
+            plans.append(FilePlan(None, name, digest, error=UNKNOWN_FORMAT))
             continue
         adapter, source = detected
         mine = overrides.get(digest, {})
@@ -175,6 +179,7 @@ def _out(p: FilePlan) -> FilePlanOut:
         reported_balance_date=p.reported_balance_date,
         already_imported=p.already_imported,
         needs=p.needs,
+        warnings=p.warnings,
         error=p.error,
     )
 
@@ -304,3 +309,21 @@ async def already_imported_alerts(conn: asyncpg.Connection, ctx: AlertContext) -
                     ),
                 )
     return list(alerts.values())
+
+
+async def csv_unconfirmed_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Provider (Story 3.7): conta cujo último extrato aplicado é CSV, sem OFX que cubra o mesmo
+    período — o CSV não traz saldo, então não há conferência."""
+    return [
+        Alert(
+            key=f"csv_sem_conferencia:{r['account_id']}",
+            fingerprint=fingerprint(r["file_hash"]),
+            severity="aviso",
+            message="CSV importado sem conferência de saldo. Só o OFX permite conferir.",
+            action=AlertAction(
+                label="Importar OFX", route="/visao-geral/painel", params={"importar": "1"}
+            ),
+            as_of=r["period_end"],
+        )
+        for r in await conn.fetch(queries.CSV_WITHOUT_OFX)
+    ]

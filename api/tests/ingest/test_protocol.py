@@ -236,7 +236,7 @@ async def test_unknown_format_is_refused_on_its_line(api, auth_headers):
     r = await _preview(api, auth_headers, [("notas.txt", b"qualquer coisa")])
     assert r.status_code == 200
     f = r.json()["files"][0]
-    assert f["source"] is None and f["error"] == "Formato não reconhecido."
+    assert f["source"] is None and f["error"].startswith("Formato não reconhecido. Aceitos:")
 
 
 def test_adapter_registry_has_nubank() -> None:

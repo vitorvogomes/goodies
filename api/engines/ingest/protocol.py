@@ -39,6 +39,7 @@ class FilePlan:
     reported_balance_date: date | None = None
     already_imported: bool = False
     needs: list[str] = field(default_factory=list)  # escolha pendente na linha ("account")
+    warnings: list[str] = field(default_factory=list)  # avisos da linha (não mudam o apply)
     error: str | None = None
     overrides: dict[str, str] = field(default_factory=dict)
     # Entra no hash: o que mudaria o resultado do apply (ex.: os ids externos novos).

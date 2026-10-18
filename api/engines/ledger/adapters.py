@@ -86,6 +86,8 @@ class NubankStatementAdapter:
             balance = parse_ledger_balance(_text(parsed.content))
             if balance is not None:
                 plan.reported_balance, plan.reported_balance_date = balance
+        else:
+            plan.warnings.append("CSV não permite conferir o saldo. Prefira o OFX.")
         plan.fingerprint = {"new_ids": sorted(seen)}
         return plan
 

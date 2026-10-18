@@ -60,7 +60,7 @@
 | 3.4 | OFX completo — titular, pagador e saldo informado | [x] | — |
 | 3.5 | Operações de caixinha ligadas à transação | [x] | — |
 | 3.6 | Sugestão de categoria para toda transação nova | [x] | — |
-| 3.7 | CSV do Nubank | [ ] | — |
+| 3.7 | CSV do Nubank | [x] | — |
 | 3.8 | Adapters da B3 — movimentação, negociação e consolidado | [ ] | — |
 | 3.9 | Hub de import | [ ] | — |
 | 3.10 | Revisão de transações | [ ] | — |
@@ -200,3 +200,4 @@
 | 2026-10-18 | m1 | Épico 3: 3.4 | Revisão 0024 aplicada com backup (pre-0024): accounts.holder (Nubank_CPF = pf, Nubank_CNPJ = mei; idempotente) e account_balances (conta, data, saldo, batch_id; uma linha por conta e data). Adapter OFX: LEDGERBAL/DTASOF → saldo informado na prévia, em import_batch_files e em account_balances (também com 0 novas); pagador das entradas (nome do Pix recebido, senão CNPJ) em transactions.payer, sem decidir categoria; OFX do MEI com vários meses aceito; undo do adapter remove saldos do lote. |
 | 2026-10-18 | m1 | Épico 3: 3.5 | Revisão 0025 aplicada com backup (pre-0025): asset_operations.transaction_id (FK RESTRICT, único) pelo external_id (FITID; fallback data:valor) e protected (caixinha-yield:*, resgate da Turbo reduzido, bucket Encerradas); base real: 113 ligadas, 3 protegidas, 0 caixinha sem vínculo. portfolio.caixinhas.derive_caixinha_ops (cria/corrige/apaga por transaction_id; protegida nunca muda) nos hooks on_transactions_changed, on_batch_applied e on_batch_undo (registrados no main). dados_reais: reimport de todos os OFX 2024–2026 pelo protocolo = 0 novas; rederivar tudo = nada a mudar; net, aplicado e XIRR das caixinhas/CDB e XIRR consolidado = baseline. |
 | 2026-10-18 | m1 | Épico 3: 3.6 | ledger/suggest reescrito: tokens (minúscula, sem acento, sem números), Jaccard ≥ 0,6, best_suggestion sobre o histórico confirmado do mesmo sinal (qualquer tipo; empate → a mais recente); insert_entries: sem regra → categorize(source suggestion, pending), sem histórico parecido → "a classificar". Tela v1 de sugestões usa o mesmo Jaccard. Testes por tipo (gasto, receita, investimento, transferência), sem histórico, abaixo do limiar, sinal trocado, empate e import com histórico confirmado. |
+| 2026-10-18 | m1 | Épico 3: 3.7 | CSV do Nubank: detectado e deduplicado; a linha pede a conta (needs) e avisa "CSV não permite conferir o saldo. Prefira o OFX." (FilePlan.warnings); provider "CSV importado sem conferência de saldo. Só o OFX permite conferir." (ação Importar OFX) enquanto o último extrato aplicado da conta for CSV sem OFX cobrindo o período; arquivo desconhecido recusado só na linha dele com a lista dos formatos aceitos. |

@@ -50,6 +50,7 @@ for _provider in (
     ledger_service.overspend_alerts,
     defi_maturity_provider,
     ingest_service.already_imported_alerts,
+    ingest_service.csv_unconfirmed_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 

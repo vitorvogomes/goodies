@@ -71,6 +71,7 @@ class FilePlanOut(BaseModel):
     reported_balance_date: date | None
     already_imported: bool
     needs: list[str]
+    warnings: list[str] = []
     error: str | None
 
 
