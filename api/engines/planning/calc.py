@@ -13,6 +13,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
+_HUNDRED = Decimal(100)
+
 
 def custos_fixos_do_mes(items: Sequence[tuple[Decimal, Decimal | None]]) -> Decimal:
     """`items` = (valor cadastrado, valor pago ou None)."""
@@ -94,3 +96,32 @@ def budget(i: BudgetInput) -> Budget:
         consumo_financiado=consumo_financiado(i.resgates, i.consumido, disp),
         restante_sem_resgates=restante_sem_resgates(rest, i.resgates),
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Alocação × meta (Story 8.3 — AD-11): % na base, meta, desvio em p.p.
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Share:
+    atual: Decimal  # % na base
+    meta: Decimal | None
+    desvio: Decimal | None  # atual − meta, em p.p.
+
+
+def allocation_shares(
+    values: dict[str, Decimal], targets: dict[str, Decimal]
+) -> dict[str, Share]:
+    """Cada item: o % do valor na base (soma dos valores) × a meta; sem meta, sem desvio."""
+    total = sum(values.values(), Decimal(0))
+    out: dict[str, Share] = {}
+    for key in [*values, *(k for k in targets if k not in values)]:
+        atual = values.get(key, Decimal(0)) / total * _HUNDRED if total > 0 else Decimal(0)
+        meta = targets.get(key)
+        out[key] = Share(atual, meta, atual - meta if meta is not None else None)
+    return out
+
+
+def out_of_band(desvio: Decimal | None, banda: Decimal | None) -> bool:
+    return desvio is not None and banda is not None and abs(desvio) > banda

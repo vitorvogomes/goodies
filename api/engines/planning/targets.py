@@ -88,7 +88,7 @@ class PreviewOut(BaseModel):
     errors: list[SumError]
 
 
-def _pct_text(value: Decimal) -> str:
+def pct_text(value: Decimal) -> str:
     text = f"{value.quantize(_CENT):f}".rstrip("0").rstrip(".")
     return text.replace(".", ",")
 
@@ -100,7 +100,7 @@ def check_sums(body: TargetsIn) -> list[SumError]:
     def check(level: str, values: list[Decimal]) -> None:
         total = sum(values, Decimal(0)).quantize(_CENT)
         if total != _HUNDRED:
-            message = f"Soma em {_pct_text(total)}%. Ajuste para 100%."
+            message = f"Soma em {pct_text(total)}%. Ajuste para 100%."
             errors.append(SumError(level=level, total=total, message=message))
 
     check("classes", [c.pct for c in body.classes])

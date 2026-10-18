@@ -5,13 +5,15 @@
 // leitura. Cripto é o bloco "quanto saiu × quanto vale" (ativos só com valor). Preço velho: "preço de
 // dd/mm/aaaa" com ponto de aviso; sem preço: "—" + "sem preço"; preço manual: Selo "manual".
 // XIRR nominal × real do período por classe e consolidado; por ativo, % a.m. (Story 7.3).
+// Alocação × meta ± banda e desvio em p.p. (Story 8.3); os ativos de objetivos no bloco "Objetivos",
+// fora da base da alocação mas no patrimônio.
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, Suspense, useState } from "react";
 
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatDate, formatMonth, formatPercent, formatSignedBRL } from "@/lib/format";
+import { formatBRL, formatDate, formatMonth, formatPercent, formatPP, formatSignedBRL } from "@/lib/format";
 import { usePositions } from "@/lib/positions";
 import { usePeriodo } from "@/lib/use-periodo";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,38 @@ function Rate({ v }: { v: Valued }) {
     return <StatusBadge tooltip="o IPCA do último mês do período ainda não saiu">aguardando IPCA</StatusBadge>;
   }
   return <span className="text-muted-foreground">—</span>;
+}
+
+// Story 8.3: alocação atual × meta ± banda e o desvio em p.p. (coluna própria, sem seta); fora da
+// banda, o desvio sai em laranja. Classe: % na base sem os objetivos; ativo: % dentro da classe.
+function Allocation({
+  alocacao,
+  meta,
+  banda,
+  desvio,
+  fora,
+  muted = false,
+}: {
+  alocacao: number | null;
+  meta: number | null;
+  banda: number | null;
+  desvio: number | null;
+  fora: boolean;
+  muted?: boolean;
+}) {
+  const cell = cn("px-4 text-right type-num-table", muted ? "py-1.5 text-muted-foreground" : "py-2");
+  return (
+    <>
+      <td className={cell}>{alocacao != null ? formatPercent(alocacao) : "—"}</td>
+      <td className={cell}>
+        {meta != null ? `${formatPercent(meta)}${banda != null ? ` ± ${String(banda).replace(".", ",")} p.p.` : ""}` : "—"}
+      </td>
+      <td className={cn(cell, fora && "text-warning")}>
+        {desvio != null ? formatPP(desvio) : "—"}
+        {fora && <span className="sr-only"> (fora da banda)</span>}
+      </td>
+    </>
+  );
 }
 
 function AssetValue({ a }: { a: PositionAsset }) {
@@ -110,6 +144,9 @@ function Posicoes() {
                 <th scope="col" className="px-4 py-2 text-right font-medium">Resultado</th>
                 <th scope="col" className="px-4 py-2 text-right font-medium">XIRR nominal</th>
                 <th scope="col" className="px-4 py-2 text-right font-medium">XIRR real</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Alocação</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Meta</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Desvio</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -142,6 +179,7 @@ function Posicoes() {
                     <td className="px-4 py-2 text-right type-num-table">
                       <Rate v={c.xirr_real} />
                     </td>
+                    <Allocation alocacao={c.alocacao} meta={c.meta} banda={c.banda} desvio={c.desvio_pp} fora={c.fora_banda} />
                   </tr>
                   {open.has(c.key) &&
                     c.assets.map((a) => (
@@ -163,6 +201,7 @@ function Posicoes() {
                         <td className="px-4 py-1.5 text-right type-num-table text-muted-foreground" colSpan={2}>
                           {a.xirr_mensal !== null ? `${formatPercent(a.xirr_mensal)} a.m.` : "—"}
                         </td>
+                        <Allocation alocacao={a.alocacao} meta={a.meta} banda={null} desvio={a.desvio_pp} fora={false} muted />
                       </tr>
                     ))}
                 </Fragment>
@@ -175,7 +214,7 @@ function Posicoes() {
                 </th>
                 <td />
                 <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.caixa_corretora)}</td>
-                <td colSpan={3} />
+                <td colSpan={6} />
               </tr>
               {data.a_caminho.map((w) => (
                 <tr key={w.broker} className="text-muted-foreground">
@@ -190,7 +229,7 @@ function Posicoes() {
                   </th>
                   <td />
                   <td className="px-4 py-2 text-right type-num-table">{formatBRL(w.value)}</td>
-                  <td colSpan={3} className="px-4 py-2 type-caption">fora do patrimônio</td>
+                  <td colSpan={6} className="px-4 py-2 type-caption">fora do patrimônio</td>
                 </tr>
               ))}
             </tbody>
@@ -206,6 +245,7 @@ function Posicoes() {
                 <td className="px-4 py-2 text-right type-num-table">
                   <Rate v={data.xirr_real} />
                 </td>
+                <td colSpan={3} />
               </tr>
             </tfoot>
           </table>

@@ -298,3 +298,20 @@ async def test_sold_in_period_keeps_its_result(pool: Any) -> None:
     assert sold is not None and sold.valor.value == D(0) and sold.aplicado == D(0)
     assert sold.resultado == D("49.00")  # 0 − 120 − (28 − 192) + 5
     assert find(mar) is None  # vendida antes do período: fora
+
+
+def test_estimated_start_class_is_left_out() -> None:
+    """Story 8.3 (achado): sem histórico de preço cripto antes de 18/10/2026, o início do bloco é o
+    aplicado (custo) e o fim é o valor de mercado — o retorno seria fabricado. A classe estimada no
+    início sai do consolidado e fica "sem_preco"."""
+    start_day, end_day = date(2026, 9, 30), date(2026, 10, 18)
+    start = {"acoes_br": D(1000), "cripto": D(6000)}
+    end = {"acoes_br": D(1010), "cripto": D(4600)}
+    flows: dict[tuple[str, date], Decimal] = {}
+    out = closing._returns(start, start_day, flows, end, end_day, None, None, frozenset({"cripto"}))
+    only = closing._returns(
+        {"acoes_br": D(1000)}, start_day, flows, {"acoes_br": D(1010)}, end_day, None, None
+    )
+    assert out.nominal == only.nominal
+    assert out.by_class["cripto"][0].unavailable_reason == "sem_preco"
+    assert out.by_class["acoes_br"][0] == only.by_class["acoes_br"][0]

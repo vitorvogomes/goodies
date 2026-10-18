@@ -9,6 +9,10 @@ export interface PositionAsset {
   manual: boolean;
   xirr_mensal: number | null; // % a.m. do período (RF e cripto não têm)
   nota: string | null; // RF: "{x}% do CDI · CDI até dd/mm/aaaa"
+  asset_id: string | null;
+  alocacao: number | null; // Story 8.3: % do ativo na classe
+  meta: number | null;
+  desvio_pp: number | null;
 }
 
 export interface PositionClass {
@@ -21,6 +25,11 @@ export interface PositionClass {
   assets: PositionAsset[];
   xirr_nominal: Valued;
   xirr_real: Valued;
+  alocacao: number | null; // Story 8.3: % na base (sem os objetivos)
+  meta: number | null;
+  banda: number | null;
+  desvio_pp: number | null;
+  fora_banda: boolean;
 }
 
 export interface PositionsReport {

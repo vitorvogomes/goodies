@@ -19,13 +19,13 @@ from pydantic import BaseModel, Field
 from engines.common.assets import CLASS_BY_CATEGORY, CRYPTO_CATEGORIES, AssetClass
 from engines.common.dates import month_end, today_brt
 from engines.common.models import Valued
-from engines.common.money import Money
+from engines.common.money import Money, Pct
 from engines.market import service as market_service
 from engines.wallet import service as wallet_service
 
 from . import calc
 from .rf import rf_cdi_assets, rf_rate_assets
-from .valuation import PortfolioValuation, valuation_as_of
+from .valuation import CRYPTO_ESTIMATED, PortfolioValuation, valuation_as_of
 
 STALE_AFTER_DAYS = 3  # preço diário + fim de semana (o mesmo do Painel)
 _CRYPTO = [str(c) for c in CRYPTO_CATEGORIES]
@@ -51,12 +51,17 @@ def _before_first() -> Valued[Decimal]:
 
 class PositionAsset(BaseModel):
     symbol: str
+    asset_id: str | None = None  # Story 8.3: a meta por ativo e o vínculo a objetivo
     aplicado: Money | None  # None no bloco cripto (custo por ativo não é conhecido)
     valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
     resultado: Money | None
     manual: bool = False
     xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); RF e cripto não têm
     nota: str | None = None  # RF pelo CDI: "{x}% do CDI · CDI até dd/mm/aaaa" (Story 7.4)
+    # Story 8.3 (preenchidos por `planning`): % do ativo na classe × meta do ativo, desvio em p.p.
+    alocacao: Pct | None = None
+    meta: Pct | None = None
+    desvio_pp: Pct | None = None
 
 
 class PositionClass(BaseModel):
@@ -70,6 +75,12 @@ class PositionClass(BaseModel):
     # Story 7.3: XIRR do período da classe (% a.a.), nominal e real — preenchidos por `closing`
     xirr_nominal: Valued[Decimal] = Field(default_factory=lambda: _before_first())
     xirr_real: Valued[Decimal] = Field(default_factory=lambda: _before_first())
+    # Story 8.3 (preenchidos por `planning`): % da classe na base (sem os objetivos) × meta ± banda
+    alocacao: Pct | None = None
+    meta: Pct | None = None
+    banda: Pct | None = None
+    desvio_pp: Pct | None = None
+    fora_banda: bool = False
 
 
 def _dec(value: Any) -> Decimal:
@@ -82,6 +93,12 @@ async def _live_prices(conn: asyncpg.Connection, symbols: list[str]) -> dict[str
         symbols,
     )
     return {r["ticker"]: r for r in rows}
+
+
+async def _asset_ids(conn: asyncpg.Connection) -> dict[tuple[str, str], str]:
+    """(classe, símbolo) → assets.id (o `price_ref` é o símbolo das operações e dos preços)."""
+    rows = await conn.fetch("SELECT id::text AS id, class, price_ref FROM assets")
+    return {(r["class"], r["price_ref"]): r["id"] for r in rows}
 
 
 async def _crypto_assets(
@@ -110,9 +127,11 @@ async def _crypto_assets(
             price = prices[w["asset_symbol"]].value
             if price is not None:
                 found[w["asset_symbol"]] += price * _dec(w["quantity"])
+    ids = await _asset_ids(conn)
     return [
         PositionAsset(
             symbol=s,
+            asset_id=ids.get((str(AssetClass.CRIPTO), s)),
             aplicado=None,
             valor=Valued[Decimal](
                 value=v.quantize(_CENT),
@@ -128,9 +147,15 @@ async def _crypto_assets(
 
 
 async def positions_period(
-    conn: asyncpg.Connection, owner: str, start: date | None, end: date
+    conn: asyncpg.Connection,
+    owner: str,
+    start: date | None,
+    end: date,
+    set_aside: frozenset[str] = frozenset(),
 ) -> list[PositionClass]:
-    """`start` = 1º mês do período (None = desde o início); `end` = mês do Seletor de período."""
+    """`start` = 1º mês do período (None = desde o início); `end` = mês do Seletor de período.
+    `set_aside` (Story 8.3): ativos que saem das classes para o bloco "Objetivos" (quem diz quais
+    são é `planning`, AD-11) — seguem no patrimônio."""
     from .crypto_sleeve import sleeve_cashflows
 
     today = today_brt()
@@ -165,6 +190,7 @@ async def positions_period(
     )
 
     assets_by_class: dict[str, list[PositionAsset]] = defaultdict(list)
+    ids = await _asset_ids(conn)
     for symbol, sops in by_symbol.items():
         # vendida no período: entra com valor 0 e o resultado do período; antes dele, fora
         closed = calc.quantity(sops) <= 0
@@ -231,6 +257,7 @@ async def positions_period(
         assets_by_class[cls].append(
             PositionAsset(
                 symbol=symbol,
+                asset_id=ids.get((cls, symbol)),
                 aplicado=aplicado,
                 valor=valor,
                 resultado=resultado.quantize(_CENT) if resultado is not None else None,
@@ -253,9 +280,14 @@ async def positions_period(
     flows = await sleeve_cashflows(conn)
     crypto_out = -sum((_dec(a) for d, a in flows if d <= as_of), Decimal(0))
     crypto_value = end_val.crypto_value
+    crypto_result: Decimal | None
     if start is None or start_val is None:
         crypto_result = calc.investment_result(
             crypto_value, contributed=crypto_out, income=Decimal(0)
+        )
+    elif start_val.coverage.get("cripto") == CRYPTO_ESTIMATED:
+        crypto_result = (
+            None  # início pelo aplicado (sem preço histórico): o resultado seria fabricado
         )
     else:
         crypto_result = calc.period_result(
@@ -265,6 +297,11 @@ async def positions_period(
             income=Decimal(0),
         )
 
+    aside = [a for assets in assets_by_class.values() for a in assets if a.asset_id in set_aside]
+    for cls_key in list(assets_by_class):
+        assets_by_class[cls_key] = [
+            a for a in assets_by_class[cls_key] if a.asset_id not in set_aside
+        ]
     out: list[PositionClass] = []
     for key, label in CLASS_ORDER:
         if key == AssetClass.CRIPTO:
@@ -275,7 +312,7 @@ async def positions_period(
                     is_bucket=True,
                     aplicado=crypto_out.quantize(_CENT),
                     valor=crypto_value.quantize(_CENT),
-                    resultado=crypto_result.quantize(_CENT),
+                    resultado=crypto_result.quantize(_CENT) if crypto_result is not None else None,
                     assets=await _crypto_assets(conn, owner, as_of, live),
                 )
             )
@@ -300,4 +337,26 @@ async def positions_period(
                 assets=assets,
             )
         )
+    if aside:
+        out.append(_block(GOALS_BLOCK, "Objetivos", aside))
     return out
+
+
+GOALS_BLOCK = "objetivos"
+
+
+def _block(key: str, label: str, assets: list[PositionAsset]) -> PositionClass:
+    results = [a.resultado for a in assets]
+    return PositionClass(
+        key=key,
+        label=label,
+        is_bucket=False,
+        aplicado=sum((a.aplicado or Decimal(0) for a in assets), Decimal(0)),
+        valor=sum((a.valor.value or Decimal(0) for a in assets), Decimal(0)),
+        resultado=(
+            sum((r for r in results if r is not None), Decimal(0))
+            if all(r is not None for r in results)
+            else None
+        ),
+        assets=assets,
+    )

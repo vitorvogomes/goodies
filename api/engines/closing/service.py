@@ -29,12 +29,14 @@ from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
+from engines.planning import allocation as planning_allocation
+from engines.planning import goals as planning_goals
 from engines.planning import service as planning_service
 from engines.planning.models import MonthBudget
 from engines.portfolio import calc as portfolio_calc
 from engines.portfolio import positions as positions_service
 from engines.portfolio.brokers import broker_cash_as_of
-from engines.portfolio.valuation import valuation_as_of
+from engines.portfolio.valuation import CRYPTO_ESTIMATED, valuation_as_of
 
 from .checks import label, run_checks
 from .models import (
@@ -919,7 +921,10 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
     end = months[-1]
     start = None if leitura == "inicio" else months[0]
     owner = await get_owner_id(conn)
-    classes = await positions_service.positions_period(conn, owner, start, end)
+    # Story 8.3: ativos de objetivos num bloco à parte; alocação × meta pelas metas do mês
+    linked = frozenset(await planning_goals.linked_assets(conn))
+    classes = await positions_service.positions_period(conn, owner, start, end, set_aside=linked)
+    await planning_allocation.apply_allocation(conn, classes, end)
     if leitura == "inicio":
         ret = await period_return(conn, months)  # desde jul/2024: o valor de jun/2024 não existe
         summary = await month_summary(conn, end)
@@ -976,21 +981,29 @@ def _pct(rate: float | None) -> Decimal | None:
     return (Decimal(repr(rate)) * 100).quantize(Decimal("0.01")) if rate is not None else None
 
 
-async def _class_values_at(conn: asyncpg.Connection, month: date) -> dict[str, Decimal] | None:
+async def _class_values_at(
+    conn: asyncpg.Connection, month: date
+) -> tuple[dict[str, Decimal], frozenset[str]] | None:
     """Valor investido por classe no fim do mês: o snapshot se fechado; senão a valoração do
-    portfolio naquela data (sem montar o resumo inteiro). Antes de jul/2024 → None."""
+    portfolio naquela data (sem montar o resumo inteiro). Antes de jul/2024 → None. Junto, as
+    classes que valiam uma estimativa (o bloco cripto pelo aplicado, sem preço histórico)."""
     if month < MIN_MONTH:
         return None
     close = await latest_close(conn, month)
     if close is not None and close["status"] == "closed":
         _, lines = await _frozen(conn, month, close["version"])
-        return {
+        coverage = dict(json.loads(close["coverage"]))
+        values = {
             r["dimension_id"]: r["value"]
             for r in lines
             if r["metric"] == "valor" and r["dimension_kind"] == "class"
         }
-    owner = await get_owner_id(conn)
-    return dict((await valuation_as_of(conn, owner, month_end(month))).by_class)
+    else:
+        owner = await get_owner_id(conn)
+        valuation = await valuation_as_of(conn, owner, month_end(month))
+        coverage, values = valuation.coverage, dict(valuation.by_class)
+    estimated = frozenset({"cripto"} if coverage.get("cripto") == CRYPTO_ESTIMATED else set())
+    return values, estimated
 
 
 async def _ipca(conn: asyncpg.Connection, months: list[date]) -> tuple[Decimal | None, date | None]:
@@ -1015,8 +1028,15 @@ def _returns(
     end_day: date,
     ipca: Decimal | None,
     ipca_last: date | None,
+    estimated: frozenset[str] = frozenset(),
 ) -> PeriodReturn:
+    """`estimated`: classes cujo valor no início é estimativa (o bloco cripto pelo aplicado, sem
+    preço histórico) — saem do consolidado e ficam `sem_preco` (o retorno seria fabricado)."""
     days = (end_day - start_day).days
+    if estimated:
+        start = {k: v for k, v in start.items() if k not in estimated}
+        flows = {k: v for k, v in flows.items() if k[0] not in estimated}
+        end = {k: v for k, v in end.items() if k not in estimated}
 
     def pair(s: Decimal, f: list[tuple[date, Decimal]], e: Decimal) -> tuple[Any, Any]:
         rate = portfolio_calc.period_xirr(s, start_day, f, e, end_day)
@@ -1046,6 +1066,9 @@ def _returns(
         )
         for c in classes
     }
+    for c in estimated:
+        none = Valued[Decimal](unavailable_reason="sem_preco", as_of=end_day)
+        by_class[c] = (none, none)
     return PeriodReturn(nominal, real, by_class, ipca_last)
 
 
@@ -1058,21 +1081,30 @@ async def _month_return(
     conn: asyncpg.Connection, month: date, valuation: Any, as_of: date
 ) -> PeriodReturn:
     """XIRR do mês para o resumo: fim do mês anterior → fim do mês (ou hoje)."""
-    start = await _class_values_at(conn, add_months(month, -1))
-    if start is None:
+    found = await _class_values_at(conn, add_months(month, -1))
+    if found is None:
         return _unavailable_return("antes_do_primeiro_fechamento")
+    start, estimated = found
     ipca, last = await _ipca(conn, [month])
     return _returns(
-        start, month - timedelta(days=1), valuation.flows, valuation.by_class, as_of, ipca, last
+        start,
+        month - timedelta(days=1),
+        valuation.flows,
+        valuation.by_class,
+        as_of,
+        ipca,
+        last,
+        estimated,
     )
 
 
 async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodReturn:
     """XIRR do período: valor no fim do mês anterior (snapshot ou valoração), os fluxos líquidos
     datados de cada mês (snapshot ou ao vivo) e o valor no fim; o real desconta o IPCA efetivo."""
-    start = await _class_values_at(conn, add_months(months[0], -1))
-    if start is None:
+    found = await _class_values_at(conn, add_months(months[0], -1))
+    if found is None:
         return _unavailable_return("antes_do_primeiro_fechamento")
+    start, estimated = found
     flows: dict[tuple[str, date], Decimal] = {}
     end: dict[str, Decimal] = {}
     end_day = months[-1]
@@ -1082,7 +1114,9 @@ async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodR
             flows[key] = flows.get(key, Decimal(0)) + value
         end, end_day = dict(s.valor_por_classe), s.as_of
     ipca, last = await _ipca(conn, months)
-    return _returns(start, months[0] - timedelta(days=1), flows, end, end_day, ipca, last)
+    return _returns(
+        start, months[0] - timedelta(days=1), flows, end, end_day, ipca, last, estimated
+    )
 
 
 async def real_since_start(

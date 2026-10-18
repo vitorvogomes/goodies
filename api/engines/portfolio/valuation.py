@@ -68,6 +68,10 @@ class PortfolioValuation:
         )
 
 
+# Sem preço histórico de algum ativo cripto na data: o bloco vale o aplicado (custo), não o mercado
+CRYPTO_ESTIMATED = "estimada (aplicado do bloco)"
+
+
 def _dec(value: Any) -> Decimal:
     return Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
 
@@ -266,7 +270,7 @@ async def _past(
         crypto_method = "histórico de carteira"
     else:
         out.crypto_value = max(crypto_net, Decimal(0))
-        crypto_method = "estimada (aplicado do bloco)"
+        crypto_method = CRYPTO_ESTIMATED
     if out.crypto_value:
         out.by_class["cripto"] = out.crypto_value
     out.contributed += crypto_net
