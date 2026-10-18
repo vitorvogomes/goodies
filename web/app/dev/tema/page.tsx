@@ -21,10 +21,14 @@ import {
 } from "@/components/ui/select";
 import { Suspense } from "react";
 
+import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { StatusBadge } from "@/components/data/StatusBadge";
 import { ImportSheet } from "@/components/shell/ImportSheet";
 import { PeriodSelector } from "@/components/shell/PeriodSelector";
 import { ThemeSwitch } from "@/components/shell/ThemeSwitch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const COLORS = [
@@ -49,6 +53,22 @@ const TYPE = [
   ["type-tag", "a caminho"],
 ] as const;
 const RADII = ["rounded-xs", "rounded-sm", "rounded-md", "rounded-lg", "rounded-xl", "rounded-full"];
+
+type Demo = { id: string; nome: string; valor: number; origem: string };
+const DEMO: Demo[] = [
+  { id: "1", nome: "Mercado", valor: -412.3, origem: "regra" },
+  { id: "2", nome: "Recorrente", valor: 8781.08, origem: "manual" },
+  { id: "3", nome: "Uber", valor: -32.9, origem: "sugestão" },
+];
+const DEMO_COLS: DataColumn<Demo>[] = [
+  { id: "nome", header: "Descrição", value: (d) => d.nome },
+  { id: "valor", header: "Valor", value: (d) => d.valor, numeric: true, cell: (d) => formatBRL(d.valor) },
+  { id: "origem", header: "Origem", value: (d) => d.origem, cell: (d) => <StatusBadge>{d.origem}</StatusBadge> },
+];
+const DEMO_OPTIONS = [
+  { id: "a", key: "gasto:alimentacao", name: "Mercado", label: "Alimentação › Mercado", group_key: "alimentacao", group_name: "Alimentação", kind: "expense", role: "consumo", is_active: true },
+  { id: "b", key: "gasto:transporte", name: "Transporte", label: "Transporte › Transporte", group_key: "transporte", group_name: "Transporte", kind: "expense", role: "consumo", is_active: true },
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -169,6 +189,32 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+      </Section>
+
+      <Section title="Selo de estado">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge>conferido</StatusBadge>
+          <StatusBadge tone="warning">a revisar</StatusBadge>
+          <StatusBadge tone="divergence">divergente</StatusBadge>
+        </div>
+      </Section>
+
+      <Section title="Combobox de categoria">
+        <div className="flex gap-2">
+          <CategoryCombobox options={DEMO_OPTIONS} value="a" label="Alimentação › Mercado" onSelect={() => {}} />
+          <CategoryCombobox options={DEMO_OPTIONS} value={null} label="sem sugestão" empty onSelect={() => {}} />
+        </div>
+      </Section>
+
+      <Section title="Tabela de dados">
+        <DataTable
+          tableId={`tema-${mode}`}
+          caption="Exemplo"
+          data={DEMO}
+          columns={DEMO_COLS}
+          getRowId={(d) => d.id}
+          renderExpanded={(d) => <span className="type-body-sm">Detalhe de {d.nome}</span>}
+        />
       </Section>
 
       <Section title="Seletor de período">

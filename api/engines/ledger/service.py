@@ -19,6 +19,7 @@ from engines.common.month_status import month_status
 
 from . import queries
 from .calc import Movement, Rule, savings_rate
+from .models import KIND_LABEL, CategoryOption, TransactionList, TransactionRow
 
 AlertData = dict[str, float | int | str]
 
@@ -266,3 +267,78 @@ async def monthly_savings(
     for r in await queries.month_movements(conn, months):
         by_month.setdefault(r["month"], []).append(Movement(r["amount"], r["kind"], r["role"]))
     return {m: savings_rate(mv) for m, mv in sorted(by_month.items())}
+
+
+# --------------------------------------------------------------------------------------------
+# Caixa › Transações (Story 2.7)
+# --------------------------------------------------------------------------------------------
+
+
+def to_row(r: asyncpg.Record) -> TransactionRow:
+    return TransactionRow(
+        id=str(r["id"]),
+        date=r["date"],
+        description=r["description"],
+        amount=r["amount"],
+        kind=r["kind"],
+        kind_label=KIND_LABEL.get(r["kind"], r["kind"]),
+        category_id=str(r["category_id"]),
+        category_name=r["category_name"],
+        category_key=r["category_key"],
+        group_name=r["group_name"],
+        category_source=r["category_source"],
+        review_status=r["review_status"],
+        payer=r["payer"],
+        account_id=str(r["account_id"]),
+        account_name=r["account_name"],
+        source=r["source"],
+        batch_id=str(r["batch_id"]) if r["batch_id"] else None,
+        file_name=r["file_name"],
+        rule_pattern=r["rule_pattern"],
+    )
+
+
+async def list_transactions(
+    conn: asyncpg.Connection, month: date, limit: int, offset: int
+) -> TransactionList:
+    end = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+    rows, total = await queries.transactions_page(conn, month, end, limit, offset)
+    return TransactionList(items=[to_row(r) for r in rows], total=total, limit=limit, offset=offset)
+
+
+async def set_category_manual(
+    conn: asyncpg.Connection, tx_id: str, category_id: str
+) -> TransactionRow | None:
+    """Correção na linha: categorize() com origem manual, confirmada (Story 2.7)."""
+    if not await queries.category_exists(conn, category_id):
+        raise LookupError("categoria")
+    async with conn.transaction():
+        if await queries.transaction_row(conn, tx_id) is None:
+            return None
+        await categorize(
+            conn,
+            [CategoryChange(tx_id, category_id, "manual")],
+            cause="inline_edit",
+            review_status="confirmed",
+        )
+    row = await queries.transaction_row(conn, tx_id)
+    return to_row(row) if row is not None else None
+
+
+async def category_options(
+    conn: asyncpg.Connection, include_archived: bool = False
+) -> list[CategoryOption]:
+    return [
+        CategoryOption(
+            id=str(r["id"]),
+            key=r["key"],
+            name=r["name"],
+            label=f"{r['group_name']} › {r['name']}",
+            group_key=r["group_key"],
+            group_name=r["group_name"],
+            kind=r["kind"],
+            role=r["role"],
+            is_active=r["is_active"],
+        )
+        for r in await queries.category_options(conn, include_archived)
+    ]

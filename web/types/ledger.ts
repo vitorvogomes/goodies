@@ -168,3 +168,47 @@ export interface Suggestion {
   suggested_category: string;
   score: number;
 }
+
+// ---- v2: /api/v1/ledger/* (Story 2.7) ----
+export type CategorySource = "rule" | "suggestion" | "manual";
+
+export interface LedgerTransaction {
+  id: string;
+  date: string;
+  description: string | null;
+  amount: number;
+  kind: string;
+  kind_label: string;
+  category_id: string;
+  category_name: string;
+  category_key: string;
+  group_name: string;
+  category_source: CategorySource;
+  review_status: "pending" | "confirmed";
+  payer: string | null;
+  account_id: string;
+  account_name: string;
+  source: string;
+  batch_id: string | null;
+  file_name: string | null;
+  rule_pattern: string | null;
+}
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CategoryOption {
+  id: string;
+  key: string;
+  name: string;
+  label: string;
+  group_key: string;
+  group_name: string;
+  kind: string;
+  role: string;
+  is_active: boolean;
+}

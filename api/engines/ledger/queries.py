@@ -105,3 +105,67 @@ async def month_movements(
         MONTH_MOVEMENTS, list(months) if months is not None else None
     )
     return rows
+
+
+TX_COLUMNS = """
+    t.id, t.date, t.description, t.amount, t.kind, t.category_id, c.name AS category_name,
+    c.key AS category_key, g.name AS group_name, t.category_source, t.review_status, t.payer,
+    t.account_id, a.name AS account_name, t.source, t.batch_id, r.pattern AS rule_pattern,
+    (SELECT f.file_name FROM import_batch_files f WHERE f.batch_id = t.batch_id
+     ORDER BY f.created_at LIMIT 1) AS file_name
+"""
+TX_FROM = """
+    FROM transactions t
+    JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN category_rules r ON r.id = t.category_rule_id
+"""
+
+
+async def transactions_page(
+    conn: asyncpg.Connection, start: object, end: object, limit: int, offset: int
+) -> tuple[list[asyncpg.Record], int]:
+    rows: list[asyncpg.Record] = await conn.fetch(
+        f"SELECT {TX_COLUMNS} {TX_FROM} WHERE t.date >= $1 AND t.date < $2 "
+        "ORDER BY t.date DESC, t.created_at DESC, t.id LIMIT $3 OFFSET $4",
+        start,
+        end,
+        limit,
+        offset,
+    )
+    total = await conn.fetchval(
+        "SELECT count(*) FROM transactions t WHERE t.date >= $1 AND t.date < $2", start, end
+    )
+    return rows, int(total)
+
+
+async def transaction_row(conn: asyncpg.Connection, tx_id: str) -> asyncpg.Record | None:
+    row: asyncpg.Record | None = await conn.fetchrow(
+        f"SELECT {TX_COLUMNS} {TX_FROM} WHERE t.id = $1", tx_id
+    )
+    return row
+
+
+async def category_options(
+    conn: asyncpg.Connection, include_archived: bool
+) -> list[asyncpg.Record]:
+    rows: list[asyncpg.Record] = await conn.fetch(
+        """
+        SELECT c.id, c.key, c.name, c.role, c.is_active, g.key AS group_key,
+               g.name AS group_name, g.kind
+        FROM categories c JOIN category_groups g ON g.id = c.group_id
+        WHERE NOT g.is_system AND ($1 OR (c.is_active AND g.is_active))
+        ORDER BY g.kind, g.name, c.name
+        """,
+        include_archived,
+    )
+    return rows
+
+
+async def category_exists(conn: asyncpg.Connection, category_id: str) -> bool:
+    return bool(
+        await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM categories WHERE id = $1::uuid)", category_id
+        )
+    )

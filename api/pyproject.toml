@@ -48,6 +48,9 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 
+# Tipografia da UI (DESIGN.md/EXPERIENCE.md): "Grupo › Subcategoria", menos tipográfico, travessão.
+allowed-confusables = ["›", "−", "–", "×"]
+
 [tool.ruff.lint.isort]
 # stdlib -> third-party -> local, com linha em branco (conventions.md)
 known-first-party = ["engines", "workers", "hermes", "auth", "db", "scripts", "config"]

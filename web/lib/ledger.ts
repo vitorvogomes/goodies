@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
+import { invalidateAfter } from "@/lib/invalidate";
 import type {
   Account,
   Alert,
@@ -12,11 +13,14 @@ import type {
   CategoryBreakdown,
   CategoryCreate,
   CategoryKind,
+  CategoryOption,
   CategoryUpdate,
   FixedCost,
   FixedCostCreate,
   ImportReport,
+  LedgerTransaction,
   MonthlySummary,
+  Page,
   Suggestion,
   Transaction,
   TransactionCreate,
@@ -232,5 +236,37 @@ export function useImportStatement() {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
     },
+  });
+}
+
+// ---- v2: Caixa › Transações (Story 2.7) — queryKey [engine, recurso, periodo] (AD-17) ----
+
+export function useLedgerTransactions(periodo: string) {
+  return useQuery({
+    queryKey: ["ledger", "transactions", periodo],
+    queryFn: () =>
+      apiFetch<Page<LedgerTransaction>>(`/api/v1/ledger/transactions?periodo=${periodo}&limit=1000`),
+  });
+}
+
+export function useCategoryOptions(includeArchived = false) {
+  return useQuery({
+    queryKey: ["ledger", "categories", includeArchived],
+    queryFn: () =>
+      apiFetch<CategoryOption[]>(
+        `/api/v1/ledger/categories${includeArchived ? "?incluir_arquivadas=true" : ""}`,
+      ),
+  });
+}
+
+export function useSetTransactionCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, categoryId }: { id: string; categoryId: string }) =>
+      apiFetch<LedgerTransaction>(`/api/v1/ledger/transactions/${id}/category`, {
+        method: "PATCH",
+        body: JSON.stringify({ category_id: categoryId }),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }
