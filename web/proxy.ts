@@ -4,13 +4,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { loginUrl } from "@/lib/next-url";
+
 export function proxy(request: NextRequest) {
   if (request.cookies.has("refresh_token")) {
     return NextResponse.next();
   }
-  const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  return NextResponse.redirect(url);
+  // Sem sessão: /login?next=<rota+query> para voltar ao mesmo lugar e período (Story 1.9).
+  const { pathname, search } = request.nextUrl;
+  return NextResponse.redirect(new URL(loginUrl(pathname, search), request.url));
 }
 
 export const config = {

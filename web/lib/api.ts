@@ -2,6 +2,7 @@
 // Injeta o Authorization Bearer (access token em memória) e envia o cookie
 // httpOnly do refresh (credentials: "include"). Base URL via NEXT_PUBLIC_API_URL.
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
+import { loginUrl } from "@/lib/next-url";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -70,8 +71,11 @@ export async function apiFetch<T>(
   if (res.status === 401 && retry && !path.startsWith("/api/v1/auth/")) {
     const refreshed = await refreshAccessToken();
     if (refreshed) return apiFetch<T>(path, options, false);
-    // refresh falhou (sessão realmente expirou) → volta pro login.
-    if (typeof window !== "undefined") window.location.href = "/login";
+    // refresh falhou (sessão realmente expirou) → login, voltando depois para a rota + período.
+    // Navegação dura de propósito: zera o estado em memória do app (Story 1.9).
+    if (typeof window !== "undefined") {
+      window.location.assign(loginUrl(window.location.pathname, window.location.search));
+    }
   }
 
   if (!res.ok) {

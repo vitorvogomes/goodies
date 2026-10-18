@@ -1,12 +1,43 @@
-// Formatadores pt-BR para a UI do Ledger (m1).
+// Formatadores pt-BR (Story 1.8 — UX-DR24, EXPERIENCE › Números e formatação financeira).
+// Só formatam: nenhuma conta de dinheiro aqui (AD-4). Moeda completa (nunca mil/k/MM), espaço não
+// separável após "R$", menos tipográfico (−), percentual com 2 casas, desvio em p.p.
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
+const MINUS = "\u2212";
+const NBSP = "\u00a0";
+
+// Zero na precisão exibida (2 casas) nunca leva sinal: −0, −0,004 ou ruído de float (−1e-12).
+function isDisplayZero(value: number): boolean {
+  return Math.abs(value) < 0.005;
+}
+
+// O hífen do Intl vira o menos tipográfico.
+function typographic(text: string, value: number): string {
+  if (isDisplayZero(value)) return text.replace(/^-/, "");
+  return text.replace(/^-/, MINUS);
+}
+
+function decimal2(value: number): string {
+  return Math.abs(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function sign(value: number, explicitPlus: boolean): string {
+  if (isDisplayZero(value)) return "";
+  if (value < 0) return MINUS;
+  return explicitPlus ? "+" : "";
+}
+
 export function formatBRL(value: number): string {
-  return BRL.format(value);
+  return typographic(BRL.format(isDisplayZero(value) ? 0 : value), value);
+}
+
+// Variação e resultado: sinal explícito dos dois lados ("+R$ 682,10" / "−R$ 163,80").
+export function formatSignedBRL(value: number): string {
+  return !isDisplayZero(value) && value > 0 ? `+${formatBRL(value)}` : formatBRL(value);
 }
 
 // Valor em dólar (ex.: 280 -> "$280.00"). Usado nas carteiras cripto (m4).
@@ -14,20 +45,20 @@ export function formatUSD(value: number): string {
   return USD.format(value);
 }
 
-export function formatPercent(value: number): string {
-  return `${value.toFixed(1).replace(".", ",")}%`;
+// Percentual já em % (Pct da API), 2 casas e sufixo de período opcional: "10,90% a.a.".
+export function formatPercent(value: number, period?: "a.a." | "a.m."): string {
+  return `${sign(value, false)}${decimal2(value)}%${period ? ` ${period}` : ""}`;
 }
 
 // Taxa decimal -> percentual com 2 casas (ex: 0.0853 -> "8,53%"). null -> "—".
 export function formatRate(value: number | null): string {
   if (value == null) return "—";
-  return `${(value * 100).toFixed(2).replace(".", ",")}%`;
+  return formatPercent(value * 100);
 }
 
-// Pontos percentuais com sinal (ex: -2.4 -> "-2,4pp", 8.7 -> "+8,7pp").
+// Desvio em pontos percentuais, com sinal e sem seta: "−3,60 p.p." / "+8,70 p.p.".
 export function formatPP(value: number): string {
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1).replace(".", ",")}pp`;
+  return `${sign(value, true)}${decimal2(value)}${NBSP}p.p.`;
 }
 
 export function formatDate(iso: string): string {
