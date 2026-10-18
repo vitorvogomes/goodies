@@ -124,7 +124,7 @@ fechamentos retroativos):
 
 | O que se confere | Contra o quê | Tolerância |
 |---|---|---|
-| Saldo Nubank CPF e MEI | saldo do OFX | R$ 0,00 (exato) |
+| Saldo Nubank PF (CPF) | saldo do OFX | R$ 0,00 (exato). *Emenda 2026-10-18: o MEI não confere; fica sempre zerado* |
 | Posições B3 (ações, FII, ETF, BDR) | consolidado mensal | quantidade exata; valor só informativo |
 | Tesouro | consolidado mensal | 0,01 título |
 | Caixa em corretora | conferência do relatório | R$ 1,00 |

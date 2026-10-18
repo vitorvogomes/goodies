@@ -2,7 +2,7 @@
 title: "PRD: Goodies v2"
 status: final
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # PRD: Goodies v2
@@ -213,7 +213,9 @@ fonte passa do limite de defasagem:
   relatório B3 a partir de {data}".
 
 #### FR-5: Conferência automática do saldo
-Depois de cada import OFX, o app compara o saldo informado no arquivo com o saldo calculado.
+Depois de cada import OFX da conta **PF (CPF)**, o app compara o saldo informado no arquivo com o
+saldo calculado. A conta MEI fica sempre zerada (o dinheiro passa para a PF), então o OFX do MEI é
+importado sem conferência de saldo e pode cobrir vários meses.
 - O saldo deve bater ao centavo. Qualquer diferença gera o aviso "saldo divergente", com o valor e
   as transações que podem explicar a diferença.
 - Quando bate, o painel principal marca o saldo como conferido na data.
@@ -515,7 +517,7 @@ transações como painéis laterais; a etapa de UX confirma]`
 **Primárias**
 - **SM-1:** 30 dias seguidos sem abrir a planilha "Rotina" para as tarefas do escopo v2.0, contados
   a partir do marco 3.
-- **SM-2:** em todo mês fechado, o saldo calculado das contas Nubank bate ao centavo com o saldo
+- **SM-2:** em todo mês fechado, o saldo calculado da conta Nubank PF bate ao centavo com o saldo
   informado no arquivo. Valida FR-5 e FR-32.
 - **SM-3:** em todo mês fechado, o patrimônio por classe bate com a origem (consolidado B3,
   carteiras) dentro da tolerância do FR-26.

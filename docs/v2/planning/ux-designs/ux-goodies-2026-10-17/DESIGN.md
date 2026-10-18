@@ -2,7 +2,7 @@
 title: "DESIGN — Goodies v2"
 status: final
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 name: Goodies
 description: Painel de finanças pessoais do Vitor. shadcn/ui + Radix + Tailwind v4 sobre Next.js; neutros tweakcn darkmatter + verde tweakcn supabase; claro e escuro. Este arquivo especifica só o delta sobre os padrões do shadcn.
 colors:
@@ -594,7 +594,7 @@ Base no shadcn; a coluna "Visual" registra só o que muda. Comportamento, conte�
 | **Switch de tema** (`theme-switch`) | DropdownMenu | Ícone meio-círculo; opções Sistema / Claro / Escuro. |
 | **Cartão KPI** (`kpi-card`) | Card | Rótulo `{typography.label}` em `{colors.muted-foreground}`; valor `{typography.num-display}`; linha de apoio (variação ou nota) + Carimbo de data. O valor só fica colorido quando o sinal é o próprio dado (Resultado do mês, Resultado dos investimentos), sempre com sinal e seta. Rentabilidade nominal e real em cartões separados, com "a.a." em `{typography.caption}`. |
 | **Linha de aviso** (`alert-item`) | — | Ponto com halo + tag de severidade + mensagem + ação como link `{colors.positive}`. A tag ocupa slot de largura fixa (a da tag mais longa), para todas as mensagens começarem no mesmo x. Severidade **divergência** (saldo divergente, posição divergente da origem, caixa em corretora divergente da conferência): texto `{colors.negative}` sobre `{colors.negative-tint}`. Os demais tipos são **aviso**: texto `{colors.warning}` sobre `{colors.warning-tint}`, ponto `{colors.warning-dot}`. Variante compacta (sem borda, recuada) dentro de tabelas e resumos. |
-| **Bloco Fontes** (`sources-block`) | Card + Table | Tabela compacta em largura total: fonte, tipo (OFX, xlsx, automático), atualizado até (Carimbo de data) e saldo. Nas contas Nubank, o saldo traz Selo de estado "conferido" ou "divergente" seguido do valor ("divergente · R$ 37,20"). Mesmo visual no Painel e no topo do Hub de import. |
+| **Bloco Fontes** (`sources-block`) | Card + Table | Tabela compacta em largura total: fonte, tipo (OFX, xlsx, automático), atualizado até (Carimbo de data) e saldo. Na conta Nubank PF, o saldo traz Selo de estado "conferido" ou "divergente" seguido do valor ("divergente · R$ 37,20"). Mesmo visual no Painel e no topo do Hub de import. |
 | **Tabela de dados** (`data-table`) | Table + TanStack | Cabeçalho em `{colors.muted}` com texto `{colors.foreground}`; linhas separadas por `{colors.border}`; hover e foco em `{colors.row-highlight}`; números à direita em mono. **Linha de grupo:** 600 só no rótulo (com chevron); números em 500. **Total:** 600 + fundo `{colors.muted}`. **Anotações** (desvio em p.p., "piso", cadeado) em coluna própria ou num slot de `{spacing.table-annotation-slot}` depois do número; o número sempre encosta na mesma borda. Alternador Resumo/Detalhado no cabeçalho. |
 | **Selo de variação** (`change-pill`) | Badge | Seta + sinal + valor sobre o tint da própria cor: "▲ +R$ 682,10" em `{colors.positive}` sobre `{colors.positive-tint}`; "▼ −R$ 163,80" em `{colors.negative}` sobre `{colors.negative-tint}`. Alinhado à direita, com a mesma largura mínima em toda a coluna. |
 | **Selo de estado** (`status-badge`) | Badge | Pílula `{rounded.full}` em `{typography.tag}`, minúscula. Tons: **neutro** `{colors.secondary-foreground}` sobre `{colors.secondary}`; **aviso** `{colors.warning}` sobre `{colors.warning-tint}`; **divergência** `{colors.negative}` sobre `{colors.negative-tint}`. Check neutro opcional à esquerda em "conferido" e "pago". Nunca verde: estado bom não é ganho. |

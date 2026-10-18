@@ -2,7 +2,7 @@
 title: "EXPERIENCE — Goodies v2"
 status: final
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 name: Goodies
 sources:
   - ../../prds/prd-goodies-2026-10-17/prd.md
@@ -81,7 +81,7 @@ Sub-telas são **Abas**; Hub de import, Revisão de transações, Central de avi
 | lacuna | "Lacuna em {fonte}: {dd/mm/aaaa} a {dd/mm/aaaa}." | Importar |
 | transferência não coberta | "R$ {valor} a caminho da {corretora}. Importe o relatório B3 a partir de {dd/mm/aaaa}." | Importar |
 | fonte desatualizada | "{Fonte} sem import desde {dd/mm/aaaa}." | Importar |
-| saldo divergente | "Saldo divergente em R$ {valor} na conta {CPF/MEI}." | Ver transações |
+| saldo divergente | "Saldo divergente em R$ {valor} na conta PF." | Ver transações |
 | CSV sem conferência | "CSV importado sem conferência de saldo. Só o OFX permite conferir." | Importar OFX |
 | transações a revisar | "{n} transações a revisar." | Revisar |
 | custo fixo vencendo ou atrasado | "{Custo} vence em {dd/mm/aaaa}." · "{Custo} atrasado desde {dd/mm/aaaa}." | Ver custos fixos |
@@ -111,7 +111,7 @@ Comportamento; o visual está em `DESIGN.md` › Components.
 | **Linha de aviso** | Central de avisos, Painel | Mensagem + uma ação. No Painel, até 3 (divergências primeiro) + "Ver todos ({n})", com {n} = total de avisos ativos, o mesmo do Sino de avisos. |
 | **Resumo do aporte** | Painel | Planejado; "Realizado R$ {total} · dos quais R$ {a caminho} a caminho"; Barra de progresso com legenda realizado em ativo · a caminho · pendente; linha "a caminho" com a corretora e "importe o relatório B3 a partir de dd/mm/aaaa"; com classe fora da banda, Linha de aviso compacta "{n} classes fora da banda" → **Ver aportes** (FR-13). Clique no cabeçalho → Aportes. |
 | **Resumo de custos fixos** | Painel | Cabeçalho "pago R$ {x} de R$ {y}". Só atrasados, vencendo e pendentes, nessa ordem, com data e Selo de estado; pagos recolhidos em "{n} pagos". Rodapé "{n} a pagar · R$ {valor}". Clique → Caixa › Custos fixos. |
-| **Bloco Fontes** | Painel, Hub de import | Uma linha por fonte: as 5 de arquivo (Nubank CPF e MEI; B3 movimentação, negociação, consolidado) e as automáticas (preços, carteiras, CDI/IPCA), com Carimbo de data. Contas Nubank: "conferido" + data, ou "divergente" + valor (leva às transações candidatas). Defasada (FR-3): ponto de aviso. Fonte de arquivo abre o Hub. |
+| **Bloco Fontes** | Painel, Hub de import | Uma linha por fonte: as 5 de arquivo (Nubank CPF e MEI; B3 movimentação, negociação, consolidado) e as automáticas (preços, carteiras, CDI/IPCA), com Carimbo de data. Conta Nubank PF: "conferido" + data, ou "divergente" + valor (leva às transações candidatas); a linha do MEI mostra só o atualizado até (conta sempre zerada, sem conferência). Defasada (FR-3): ponto de aviso. Fonte de arquivo abre o Hub. |
 | **Tabela de dados** | Todas as listas | Modos **Resumo** (grupos recolhidos) e **Detalhado** (tudo expandido, todas as colunas), lembrados por tabela. Ordenação por coluna; grupo expande com clique ou →/←. Filtro de texto em tabelas com mais de 20 linhas. **Nunca corta:** sem espaço, rola na horizontal com pista visível e primeira coluna fixa; a rolagem é alcançável por teclado (contêiner focável). |
 | **Selo de variação** | Tabelas, KPIs | Seta + sinal + valor; zero = "0,00%" neutro, sem seta. |
 | **Selo de estado** | Seletor de período, Bloco Fontes, Custos fixos, Posições, Conciliação, Histórico | Só leitura, com texto e tooltip ("o IPCA de out/2026 ainda não saiu"). Vocabulário fechado: neutro "aberto", "fechado", "conferido", "pago", "pendente", "a caminho", "aguardando IPCA", "manual"; aviso "vencendo", "atrasado", "ajuste"; divergência "divergente". |
@@ -130,9 +130,9 @@ Comportamento; o visual está em `DESIGN.md` › Components.
 | **Lista de custos fixos com casamento** | Caixa › Custos fixos | Cabeçalho: pago × pendente. Linha: nome, valor, vencimento, Selo de estado (pago, pendente, vencendo, atrasado) e transação casada (±10%, −5 a +5 dias); ordem atrasado → pago. Ações: **Confirmar** · **Trocar** (transações do mês, com busca) · **Marcar pago manualmente** (Selo de estado "manual"). Confirmado: "Desfazer casamento". Duas candidatas: ver Casamento ambíguo (State Patterns). |
 | **Distribuição do aporte** | Investimentos › Aportes | Ordem do FR-29: **objetivos** (progresso até o alvo, prazo), **classes recolhidas**, expansíveis para **ativos**. Colunas de classe: meta, atual, desvio (p.p.), banda, sugerido, realizado, pendente. **Por linha, realizado = só o que virou ativo.** **Rodapé de conciliação:** objetivos + classes (Σ realizado em ativo, Σ pendente) · **+ a caminho, ainda sem classe** · **= total do mês** (realizado total, pendente total); ver Conciliação do pendente em Termos de dinheiro do mês. Editar **trava** o valor (cadeado; clique destrava); o resto redistribui na hora e o total = planejado fica fixo. Travas acima do total: "Travas somam R$ {x}, acima do planejado." Anuncia "Redistribuído: {n} linhas". Pisos reduzidos geram nota. Nunca sugere venda. |
 | **Cartão de corretora** | Investimentos › Conciliação | Um por corretora: **saiu** (do Nubank), **proventos**, **aplicado**, **caixa em corretora**, **a caminho** (Selo de estado + "importe o relatório B3 a partir de dd/mm/aaaa"), Carimbo de data. Input opcional **"Saldo que vejo na corretora"** (valor + data): mostra calculado × informado; divergência → Selo de estado "divergente" + aviso. Vazio = sem conferência. |
-| **Checklist de fechamento** | Fechamento de mês | No Diálogo de "Fechar {mês}", antes do resumo a congelar: **saldo conferido** (por conta), **transações revisadas**, **avisos do mês** (listados). Pendência: ponto de aviso + link para a tela. Fechar com pendências é permitido depois de vê-las: "Fechar {mês} com {n} pendências". |
+| **Checklist de fechamento** | Fechamento de mês | No Diálogo de "Fechar {mês}", antes do resumo a congelar: **saldo conferido** (conta PF), **transações revisadas**, **avisos do mês** (listados). Pendência: ponto de aviso + link para a tela. Fechar com pendências é permitido depois de vê-las: "Fechar {mês} com {n} pendências". |
 | **Fechamento de mês** | Visão geral › Histórico | "Fechar {mês}" abre o Checklist de fechamento. Selo de estado "aberto"/"fechado" no Histórico e no Seletor de período. "Reabrir {mês}": diálogo com **congelado × recalculado** (só linhas que mudam). Ajuste em mês fechado: Selo de estado "ajuste" + "Reabrir para recalcular". |
-| **Assistente de recuperação** | Visão geral › Painel | Cartão no topo do Painel enquanto a base não chega ao mês anterior. Trilha **jun → out/2026**, um mês por vez, 4 passos (feito / atual / a fazer): **Importar** (Hub; feito se os arquivos cobrem o mês) · **Revisar** (Revisão de transações filtrada pelo mês) · **Conferir** ("conferido"/"divergente" de CPF e MEI) · **Fechar** (Checklist de fechamento). O Seletor de período acompanha o mês; o próximo abre quando o atual fecha. Progresso derivado dos dados: pausar não perde nada. |
+| **Assistente de recuperação** | Visão geral › Painel | Cartão no topo do Painel enquanto a base não chega ao mês anterior. Trilha **jun → out/2026**, um mês por vez, 4 passos (feito / atual / a fazer): **Importar** (Hub; feito se os arquivos cobrem o mês) · **Revisar** (Revisão de transações filtrada pelo mês) · **Conferir** ("conferido"/"divergente" da conta PF) · **Fechar** (Checklist de fechamento). O Seletor de período acompanha o mês; o próximo abre quando o atual fecha. Progresso derivado dos dados: pausar não perde nada. |
 | **Gráfico de patrimônio** | Histórico | Linha mensal, com a série "aplicado" como referência. Tooltip com valor e data. A partir do primeiro mês fechado na v2. |
 | **Gráfico de gastos por categoria** | Histórico | Barras por grupo: período × anterior, média 12m como marcador. Clicar na barra abre as transações do grupo. |
 | **Gráfico de aporte planejado × realizado** | Histórico | Barras por mês do intervalo; sem planejado, só realizado. |
@@ -249,7 +249,7 @@ Sábado de manhã, com o OFX do Nubank CPF e MEI e o xlsx de negociação da B3.
 4. A **Revisão de transações** abre larga: 43 novas, todas marcadas.
 5. Numa "sugestão" errada, aperta C, digita "merc", escolhe "Alimentação › Mercado"; a tag vira "manual". A Proposta de regra surge ("Descrição contém 'ZAFFARI' … Afeta 3 outras transações."); **Criar regra**, sem perder o ritmo.
 6. Desmarca duas com Espaço; **Enter**: "Confirmar 41 transações". Toast: "41 transações confirmadas. 2 continuam a revisar."
-7. **Clímax:** no Bloco Fontes, CPF e MEI "conferido" em 17/10/2026: o saldo bate ao centavo. Conciliação: "Tudo bate com o consolidado B3 de set/2026" (o último importado).
+7. **Clímax:** no Bloco Fontes, a conta PF "conferido" em 17/10/2026: o saldo bate ao centavo. Conciliação: "Tudo bate com o consolidado B3 de set/2026" (o último importado).
 
 **Tropeços** (viram aviso): saldo divergente → candidatas; arquivo repetido → "0 novas"; formato desconhecido → recusado na linha; transferência sem B3 → "R$ 1.200,00 a caminho"; caixa em corretora divergente → Cartão de corretora com "divergente" e calculado × informado.
 
@@ -270,7 +270,7 @@ Sábado de manhã, com o OFX do Nubank CPF e MEI e o xlsx de negociação da B3.
 2. Lê receitas e gastos por categoria. Gastou mais em Lazer; clica na barra e vê as transações.
 3. Vê planejado × realizado, crescimento = aporte + resultado, e rentabilidade nominal × real com o melhor desempenho destacado.
 4. Em **Caixa › Custos fixos**, o Plano de saúde mostra "2 candidatas"; ele escolhe a transação certa e **Confirma** o casamento: o selo vira "pago".
-5. **Fechar out/2026**: o Checklist de fechamento mostra saldo conferido nas duas contas, 0 a revisar e 1 aviso (classe fora da banda). Ele lê e confirma.
+5. **Fechar out/2026**: o Checklist de fechamento mostra saldo conferido na conta PF, 0 a revisar e 1 aviso (classe fora da banda). Ele lê e confirma.
 6. **Clímax:** out/2026 ganha "fechado" no Histórico e no Seletor de período. O resumo fica como ele viu.
 
 **Falhas:** import atrasado em mês fechado → aviso + Selo de estado "ajuste"; "Reabrir out/2026" mostra congelado × recalculado, ele confirma e fecha de novo. IPCA de outubro ausente → "aguardando IPCA". Antes do primeiro mês fechado na v2 → estado de leitura indisponível.
@@ -292,7 +292,7 @@ Uma única vez, com os arquivos de jun a out/2026 já baixados. Jul/2024 a mai/2
 1. O Painel abre com o **Assistente de recuperação**: "A base vai até 31/05/2026." Trilha jun → out/2026; passo atual: jun, Importar.
 2. **Importar** abre o Hub de import. Ele arrasta tudo de uma vez (OFX CPF e MEI, B3 movimentação, negociação e consolidado). A prévia marca o que é anterior a jun/2026 como já existente. Confirma: o passo Importar fica feito em todos os meses cobertos.
 3. **Revisar** abre a Revisão de transações filtrada por jun/2026. Ele confirma em partes e desmarca o que vai rever depois.
-4. **Conferir** mostra CPF e MEI "conferido" em 30/06/2026.
+4. **Conferir** mostra a conta PF "conferido" em 30/06/2026.
 5. **Fechar** abre o Checklist de fechamento; ele fecha jun/2026. O assistente avança para jul, e o Seletor de período vai junto.
 6. **Clímax:** de jun a out/2026, os cinco meses fechados com saldo conferido. O assistente some, o Painel fica sem avisos de fonte e o Histórico compara meses pela primeira vez.
 

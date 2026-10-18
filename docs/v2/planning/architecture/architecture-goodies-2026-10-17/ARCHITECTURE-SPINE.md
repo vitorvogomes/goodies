@@ -194,6 +194,9 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
     `investimento`, `transferencia`, `a_classificar`. Termos de dinheiro (AD-7) leem **role**, nunca
     nome. Subcategoria nova herda o role padrão do grupo (`consumo` em gasto, `work_income` em
     receita, `investimento`, `transferencia`); o Vitor pode trocar.
+  - `categories.key` é imutável e única (ex.: `invest:toro_b3`, `invest:cripto_nubank`). Código que precisa de
+    uma categoria específica (trilhos de `transit`, `CaixinhaSpec`, bloco cripto) lê `key`; nunca nome. Renomear
+    muda só o rótulo.
   - `transactions.category_source ∈ {rule, suggestion, manual}`; `manual` nunca é sobrescrito.
     `review_status ∈ {pending, confirmed}`. Toda mudança gera linha em `categorization_events`
     (append-only: antes, depois, origem, lote) — base de SM-5, SM-6 e SM-C1.
@@ -272,7 +275,8 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
       `class` → enum de classe, `asset` → `assets.id`, `goal` → `goals.id`, `account` →
       `accounts.id`.
     - Tela de mês fechado só mostra campos do snapshot. Campo novo = coluna nova + refechar.
-  - Precondições: bloqueia com transações pendentes ou saldo divergente; posição divergente e a
+  - Precondições: bloqueia com transações pendentes ou saldo divergente da conta PF (sem saldo informado
+    no fim do mês = pendência com "fechar mesmo assim"); posição divergente e a
     caminho pedem "fechar mesmo assim", que fica gravado.
   - Reabrir muda o status; fechar de novo cria `version + 1`. Versões antigas nunca são apagadas nem
     exibidas.
@@ -358,7 +362,8 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
 
   | Confere | Contra | Tolerância |
   | --- | --- | --- |
-  | saldo Nubank CPF/MEI | saldo informado do OFX | R$ 0,00 |
+  | saldo Nubank PF (CPF) | saldo informado do OFX | R$ 0,00 |
+  | saldo Nubank MEI | — | não confere (conta sempre zerada; o dinheiro passa para a PF) |
   | ações, FII, ETF, BDR | consolidado B3 | quantidade exata |
   | Tesouro | consolidado B3 | 0,01 título |
   | caixa em corretora | conferência informada | R$ 1,00 |
