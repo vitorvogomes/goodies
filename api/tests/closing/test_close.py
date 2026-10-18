@@ -72,8 +72,18 @@ async def test_close_flow(api, auth_headers, pool, no_closes) -> None:
         "rentabilidade_mes_real",
         "caixa_corretora",
         "a_caminho",
+        "realizado",  # Story 8.7: o andamento do aporte no golden snapshot = ao vivo
     ):
         assert row[term] == getattr(live, term), term
+    # sem aporte planejado, o pendente congela nulo com o motivo
+    expected_pending = live.pendente if live.aporte_planejado is not None else None
+    assert row["pendente"] == expected_pending
+    async with pool.acquire() as conn:
+        frozen = await closing.month_summary(conn, MONTH)
+    assert frozen.source == "snapshot"
+    assert frozen.realizado_por_classe == live.realizado_por_classe
+    assert frozen.realizado_por_ativo == live.realizado_por_ativo
+    assert frozen.aporte_planejado == live.aporte_planejado
     assert row["unavailable"]  # termos de engines futuras: fora_do_resumo
     assert close["origin"] == "live" and close["status"] == "closed"
     assert close["coverage"]
@@ -83,6 +93,8 @@ async def test_close_flow(api, auth_headers, pool, no_closes) -> None:
         + len(live.valor_por_classe)
         + len(live.asset_ids_value)
         + len(live.flows)
+        + len(live.realizado_por_classe)
+        + len(live.realizado_por_ativo)
     )
     assert lines == expected
     again = await api.post(

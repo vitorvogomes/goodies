@@ -110,9 +110,7 @@ class Share:
     desvio: Decimal | None  # atual − meta, em p.p.
 
 
-def allocation_shares(
-    values: dict[str, Decimal], targets: dict[str, Decimal]
-) -> dict[str, Share]:
+def allocation_shares(values: dict[str, Decimal], targets: dict[str, Decimal]) -> dict[str, Share]:
     """Cada item: o % do valor na base (soma dos valores) × a meta; sem meta, sem desvio."""
     total = sum(values.values(), Decimal(0))
     out: dict[str, Share] = {}
@@ -125,3 +123,46 @@ def allocation_shares(
 
 def out_of_band(desvio: Decimal | None, banda: Decimal | None) -> bool:
     return desvio is not None and banda is not None and abs(desvio) > banda
+
+
+# --------------------------------------------------------------------------------------------
+# Andamento do aporte (Story 8.7 — FR-31, AR20)
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Progress:
+    planned: Decimal
+    realizado: Decimal  # realizado total: o investimento do mês (ledger), com o a caminho
+    em_ativo: Decimal  # Σ do realizado das linhas: só o que já virou ativo
+    a_caminho: Decimal  # realizado − em ativo (saiu da conta, ainda sem classe)
+    pendente: Decimal  # planejado − realizado (nunca negativo)
+    lines: dict[
+        str, tuple[Decimal, Decimal]
+    ]  # linha → (realizado, pendente = sugerido − realizado)
+
+
+def aporte_progress(
+    planned: Decimal,
+    realizado: Decimal,
+    sugerido: dict[str, Decimal],
+    line_realizado: dict[str, Decimal],
+) -> Progress:
+    """Σ pendente das linhas = pendente total + a caminho (o golden dos mockups): o realizado por
+    linha só conta o que virou ativo; o que saiu e ainda não tem classe é o a caminho."""
+    em_ativo = sum(line_realizado.values(), Decimal(0))
+    lines = {
+        k: (
+            line_realizado.get(k, Decimal(0)),
+            sugerido.get(k, Decimal(0)) - line_realizado.get(k, Decimal(0)),
+        )
+        for k in [*sugerido, *(k for k in line_realizado if k not in sugerido)]
+    }
+    return Progress(
+        planned=planned,
+        realizado=realizado,
+        em_ativo=em_ativo,
+        a_caminho=max(Decimal(0), realizado - em_ativo),
+        pendente=max(Decimal(0), planned - realizado),
+        lines=lines,
+    )

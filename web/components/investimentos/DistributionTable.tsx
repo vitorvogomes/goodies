@@ -6,12 +6,15 @@
 // `POST /api/v1/planning/distribution/preview` (o front não calcula). Pisos reduzidos → a nota.
 // Story 8.6: o sugerido se edita (Enter trava, cadeado no slot de anotação; clicar destrava); a
 // trava é gravada no mês e o resto redistribui pela API, com o total = planejado.
+// Story 8.7: realizado e pendente por linha, o Andamento do mês (Barra de progresso) e o rodapé de
+// conciliação — objetivos + classes · + a caminho, ainda sem classe · = total do mês.
 import { ChevronRightIcon, LockIcon } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 
+import { ProgressBar } from "@/components/data/ProgressBar";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatMonth, formatPercent, formatPP, normalizeMoneyInput } from "@/lib/format";
@@ -109,6 +112,8 @@ function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boole
             <th scope="col" className="px-4 py-2 text-right font-medium">Progresso</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Alvo</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Sugerido</th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">Realizado</th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">Pendente</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -121,6 +126,11 @@ function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boole
               <td className="px-4 py-2 text-right type-num-table">
                 {formatPercent(g.progress)}
                 <span className="block type-caption text-muted-foreground">{formatBRL(g.current)}</span>
+                <ProgressBar
+                  label={`${g.name}: ${formatPercent(g.progress)} do alvo`}
+                  solid={Math.min(g.progress, 100)}
+                  className="mt-1 w-28"
+                />
               </td>
               <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.target)}</td>
               <td className="px-4 py-2 text-right">
@@ -134,6 +144,8 @@ function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boole
                   onLock={onLock}
                 />
               </td>
+              <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.realizado)}</td>
+              <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.pendente)}</td>
             </tr>
           ))}
         </tbody>
@@ -163,6 +175,8 @@ function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boo
             <th scope="col" className="px-4 py-2 text-right font-medium">Desvio</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Banda</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Sugerido</th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">Realizado</th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">Pendente</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -203,6 +217,8 @@ function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boo
                       />
                     </span>
                   </td>
+                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.realizado)}</td>
+                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.pendente)}</td>
                 </tr>
                 {open.has(c.cls) &&
                   c.assets.map((a) => (
@@ -228,14 +244,75 @@ function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boo
                           "—"
                         )}
                       </td>
+                      <td className="px-4 py-1.5 text-right type-num-table">{formatBRL(a.realizado)}</td>
+                      <td className="px-4 py-1.5 text-right type-num-table">{a.pendente != null ? formatBRL(a.pendente) : "—"}</td>
                     </tr>
                   ))}
               </Fragment>
             );
           })}
         </tbody>
+        <Reconciliation data={data} />
       </table>
     </div>
+  );
+}
+
+// Rodapé de conciliação (Story 8.7): os números vêm prontos da API.
+function Reconciliation({ data }: { data: Distribution }) {
+  const a = data.andamento;
+  const cell = "px-4 py-2 text-right type-num-table";
+  return (
+    <tfoot className="border-t border-foreground">
+      <tr>
+        <th scope="row" colSpan={5} className="px-4 py-2 text-left font-normal">
+          Objetivos + classes · realizado em ativo
+        </th>
+        <td className={cell}>{formatBRL(a.sugerido_linhas)}</td>
+        <td className={cell}>{formatBRL(a.em_ativo)}</td>
+        <td className={cell}>{formatBRL(a.pendente_linhas)}</td>
+      </tr>
+      <tr className="text-muted-foreground">
+        <th scope="row" colSpan={5} className="px-4 py-2 text-left font-normal">
+          A caminho · ainda sem classe
+        </th>
+        <td className={cell}>—</td>
+        <td className={cell}>+{formatBRL(a.a_caminho)}</td>
+        <td className={cell}>−{formatBRL(a.a_caminho)}</td>
+      </tr>
+      <tr className="font-semibold">
+        <th scope="row" colSpan={5} className="px-4 py-2 text-left">
+          Total do mês
+        </th>
+        <td className={cell}>{formatBRL(a.planned)}</td>
+        <td className={cell}>{formatBRL(a.realizado)}</td>
+        <td className={cell}>{formatBRL(a.pendente)}</td>
+      </tr>
+    </tfoot>
+  );
+}
+
+function Andamento({ data, periodo }: { data: Distribution; periodo: string }) {
+  const a = data.andamento;
+  return (
+    <section aria-labelledby="andamento" className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+      <h3 id="andamento" className="type-label">
+        Andamento de {formatMonth(periodo)}
+      </h3>
+      <p className="type-body-sm">
+        Realizado <span className="type-num-body">{formatBRL(a.realizado)}</span> · dos quais{" "}
+        <span className="type-num-body">{formatBRL(a.a_caminho)}</span> a caminho · pendente{" "}
+        <span className="type-num-body">{formatBRL(a.pendente)}</span> de{" "}
+        <span className="type-num-body">{formatBRL(a.planned)}</span>
+        {a.pct_realizado != null && <> · {formatPercent(a.pct_realizado)} realizado</>}
+      </p>
+      <ProgressBar
+        label={`Realizado em ativo ${formatPercent(a.pct_em_ativo)} e a caminho ${formatPercent(a.pct_a_caminho)} do planejado`}
+        solid={a.pct_em_ativo}
+        hatched={a.pct_a_caminho}
+        legend={{ realizado: formatBRL(a.em_ativo), aCaminho: formatBRL(a.a_caminho), pendente: formatBRL(a.pendente) }}
+      />
+    </section>
   );
 }
 
@@ -300,10 +377,21 @@ export function DistributionTable({
           Travas somam {formatBRL(data.locks_total)}, acima do planejado.
         </p>
       )}
+      <Andamento data={data} periodo={periodo} />
       <Goals data={data} readOnly={readOnly} onLock={onLock} />
       {data.has_targets ? (
         <>
           <Classes data={data} readOnly={readOnly} onLock={onLock} />
+          <p className="type-caption text-muted-foreground">
+            Por linha, o realizado só conta quando o dinheiro vira ativo.
+            {data.andamento.confere && (
+              <>
+                {" "}
+                Σ pendente das linhas {formatBRL(data.andamento.pendente_linhas)} = pendente total{" "}
+                {formatBRL(data.andamento.pendente)} + a caminho, ainda sem classe, {formatBRL(data.andamento.a_caminho)}.
+              </>
+            )}
+          </p>
           {data.floors_reduced && (
             <p className="type-body-sm text-muted-foreground">
               Os pisos somam mais do que sobra depois dos objetivos: foram reduzidos em proporção.

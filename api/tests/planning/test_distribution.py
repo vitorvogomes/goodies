@@ -212,3 +212,24 @@ async def test_locks_saved_in_month_plan(api, auth_headers, pool) -> None:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM month_closes WHERE month = $1", month)
             await conn.execute("DELETE FROM month_plans WHERE month = $1", month)
+
+
+@pytest.mark.asyncio
+async def test_preview_carries_progress(api, auth_headers, pool) -> None:
+    """Story 8.7: cada linha com realizado e pendente; o andamento fecha (Σ pendente das linhas =
+    pendente total + a caminho, quando o realizado não passa do planejado)."""
+    import main  # noqa: F401
+
+    r = await api.post(
+        "/api/v1/planning/distribution/preview",
+        json={"mes": "2093-06", "planejado": "2000.00"},
+        headers=auth_headers,
+    )
+    body = r.json()
+    a = body["andamento"]
+    assert set(a) >= {"realizado", "em_ativo", "a_caminho", "pendente", "pendente_linhas"}
+    assert all({"realizado", "pendente"} <= set(c) for c in body["classes"])
+    if D(str(a["realizado"])) <= D(2000):
+        assert D(str(a["pendente_linhas"])) == D(str(a["pendente"])) + D(str(a["a_caminho"]))
+        assert a["confere"] is True
+    assert D(str(a["pct_em_ativo"])) + D(str(a["pct_a_caminho"])) <= D(100)

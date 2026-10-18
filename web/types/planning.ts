@@ -140,6 +140,8 @@ export interface DistributionAsset {
   atual: number;
   sugerido: number | null;
   locked: boolean;
+  realizado: number;
+  pendente: number | null;
 }
 
 export interface DistributionClass {
@@ -155,6 +157,8 @@ export interface DistributionClass {
   out_of_band: boolean;
   locked: boolean;
   assets: DistributionAsset[];
+  realizado: number;
+  pendente: number;
 }
 
 export interface DistributionGoal {
@@ -168,6 +172,22 @@ export interface DistributionGoal {
   monthly: number;
   sugerido: number;
   locked: boolean;
+  realizado: number;
+  pendente: number;
+}
+
+export interface Andamento {
+  planned: number;
+  realizado: number;
+  em_ativo: number;
+  a_caminho: number;
+  pendente: number;
+  pct_realizado: number | null;
+  sugerido_linhas: number;
+  pendente_linhas: number;
+  confere: boolean;
+  pct_em_ativo: number;
+  pct_a_caminho: number;
 }
 
 export interface Distribution {
@@ -181,4 +201,5 @@ export interface Distribution {
   locks_over: boolean;
   has_targets: boolean;
   unassigned: number;
+  andamento: Andamento;
 }

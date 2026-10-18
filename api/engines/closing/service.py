@@ -31,6 +31,7 @@ from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
 from engines.planning import allocation as planning_allocation
 from engines.planning import goals as planning_goals
+from engines.planning import progress as planning_progress
 from engines.planning import service as planning_service
 from engines.planning.models import MonthBudget
 from engines.portfolio import calc as portfolio_calc
@@ -87,6 +88,8 @@ async def build_month_summary(
     rate = ledger.taxa_poupanca
     budget = await planning_service.month_budget(conn, month)
     month_ret = await _month_return(conn, month, valuation, as_of)
+    progress = await planning_progress.month_progress(conn, month)
+    planned = progress.planned
     return MonthSummary(
         month=month,
         as_of=as_of,
@@ -127,6 +130,11 @@ async def build_month_summary(
         portfolio_as_of=valuation.data_as_of,
         portfolio_stale=valuation.stale,
         coverage=valuation.coverage,
+        aporte_planejado=planned,
+        realizado=progress.realizado,
+        pendente=max(Decimal(0), (planned or Decimal(0)) - progress.realizado),
+        realizado_por_classe=progress.by_class,
+        realizado_por_ativo=progress.by_asset,
         # o motivo de verdade de cada rentabilidade do mês que falta (sem_preco, aguardando_ipca…)
         unavailable={
             term: v.unavailable_reason
@@ -143,11 +151,9 @@ async def build_month_summary(
 # Fechar o mês: precondições, snapshot e versões (Story 5.3 — FR-32)
 # --------------------------------------------------------------------------------------------
 
-# Termos da AD-7 sem engine ainda: congelados nulos com o motivo (AD-8).
-_FUTURE_TERMS = (
-    "realizado",
-    "pendente",
-)
+# Termos da AD-7 sem engine ainda: congelados nulos com o motivo (AD-8). Desde a Story 8.7, todos
+# têm engine (realizado e pendente vêm de `planning`).
+_FUTURE_TERMS: tuple[str, ...] = ()
 
 
 class CloseError(Exception):
@@ -213,6 +219,8 @@ _MONEY = (
     "aplicado",
     "resultado_investimentos",
     "consumido",
+    "realizado",
+    "pendente",
     "disponivel",
     "restante",
     "restante_sem_resgates",
@@ -244,6 +252,8 @@ _LABELS = {
     "restante": "Restante",
     "restante_sem_resgates": "Restante sem os resgates",
     "consumo_financiado": "Consumo financiado por resgate",
+    "realizado": "Aporte realizado",
+    "pendente": "Aporte pendente",
     "a_caminho": "A caminho",
 }
 _CENT = Decimal("0.01")
@@ -259,6 +269,9 @@ def _totals(s: MonthSummary) -> tuple[dict[str, Any], dict[str, str]]:
     totals["rentabilidade_mes_real"] = s.rentabilidade_mes_real
     totals["saldo_conferido"] = s.saldo_conferido_pf
     unavailable = {t: "fora_do_resumo" for t in _FUTURE_TERMS}
+    if s.aporte_planejado is None:  # sem aporte planejado, não há pendente
+        totals["pendente"] = None
+        unavailable["pendente"] = "nao_definido"
     if s.taxa_poupanca is None:
         unavailable["taxa_poupanca"] = "sem_receita"
     if s.rentabilidade is None:
@@ -286,6 +299,8 @@ def _lines(s: MonthSummary) -> list[Line]:
     lines += [("valor", "class", k, None, v) for k, v in s.valor_por_classe.items()]
     lines += [("valor", "asset", k, None, v) for k, v in s.asset_ids_value.items()]
     lines += [("fluxo", "class", k, d, v) for (k, d), v in s.flows.items()]
+    lines += [("realizado", "class", k, None, v) for k, v in s.realizado_por_classe.items()]
+    lines += [("realizado", "asset", k, None, v) for k, v in s.realizado_por_ativo.items()]
     return lines
 
 
@@ -486,7 +501,18 @@ async def _snapshot_summary(conn: asyncpg.Connection, close: asyncpg.Record) -> 
         portfolio_stale=False,
         coverage=dict(json.loads(close["coverage"])),
         unavailable=unavailable,
+        aporte_planejado=_frozen_planned(t["budget"]),
+        realizado_por_classe=by.get(("realizado", "class"), {}),
+        realizado_por_ativo=by.get(("realizado", "asset"), {}),
     )
+
+
+def _frozen_planned(budget: str | None) -> Decimal | None:
+    """O aporte planejado congelado no orçamento da versão (antes do orçamento: None)."""
+    if not budget:
+        return None
+    data = json.loads(budget)
+    return Decimal(str(data["aporte_planejado"])) if data.get("aporte_definido") else None
 
 
 async def month_summary(conn: asyncpg.Connection, month: date) -> MonthSummary:
@@ -852,6 +878,8 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
     for term in (
         "disponivel",
         "consumido",
+    "realizado",
+    "pendente",
         "restante",
         "consumo_financiado",
         "restante_sem_resgates",
@@ -887,6 +915,8 @@ _PERIOD_TERMS = (
     "investido",
     "resultado_mes",
     "consumido",
+    "realizado",
+    "pendente",
 )
 
 

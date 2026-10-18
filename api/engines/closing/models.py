@@ -53,6 +53,12 @@ class MonthSummary(BaseModel):
     valor_por_ativo: dict[str, Money]
     caixa_corretora: Money
     a_caminho: Money = Decimal(0)  # Story 7.7: transferido, fora do patrimônio até o relatório
+    # Story 8.7: o andamento do aporte do mês (planning)
+    aporte_planejado: Money | None = None  # None = não definido
+    realizado: Money = Decimal(0)  # o investimento do mês, com o a caminho
+    pendente: Money = Decimal(0)  # planejado − realizado (sem planejado: `nao_definido`)
+    realizado_por_classe: dict[str, Money] = Field(default_factory=dict)
+    realizado_por_ativo: dict[str, Money] = Field(default_factory=dict)  # por assets.id
     # Para o snapshot (AD-8): valor por `assets.id` e fluxos líquidos por (classe, data) no mês.
     asset_ids_value: dict[str, Money] = Field(default_factory=dict, exclude=True)
     flows: dict[tuple[str, date], Money] = Field(default_factory=dict, exclude=True)

@@ -360,3 +360,31 @@ def _block(key: str, label: str, assets: list[PositionAsset]) -> PositionClass:
         ),
         assets=assets,
     )
+
+
+async def month_contributions(
+    conn: asyncpg.Connection, owner: str, month: date
+) -> tuple[dict[str, Decimal], Decimal]:
+    """Story 8.7: o que virou ativo no mês — aportes líquidos por ativo (assets.id) e, no bloco
+    cripto, o que saiu para as carteiras no mês (as saídas do ledger do sleeve)."""
+    from .crypto_sleeve import sleeve_cashflows
+
+    end = month_end(month)
+    rows = await conn.fetch(
+        "SELECT asset_id::text AS asset_id, tipo, quantidade, valor_unitario FROM asset_operations "
+        "WHERE user_id = $1 AND data_operacao BETWEEN $2 AND $3 AND asset_id IS NOT NULL "
+        "AND asset_category <> ALL($4::text[])",
+        owner,
+        month,
+        end,
+        _CRYPTO,
+    )
+    by_asset: dict[str, list[Any]] = defaultdict(list)
+    for r in rows:
+        by_asset[r["asset_id"]].append(r)
+    contributions = {a: calc.net_contributed(ops) for a, ops in by_asset.items()}
+    crypto = -sum(
+        (_dec(amount) for d, amount in await sleeve_cashflows(conn) if month <= d <= end),
+        Decimal(0),
+    )
+    return contributions, crypto
