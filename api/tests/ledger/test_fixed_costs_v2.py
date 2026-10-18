@@ -66,7 +66,7 @@ async def test_vigencia_and_month_match(pool, account) -> None:
         ids = []
         for name, frm, to in (
             ("Antigo", "2098-01-01", "2098-02-01"),
-            ("Atual", "2098-03-01", None),
+            ("Plano", "2098-03-01", None),  # P13: a palavra do custo na descrição casa
         ):
             ids.append(
                 await conn.fetchval(
