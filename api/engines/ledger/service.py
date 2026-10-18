@@ -86,6 +86,7 @@ from .models import (
     ReapplyResult,
     ReviewConfirmIn,
     ReviewConfirmOut,
+    ReviewDebenture,
     ReviewItem,
     ReviewList,
     ReviewMonth,
@@ -344,6 +345,22 @@ async def resolve_transaction_assets(conn: asyncpg.Connection, transaction_ids: 
             if asset is not None:
                 found[tx] = asset
     await conn.executemany(queries.SET_TRANSACTION_ASSET, list(found.items()))
+
+
+# Story 7.6 — Revisão com sugestões de outras engines (AD-1: o ledger não importa o portfolio).
+ReviewSuggester = Callable[[asyncpg.Connection, list[str]], Awaitable[dict[str, dict[str, Any]]]]
+_review_suggesters: list[ReviewSuggester] = []
+_review_confirmed: list[TransactionsChangedHook] = []
+
+
+def register_review_suggester(fn: ReviewSuggester) -> None:
+    if fn not in _review_suggesters:
+        _review_suggesters.append(fn)
+
+
+def register_on_review_confirmed(fn: TransactionsChangedHook) -> None:
+    if fn not in _review_confirmed:
+        _review_confirmed.append(fn)
 
 
 async def on_batch_applied_assets(conn: asyncpg.Connection, batch_id: str) -> None:
@@ -1063,6 +1080,12 @@ async def review_list(
         )
         for r in rows
     ]
+    suggestions: dict[str, dict[str, Any]] = {}
+    for suggester in _review_suggesters:
+        suggestions.update(await suggester(conn, [i.id for i in items]))
+    for item in items:
+        if item.id in suggestions:
+            item.debenture = ReviewDebenture(**suggestions[item.id])
     months: dict[str, list[Decimal]] = {}
     for r in rows:
         months.setdefault(f"{r['date']:%Y-%m}", []).append(r["amount"])
@@ -1106,6 +1129,10 @@ async def review_confirm(conn: asyncpg.Connection, body: ReviewConfirmIn) -> Rev
         await categorize(
             conn, changes, cause="review", batch_id=body.lote, review_status="confirmed"
         )
+        confirmed = [c.transaction_id for c in body.items]
+        for hook in _review_confirmed:  # ex.: aporte em debênture sugerido vira operação (7.6)
+            await hook(conn, confirmed)
+        await resolve_transaction_assets(conn, confirmed)
         remaining = int(await conn.fetchval(queries.PENDING_COUNT, body.lote))
     return ReviewConfirmOut(confirmed=len(changes), remaining=remaining)
 

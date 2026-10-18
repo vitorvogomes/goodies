@@ -28,7 +28,7 @@ from engines.market import service as market_service
 from engines.wallet import service as wallet_service
 
 from . import calc
-from .rf import cdi_value, rf_cdi_assets
+from .rf import cdi_value, pre_value, rf_cdi_assets, rf_rate_assets
 from .xirr import xirr
 
 _CRYPTO = [str(c) for c in CRYPTO_CATEGORIES]
@@ -190,6 +190,8 @@ async def _past(
     estimated_rf = False
     unpriced: set[str] = set()
     cdi_assets = await rf_cdi_assets(conn)
+    rate_assets = await rf_rate_assets(conn)
+    rate_valued = False
     cdi_series: list[tuple[date, Decimal]] | None = None
     cdi_until: date | None = None
     cdi_estimated = False
@@ -206,6 +208,9 @@ async def _past(
             else:
                 price = prices[symbol]
                 value = price.value * qty if price.value is not None else None
+        elif symbol in rate_assets:  # Story 7.6: debênture pela taxa cadastrada
+            value = pre_value(sops, as_of, rate_assets[symbol])
+            rate_valued = True
         elif symbol in cdi_assets:  # Story 7.4: %CDI do ativo sobre o CDI publicado
             if cdi_series is None:
                 cdi_series = await market_service.cdi_daily(conn, date(2000, 1, 1), as_of)
@@ -266,6 +271,7 @@ async def _past(
         "B3": b3_method,
         "RF": (f"CDI real até {cdi_until:%d/%m/%Y}" if cdi_until else "CDI real sem CDI publicado")
         + (" · dias sem CDI estimados" if cdi_estimated else "")
+        + (" · debêntures pela taxa cadastrada" if rate_valued else "")
         + (" + aplicado estimado" if estimated_rf else ""),
         "cripto": crypto_method,
     }

@@ -299,6 +299,8 @@ export interface ReviewItem {
   category_kind: string;
   origin: ReviewOrigin;
   rule_pattern: string | null;
+  // Story 7.6: aporte em debênture sugerido (só saída sem operação ligada)
+  debenture: { contribution_id: string; label: string; amount: number } | null;
 }
 
 export interface ReviewMonth {

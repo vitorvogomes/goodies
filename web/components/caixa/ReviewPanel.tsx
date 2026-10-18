@@ -21,7 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatBRL, formatDate, formatMonth, formatSignedBRL } from "@/lib/format";
-import { useCategoryOptions, useConfirmReview, useReview } from "@/lib/ledger";
+import { useCategoryOptions, useConfirmReview, useDismissDebenture, useReview } from "@/lib/ledger";
 import { cn } from "@/lib/utils";
 import type { CategoryOption, ReviewItem, ReviewOrigin } from "@/types/ledger";
 
@@ -43,6 +43,7 @@ export function ReviewPanel() {
   const batchId = lote && lote !== "todas" && lote !== "mes" ? lote : null;
   const options = useCategoryOptions();
   const confirm = useConfirmReview();
+  const dismiss = useDismissDebenture();
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
   const [choices, setChoices] = useState<Map<string, CategoryOption>>(new Map());
   const [onlyEmpty, setOnlyEmpty] = useState(false);
@@ -270,6 +271,26 @@ export function ReviewPanel() {
                             {it.description ?? "—"}
                           </span>
                           <span className="type-caption text-muted-foreground">{it.account_name}</span>
+                          {it.debenture && (
+                            <span className="mt-0.5 flex flex-wrap items-center gap-1 type-caption">
+                              <span className="font-semibold">Debênture:</span> {it.debenture.label} ·{" "}
+                              <span className="type-num-table">{formatBRL(it.debenture.amount)}</span> (sugerido
+                              — confirmar a transação registra o aporte)
+                              <button
+                                type="button"
+                                className="text-positive underline"
+                                onClick={() =>
+                                  it.debenture &&
+                                  dismiss.mutate(it.debenture.contribution_id, {
+                                    onSuccess: () => toast("Não é aporte em debênture."),
+                                    onError: () => toast(CONFIRM_FAILED),
+                                  })
+                                }
+                              >
+                                Não é aporte
+                              </button>
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 py-1.5 text-right whitespace-nowrap type-num-table">
                           {formatSignedBRL(it.amount)}

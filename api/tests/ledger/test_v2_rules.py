@@ -43,7 +43,7 @@ async def _setup(pool: Any, account: str, sfx: str) -> dict[str, str]:
 
 @pytest.mark.asyncio
 async def test_list_edit_preview_and_reapply(api, auth_headers, account, pool) -> None:
-    sfx = uuid.uuid4().hex[:6]
+    sfx = "x" + uuid.uuid4().hex[:6]  # "x": "ZZR" + hex nunca forma "rdb" (regra legado)
     ids = await _setup(pool, account, sfx)
     try:
         rules = (await api.get(f"{URL}/rules", headers=auth_headers)).json()

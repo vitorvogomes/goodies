@@ -24,7 +24,7 @@ LABELS = {
     "price_crypto": "Preço cripto",
     "wallet_scan": "Scan de carteiras",
     "benchmark": "CDI/IPCA",
-    "rf_cdi": "Renda fixa pelo CDI",
+    "rf_cdi": "Renda fixa (CDI e taxa)",
     "db_backup": "Backup do banco",
     "restore_check": "Conferência do backup",
 }

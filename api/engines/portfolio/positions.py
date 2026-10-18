@@ -24,7 +24,7 @@ from engines.market import service as market_service
 from engines.wallet import service as wallet_service
 
 from . import calc
-from .rf import rf_cdi_assets
+from .rf import rf_cdi_assets, rf_rate_assets
 from .valuation import PortfolioValuation, valuation_as_of
 
 STALE_AFTER_DAYS = 3  # preço diário + fim de semana (o mesmo do Painel)
@@ -139,6 +139,7 @@ async def positions_period(
         by_symbol[op["asset_symbol"]].append(op)
     prices = await _live_prices(conn, list(by_symbol)) if live else {}
     cdi_assets = await rf_cdi_assets(conn)
+    rate_assets = await rf_rate_assets(conn)
     cdi_until = (
         await conn.fetchval(
             "SELECT max(ref_date) FROM benchmark_data WHERE series = 'CDI' AND ref_date <= $1",
@@ -218,6 +219,8 @@ async def positions_period(
                     f"{_pct_label(cdi_assets[symbol])}% do CDI · CDI até "
                     + (f"{cdi_until:%d/%m/%Y}" if cdi_until else "—")
                     if symbol in cdi_assets
+                    else "valorada pela taxa cadastrada"
+                    if symbol in rate_assets
                     else None
                 ),
             )

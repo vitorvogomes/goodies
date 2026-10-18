@@ -94,3 +94,32 @@ async def rf_cdi_assets(conn: Any) -> dict[str, Decimal]:
         "SELECT price_ref, pct_cdi FROM assets WHERE valuation = 'cdi' AND pct_cdi IS NOT NULL"
     )
     return {r["price_ref"]: Decimal(r["pct_cdi"]) for r in rows}
+
+
+# --------------------------------------------------------------------------------------------
+# Debênture pela taxa cadastrada (Story 7.6 — files/debentures-flash/formula.md)
+# --------------------------------------------------------------------------------------------
+
+
+def pre_value(ops: Iterable[Mapping[str, Any]], as_of: date, monthly_factor: Decimal) -> Decimal:
+    """Pré-fixado da Flash: cada aporte × (1 + fator mensal/100)^(dias corridos/30) até a data; o
+    resgate (cupom, vencimento) sai pelo valor que renderia — a mesma aproximação da caixinha."""
+    total = Decimal(0)
+    base = 1 + float(monthly_factor) / 100
+    for op in ops:
+        d = op["data_operacao"]
+        if d > as_of or (op["tipo"] not in calc.INFLOW and op["tipo"] not in calc.OUTFLOW):
+            continue
+        amount = Decimal(str(op["quantidade"])) * Decimal(str(op["valor_unitario"]))
+        factor = Decimal(repr(base ** ((as_of - d).days / 30)))
+        total += amount * factor if op["tipo"] in calc.INFLOW else -amount * factor
+    return total.quantize(_CENT)
+
+
+async def rf_rate_assets(conn: Any) -> dict[str, Decimal]:
+    """Símbolo (`price_ref`) → fator mensal (% a.m.) das debêntures (`valuation = 'taxa'`)."""
+    rows = await conn.fetch(
+        "SELECT a.price_ref, d.monthly_factor FROM assets a "
+        "JOIN debentures d ON d.asset_id = a.id WHERE a.valuation = 'taxa'"
+    )
+    return {r["price_ref"]: Decimal(r["monthly_factor"]) for r in rows}

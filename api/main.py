@@ -32,10 +32,12 @@ from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.overview.router import router as overview_router
 from engines.planning.router import router as planning_router
+from engines.portfolio import debentures as portfolio_debentures
 from engines.portfolio import hooks as portfolio_hooks
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.b3_adapter import B3Adapter
+from engines.portfolio.debentures_router import router as portfolio_debentures_router
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.router import router as portfolio_router
 from engines.portfolio.transit_routes import router as portfolio_transit_router
@@ -60,6 +62,9 @@ ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
 # Story 7.5: depois da derivação, o ativo das transações (resolver do portfolio no ledger).
 ledger_service.register_asset_resolver(portfolio_hooks.transaction_assets)
 ingest_service.register_on_batch_applied(ledger_service.on_batch_applied_assets)
+# Story 7.6: aporte em debênture sugerido na Revisão e confirmado com ela.
+ledger_service.register_review_suggester(portfolio_debentures.review_suggestions)
+ledger_service.register_on_review_confirmed(portfolio_debentures.on_review_confirmed)
 ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo, layer=3)
 ingest_service.register_undo_counter(portfolio_hooks.count_derived_for_undo)
 ingest_service.register_account_holders(ledger_service.account_holders)
@@ -125,6 +130,7 @@ app.include_router(portfolio_router)
 app.include_router(portfolio_analytics_router)
 app.include_router(portfolio_import_b3_router)
 app.include_router(portfolio_transit_router)
+app.include_router(portfolio_debentures_router)
 app.include_router(market_router)
 if settings.hermes_enabled:  # Story 1.6: Hermes desligado na v2.0 (HERMES_ENABLED=false)
     app.include_router(hermes_router)

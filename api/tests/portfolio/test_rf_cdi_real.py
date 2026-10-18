@@ -134,3 +134,16 @@ def test_estimated_share() -> None:
     assert v.estimated_share == pytest.approx(3 / 5)
     full = cdi_value([_op("aporte", "1000", date(2025, 1, 6))], date(2025, 1, 9), D(100), CDI)
     assert full.estimated_share == 0
+
+
+def test_pre_value_matches_flash_formula() -> None:
+    """Story 7.6: 1.000 integralizados com fator 1,78% a.m. valem 1.000 × 1,0178^(dc/30)."""
+    from engines.portfolio.rf import pre_value
+    from engines.portfolio.rf_pre import valor_atual_pre
+
+    ops = [_op("aporte", "1000", date(2025, 7, 1)), _op("aporte", "1000", date(2025, 8, 1))]
+    got = pre_value(ops, date(2026, 10, 18), D("1.78"))
+    legacy = valor_atual_pre(1000, 1.78, date(2025, 7, 1), date(2026, 10, 18)) + valor_atual_pre(
+        1000, 1.78, date(2025, 8, 1), date(2026, 10, 18)
+    )
+    assert got == D(repr(legacy)).quantize(D("0.01"))

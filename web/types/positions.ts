@@ -35,3 +35,24 @@ export interface PositionsReport {
   xirr_real: Valued;
   ipca_ate: string | null;
 }
+
+// Ajustes › Debêntures (Story 7.6).
+export interface Debenture {
+  id: string;
+  asset_id: string;
+  symbol: string;
+  issuer: string;
+  rate_label: string;
+  monthly_factor: number;
+  start_date: string;
+  maturity_date: string | null;
+  aplicado: number;
+}
+
+export interface DebentureIn {
+  issuer?: string;
+  rate_label?: string;
+  monthly_factor?: string; // "1.78" (% a.m.)
+  start_date?: string;
+  maturity_date?: string | null;
+}

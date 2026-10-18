@@ -555,3 +555,16 @@ export function useFixedCostDecision() {
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }
+
+// ---- Debêntures (Story 7.6) — aporte sugerido na Revisão ----
+
+export function useDismissDebenture() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (contributionId: string) =>
+      apiFetch<void>(`/api/v1/portfolio/debentures/contributions/${contributionId}/dismiss`, {
+        method: "POST",
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}

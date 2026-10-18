@@ -230,6 +230,14 @@ class ReapplyResult(BaseModel):
 Origin = Literal["regra", "sugestao", "sem_sugestao", "manual"]
 
 
+class ReviewDebenture(BaseModel):
+    """Aporte em debênture sugerido (Story 7.6): vem do registro do portfolio."""
+
+    contribution_id: str
+    label: str  # "Flash · Pré 24% a.a."
+    amount: Money
+
+
 class ReviewItem(BaseModel):
     id: str
     date: dt.date
@@ -242,6 +250,7 @@ class ReviewItem(BaseModel):
     category_kind: str
     origin: Origin
     rule_pattern: str | None
+    debenture: ReviewDebenture | None = None
 
 
 class ReviewMonth(BaseModel):

@@ -18,7 +18,7 @@ from engines.common.dates import today_brt
 from engines.common.owner import get_owner_id
 from engines.market import service as market_service
 from engines.portfolio import calc
-from engines.portfolio.rf import cdi_value, rf_cdi_assets
+from engines.portfolio.rf import cdi_value, pre_value, rf_cdi_assets, rf_rate_assets
 
 MAX_ESTIMATED_SHARE = 0.05  # mais que isso estimado: o histórico está faltando, não grava
 
@@ -28,7 +28,8 @@ async def run_rf_cdi(pool: asyncpg.Pool, *, today: date | None = None) -> dict[s
     updated = incomplete = 0
     async with pool.acquire() as conn:
         assets = await rf_cdi_assets(conn)
-        if not assets:
+        rated = await rf_rate_assets(conn)  # Story 7.6: debêntures pela taxa cadastrada
+        if not assets and not rated:
             return {"assets": 0, "updated": 0, "incomplete": 0}
         owner = await get_owner_id(conn)
         ops: dict[str, list[Any]] = defaultdict(list)
@@ -37,7 +38,7 @@ async def run_rf_cdi(pool: asyncpg.Pool, *, today: date | None = None) -> dict[s
             "FROM asset_operations WHERE user_id = $1 AND asset_symbol = ANY($2::text[]) "
             "ORDER BY data_operacao",
             owner,
-            list(assets),
+            [*assets, *rated],
         ):
             ops[op["asset_symbol"]].append(op)
         series = await market_service.cdi_daily(
@@ -55,9 +56,18 @@ async def run_rf_cdi(pool: asyncpg.Pool, *, today: date | None = None) -> dict[s
                 conn, symbol, float(value.value / qty), source="cdi", is_manual=False
             )
             updated += 1 if written else 0
+        for symbol, factor in rated.items():
+            qty = calc.quantity(ops[symbol])
+            if qty <= 0:
+                continue
+            rated_value = pre_value(ops[symbol], today, factor)
+            written = await market_service.upsert_price(
+                conn, symbol, float(rated_value / qty), source="taxa", is_manual=False
+            )
+            updated += 1 if written else 0
     # "failed" > 0 marca o run como parcial (histórico de CDI faltando): o aviso de job aparece
     return {
-        "assets": len(assets),
+        "assets": len(assets) + len(rated),
         "updated": updated,
         "incomplete": incomplete,
         "failed": incomplete,
