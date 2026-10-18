@@ -21,6 +21,7 @@ from engines.ingest.models import BatchFileIn
 from engines.ledger import queries as ledger_queries
 from engines.ledger import service as ledger_service
 from engines.ledger.calc import Rule, best_rule
+from engines.ledger.suggest import HistoryItem, best_suggestion, tokens
 
 
 @dataclass(frozen=True)
@@ -127,6 +128,19 @@ def classify(
     )
 
 
+async def suggestion_history(conn: asyncpg.Connection) -> list[HistoryItem]:
+    """Confirmadas, da mais recente para a mais antiga, sem repetir (tokens, categoria, sinal)."""
+    seen: set[tuple[frozenset[str], str, bool]] = set()
+    items: list[HistoryItem] = []
+    for r in await conn.fetch(ledger_queries.CONFIRMED_HISTORY):
+        item = HistoryItem(tokens(r["description"]), str(r["category_id"]), r["positive"])
+        key = (item.tokens, item.category_id, item.positive)
+        if item.tokens and key not in seen:
+            seen.add(key)
+            items.append(item)
+    return items
+
+
 async def _load_rules(conn: asyncpg.Connection) -> list[Rule]:
     """Regras ativas de `category_rules` (Story 2.5; `match_patterns` deixa de ser lido)."""
     return await ledger_service.load_rules(conn)
@@ -207,6 +221,7 @@ async def insert_entries(
     lote). Investimento e transferência interna também são gravados (consertam o saldo); o `kind`
     vem da categoria. Quem chama abre a transação."""
     rules = await _load_rules(conn)
+    history = await suggestion_history(conn)
     report = ImportReport()
     pending_by_sign = {
         True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
@@ -264,6 +279,11 @@ async def insert_entries(
                     source="rule",
                     rule_id=result.rule_id,
                 )
+            )
+        elif (hint := best_suggestion(entry.description, entry.amount, history)) is not None:
+            # Sem regra: a confirmada mais parecida (Story 3.6), pendente até a revisão.
+            changes.append(
+                ledger_service.CategoryChange(str(inserted), hint.category_id, "suggestion")
             )
     await ledger_service.categorize(
         conn, changes, cause="import", batch_id=batch_id, fire_hooks=False

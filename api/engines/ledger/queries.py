@@ -255,3 +255,11 @@ CONSUMPTION_BY_CATEGORY = """
       AND t.date <  (date_trunc('month', $1::date) + interval '1 month')
     GROUP BY 1, 2, 3
 """
+CONFIRMED_HISTORY = """
+    SELECT t.description, t.category_id, t.amount > 0 AS positive
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE t.review_status = 'confirmed' AND NOT g.is_system AND c.is_active
+      AND coalesce(t.description, '') <> ''
+    ORDER BY t.date DESC, t.created_at DESC
+"""
