@@ -10,8 +10,10 @@ import type {
   Alert,
   BalanceCandidates,
   CashflowProjection,
+  FixedCostDecisionKind,
   FixedCostItem,
   FixedCostItemIn,
+  FixedCostMonth,
   Category,
   CategoryBreakdown,
   CategoryCreate,
@@ -517,6 +519,39 @@ export function useDeleteFixedCostItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/v1/ledger/fixed-costs/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- Caixa › Custos fixos (Story 6.2) ----
+
+export function useFixedCostMonth(periodo: string) {
+  return useQuery({
+    queryKey: ["ledger", "fixed-costs-month", periodo],
+    queryFn: () => apiFetch<FixedCostMonth>(`/api/v1/ledger/fixed-costs/month?periodo=${periodo}`),
+  });
+}
+
+export function useFixedCostDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      costId,
+      mes,
+      kind,
+      transactionId,
+    }: {
+      costId: string;
+      mes: string;
+      kind: FixedCostDecisionKind | "limpar";
+      transactionId?: string;
+    }) =>
+      kind === "limpar"
+        ? apiFetch<void>(`/api/v1/ledger/fixed-costs/${costId}/decisions/${mes}`, { method: "DELETE" })
+        : apiFetch<void>(`/api/v1/ledger/fixed-costs/${costId}/decisions`, {
+            method: "POST",
+            body: JSON.stringify({ mes, kind, transaction_id: transactionId ?? null }),
+          }),
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }

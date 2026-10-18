@@ -65,9 +65,13 @@ from .models import (
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
+    FixedCostDecisionIn,
     FixedCostIn,
+    FixedCostMonth,
+    FixedCostMonthItem,
     FixedCostPatch,
     FixedCostRow,
+    FixedCostTx,
     GroupCreate,
     GroupUpdate,
     ManualTransactionCreate,
@@ -1658,3 +1662,114 @@ async def fixed_cost_matches(conn: asyncpg.Connection, month: date) -> list[Cost
     ]
     found = match_fixed_costs(costs, txs, decisions)
     return [found[c.cost_id] for c in costs]
+
+
+# --------------------------------------------------------------------------------------------
+# Caixa › Custos fixos: o mês com casamento e as decisões (Story 6.2 — FR-18, AD-9)
+# --------------------------------------------------------------------------------------------
+
+DUE_SOON_DAYS = 3  # "vencendo": faltam 3 dias ou menos
+_STATUS_ORDER = {"atrasado": 0, "vencendo": 1, "pendente": 2, "manual": 3, "pago": 4}
+
+
+class MonthClosedError(Exception):
+    """Mês fechado: `fixed_cost_payments` é só leitura até reabrir (AD-8)."""
+
+
+class DecisionError(ValueError):
+    pass
+
+
+def _cost_status(match: CostMatch, due: date, today: date) -> str:
+    if match.status in ("pago", "manual"):
+        return match.status
+    if due < today:
+        return "atrasado"
+    return "vencendo" if (due - today).days <= DUE_SOON_DAYS else "pendente"
+
+
+async def fixed_cost_month(
+    conn: asyncpg.Connection, month: date, *, today: date | None = None
+) -> FixedCostMonth:
+    """A lista do mês (ordem atrasado → pago) com a transação casada, as candidatas e os totais."""
+    today = today or today_brt()
+    costs = {str(r["id"]): r for r in await fixed_costs_due(conn, month)}
+    matches = await fixed_cost_matches(conn, month)
+    tx_ids = {m.transaction_id for m in matches if m.transaction_id} | {
+        t for m in matches for t in m.candidates
+    }
+    txs = {
+        str(r["id"]): FixedCostTx(
+            id=str(r["id"]), date=r["date"], description=r["description"], amount=r["amount"]
+        )
+        for r in await conn.fetch(
+            "SELECT id, date, description, amount FROM transactions WHERE id = ANY($1::uuid[])",
+            list(tx_ids),
+        )
+    }
+    items: list[FixedCostMonthItem] = []
+    for m in matches:
+        row = costs[m.cost_id]
+        due = due_date(month, row["due_day"])
+        items.append(
+            FixedCostMonthItem(
+                id=m.cost_id,
+                name=row["name"],
+                amount=row["amount"],
+                due_date=due,
+                category_label=row["category_label"],
+                status=_cost_status(m, due, today),
+                source=m.source,
+                transaction=txs.get(m.transaction_id) if m.transaction_id else None,
+                candidates=[txs[t] for t in m.candidates if t in txs],
+            )
+        )
+    items.sort(key=lambda i: (_STATUS_ORDER[i.status], i.due_date, i.name))
+    paid = [i for i in items if i.status in ("pago", "manual")]
+    paid_total = sum(
+        (-i.transaction.amount if i.transaction else i.amount for i in paid), Decimal(0)
+    )
+    total = sum((i.amount for i in items), Decimal(0))
+    return FixedCostMonth(
+        month=month,
+        closed=await month_status().is_closed(conn, month),
+        items=items,
+        count=len(items),
+        paid_count=len(paid),
+        total=total,
+        paid_total=paid_total,
+        pending_total=sum((i.amount for i in items if i not in paid), Decimal(0)),
+    )
+
+
+async def decide_fixed_cost(
+    conn: asyncpg.Connection, cost_id: str, body: FixedCostDecisionIn
+) -> None:
+    """Grava a decisão do mês (uma por custo e mês; a nova substitui a anterior)."""
+    month = parse_periodo(body.mes)
+    await _fixed_cost(conn, cost_id)
+    if await month_status().is_closed(conn, month):
+        raise MonthClosedError(body.mes)
+    if (body.kind == "manual") != (body.transaction_id is None):
+        raise DecisionError("transação obrigatória, exceto em manual")
+    await conn.execute(
+        "INSERT INTO fixed_cost_payments (fixed_cost_id, month, kind, transaction_id) "
+        "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (fixed_cost_id, month) DO UPDATE "
+        "SET kind = EXCLUDED.kind, transaction_id = EXCLUDED.transaction_id, created_at = now()",
+        cost_id,
+        month,
+        body.kind,
+        str(body.transaction_id) if body.transaction_id else None,
+    )
+
+
+async def clear_fixed_cost_decision(conn: asyncpg.Connection, cost_id: str, mes: str) -> None:
+    """Desfaz a decisão do mês: o custo volta ao casamento automático."""
+    month = parse_periodo(mes)
+    if await month_status().is_closed(conn, month):
+        raise MonthClosedError(mes)
+    await conn.execute(
+        "DELETE FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid AND month = $2",
+        cost_id,
+        month,
+    )

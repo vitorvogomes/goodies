@@ -29,7 +29,9 @@ from .models import (
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
+    FixedCostDecisionIn,
     FixedCostIn,
+    FixedCostMonth,
     FixedCostPatch,
     FixedCostRow,
     GroupCreate,
@@ -384,6 +386,58 @@ def _fixed_cost_errors(exc: Exception) -> HTTPException:
 @v2.get("/fixed-costs", response_model=list[FixedCostRow])
 async def list_fixed_costs_v2(user: AuthUser, db: Db) -> list[FixedCostRow]:
     return await service.list_fixed_costs_v2(db)
+
+
+@v2.get("/fixed-costs/month", response_model=FixedCostMonth)
+async def fixed_cost_month(
+    user: AuthUser, db: Db, periodo: Annotated[str, Query(pattern=r"^\d{4}-\d{2}$")]
+) -> FixedCostMonth:
+    try:
+        month = parse_periodo(periodo)
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "periodo_invalido", "message": "Período inválido (use AAAA-MM)."},
+        ) from None
+    return await service.fixed_cost_month(db, month)
+
+
+def _decision_errors(exc: Exception) -> HTTPException:
+    if isinstance(exc, service.MonthClosedError):
+        return HTTPException(
+            status.HTTP_409_CONFLICT,
+            {"error": "mes_fechado", "message": "Mês fechado: reabra para mudar o casamento."},
+        )
+    if isinstance(exc, service.FixedCostNotFound):
+        return _fixed_cost_errors(exc)
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        {"error": "decisao_invalida", "message": "Escolha a transação."},
+    )
+
+
+@v2.post("/fixed-costs/{cost_id}/decisions", response_model=FixedCostMonth)
+async def decide_fixed_cost(
+    cost_id: Uuid, body: FixedCostDecisionIn, user: AuthUser, db: Db
+) -> FixedCostMonth:
+    try:
+        await service.decide_fixed_cost(db, str(cost_id), body)
+    except (
+        service.MonthClosedError,
+        service.FixedCostNotFound,
+        service.DecisionError,
+        ValueError,
+    ) as exc:
+        raise _decision_errors(exc) from None
+    return await service.fixed_cost_month(db, parse_periodo(body.mes))
+
+
+@v2.delete("/fixed-costs/{cost_id}/decisions/{mes}", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_fixed_cost_decision(cost_id: Uuid, mes: str, user: AuthUser, db: Db) -> None:
+    try:
+        await service.clear_fixed_cost_decision(db, str(cost_id), mes)
+    except (service.MonthClosedError, ValueError) as exc:
+        raise _decision_errors(exc) from None
 
 
 @v2.post("/fixed-costs", response_model=FixedCostRow, status_code=status.HTTP_201_CREATED)

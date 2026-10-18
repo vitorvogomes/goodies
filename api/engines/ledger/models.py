@@ -345,3 +345,42 @@ class FixedCostRow(BaseModel):
     category_label: str
     valid_from: dt.date
     valid_to: dt.date | None
+
+
+# ---- Custos fixos do mês com casamento (Story 6.2) ----
+
+
+class FixedCostTx(BaseModel):
+    id: str
+    date: dt.date
+    description: str | None
+    amount: Money  # com sinal (saída negativa)
+
+
+class FixedCostMonthItem(BaseModel):
+    id: str
+    name: str
+    amount: Money  # valor cadastrado
+    due_date: dt.date
+    category_label: str
+    status: Literal["pago", "manual", "pendente", "vencendo", "atrasado"]
+    source: str | None  # decisao | auto
+    transaction: FixedCostTx | None
+    candidates: list[FixedCostTx]  # "2 candidatas": nada pago até escolher
+
+
+class FixedCostMonth(BaseModel):
+    month: dt.date
+    closed: bool  # mês fechado: só leitura até reabrir
+    items: list[FixedCostMonthItem]
+    count: int
+    paid_count: int
+    total: Money  # Σ valores cadastrados
+    paid_total: Money  # Σ pago (transação casada; manual = valor cadastrado)
+    pending_total: Money  # Σ cadastrado do que falta pagar
+
+
+class FixedCostDecisionIn(BaseModel):
+    mes: str = Field(pattern=r"^\d{4}-\d{2}$")
+    kind: Literal["confirmado", "corrigido", "manual", "desfeito"]
+    transaction_id: Uuid | None = None

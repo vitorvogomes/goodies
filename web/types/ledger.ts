@@ -354,3 +354,38 @@ export interface FixedCostItemIn {
   due_day?: number;
   category_id?: string;
 }
+
+// Caixa › Custos fixos (Story 6.2): o mês com casamento.
+export interface FixedCostTx {
+  id: string;
+  date: string;
+  description: string | null;
+  amount: number;
+}
+
+export type FixedCostStatus = "pago" | "manual" | "pendente" | "vencendo" | "atrasado";
+
+export interface FixedCostMonthItem {
+  id: string;
+  name: string;
+  amount: number;
+  due_date: string;
+  category_label: string;
+  status: FixedCostStatus;
+  source: "decisao" | "auto" | null;
+  transaction: FixedCostTx | null;
+  candidates: FixedCostTx[];
+}
+
+export interface FixedCostMonth {
+  month: string;
+  closed: boolean;
+  items: FixedCostMonthItem[];
+  count: number;
+  paid_count: number;
+  total: number;
+  paid_total: number;
+  pending_total: number;
+}
+
+export type FixedCostDecisionKind = "confirmado" | "corrigido" | "manual" | "desfeito";
