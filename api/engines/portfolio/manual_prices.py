@@ -29,6 +29,9 @@ class ManualPrice(BaseModel):
     price_brl: Decimal | None  # None = ainda sem preço; texto decimal (unitário, até 8 casas)
     as_of: date | None
     is_manual: bool
+    price_usd: Decimal | None = None  # o informado em dólar (token cripto)
+    currency: str = "BRL"  # BRL | USD: a moeda em que o preço foi informado
+    is_crypto: bool = False  # aceita o preço em US$
 
 
 async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
@@ -40,6 +43,10 @@ async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
             list(_NOT_PRICED),
         )
     }
+    crypto_assets = {
+        r["price_ref"]
+        for r in await conn.fetch("SELECT price_ref FROM assets WHERE class = 'cripto'")
+    }
     held = {w["asset_symbol"] for w in await wallet_service.list_wallet_positions(conn, owner)}
     held |= {d["asset_symbol"] for d in await wallet_service.list_defi_valued(conn, owner)}
     for symbol in sorted(held - set(tickers)):
@@ -48,7 +55,7 @@ async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
     rows = {
         r["ticker"]: r
         for r in await conn.fetch(
-            "SELECT ticker, price_brl, fetched_at, is_manual FROM asset_prices "
+            "SELECT ticker, price_brl, price_usd, source, fetched_at, is_manual FROM asset_prices "
             "WHERE ticker = ANY($1::text[])",
             list(tickers),
         )
@@ -63,6 +70,9 @@ async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
                 price_brl=row["price_brl"] if row else None,
                 as_of=today_brt(row["fetched_at"]) if row else None,
                 is_manual=bool(row["is_manual"]) if row else False,
+                price_usd=row["price_usd"] if row else None,
+                currency="USD" if row and row["source"] == market_service.MANUAL_USD else "BRL",
+                is_crypto=ticker in held or ticker in crypto_assets,
             )
         )
     return out

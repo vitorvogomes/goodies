@@ -141,7 +141,10 @@ async def run_price_crypto(
         defi = await _distinct_symbols(
             conn, "SELECT DISTINCT asset_symbol FROM defi_positions WHERE is_active", "defi"
         )
-        return await _run_for(
+        stats = await _run_for(
             conn, CRYPTO_CATEGORIES, fetcher, "crypto", settings.ttl_crypto,
             extra_symbols=set(wallet) | set(defi),
         )
+        # pedido de 18/10/2026: o R$ dos preços manuais em dólar segue a cotação nova
+        await service.refresh_manual_usd(conn)
+        return stats

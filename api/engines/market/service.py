@@ -497,3 +497,62 @@ async def price_as_of(conn: asyncpg.Connection, ticker: str, day: date) -> Value
     if row is None:
         return Valued[Decimal](unavailable_reason="sem_preco")
     return Valued[Decimal](value=row["price_brl"], as_of=row["ref_date"], source=row["source"])
+
+
+# --------------------------------------------------------------------------------------------
+# Preço manual em dólar (pedido de 18/10/2026): o token cripto sem cotação se informa em US$
+# --------------------------------------------------------------------------------------------
+
+MANUAL_USD = "manual_usd"  # `source` do preço manual informado em dólar
+
+
+async def usd_brl(conn: asyncpg.Connection) -> Decimal | None:
+    """A cotação do dólar das carteiras: R$ ÷ US$ do USDT (ou do USDC) do CoinGecko."""
+    row = await conn.fetchrow(
+        "SELECT price_brl / price_usd AS fx FROM asset_prices WHERE ticker IN ('USDT', 'USDC') "
+        "AND NOT is_manual AND price_usd > 0 ORDER BY (ticker = 'USDT') DESC, fetched_at DESC "
+        "LIMIT 1"
+    )
+    return Decimal(row["fx"]) if row is not None else None
+
+
+async def set_manual_usd(
+    conn: asyncpg.Connection, ticker: str, price_usd: Decimal, *, as_of: datetime | None = None
+) -> dict[str, Any] | None:
+    """Grava o preço manual em US$ e o R$ pela cotação de agora; sem cotação → None."""
+    fx = await usd_brl(conn)
+    if fx is None:
+        return None
+    return await upsert_price(
+        conn,
+        ticker,
+        (price_usd * fx).quantize(Decimal("0.00000001")),
+        price_usd=float(price_usd),
+        source=MANUAL_USD,
+        is_manual=True,
+        as_of=as_of,
+    )
+
+
+async def refresh_manual_usd(conn: asyncpg.Connection) -> int:
+    """Refaz o R$ dos preços manuais em dólar pela cotação atual (a data informada fica). Roda
+    depois do preço cripto. Quantos foram refeitos."""
+    fx = await usd_brl(conn)
+    if fx is None:
+        return 0
+    rows = await conn.fetch(
+        "SELECT ticker, price_usd, fetched_at FROM asset_prices "
+        "WHERE is_manual AND source = $1 AND price_usd IS NOT NULL",
+        MANUAL_USD,
+    )
+    for r in rows:
+        await upsert_price(
+            conn,
+            r["ticker"],
+            (Decimal(r["price_usd"]) * fx).quantize(Decimal("0.00000001")),
+            price_usd=float(r["price_usd"]),
+            source=MANUAL_USD,
+            is_manual=True,
+            as_of=r["fetched_at"],
+        )
+    return len(rows)

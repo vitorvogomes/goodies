@@ -980,6 +980,7 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
     for c in classes:
         if c.key in ret.by_class:
             c.xirr_nominal, c.xirr_real = ret.by_class[c.key]
+            c.xirr_mensal = _monthly_pct(c.xirr_nominal)
     brokers = await broker_cash_as_of(conn, owner, min(month_end(end), today_brt()))
     cash = sum((b.caixa for b in brokers), Decimal(0))
     return PositionsReport(
@@ -1000,7 +1001,20 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
         xirr_nominal=ret.nominal,
         xirr_real=ret.real,
         ipca_ate=ret.ipca_ate,
+        resultado_total=sum(
+            (c.resultado_total for c in classes if c.resultado_total is not None), Decimal(0)
+        ),
+        xirr_mensal=_monthly_pct(ret.nominal),
     )
+
+
+def _monthly_pct(annual: Valued[Decimal]) -> Decimal | None:
+    """XIRR % a.a. → o equivalente % a.m. ((1 + a)^(1/12) − 1): o mesmo rendimento, sem o efeito
+    de anualizar um mês bom (pedido de 18/10/2026: o XIRR "parecia exagerado")."""
+    if annual.value is None:
+        return None
+    monthly = portfolio_calc.monthly_rate(float(annual.value) / 100)
+    return (Decimal(repr(monthly)) * 100).quantize(Decimal("0.01"))
 
 
 # --------------------------------------------------------------------------------------------

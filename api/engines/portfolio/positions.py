@@ -61,10 +61,14 @@ class PositionAsset(BaseModel):
     valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
     resultado: Money | None
     manual: bool = False
+    # pedido de 18/10/2026: o resultado desde o primeiro aporte (valor − aplicado + proventos), ao
+    # lado do resultado do período; no bloco cripto, None por ativo (custo por ativo não existe)
+    resultado_total: Money | None = None
+    valor_usd: Money | None = None  # cripto: o valor em dólar (como nas carteiras)
     # P9: quantidade e preço unitário na data (B3, Tesouro e cripto; caixinha/CDB/debênture não)
     quantidade: Decimal | None = None
     preco: Decimal | None = None
-    xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); RF e cripto não têm
+    xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); o bloco cripto não tem
     nota: str | None = None  # RF pelo CDI: "{x}% do CDI · CDI até dd/mm/aaaa" (Story 7.4)
     # Story 8.3 (preenchidos por `planning`): % do ativo na classe × meta do ativo, desvio em p.p.
     alocacao: Pct | None = None
@@ -80,6 +84,9 @@ class PositionClass(BaseModel):
     valor: Money
     resultado: Money | None
     assets: list[PositionAsset]
+    resultado_total: Money | None = None  # desde o primeiro aporte; cripto: quanto vale − saiu
+    valor_usd: Money | None = None  # bloco cripto em dólar
+    xirr_mensal: Pct | None = None  # o XIRR nominal da classe ao mês (preenchido por `closing`)
     # Story 7.3: XIRR do período da classe (% a.a.), nominal e real — preenchidos por `closing`
     xirr_nominal: Valued[Decimal] = Field(default_factory=lambda: _before_first())
     xirr_real: Valued[Decimal] = Field(default_factory=lambda: _before_first())
@@ -113,6 +120,7 @@ async def _crypto_assets(
     conn: asyncpg.Connection, owner: str, as_of: date, live: bool
 ) -> list[PositionAsset]:
     found: dict[str, Decimal] = defaultdict(Decimal)
+    usd: dict[str, Decimal] = defaultdict(Decimal)
     qty: dict[str, Decimal] = defaultdict(Decimal)  # P9: quantidade somada das carteiras
     manual: dict[str, date] = {}  # Story 7.8: posição manual → a data informada
     if live:
@@ -120,6 +128,8 @@ async def _crypto_assets(
             if w["value_brl"] is not None:
                 found[w["asset_symbol"]] += _dec(w["value_brl"])
                 qty[w["asset_symbol"]] += _dec(w["quantity"])
+                if w.get("value_usd") is not None:
+                    usd[w["asset_symbol"]] += _dec(w["value_usd"])
             if w["is_manual"]:
                 manual[w["asset_symbol"]] = date.fromisoformat(w["scanned_at"][:10])
         for d in await wallet_service.manual_positions(conn, owner):
@@ -129,6 +139,8 @@ async def _crypto_assets(
             if d["value_brl"] is not None:
                 found[d["asset_symbol"]] += _dec(d["value_brl"])
                 qty[d["asset_symbol"]] += _dec(d["balance"])
+                if d.get("value_usd") is not None:
+                    usd[d["asset_symbol"]] += _dec(d["value_usd"])
     else:
         wallets = await wallet_service.positions_as_of(conn, as_of)
         prices = await market_service.prices_as_of(
@@ -151,6 +163,7 @@ async def _crypto_assets(
                 source="manual" if s in manual else "carteiras",
             ),
             resultado=None,
+            valor_usd=usd[s].quantize(_CENT) if usd.get(s) else None,
             quantidade=_plain(qty[s].quantize(Decimal("1e-8"))) if qty.get(s) else None,
             preco=_plain((v / qty[s]).quantize(Decimal("0.00000001"))) if qty.get(s) else None,
             manual=s in manual,
@@ -246,12 +259,15 @@ async def positions_period(
                         flows=calc.net_contributed(in_period),
                         income=calc.income_received(in_period),
                     )
+        resultado_total = (
+            calc.investment_result(
+                value, contributed=calc.net_contributed(sops), income=calc.income_received(sops)
+            ).quantize(_CENT)
+            if value is not None
+            else None
+        )
         xirr_mensal: Decimal | None = None
-        if (
-            value is not None
-            and not closed
-            and cls not in (AssetClass.RENDA_FIXA, AssetClass.CRIPTO)
-        ):
+        if value is not None and not closed and cls != AssetClass.CRIPTO:
             in_period = [op for op in sops if start is None or op["data_operacao"] >= start]
             held_before = (
                 start is not None
@@ -287,6 +303,7 @@ async def positions_period(
                 preco=_plain(unit) if unit is not None else None,
                 valor=valor,
                 resultado=resultado.quantize(_CENT) if resultado is not None else None,
+                resultado_total=resultado_total,
                 manual=manual and symbol not in cdi_assets,
                 xirr_mensal=xirr_mensal,
                 nota=(
@@ -329,6 +346,7 @@ async def positions_period(
             a for a in assets_by_class[cls_key] if a.asset_id not in set_aside
         ]
     out: list[PositionClass] = []
+    crypto_assets = await _crypto_assets(conn, owner, as_of, live)
     for key, label in CLASS_ORDER:
         if key == AssetClass.CRIPTO:
             out.append(
@@ -339,7 +357,13 @@ async def positions_period(
                     aplicado=crypto_out.quantize(_CENT),
                     valor=crypto_value.quantize(_CENT),
                     resultado=crypto_result.quantize(_CENT) if crypto_result is not None else None,
-                    assets=await _crypto_assets(conn, owner, as_of, live),
+                    resultado_total=(crypto_value - crypto_out).quantize(_CENT),
+                    assets=crypto_assets,
+                    valor_usd=(
+                        sum((a.valor_usd for a in crypto_assets if a.valor_usd), Decimal(0))
+                        if any(a.valor_usd for a in crypto_assets)
+                        else None
+                    ),
                 )
             )
             continue
@@ -360,6 +384,7 @@ async def positions_period(
                     if all(r is not None for r in results)
                     else None
                 ),
+                resultado_total=_sum_total(assets),
                 assets=assets,
             )
         )
@@ -384,8 +409,14 @@ def _block(key: str, label: str, assets: list[PositionAsset]) -> PositionClass:
             if all(r is not None for r in results)
             else None
         ),
+        resultado_total=_sum_total(assets),
         assets=assets,
     )
+
+
+def _sum_total(assets: list[PositionAsset]) -> Decimal | None:
+    totals = [a.resultado_total for a in assets]
+    return sum((t for t in totals if t is not None), Decimal(0)) if totals else Decimal(0)
 
 
 async def month_contributions(

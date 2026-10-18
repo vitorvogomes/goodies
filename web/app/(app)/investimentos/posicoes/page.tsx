@@ -6,23 +6,27 @@
 // dd/mm/aaaa" com ponto de aviso; sem preço: "—" + "sem preço"; preço manual: Selo "manual".
 // XIRR nominal × real do período por classe e consolidado; por ativo, % a.m. (Story 7.3).
 // Alocação × meta ± banda e desvio em p.p. (Story 8.3); os ativos de objetivos no bloco "Objetivos",
-// fora da base da alocação mas no patrimônio.
+// fora da base da alocação mas no patrimônio. Pedido de 18/10/2026: resultado total (desde o primeiro
+// aporte) ao lado do resultado do período, XIRR com o equivalente ao mês e a explicação, a régua da
+// banda e o cripto também em US$.
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, Suspense, useState } from "react";
 
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
+import { AllocationCell } from "@/components/investimentos/AllocationCell";
 import { OperationsBlock } from "@/components/investimentos/OperationsBlock";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   fmtQty,
   formatBRL,
   formatDate,
   formatMonth,
   formatPercent,
-  formatPP,
   formatSignedBRL,
   formatUnitPrice,
+  formatUSD,
 } from "@/lib/format";
 import { usePositions } from "@/lib/positions";
 import { usePeriodo } from "@/lib/use-periodo";
@@ -39,7 +43,7 @@ function money(v: number | null): string {
 function Result({ value }: { value: number | null }) {
   if (value === null) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className={cn(value > 0 && "text-positive", value < 0 && "text-negative")}>
+    <span className={cn("whitespace-nowrap", value > 0 && "text-positive", value < 0 && "text-negative")}>
       {value !== 0 && <span aria-hidden>{value > 0 ? "▲ " : "▼ "}</span>}
       {formatSignedBRL(value)}
     </span>
@@ -47,43 +51,56 @@ function Result({ value }: { value: number | null }) {
 }
 
 // XIRR do período (% a.a.): "aguardando IPCA" vira Selo (o IPCA do último mês ainda não saiu).
-function Rate({ v }: { v: Valued }) {
-  if (v.value !== null) return <span>{formatPercent(v.value)}</span>;
+function Rate({
+  v,
+  monthly = null,
+  short = false,
+  ipcaNote,
+}: {
+  v: Valued;
+  monthly?: number | null;
+  short?: boolean; // mês/trimestre: o % a.m. vem primeiro (anualizar um mês exagera)
+  ipcaNote: string;
+}) {
+  if (v.value !== null) {
+    const annual = `${formatPercent(v.value)} a.a.`;
+    const month = monthly !== null ? `${formatPercent(monthly)} a.m.` : null;
+    const [main, sub] = short && month ? [month, `≈ ${annual}`] : [annual, month && `≈ ${month}`];
+    return (
+      <span className="inline-flex flex-col items-end whitespace-nowrap">
+        <span>{main}</span>
+        {sub && <span className="type-caption font-normal text-muted-foreground">{sub}</span>}
+      </span>
+    );
+  }
   if (v.unavailable_reason === "aguardando_ipca") {
-    return <StatusBadge tooltip="o IPCA do último mês do período ainda não saiu">aguardando IPCA</StatusBadge>;
+    return <StatusBadge tooltip={ipcaNote}>aguardando IPCA</StatusBadge>;
   }
   return <span className="text-muted-foreground">—</span>;
 }
 
-// Story 8.3: alocação atual × meta ± banda e o desvio em p.p. (coluna própria, sem seta); fora da
-// banda, o desvio sai em laranja. Classe: % na base sem os objetivos; ativo: % dentro da classe.
-function Allocation({
-  alocacao,
-  meta,
-  banda,
-  desvio,
-  fora,
-  muted = false,
-}: {
-  alocacao: number | null;
-  meta: number | null;
-  banda: number | null;
-  desvio: number | null;
-  fora: boolean;
-  muted?: boolean;
-}) {
-  const cell = cn("px-3 text-right type-num-table", muted ? "py-1.5 text-muted-foreground" : "py-2");
+// O IPCA de um mês sai por volta do dia 10 do mês seguinte (IBGE).
+function ipcaNote(periodo: string): string {
+  const [y, m] = periodo.split("-").map(Number);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return `O IPCA de ${formatMonth(periodo)} sai por volta de 10/${next.slice(5)}/${next.slice(0, 4)} (IBGE); até lá a rentabilidade real fica aguardando.`;
+}
+
+const XIRR_HELP =
+  "XIRR: a taxa anual que iguala o que você aplicou — cada aporte na data dele — ao valor no fim do período. " +
+  "Considera quanto tempo cada real ficou investido (o rendimento ponderado pelo prazo). Num período curto, " +
+  "um mês de +1% vira ≈ 12,7% a.a.: por isso ao lado vai o equivalente ao mês.";
+
+function HeaderHelp({ label, help }: { label: string; help: string }) {
   return (
-    <>
-      <td className={cell}>{alocacao != null ? formatPercent(alocacao) : "—"}</td>
-      <td className={cell}>
-        {meta != null ? `${formatPercent(meta)}${banda != null ? ` ± ${String(banda).replace(".", ",")} p.p.` : ""}` : "—"}
-      </td>
-      <td className={cn(cell, fora && "text-warning")}>
-        {desvio != null ? formatPP(desvio) : "—"}
-        {fora && <span className="sr-only"> (fora da banda)</span>}
-      </td>
-    </>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className="underline decoration-dotted underline-offset-4">
+          {label}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-80">{help}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -98,6 +115,7 @@ function AssetValue({ a }: { a: PositionAsset }) {
   return (
     <span className="inline-flex flex-col items-end">
       <span>{formatBRL(a.valor.value)}</span>
+      {a.valor_usd != null && <span className="type-caption text-muted-foreground">{formatUSD(a.valor_usd)}</span>}
       {a.valor.stale && a.valor.as_of && (
         <span className="inline-flex items-center gap-1 type-caption text-muted-foreground">
           <span aria-hidden className="size-1.5 rounded-full bg-warning-dot" />
@@ -122,6 +140,9 @@ function Posicoes() {
     });
 
   const data = report.data;
+  const byPeriod = leitura !== "inicio"; // desde o início, o resultado do período é o total
+  const short = leitura === "mes" || leitura === "tri";
+  const note = ipcaNote(periodo);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -151,12 +172,29 @@ function Posicoes() {
                 <th scope="col" className="px-3 py-2 text-left font-medium">Classe / ativo</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Aplicado</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Valor atual</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Resultado</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">XIRR nominal</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">XIRR real</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Alocação</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Meta</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Desvio</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  <HeaderHelp
+                    label="Resultado total"
+                    help="Valor atual − aplicado + proventos, desde o primeiro aporte. No bloco cripto: quanto vale − quanto saiu."
+                  />
+                </th>
+                {byPeriod && (
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Resultado {LEITURA_LABEL[leitura]}
+                  </th>
+                )}
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  <HeaderHelp label="XIRR" help={XIRR_HELP} />
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  <HeaderHelp label="XIRR real" help="O XIRR descontado o IPCA do período (o ganho acima da inflação)." />
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  <HeaderHelp
+                    label="Alocação × meta"
+                    help="A régua mostra a faixa aceita (meta ± banda, em verde claro) e o ponto é a alocação de hoje. Fora da faixa, o ponto e o texto ficam laranja: é a classe a reforçar (abaixo) ou a segurar (acima) no aporte."
+                  />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -179,17 +217,31 @@ function Posicoes() {
                       </button>
                     </th>
                     <td className="px-3 py-2 text-right type-num-table">{money(c.aplicado)}</td>
-                    <td className="px-3 py-2 text-right type-num-table">{formatBRL(c.valor)}</td>
                     <td className="px-3 py-2 text-right type-num-table">
-                      <Result value={c.resultado} />
+                      <span className="inline-flex flex-col items-end">
+                        {formatBRL(c.valor)}
+                        {c.valor_usd != null && (
+                          <span className="type-caption font-normal text-muted-foreground">{formatUSD(c.valor_usd)}</span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-3 py-2 text-right type-num-table">
-                      <Rate v={c.xirr_nominal} />
+                      <Result value={c.resultado_total} />
+                    </td>
+                    {byPeriod && (
+                      <td className="px-3 py-2 text-right type-num-table">
+                        <Result value={c.resultado} />
+                      </td>
+                    )}
+                    <td className="px-3 py-2 text-right type-num-table">
+                      <Rate v={c.xirr_nominal} monthly={c.xirr_mensal} short={short} ipcaNote={note} />
                     </td>
                     <td className="px-3 py-2 text-right type-num-table">
-                      <Rate v={c.xirr_real} />
+                      <Rate v={c.xirr_real} ipcaNote={note} />
                     </td>
-                    <Allocation alocacao={c.alocacao} meta={c.meta} banda={c.banda} desvio={c.desvio_pp} fora={c.fora_banda} />
+                    <td className="px-3 py-2 text-right type-num-table">
+                      <AllocationCell alocacao={c.alocacao} meta={c.meta} banda={c.banda} desvio={c.desvio_pp} fora={c.fora_banda} />
+                    </td>
                   </tr>
                   {open.has(c.key) &&
                     c.assets.map((a) => (
@@ -212,12 +264,19 @@ function Posicoes() {
                           <AssetValue a={a} />
                         </td>
                         <td className="px-3 py-1.5 text-right type-num-table">
-                          <Result value={a.resultado} />
+                          <Result value={a.resultado_total} />
                         </td>
+                        {byPeriod && (
+                          <td className="px-3 py-1.5 text-right type-num-table">
+                            <Result value={a.resultado} />
+                          </td>
+                        )}
                         <td className="px-3 py-1.5 text-right type-num-table text-muted-foreground" colSpan={2}>
                           {a.xirr_mensal !== null ? `${formatPercent(a.xirr_mensal)} a.m.` : "—"}
                         </td>
-                        <Allocation alocacao={a.alocacao} meta={a.meta} banda={null} desvio={a.desvio_pp} fora={false} muted />
+                        <td className="px-3 py-1.5 text-right type-num-table text-muted-foreground">
+                          <AllocationCell alocacao={a.alocacao} meta={a.meta} banda={null} desvio={a.desvio_pp} fora={false} compact />
+                        </td>
                       </tr>
                     ))}
                 </Fragment>
@@ -230,7 +289,7 @@ function Posicoes() {
                 </th>
                 <td />
                 <td className="px-3 py-2 text-right type-num-table">{formatBRL(data.caixa_corretora)}</td>
-                <td colSpan={6} />
+                <td colSpan={byPeriod ? 5 : 4} />
               </tr>
               {data.a_caminho.map((w) => (
                 <tr key={w.broker} className="text-muted-foreground">
@@ -245,7 +304,7 @@ function Posicoes() {
                   </th>
                   <td />
                   <td className="px-3 py-2 text-right type-num-table">{formatBRL(w.value)}</td>
-                  <td colSpan={6} className="px-3 py-2 type-caption">fora do patrimônio</td>
+                  <td colSpan={byPeriod ? 5 : 4} className="px-3 py-2 type-caption">fora do patrimônio</td>
                 </tr>
               ))}
             </tbody>
@@ -254,14 +313,17 @@ function Posicoes() {
                 <th scope="row" className="px-3 py-2 text-left">Total</th>
                 <td className="px-3 py-2 text-right type-num-table">{formatBRL(data.aplicado)}</td>
                 <td className="px-3 py-2 text-right type-num-table">{formatBRL(data.total)}</td>
+                <td className="px-3 py-2 text-right type-num-table">
+                  <Result value={data.resultado_total} />
+                </td>
+                {byPeriod && <td />}
+                <td className="px-3 py-2 text-right type-num-table">
+                  <Rate v={data.xirr_nominal} monthly={data.xirr_mensal} short={short} ipcaNote={note} />
+                </td>
+                <td className="px-3 py-2 text-right type-num-table">
+                  <Rate v={data.xirr_real} ipcaNote={note} />
+                </td>
                 <td />
-                <td className="px-3 py-2 text-right type-num-table">
-                  <Rate v={data.xirr_nominal} />
-                </td>
-                <td className="px-3 py-2 text-right type-num-table">
-                  <Rate v={data.xirr_real} />
-                </td>
-                <td colSpan={3} />
               </tr>
             </tfoot>
           </table>

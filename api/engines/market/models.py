@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PriceOut(BaseModel):
@@ -26,7 +26,15 @@ class PricesResponse(BaseModel):
 
 
 class SetPriceRequest(BaseModel):
-    """Corpo do POST manual de preço (BRL)."""
+    """Corpo do POST manual de preço: em R$ ou, no token cripto, em US$ (pedido de 18/10/2026 — o
+    R$ sai da cotação do dólar e é refeito quando ela muda)."""
 
-    price_brl: Decimal = Field(ge=0)  # preço unitário: até 8 casas (asset_prices.price_brl)
+    price_brl: Decimal | None = Field(default=None, ge=0)  # unitário, até 8 casas
+    price_usd: Decimal | None = Field(default=None, ge=0)
     as_of: date | None = None  # Story 10.2: a data do preço informado (padrão: hoje)
+
+    @model_validator(mode="after")
+    def _one_currency(self) -> SetPriceRequest:
+        if (self.price_brl is None) == (self.price_usd is None):
+            raise ValueError("Informe o preço em R$ ou em US$.")
+        return self

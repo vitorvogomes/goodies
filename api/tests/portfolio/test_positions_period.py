@@ -225,9 +225,17 @@ async def test_period_return_nominal_and_real(pool: Any) -> None:
     asset = next(a for a in acoes.assets if a.symbol == t)
     assert asset.xirr_mensal is not None and asset.xirr_mensal > 0
     assert acoes.xirr_nominal.value is not None
-    for key in ("renda_fixa", "cripto"):
-        cls = next(c for c in report.classes if c.key == key)
-        assert all(a.xirr_mensal is None for a in cls.assets)
+    # pedido de 18/10/2026: a renda fixa também tem o % a.m. (o "rendimento ponderado pelo prazo"
+    # da planilha); só o bloco cripto não (custo por ativo não existe)
+    cripto = next(c for c in report.classes if c.key == "cripto")
+    assert all(a.xirr_mensal is None for a in cripto.assets)
+    # resultado total (valor − aplicado + proventos) ao lado do resultado do período
+    assert asset.resultado_total is not None
+    assert acoes.resultado_total == sum(
+        (a.resultado_total for a in acoes.assets if a.resultado_total is not None), Decimal(0)
+    )
+    assert cripto.resultado_total == cripto.valor - (cripto.aplicado or Decimal(0))
+    assert acoes.xirr_mensal is not None
     assert report.xirr_nominal.value is not None
 
 

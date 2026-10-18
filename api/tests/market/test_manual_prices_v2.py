@@ -58,3 +58,63 @@ async def test_manual_with_date_and_listing(api: Any, pool: Any, portfolio_user:
             await conn.execute("DELETE FROM asset_price_history WHERE ticker = 'ZZNEO'")
             await conn.execute("DELETE FROM asset_prices WHERE ticker = 'ZZNEO'")
             await conn.execute("DELETE FROM assets WHERE id = $1::uuid", asset)
+
+
+@pytest.mark.asyncio
+async def test_manual_price_in_dollars(api: Any, pool: Any, portfolio_user: dict) -> None:
+    """Pedido de 18/10/2026: o token cripto sem cotação se informa em dólar (como nas carteiras);
+    o R$ sai da cotação do dólar (USDT/USDC) e é refeito quando ela muda — a data informada fica."""
+    from engines.market import service
+
+    headers = portfolio_user["headers"]
+    async with pool.acquire() as conn:
+        asset = await conn.fetchval(
+            "INSERT INTO assets (key, name, class, price_ref, valuation) VALUES "
+            "('manual:zzusd', 'ZZUSD', 'cripto', 'ZZUSD', 'manual') RETURNING id::text"
+        )
+        saved = await conn.fetchrow("SELECT * FROM asset_prices WHERE ticker = 'USDT'")
+        await service.upsert_price(
+            conn, "USDT", Decimal("5.40"), price_usd=1.0, source="coingecko", is_manual=False
+        )
+    try:
+        r = await api.post(
+            "/api/v1/market/prices/ZZUSD",
+            json={"price_usd": "1.02", "as_of": "2026-10-01"},
+            headers=headers,
+        )
+        assert r.status_code == 200, r.text
+        listed = (await api.get("/api/v1/portfolio/manual-prices", headers=headers)).json()
+        item = next(i for i in listed if i["ticker"] == "ZZUSD")
+        assert Decimal(item["price_usd"]) == Decimal("1.02")
+        assert Decimal(item["price_brl"]) == Decimal("5.508")
+        assert item["currency"] == "USD"
+        async with pool.acquire() as conn:
+            await service.upsert_price(
+                conn, "USDT", Decimal("5.50"), price_usd=1.0, source="coingecko", is_manual=False
+            )
+            assert await service.refresh_manual_usd(conn) >= 1
+            row = await conn.fetchrow(
+                "SELECT price_brl, is_manual, fetched_at::date AS d FROM asset_prices "
+                "WHERE ticker = 'ZZUSD'"
+            )
+        assert row["price_brl"] == Decimal("5.61") and row["is_manual"]
+        assert str(row["d"]) == "2026-10-01"
+        neither = await api.post("/api/v1/market/prices/ZZUSD", json={}, headers=headers)
+        assert neither.status_code == 422
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM asset_price_history WHERE ticker = 'ZZUSD'")
+            await conn.execute("DELETE FROM asset_prices WHERE ticker = 'ZZUSD'")
+            await conn.execute("DELETE FROM assets WHERE id = $1::uuid", asset)
+            await conn.execute("DELETE FROM asset_prices WHERE ticker = 'USDT'")
+            if saved is not None:
+                await conn.execute(
+                    "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, "
+                    "fetched_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                    saved["ticker"],
+                    saved["price_brl"],
+                    saved["price_usd"],
+                    saved["source"],
+                    saved["is_manual"],
+                    saved["fetched_at"],
+                )

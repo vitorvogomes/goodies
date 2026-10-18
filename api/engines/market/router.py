@@ -68,7 +68,15 @@ async def set_manual_price(
         if body.as_of
         else None
     )
-    await service.upsert_price(db, ticker, body.price_brl, as_of=as_of)
+    if body.price_usd is not None:
+        if await service.set_manual_usd(db, ticker, body.price_usd, as_of=as_of) is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                {"error": "sem_cotacao_dolar", "message": "Sem a cotação do dólar ainda."},
+            )
+    else:
+        assert body.price_brl is not None
+        await service.upsert_price(db, ticker, body.price_brl, as_of=as_of)
     # Invalida o cache Redis para o override manual não ficar mascarado por um preço
     # de mercado cacheado (manual sempre vence; ver invalidate_price_cache).
     await service.invalidate_price_cache(ticker)

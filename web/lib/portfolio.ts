@@ -52,6 +52,9 @@ export interface ManualPrice {
   price_brl: string | null; // decimal em texto (preço unitário, até 8 casas)
   as_of: string | null;
   is_manual: boolean;
+  price_usd: string | null; // o informado em dólar (token cripto)
+  currency: "BRL" | "USD";
+  is_crypto: boolean; // aceita o preço em US$
 }
 
 export function useManualPrices() {
@@ -65,10 +68,20 @@ export function useManualPrices() {
 export function useSaveManualPrice() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ ticker, price, asOf }: { ticker: string; price: string; asOf: string }) =>
+    mutationFn: ({
+      ticker,
+      price,
+      asOf,
+      currency = "BRL",
+    }: {
+      ticker: string;
+      price: string;
+      asOf: string;
+      currency?: "BRL" | "USD";
+    }) =>
       apiFetch<unknown>(`/api/v1/market/prices/${encodeURIComponent(ticker)}`, {
         method: "POST",
-        body: JSON.stringify({ price_brl: price, as_of: asOf }),
+        body: JSON.stringify(currency === "USD" ? { price_usd: price, as_of: asOf } : { price_brl: price, as_of: asOf }),
       }),
     onSuccess: () => invalidateAfter(queryClient, "market"),
   });

@@ -15,6 +15,8 @@ export interface PositionAsset {
   alocacao: number | null; // Story 8.3: % do ativo na classe
   meta: number | null;
   desvio_pp: number | null;
+  resultado_total: number | null; // desde o primeiro aporte
+  valor_usd: number | null; // cripto
 }
 
 export interface PositionClass {
@@ -32,6 +34,9 @@ export interface PositionClass {
   banda: number | null;
   desvio_pp: number | null;
   fora_banda: boolean;
+  resultado_total: number | null;
+  valor_usd: number | null; // bloco cripto em dólar
+  xirr_mensal: number | null; // o XIRR nominal ao mês
 }
 
 export interface PositionsReport {
@@ -48,6 +53,8 @@ export interface PositionsReport {
   xirr_nominal: Valued;
   xirr_real: Valued;
   ipca_ate: string | null;
+  resultado_total: number;
+  xirr_mensal: number | null;
 }
 
 // Ajustes › Debêntures (Story 7.6).
