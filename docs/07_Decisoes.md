@@ -15,6 +15,10 @@ tags: [goodies, adr, decisoes, arquitetura]
 
 ## ADR-001 — Stack principal
 
+> **Emenda 2026-10-17:** Fly.io e Vercel removidos do projeto (workflow, `fly.toml`, `DEPLOY.md`).
+> A v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1. As menções
+> abaixo ficam como histórico.
+
 **Data:** 2026-06-02  
 **Status:** Aceito  
 **Autor:** Minerva + Hatchepsut (Excalidraw)

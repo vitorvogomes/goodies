@@ -36,7 +36,7 @@
 
 | Milestone | Skills que devem ser acionadas | Lacunas (sem skill → conventions/decisions) |
 |---|---|---|
-| **m0** Foundation | tdd, api-design-principles, supabase-postgres-best-practices, supabase¹, next-best-practices, frontend-design, ui-ux-pro-max, systematic-debugging | Redis conn, CI/CD/Fly/Vercel |
+| **m0** Foundation | tdd, api-design-principles, supabase-postgres-best-practices, supabase¹, next-best-practices, frontend-design, ui-ux-pro-max, systematic-debugging | Redis conn |
 | **m1** Ledger | tdd, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max, next-best-practices, systematic-debugging | migração CSV |
 | **m2** Portfolio | tdd, systematic-debugging, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max | XIRR/scipy, migração CSV |
 | **m3** Market | tdd, api-design-principles, systematic-debugging, frontend-design, ui-ux-pro-max | Redis cache, fetcher httpx, worker APScheduler |
@@ -90,7 +90,7 @@ skills_evitar: [supabase]   # só onde há risco de misfire (ex.: auth)
 Áreas sem skill instalada → seguir `decisions.md` (TTLs, key naming, fallback, ADR-005) +
 `conventions.md` + TDD/`systematic-debugging`:
 **Redis cache** · **worker APScheduler** · **fetcher httpx/retry** · **scipy/XIRR numérico** ·
-**CI/CD (Fly.io/Vercel)** · **rate limiting**.
+**rate limiting**. (CI/CD removido; deploy volta na v2.1.)
 
 Candidatos avaliados e **não instalados** (sem fonte de bom fit no registry):
 

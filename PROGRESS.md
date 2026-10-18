@@ -33,7 +33,7 @@ Implement following TDD. Update PROGRESS.md when done.
 | 00-05 | Implementar auth JWT (login, refresh, middleware) | [x] | a8da1c9 |
 | 00-06 | Setup Next.js com TypeScript e Tailwind | [x] | ff397a2 |
 | 00-07 | Tela de login no frontend | [x] | b58050e |
-| 00-08-09 | GitHub Actions + Deploy Fly.io e Vercel | [~] | — |
+| 00-08-09 | GitHub Actions + Deploy Fly.io e Vercel | cancelada 2026-10-17 (deploy removido; v2.1) | — |
 
 **Gate m0:** `GET /api/v1/health` → 200 com Postgres + Redis. Login funciona.
 

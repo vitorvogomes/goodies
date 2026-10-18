@@ -209,8 +209,8 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
 ---
 
 ## Pendências operacionais (dependem de marco/ambiente)
-- **Deploy m0 (STORY-00-08-09)** Fly.io/Vercel — dev 100% local (docker compose). O off-by-one
-  de timezone já foi corrigido (`today_brt`), mas só "morde" em prod.
+- ~~**Deploy m0 (STORY-00-08-09)** Fly.io/Vercel~~ — **cancelado 2026-10-17:** workflow, `fly.toml` e
+  `DEPLOY.md` removidos; só localhost até a v2.1, que desenha a infra de deploy do zero.
 - **CDI real:** `settings.cdi_anual` provisório → **m5** (série SGS do BCB, sem mexer no `rf_cdi`).
 - **Observabilidade (m6):** gate-48h do m3 dispensado (worker validado ao vivo); a observação
   formal + alerta de falha de worker no Discord (<5min) é **m6**.

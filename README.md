@@ -22,7 +22,7 @@ portfólio e análise de retorno.
 | Cache | Redis (Upstash) — `redis[asyncio]` |
 | Scheduler | APScheduler no processo FastAPI (não Celery) |
 | Auth | JWT custom (`python-jose` + `passlib[bcrypt]`) — **não** Supabase Auth |
-| Deploy | Fly.io (API) + Vercel (web) |
+| Deploy | Nenhum — só localhost; infra de deploy do zero na v2.1 |
 
 > Decisões travadas (ADRs) em [`docs/07_Decisoes.md`](docs/07_Decisoes.md) — não violar sem novo ADR.
 
@@ -58,7 +58,7 @@ fixa as versões. Sem `requirements*.txt`.
 
 **Rodar e validar localmente:** ver [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) — stack
 (Postgres + Redis + **API**) via `docker compose` na porta **8000**; front no host (não
-precisa de Supabase/Upstash/Fly/Vercel).
+precisa de Supabase/Upstash).
 
 O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (api/) +
 **eslint** (web/) nos arquivos staged.
@@ -77,7 +77,6 @@ O pre-commit (`.githooks/pre-commit`) roda **gitleaks** (segredos) + **ruff** (a
 | [`docs/v1/05_Epicos/`](docs/v1/05_Epicos/) · [`docs/v1/06_Stories/`](docs/v1/06_Stories/) | Épicos e stories |
 | [`docs/15_Debito_Tecnico.md`](docs/15_Debito_Tecnico.md) | Débito técnico (registro vivo) |
 | [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) | Como rodar localmente |
-| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Deploy (Fly.io + Vercel) |
 
 ## Segurança
 

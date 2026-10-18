@@ -2,8 +2,7 @@
 
 **Docker-local-first:** a stack inteira de dev (Postgres + Redis + **API**) sobe via
 `docker compose` na porta **8000**. O front (Next.js) roda no host. Para desenvolver e validar
-o m0 você **não precisa** de Supabase, Upstash, Fly nem Vercel — deploy (cloud) fica para
-depois, ver [`DEPLOY.md`](DEPLOY.md).
+o app você **não precisa** de Supabase nem Upstash. Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1.
 
 > As variáveis `UPSTASH_*`, `REDIS_URL`, `DISCORD_WEBHOOK_URL` são de produção/m6 — deixe os
 > placeholders. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front

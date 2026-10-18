@@ -1,6 +1,5 @@
 # Dev local — STORY-00-02. FastAPI + Postgres + Redis.
 # Postgres/Redis locais servem o dev de 00-03/00-04 (plano: Docker-local-first).
-# Em produção (Fly.io) usa-se Supabase + Upstash via secrets, não este compose.
 services:
   api:
     build:

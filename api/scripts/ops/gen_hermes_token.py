@@ -2,7 +2,7 @@
 
 JWT scope=hermes, expiração HERMES_TOKEN_TTL_DAYS (90d), assinado com
 HERMES_SERVICE_TOKEN_SECRET (gere o secret com `python -c "import secrets;
-print(secrets.token_hex(32))"` e configure no Fly.io — NÃO commitar).
+print(secrets.token_hex(32))"` e coloque no `.env` — NÃO commitar).
 
 Uso (a partir de api/):
     .venv/bin/python -m scripts.ops.gen_hermes_token

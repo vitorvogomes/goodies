@@ -19,8 +19,7 @@ Plataforma pessoal de controle financeiro para substituir uma planilha Google Sh
 | Frontend | Next.js 16 (App Router) / React 19 / TypeScript (ADR-009) |
 | Database | Supabase (Postgres 15) |
 | Cache | Redis via Upstash |
-| Backend deploy | Fly.io Hobby |
-| Frontend deploy | Vercel Hobby |
+| Deploy | Nenhum — só localhost; infra de deploy do zero na v2.1 |
 | Scheduler | APScheduler (no mesmo processo FastAPI) |
 
 ---

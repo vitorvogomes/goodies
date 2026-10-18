@@ -1,6 +1,6 @@
 """Data 'hoje' ancorada no fuso local (BRT) — débito m4.
 
-Em produção a API roda em UTC (Fly.io). `date.today()` cru daria o dia SEGUINTE
+Em container a API roda em UTC. `date.today()` cru daria o dia SEGUINTE
 entre ~21-24h BRT -> off-by-one nas bordas 7d/30d dos alertas (compute-on-read).
 Toda lógica de "hoje" dos alertas deve passar por `today_brt()`.
 """

@@ -59,7 +59,7 @@ seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
 | Database | Supabase (Postgres 15) via asyncpg direto (sem ORM) |
 | Cache | Redis via Upstash (`redis[asyncio]`) |
 | Scheduler | APScheduler no mesmo processo FastAPI (não Celery) |
-| Deploy | Fly.io (API) + Vercel (web) |
+| Deploy | Nenhum — só localhost (`docker compose` + `pnpm dev`); infra de deploy do zero na v2.1 |
 
 ---
 
@@ -120,7 +120,7 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 
 | Milestone | Gate |
 |---|---|
-| m0 | `GET /api/v1/health` → 200 com postgres+redis. Deploy funcionando. |
+| m0 | `GET /api/v1/health` → 200 com postgres+redis. |
 | m1 | taxa de poupança junho/2026 == planilha (±0,1%) |
 | m2 | XIRR Python == Excel XIRR (±0,1 pp) |
 | m3 | Preços atualizando sem erro por 48h |

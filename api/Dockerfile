@@ -1,4 +1,4 @@
-# Goodies API — imagem de produção (Fly.io). STORY-00-02 · deps via uv (ADR-010).
+# Goodies API — imagem usada pelo docker compose local. STORY-00-02 · deps via uv (ADR-010).
 FROM python:3.12-slim
 
 # uv: binário copiado da imagem oficial (sem pip na imagem final).
