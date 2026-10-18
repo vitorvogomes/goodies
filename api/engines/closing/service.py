@@ -15,7 +15,7 @@ from typing import Any
 import asyncpg
 
 from engines.common.alerts import brl
-from engines.common.dates import MIN_MONTH, add_months, month_end, today_brt
+from engines.common.dates import MIN_MONTH, add_months, month_end, resolve_period, today_brt
 from engines.common.models import Valued
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
@@ -24,6 +24,7 @@ from engines.ledger import service as ledger_service
 from engines.planning import service as planning_service
 from engines.planning.models import MonthBudget
 from engines.portfolio import calc as portfolio_calc
+from engines.portfolio import positions as positions_service
 from engines.portfolio.valuation import valuation_as_of
 
 from .checks import label, run_checks
@@ -32,8 +33,11 @@ from .models import (
     ChecklistItem,
     CloseCheck,
     CloseOut,
+    MonthSource,
     MonthState,
     MonthSummary,
+    PeriodSummary,
+    PositionsReport,
     Recovery,
     RecoveryMonth,
     RecoveryStep,
@@ -819,3 +823,62 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         consumido_por_grupo=[],
     )
     return budget.model_copy(update=update)
+
+
+# --------------------------------------------------------------------------------------------
+# Período e Posições (Story 7.1 — AD-8: a leitura de um período passa por `closing`)
+# --------------------------------------------------------------------------------------------
+
+_PERIOD_TERMS = (
+    "receitas",
+    "trabalho",
+    "resgates",
+    "devolucoes",
+    "gastos",
+    "investido",
+    "resultado_mes",
+    "consumido",
+)
+
+
+async def period_months(conn: asyncpg.Connection, months: list[date]) -> list[MonthSource]:
+    """A fonte de cada mês: fechado → snapshot; aberto → ao vivo."""
+    if not months:
+        return []
+    states = await month_states(conn, months[0], months[-1])
+    wanted = set(months)
+    return [
+        MonthSource(month=s.month, source="live" if s.status == "aberto" else "snapshot")
+        for s in states
+        if s.month in wanted
+    ]
+
+
+async def build_period_summary(conn: asyncpg.Connection, months: list[date]) -> PeriodSummary:
+    """Soma os termos de fluxo dos meses (cada um pela leitura do mês: snapshot ou ao vivo)."""
+    totals = dict.fromkeys(_PERIOD_TERMS, Decimal(0))
+    sources: list[MonthSource] = []
+    for month in sorted(months):
+        s = await month_summary(conn, month)
+        sources.append(MonthSource(month=month, source=s.source))
+        for term in _PERIOD_TERMS:
+            totals[term] += getattr(s, term)
+    return PeriodSummary(months=sources, **totals)
+
+
+async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> PositionsReport:
+    """Posições: aplicado e valor no fim do mês do período; resultado do período da leitura."""
+    months = resolve_period(periodo, leitura)
+    end = months[-1]
+    start = None if leitura == "inicio" else months[0]
+    owner = await get_owner_id(conn)
+    classes = await positions_service.positions_period(conn, owner, start, end)
+    return PositionsReport(
+        periodo=periodo,
+        leitura=leitura,
+        as_of=min(month_end(end), today_brt()),
+        months=await period_months(conn, months),
+        classes=classes,
+        aplicado=sum((c.aplicado or Decimal(0) for c in classes), Decimal(0)),
+        valor=sum((c.valor for c in classes), Decimal(0)),
+    )

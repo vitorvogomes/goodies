@@ -1,0 +1,228 @@
+"""Posições em dois níveis (Story 7.1 — FR-21, FR-27): classe → ativo com o aplicado e o valor no
+fim do mês e o resultado do período da leitura (`calc.period_result`; desde o início,
+`calc.investment_result`). A valoração é a de `valuation_as_of` (a mesma do fechamento, AD-8).
+
+Cripto é um bloco (memória crypto-as-bucket): quanto saiu (ledger) × quanto vale (carteiras); os
+ativos aparecem só com o valor, nunca com custo ou resultado inventado.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, timedelta
+from decimal import Decimal
+from typing import Any
+
+import asyncpg
+from pydantic import BaseModel
+
+from engines.common.assets import CLASS_BY_CATEGORY, CRYPTO_CATEGORIES, AssetClass
+from engines.common.dates import month_end, today_brt
+from engines.common.models import Valued
+from engines.common.money import Money
+from engines.market import service as market_service
+from engines.wallet import service as wallet_service
+
+from . import calc
+from .valuation import PortfolioValuation, valuation_as_of
+
+STALE_AFTER_DAYS = 3  # preço diário + fim de semana (o mesmo do Painel)
+_CRYPTO = [str(c) for c in CRYPTO_CATEGORIES]
+_CENT = Decimal("0.01")
+CLASS_ORDER = (
+    (AssetClass.ACOES_BR, "Ações Nacionais"),
+    (AssetClass.ETFS, "ETFs"),
+    (AssetClass.FIIS, "FIIs"),
+    (AssetClass.RENDA_FIXA, "Renda Fixa"),
+    (AssetClass.APOSENTADORIA, "Aposentadoria"),
+    (AssetClass.CRIPTO, "Bloco cripto: quanto saiu × quanto vale"),
+)
+
+
+class PositionAsset(BaseModel):
+    symbol: str
+    aplicado: Money | None  # None no bloco cripto (custo por ativo não é conhecido)
+    valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
+    resultado: Money | None
+    manual: bool = False
+
+
+class PositionClass(BaseModel):
+    key: str
+    label: str
+    is_bucket: bool
+    aplicado: Money | None
+    valor: Money
+    resultado: Money | None
+    assets: list[PositionAsset]
+
+
+def _dec(value: Any) -> Decimal:
+    return Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
+
+
+async def _live_prices(conn: asyncpg.Connection, symbols: list[str]) -> dict[str, Any]:
+    rows = await conn.fetch(
+        "SELECT ticker, fetched_at, is_manual FROM asset_prices WHERE ticker = ANY($1::text[])",
+        symbols,
+    )
+    return {r["ticker"]: r for r in rows}
+
+
+async def _crypto_assets(
+    conn: asyncpg.Connection, owner: str, as_of: date, live: bool
+) -> list[PositionAsset]:
+    found: dict[str, Decimal] = defaultdict(Decimal)
+    if live:
+        for w in await wallet_service.list_wallet_positions(conn, owner):
+            if w["value_brl"] is not None:
+                found[w["asset_symbol"]] += _dec(w["value_brl"])
+    else:
+        wallets = await wallet_service.positions_as_of(conn, as_of)
+        prices = await market_service.prices_as_of(
+            conn, [w["asset_symbol"] for w in wallets], as_of
+        )
+        for w in wallets:
+            price = prices[w["asset_symbol"]].value
+            if price is not None:
+                found[w["asset_symbol"]] += price * _dec(w["quantity"])
+    return [
+        PositionAsset(
+            symbol=s,
+            aplicado=None,
+            valor=Valued[Decimal](value=v.quantize(_CENT), as_of=as_of, source="carteiras"),
+            resultado=None,
+        )
+        for s, v in sorted(found.items(), key=lambda i: -i[1])
+    ]
+
+
+async def positions_period(
+    conn: asyncpg.Connection, owner: str, start: date | None, end: date
+) -> list[PositionClass]:
+    """`start` = 1º mês do período (None = desde o início); `end` = mês do Seletor de período."""
+    from .crypto_sleeve import sleeve_cashflows
+
+    today = today_brt()
+    as_of = min(month_end(end), today)
+    live = as_of >= today
+    end_val = await valuation_as_of(conn, owner, as_of)
+    start_val: PortfolioValuation | None = None
+    start_day = start - timedelta(days=1) if start is not None else None
+    if start_day is not None:
+        start_val = await valuation_as_of(conn, owner, start_day)
+    ops = await conn.fetch(
+        "SELECT asset_symbol, asset_category, tipo, quantidade, valor_unitario, data_operacao "
+        "FROM asset_operations WHERE user_id = $1 AND data_operacao <= $2 "
+        "AND asset_category <> ALL($3::text[]) ORDER BY data_operacao",
+        owner,
+        as_of,
+        _CRYPTO,
+    )
+    by_symbol: dict[str, list[Any]] = defaultdict(list)
+    for op in ops:
+        by_symbol[op["asset_symbol"]].append(op)
+    prices = await _live_prices(conn, list(by_symbol)) if live else {}
+
+    assets_by_class: dict[str, list[PositionAsset]] = defaultdict(list)
+    for symbol, sops in by_symbol.items():
+        if calc.quantity(sops) <= 0:
+            continue
+        cls = str(CLASS_BY_CATEGORY.get(sops[0]["asset_category"], AssetClass.ACOES_BR))
+        aplicado = calc.net_contributed(sops).quantize(_CENT)
+        value = end_val.by_asset.get(symbol)
+        price = prices.get(symbol)
+        price_day = today_brt(price["fetched_at"]) if price is not None else None
+        manual = bool(price is not None and price["is_manual"])
+        if value is None:
+            valor = Valued[Decimal](unavailable_reason="sem_preco", as_of=as_of)
+        else:
+            stale = (
+                live
+                and not manual
+                and price_day is not None
+                and (today - price_day).days > STALE_AFTER_DAYS
+            )
+            valor = Valued[Decimal](
+                value=value, as_of=price_day if live and price_day else as_of, stale=stale
+            )
+        resultado: Decimal | None = None
+        if value is not None:
+            if start is None or start_val is None:
+                resultado = calc.investment_result(
+                    value, contributed=aplicado, income=calc.income_received(sops)
+                )
+            else:
+                in_period = [op for op in sops if op["data_operacao"] >= start]
+                before = [op for op in sops if op["data_operacao"] < start]
+                held = calc.quantity(before) > 0
+                value_start = start_val.by_asset.get(symbol)
+                if not held or value_start is not None:
+                    resultado = calc.period_result(
+                        value,
+                        value_start or Decimal(0),
+                        flows=calc.net_contributed(in_period),
+                        income=calc.income_received(in_period),
+                    )
+        assets_by_class[cls].append(
+            PositionAsset(
+                symbol=symbol,
+                aplicado=aplicado,
+                valor=valor,
+                resultado=resultado.quantize(_CENT) if resultado is not None else None,
+                manual=manual,
+            )
+        )
+
+    # Bloco cripto: quanto saiu (ledger, sinal do XIRR: aporte < 0) × quanto vale (carteiras).
+    flows = await sleeve_cashflows(conn)
+    crypto_out = -sum((_dec(a) for d, a in flows if d <= as_of), Decimal(0))
+    crypto_value = end_val.crypto_value
+    if start is None or start_val is None:
+        crypto_result = calc.investment_result(
+            crypto_value, contributed=crypto_out, income=Decimal(0)
+        )
+    else:
+        crypto_result = calc.period_result(
+            crypto_value,
+            start_val.crypto_value,
+            flows=-sum((_dec(a) for d, a in flows if start <= d <= as_of), Decimal(0)),
+            income=Decimal(0),
+        )
+
+    out: list[PositionClass] = []
+    for key, label in CLASS_ORDER:
+        if key == AssetClass.CRIPTO:
+            out.append(
+                PositionClass(
+                    key=str(key),
+                    label=label,
+                    is_bucket=True,
+                    aplicado=crypto_out.quantize(_CENT),
+                    valor=crypto_value.quantize(_CENT),
+                    resultado=crypto_result.quantize(_CENT),
+                    assets=await _crypto_assets(conn, owner, as_of, live),
+                )
+            )
+            continue
+        assets = sorted(
+            assets_by_class.get(str(key), []),
+            key=lambda a: -(a.valor.value if a.valor.value is not None else Decimal(-1)),
+        )
+        results = [a.resultado for a in assets]
+        out.append(
+            PositionClass(
+                key=str(key),
+                label=label,
+                is_bucket=False,
+                aplicado=sum((a.aplicado or Decimal(0) for a in assets), Decimal(0)),
+                valor=sum((a.valor.value or Decimal(0) for a in assets), Decimal(0)),
+                resultado=(
+                    sum((r for r in results if r is not None), Decimal(0))
+                    if all(r is not None for r in results)
+                    else None
+                ),
+                assets=assets,
+            )
+        )
+    return out

@@ -62,3 +62,11 @@ def quantity(ops: Iterable[Mapping[str, Any]]) -> Decimal:
         elif op["tipo"] in OUTFLOW:
             total -= q
     return total
+
+
+def period_result(
+    value_end: Decimal, value_start: Decimal, *, flows: Decimal, income: Decimal
+) -> Decimal:
+    """Resultado de um período (Story 7.1): valor no fim − valor no início − aportado líquido no
+    período + proventos no período. Desde o início, é o `investment_result`."""
+    return value_end - value_start - flows + income

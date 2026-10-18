@@ -70,6 +70,9 @@ async def _cleanup(pool, tickers: list[str], batches: list[str]) -> None:
             "DELETE FROM asset_operations WHERE asset_symbol = ANY($1::text[])", tickers
         )
         await conn.execute("DELETE FROM asset_prices WHERE ticker = ANY($1::text[])", tickers)
+        await conn.execute(
+            "DELETE FROM asset_price_history WHERE ticker = ANY($1::text[])", tickers
+        )
         await conn.execute("DELETE FROM import_batches WHERE id = ANY($1::uuid[])", batches)
         await conn.execute(
             "DELETE FROM assets WHERE key = ANY($1::text[])", [f"b3:{t}" for t in tickers]
@@ -219,6 +222,17 @@ async def test_consolidado_writes_snapshots(api, auth_headers, pool) -> None:
             70.0,
         )
         assert snap["batch_id"] == body["batch_id"]
+        async with pool.acquire() as conn:  # o preço vale na data do consolidado, não hoje
+            price_day = await conn.fetchval(
+                "SELECT (fetched_at AT TIME ZONE 'America/Sao_Paulo')::date::text "
+                "FROM asset_prices WHERE ticker = $1",
+                t,
+            )
+            history = await conn.fetch(
+                "SELECT ref_date::text FROM asset_price_history WHERE ticker = $1", t
+            )
+        assert price_day == "2099-12-31"
+        assert [r["ref_date"] for r in history] == ["2099-12-31"]
         again = (
             await _preview(api, auth_headers, [("relatorio-consolidado-anual-2099.xlsx", pos)])
         ).json()

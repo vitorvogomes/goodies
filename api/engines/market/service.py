@@ -302,8 +302,12 @@ async def upsert_price(
     price_usd: float | None = None,
     source: str = "manual",
     is_manual: bool = True,
+    as_of: datetime | None = None,
 ) -> dict[str, Any]:
     """Chokepoint único de escrita de preço (PUT manual + worker do Market Engine).
+
+    `as_of`: a data do preço quando não é agora (ex.: o consolidado B3 de 30/09) — vira o
+    `fetched_at` e o dia do histórico, para o Carimbo de data não chamar de hoje um preço antigo.
 
     Precedência is_manual (§3.4): uma escrita do worker (`is_manual=False`) NUNCA
     sobrescreve uma linha manual (`is_manual=True`) — preços sem fonte de mercado
@@ -320,14 +324,14 @@ async def upsert_price(
         """
         WITH prev AS (SELECT price_brl, price_usd FROM asset_prices WHERE ticker = $1)
         INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual, fetched_at)
-        VALUES ($1, $2, $3, $4, $5, now())
+        VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()))
         ON CONFLICT (ticker) DO UPDATE
           SET price_brl = EXCLUDED.price_brl,
               -- só sobrescreve USD quando um novo é fornecido (manual BRL não apaga o USD)
               price_usd = COALESCE(EXCLUDED.price_usd, asset_prices.price_usd),
               source = EXCLUDED.source,
               is_manual = EXCLUDED.is_manual,
-              fetched_at = now()
+              fetched_at = EXCLUDED.fetched_at
           WHERE asset_prices.is_manual = false OR EXCLUDED.is_manual = true
         RETURNING ticker, price_brl, price_usd, source, is_manual, fetched_at,
                   (SELECT price_brl FROM prev) AS prev_brl,
@@ -338,6 +342,7 @@ async def upsert_price(
         price_usd,
         source,
         is_manual,
+        as_of,
     )
     if row is None:
         return {}  # escrita ignorada pela precedência is_manual

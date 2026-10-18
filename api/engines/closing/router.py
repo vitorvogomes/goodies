@@ -19,6 +19,7 @@ from .models import (
     CloseOut,
     MonthState,
     MonthSummary,
+    PositionsReport,
     Recovery,
     ReopenOut,
     ReopenPreview,
@@ -103,3 +104,17 @@ async def recovery(user: AuthUser, db: Db) -> Recovery:
 @router.get("/months/{mes}/budget", response_model=MonthBudget)
 async def month_budget(mes: str, user: AuthUser, db: Db) -> MonthBudget:
     return await service.month_budget(db, _month(mes))
+
+
+@router.get("/positions", response_model=PositionsReport)
+async def positions(
+    user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
+) -> PositionsReport:
+    mes = periodo or f"{today_brt():%Y-%m}"
+    _month(mes)
+    if leitura not in ("mes", "tri", "ano", "inicio"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "leitura_invalida", "message": "Leitura inválida (mes, tri, ano, inicio)."},
+        )
+    return await service.positions(db, mes, leitura)

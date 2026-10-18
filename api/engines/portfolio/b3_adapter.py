@@ -18,8 +18,9 @@ from __future__ import annotations
 import calendar
 import re
 from collections.abc import Awaitable, Callable
-from datetime import date
+from datetime import date, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -160,12 +161,19 @@ _BATCH_PRICE_TICKERS = """
     WHERE s.batch_id = $1::uuid AND a.price_ref IS NOT NULL
 """
 _PREVIOUS_SNAPSHOT = """
-    SELECT s.quantity, s.reported_value FROM broker_position_snapshots s
+    SELECT s.quantity, s.reported_value, s.ref_date FROM broker_position_snapshots s
     JOIN assets a ON a.id = s.asset_id
     WHERE a.price_ref = $1 AND s.batch_id IS DISTINCT FROM $2::uuid AND s.quantity > 0
       AND s.reported_value IS NOT NULL
     ORDER BY s.ref_date DESC LIMIT 1
 """
+
+
+def _price_day(day: date | None) -> datetime | None:
+    """O preço do consolidado vale na data de referência dele (meio-dia em Brasília)."""
+    if day is None:
+        return None
+    return datetime.combine(day, time(12), tzinfo=ZoneInfo("America/Sao_Paulo"))
 
 
 def _chain(category: str) -> str:
@@ -365,7 +373,7 @@ class B3Adapter:
             prices = {t: p for t, p in prices.items() if t not in fresher}
         for ticker, price in prices.items():
             written = await market_service.upsert_price(
-                conn, ticker, price, source="b3", is_manual=False
+                conn, ticker, price, source="b3", is_manual=False, as_of=_price_day(plan.period_end)
             )
             if written:
                 upserted += 1
@@ -416,6 +424,7 @@ class B3Adapter:
                     float(previous["reported_value"]) / float(previous["quantity"]),
                     source="b3",
                     is_manual=False,
+                    as_of=_price_day(previous["ref_date"]),
                 )
                 await market_service.invalidate_price_cache(r["price_ref"])
         await conn.execute(

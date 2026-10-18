@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from engines.common.money import Money, Pct
 from engines.planning.models import MonthBudget
+from engines.portfolio.positions import PositionClass
 
 
 class MonthSummary(BaseModel):
@@ -145,3 +146,33 @@ class Recovery(BaseModel):
     months: list[RecoveryMonth]
     current: date | None
     steps: list[RecoveryStep]
+
+
+class MonthSource(BaseModel):
+    month: date
+    source: str  # snapshot (fechado) | live
+
+
+class PeriodSummary(BaseModel):
+    """Soma dos meses do período (Story 7.1): termos de fluxo de cada mês, do snapshot quando
+    fechado e ao vivo quando aberto; nunca inclui mês depois do período."""
+
+    months: list[MonthSource]
+    receitas: Money
+    trabalho: Money
+    resgates: Money
+    devolucoes: Money
+    gastos: Money
+    investido: Money
+    resultado_mes: Money
+    consumido: Money
+
+
+class PositionsReport(BaseModel):
+    periodo: str
+    leitura: str
+    as_of: date
+    months: list[MonthSource]
+    classes: list[PositionClass]
+    aplicado: Money
+    valor: Money
