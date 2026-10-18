@@ -27,6 +27,7 @@ async def clean(pool: Any) -> AsyncIterator[None]:
     yield
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM month_closes WHERE month = ANY($1::date[])", MONTHS)
+        await conn.execute("DELETE FROM month_plans WHERE month = ANY($1::date[])", MONTHS)
 
 
 @pytest_asyncio.fixture
@@ -106,6 +107,13 @@ async def test_close_retro_block(pool, clean, pf_divergent, tmp_path: Path) -> N
     assert divergent["reason"] == "retroativo divergente · R$\u00a030,00"
     assert report.divergent == [date(2001, 2, 1)]
     assert report.closed == MONTHS and again.closed == [] and versions == 3
+    async with pool.acquire() as conn:  # refechar o divergente relê a confirmação com o valor
+        from engines.closing import service as closing
+
+        out = await closing.refechar(conn, date(2001, 2, 1), mode="completar")
+    assert next(c for c in out.confirmations if c.code == "saldo_pf_divergente").amount == Decimal(
+        "30.00"
+    )
     assert any("fev/2001" in s and "divergente" in s for s in said)
 
 
@@ -193,3 +201,47 @@ async def test_retro_month_keeps_origin_and_reasons(pool, clean, tmp_path: Path)
         assert unavailable["aporte_planejado"] == "nao_definido", r["version"]
         assert unavailable["a_caminho"] == "fora_do_resumo", r["version"]
         assert json.loads(r["coverage"])["B3"] == "patrimônio não coberto", r["version"]
+
+
+@pytest.mark.asyncio
+async def test_refechar_completes_budget_on_old_snapshot(pool, clean, tmp_path: Path) -> None:
+    """Story 6.8: um mês retroativo fechado antes do orçamento (termos nulos `fora_do_resumo`)
+    ganha, pelo `refechar --completar`, a versão seguinte com os termos do orçamento; o plano do mês
+    vem de `ensure_month_plan(mode='retro')`: dívidas = Σ role `divida` não casada, aporte nulo."""
+    import main  # noqa: F401
+    from engines.closing import service as closing
+    from engines.planning import service as planning
+
+    month = MONTHS[2]
+    budget_terms = (
+        "consumido",
+        "disponivel",
+        "restante",
+        "restante_sem_resgates",
+        "consumo_financiado",
+    )
+    async with pool.acquire() as conn:
+        await close_retro.run(conn, month, month, files_dir=tmp_path)
+        sets = ", ".join(f"{t} = NULL" for t in budget_terms)
+        reasons = json.dumps({t: "fora_do_resumo" for t in budget_terms})
+        await conn.execute(
+            f"UPDATE month_summary_totals SET {sets}, unavailable = unavailable || $2::jsonb "
+            "WHERE month = $1",
+            month,
+            reasons,
+        )
+        await conn.execute("DELETE FROM month_plans WHERE month = $1", month)
+        out = await closing.refechar(conn, month, mode="completar")
+        row = await conn.fetchrow(
+            "SELECT * FROM month_summary_totals WHERE month = $1 AND version = $2",
+            month,
+            out.version,
+        )
+        plan = await planning.month_plan(conn, month)
+        prefill = (await planning.month_budget(conn, month)).dividas_prefill
+        await conn.execute("DELETE FROM month_plans WHERE month = $1", month)
+    unavailable = json.loads(row["unavailable"])
+    for term in budget_terms:
+        assert row[term] is not None and term not in unavailable, term
+    assert unavailable["aporte_planejado"] == "nao_definido"
+    assert plan.dividas == prefill and plan.aporte_planejado is None

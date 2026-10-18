@@ -81,3 +81,62 @@ async def test_close_retro_base_real() -> None:
             await conn.close()
     finally:
         await restore_dados()
+
+
+async def test_refechar_completa_orcamento_base_real() -> None:
+    """Story 6.8 na base real: os meses retroativos fechados antes do orçamento (termos nulos
+    `fora_do_resumo`, como estão no banco local) ganham, pelo `refechar --completar`, a versão 2
+    com o orçamento; a taxa de poupança congelada não muda e a conta fecha."""
+    import main  # noqa: F401
+    from scripts.ops import refechar
+
+    files = sorted(close_retro.CONSOLIDADOS_DIR.rglob("*.xlsx"))
+    dsn = await restore_dados()
+    try:
+        await asyncio.to_thread(alembic_upgrade, dsn, "head")
+        conn = await asyncpg.connect(dsn)
+        try:
+            preview = await ingest_service.preview(conn, [(p.name, p.read_bytes()) for p in files])
+            await ingest_service.confirm(conn, preview.batch_id, preview.hash)
+            await anchor(conn, sorted(FILES_DIR.rglob("*.ofx")), write=True)
+            await close_retro.run(conn, START, END, echo=lambda _: None)
+            terms = (
+                "consumido",
+                "disponivel",
+                "restante",
+                "restante_sem_resgates",
+                "consumo_financiado",
+            )
+            await conn.execute(
+                f"UPDATE month_summary_totals SET {', '.join(f'{t} = NULL' for t in terms)}, "
+                "unavailable = unavailable || $1::jsonb",
+                json.dumps({t: "fora_do_resumo" for t in terms}),
+            )
+            await conn.execute("DELETE FROM month_plans")
+            before = {
+                r["month"]: r["taxa_poupanca"]
+                for r in await conn.fetch("SELECT month, taxa_poupanca FROM month_summary_totals")
+            }
+            done = await refechar.run(
+                conn, refechar.parse_months("2024-07..2026-05"), echo=lambda _: None
+            )
+            assert len(done) == 23 and {v for _, v in done} == {2}
+            rows = await conn.fetch(
+                "SELECT * FROM month_summary_totals WHERE version = 2 ORDER BY month"
+            )
+            for r in rows:
+                key = f"{r['month']:%Y-%m}"
+                assert all(r[t] is not None for t in terms), key
+                assert r["restante"] == r["disponivel"] - r["consumido"], key
+                assert r["taxa_poupanca"] == before[r["month"]], key
+                assert json.loads(r["unavailable"])["aporte_planejado"] == "nao_definido", key
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM month_plans WHERE aporte_planejado IS NULL"
+                )
+                == 23
+            )
+        finally:
+            await conn.close()
+    finally:
+        await restore_dados()

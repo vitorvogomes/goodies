@@ -54,6 +54,23 @@ async def set_dividas(conn: asyncpg.Connection, month: date, value: Decimal | No
     return await month_plan(conn, month)
 
 
+async def ensure_month_plan(conn: asyncpg.Connection, month: date, *, mode: str) -> MonthPlanOut:
+    """Plano do mês para o fechamento (Story 6.8). `retro`: dívidas = Σ das transações de role
+    `divida` não casadas a custo fixo; aporte planejado nulo (`nao_definido`). Caminho de serviço
+    do `refechar`/`close_retro` — por isso não passa pela trava de mês fechado."""
+    if mode != "retro":
+        raise ValueError(mode)
+    facts = await ledger_service.budget_facts(conn, month)
+    await conn.execute(
+        "INSERT INTO month_plans (month, dividas, aporte_planejado) VALUES ($1, $2, NULL) "
+        "ON CONFLICT (month) DO UPDATE SET dividas = EXCLUDED.dividas, aporte_planejado = NULL, "
+        "updated_at = now()",
+        month,
+        facts.consumed.dividas,
+    )
+    return await month_plan(conn, month)
+
+
 def _pct(part: Decimal, whole: Decimal) -> Decimal:
     return (part / whole * _HUNDRED).quantize(_CENT) if whole else Decimal(0)
 

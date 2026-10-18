@@ -349,6 +349,7 @@ async def close_retro(conn: asyncpg.Connection, month: date) -> CloseOut | None:
                 raise CloseError("fechamento_bloqueado", c.message, [c])
             else:
                 accepted.append(c.model_copy(update={"reason": "retroativo"}))
+        await planning_service.ensure_month_plan(conn, month, mode="retro")
         summary = await build_month_summary(conn, month, month_end(month))
         await _store(conn, summary, 1, accepted, "retro")
     return CloseOut(month=month, version=1, confirmations=accepted)
@@ -500,6 +501,8 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
         await conn.execute("SELECT pg_advisory_xact_lock(hashtext('close:' || $1))", str(month))
         close = await _closed(conn, month)
         version = close["version"]
+        if close["origin"] == "retro":  # Story 6.8: o plano do mês retroativo, pelo serviço
+            await planning_service.ensure_month_plan(conn, month, mode="retro")
         live = await build_month_summary(conn, month, month_end(month))
         live_totals, live_unavailable = _totals(live)
         confirmations = list(json.loads(close["confirmations"]))
@@ -551,7 +554,11 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
             origin=close["origin"],
             dirty=dirty,
         )
-    accepted = [CloseCheck(**c) for c in confirmations]
+    # o JSON guarda o Money como número: volta por texto (Money não aceita float)
+    accepted = [
+        CloseCheck(**{**c, "amount": str(c["amount"]) if c.get("amount") is not None else None})
+        for c in confirmations
+    ]
     return CloseOut(month=month, version=version + 1, confirmations=accepted)
 
 
