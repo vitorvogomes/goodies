@@ -13,16 +13,16 @@ import asyncpg
 import structlog
 
 from config import settings
+from engines.common.assets import (
+    B3_CATEGORIES,
+    CRYPTO_CATEGORIES,
+    TREASURY_CATEGORIES,
+)
 from engines.market import service
 from engines.market.fetchers.base import PriceFetcher
 from engines.market.fetchers.brapi import BrapiFetcher
 from engines.market.fetchers.coingecko import CoinGeckoFetcher
 from engines.market.fetchers.treasury import TreasuryFetcher
-from engines.portfolio.constants import (
-    B3_CATEGORIES,
-    CRYPTO_CATEGORIES,
-    TREASURY_CATEGORIES,
-)
 
 logger = structlog.get_logger()
 

@@ -22,7 +22,8 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from .constants import AssetCategory
+from engines.common.assets import AssetCategory
+
 from .migration import operation_hash, parse_date
 
 # Universo conhecido do portfólio (desambigua ETF x FII, ambos terminam em 11).

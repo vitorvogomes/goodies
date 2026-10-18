@@ -23,10 +23,10 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.assets import CRYPTO_CATEGORIES, AssetCategory
 from engines.common.cache import cache, invalidate_xirr_cache, xirr_key
 from engines.common.dates import today_brt
 
-from .constants import CRYPTO_CATEGORIES, AssetCategory
 from .xirr import xirr
 
 # Categorias valoradas SÓ pelo sleeve/bloco cripto (carteiras) — excluídas do fold

@@ -93,14 +93,19 @@ class TestAllocation:
 
     @pytest.mark.asyncio
     async def test_category_without_target(
-        self, api: AsyncClient, portfolio_user: dict[str, Any]
+        self, api: AsyncClient, portfolio_user: dict[str, Any], pool: Any
     ) -> None:
         """Position in a category with no target → pct_meta/desvio null."""
         headers = portfolio_user["headers"]
-        await _buy_with_price(api, headers, "WEIRD1", "Categoria Sem Meta", 10.0, 100.0)
+        # Classe fora das 6 é recusada (Story 3.2); "sem meta" = classe canônica sem linha de meta.
+        await pool.execute(
+            "DELETE FROM portfolio_targets WHERE user_id = $1 AND category = 'ETFs'",
+            portfolio_user["user_id"],
+        )
+        await _buy_with_price(api, headers, "WEIRD11", "ETFs", 10.0, 100.0)
         resp = await api.get("/api/v1/portfolio/allocation", headers=headers)
         data = resp.json()
-        weird = _cat(data, "Categoria Sem Meta")
+        weird = _cat(data, "ETFs")
         assert weird["pct_meta"] is None
         assert weird["desvio_pp"] is None
         assert abs(float(weird["pct_atual"]) - 100.0) < 0.01

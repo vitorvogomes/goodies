@@ -7,14 +7,14 @@ Testes puros (sem DB/Redis).
 
 from __future__ import annotations
 
-from engines.portfolio.b3_import import b3_category
-from engines.portfolio.constants import (
+from engines.common.assets import (
     B3_CATEGORIES,
     CATEGORIES,
     CRYPTO_CATEGORIES,
     TREASURY_CATEGORIES,
     AssetCategory,
 )
+from engines.portfolio.b3_import import b3_category
 from engines.portfolio.migration import CATEGORY_MAP
 from engines.portfolio.targets import PORTFOLIO_TARGETS
 

@@ -17,10 +17,10 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.assets import CRYPTO_CATEGORIES, AssetCategory
 from engines.common.numbers import value_of
 from engines.market import service as market_service
 from engines.market.fetchers.wallets.base import WalletBalance
-from engines.portfolio.constants import CRYPTO_CATEGORIES, AssetCategory
 from engines.portfolio.service import net_quantity
 
 

@@ -17,13 +17,13 @@ from typing import Any
 import asyncpg
 
 from config import settings
-from engines.common.cache import cache
-from engines.portfolio import service as portfolio_service
-from engines.portfolio.constants import (
+from engines.common.assets import (
     B3_CATEGORIES,
     CRYPTO_CATEGORIES,
     TREASURY_CATEGORIES,
 )
+from engines.common.cache import cache
+from engines.portfolio import service as portfolio_service
 
 _TTL_BY_TYPE = {
     "b3": settings.ttl_b3,

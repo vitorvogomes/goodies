@@ -149,7 +149,7 @@ class TestCreateAssetOperation:
             payload = {
                 "broker": "Test",
                 "asset_symbol": "TEST",
-                "asset_category": "Teste",
+                "asset_category": "Ações Nacionais",
                 "tipo": tipo,
                 "quantidade": 1.0,
                 "valor_unitario": 100.0,
@@ -466,3 +466,27 @@ class TestGetAssetOperation:
             headers=auth_headers,
         )
         assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_category_outside_the_six_classes_is_422(
+    api: AsyncClient, auth_headers: dict, _cleanup_operations: None
+) -> None:
+    """Story 3.2: a classe vira ativo (assets.class); rótulo fora das 6 → 422, não 500."""
+    payload = {
+        "broker": "B3",
+        "asset_symbol": "XPTO3",
+        "asset_category": "Categoria Sem Meta",
+        "tipo": "compra",
+        "quantidade": 1,
+        "valor_unitario": 10,
+        "data_operacao": "2026-01-15",
+    }
+    resp = await api.post("/api/v1/asset-operations", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+    ok = await api.post(
+        "/api/v1/asset-operations",
+        json={**payload, "asset_category": "ações nacionais"},
+        headers=auth_headers,
+    )
+    assert ok.status_code == 201 and ok.json()["asset_category"] == "Ações Nacionais"

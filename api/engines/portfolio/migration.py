@@ -23,7 +23,7 @@ from typing import Any
 
 import asyncpg
 
-from .constants import AssetCategory
+from engines.common.assets import AssetCategory
 
 # Categoria da planilha (upper, sem acento) -> categoria canônica (SSOT em constants.py)
 CATEGORY_MAP: dict[str, str] = {

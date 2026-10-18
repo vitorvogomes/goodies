@@ -29,9 +29,9 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.assets import CRYPTO_CATEGORIES
 from engines.common.cache import use_cache
 from engines.portfolio import service as portfolio_service
-from engines.portfolio.constants import CRYPTO_CATEGORIES
 from engines.portfolio.service import _INFLOW_TIPOS
 from scripts._common import resolve_owner
 from workers.backup import DbTarget, pinned_dados_backup, restore, validate_backup_dir

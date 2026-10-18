@@ -21,7 +21,7 @@ import sys
 import asyncpg
 
 from config import settings
-from engines.portfolio.constants import B3_CATEGORIES, TREASURY_CATEGORIES
+from engines.common.assets import B3_CATEGORIES, TREASURY_CATEGORIES
 
 # Categorias com fonte de mercado: B3 (Ações/ETFs/FIIs via BRAPI) + Tesouro (Aposentadoria
 # via Tesouro Transparente). Da SSOT de constants, não hardcoded. Renda Fixa e Cripto fora.

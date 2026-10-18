@@ -25,10 +25,10 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.assets import AssetCategory
 from engines.ledger import queries as ledger_queries
 from engines.wallet.service import list_defi_valued, list_wallet_positions
 
-from .constants import AssetCategory
 from .service import _nan_to_none, eval_date
 from .xirr import xirr
 

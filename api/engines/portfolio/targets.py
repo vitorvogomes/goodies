@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import AssetCategory
+from engines.common.assets import AssetCategory
 
 PORTFOLIO_TARGETS = [
     {"category": AssetCategory.ACOES, "target_pct": 10.0},

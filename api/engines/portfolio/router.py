@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.common.assets import canonical_category
 from engines.common.cache import invalidate_xirr_cache
 
 from . import operations
@@ -36,6 +37,11 @@ class CreateAssetOperationRequest(BaseModel):
     data_operacao: date
     notes: str | None = None
     external_id: str | None = None
+
+    @field_validator("asset_category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        return canonical_category(v)
 
     @field_validator("tipo")
     @classmethod
