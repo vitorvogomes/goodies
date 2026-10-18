@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temas base Goodies</title>
+<style>
+:root{
+  --page-bg:#0e0f11; --page-fg:#e6e7e9; --page-muted:#9a9ea6; --page-line:#25282d; --page-card:#15171a;
+  color-scheme: dark light;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){ --page-bg:#f5f5f4; --page-fg:#18191b; --page-muted:#5d6168; --page-line:#dcdcdc; --page-card:#ffffff; } }
+:root[data-theme="dark"]{ --page-bg:#0e0f11; --page-fg:#e6e7e9; --page-muted:#9a9ea6; --page-line:#25282d; --page-card:#15171a; }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page-bg);color:var(--page-fg);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:32px 16px 80px}
+.wrap{max-width:1360px;margin:0 auto}
+.intro h1{font-size:22px;margin:0 0 6px;letter-spacing:-0.01em}
+.intro p{margin:4px 0;color:var(--page-muted);max-width:80ch}
+.intro .lead{color:var(--page-fg)}
+.intro code,.mono-page{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px}
+.toc a{color:var(--page-fg);text-decoration:none;border:1px solid var(--page-line);border-radius:999px;padding:3px 12px;font-size:13px}
+.theme-block{border-top:1px solid var(--page-line);padding:36px 0 8px;margin-top:28px}
+.theme-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.theme-head h2{margin:0;font-size:20px}
+.theme-head .slug{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--page-muted);border:1px solid var(--page-line);padding:1px 8px;border-radius:6px}
+.theme-head .num-tag{font-family:ui-monospace,Menlo,monospace;color:var(--page-muted)}
+.register{margin:6px 0 2px;font-size:15px}
+.why,.note{margin:2px 0;color:var(--page-muted);font-size:13.5px;max-width:110ch}
+.note b{color:var(--page-fg);font-weight:600}
+.meta{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--page-muted);margin-top:4px}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:16px 0 18px}
+.chip{display:flex;gap:10px;align-items:center;background:var(--page-card);border:1px solid var(--page-line);border-radius:8px;padding:7px}
+.sw{display:flex;flex:none;width:44px;height:36px;border-radius:5px;overflow:hidden;outline:1px solid var(--page-line)}
+.sw span{flex:1}
+.chip-meta{min-width:0}
+.chip-name{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;font-weight:600}
+.chip-val{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--page-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip-legend{font-size:12px;color:var(--page-muted);margin-top:10px}
+.modes{display:grid;grid-template-columns:1fr;gap:16px}
+@media (min-width:1080px){.modes{grid-template-columns:1fr 1fr}}
+
+/* ---------- snippet: tudo via vars do tema ---------- */
+.ui{position:relative;background:var(--background);color:var(--foreground);font-family:var(--font-sans);
+    border:1px solid var(--border);border-radius:calc(var(--radius) + 6px);padding:18px;display:flex;flex-direction:column;gap:12px;font-size:14px;line-height:1.45;min-width:0}
+.ui .mono,.ui .num,.ui .k-value{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.ui .muted{color:var(--muted-foreground)} .ui .small{font-size:12px}
+.mode-tag{position:absolute;top:-10px;right:14px;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--foreground);color:var(--background);padding:5px 8px;border-radius:4px}
+.topbar{display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.brand{font-family:var(--font-mono);font-weight:700;letter-spacing:-0.02em;margin-right:14px;color:var(--foreground)}
+.brand::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--primary);margin-right:7px;vertical-align:1px}
+.tab{color:var(--muted-foreground);padding:4px 9px;border-radius:calc(var(--radius) - 2px);font-size:13.5px;cursor:default}
+.tab.active{background:var(--accent);color:var(--accent-foreground);font-weight:600;box-shadow:inset 0 -2px 0 var(--primary)}
+.sep{color:var(--border)}
+.card{background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.kpis{grid-template-columns:1fr}}
+.kpi{padding:12px 14px}
+.k-label{font-size:12px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.05em}
+.k-value{font-size:21px;font-weight:600;letter-spacing:-0.02em;margin:3px 0 1px;white-space:nowrap}
+.k-value small{font-size:12px;font-weight:500;color:var(--muted-foreground)}
+.k-sub{font-size:12px;color:var(--muted-foreground)}
+.pos{color:var(--pos)} .neg{color:var(--neg-text)}
+.sec-title{font-weight:600;font-size:13.5px;display:flex;align-items:baseline;gap:8px;padding:10px 14px}
+.count{font-family:var(--font-mono);font-size:11px;background:var(--secondary);color:var(--secondary-foreground);border-radius:999px;padding:0 7px}
+.alerts{padding-bottom:6px}
+.alert{display:flex;gap:10px;align-items:baseline;padding:7px 14px;border-top:1px solid var(--border);font-size:13.5px}
+.alert .dot{flex:none;width:7px;height:7px;border-radius:50%;transform:translateY(-1px)}
+.alert.warn .dot{background:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklch,var(--destructive) 25%,transparent)}
+.alert.info .dot{background:var(--primary)}
+.link{color:var(--primary);text-decoration:underline;text-underline-offset:2px;cursor:default}
+.ui b{font-weight:600}
+.table-card{overflow:hidden}
+.table-card table{width:100%;border-collapse:collapse;font-size:13px}
+.table-card th{font-weight:500;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-foreground);text-align:left;padding:7px 14px;background:var(--muted);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.table-card td{padding:7px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+.table-card tr:last-child td{border-bottom:0}
+.table-card .num{text-align:right}
+.asset{font-family:var(--font-mono);font-weight:600}
+.pill{display:inline-block;min-width:66px;text-align:right;padding:1px 7px;border-radius:calc(var(--radius) - 2px);font-size:12.5px}
+.pill.pos{background:color-mix(in oklch,var(--pos) 16%,transparent);color:var(--pos)}
+.pill.neg{background:color-mix(in oklch,var(--neg) 16%,transparent);color:var(--neg-text)}
+.progress-card{padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.p-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.track{height:8px;border-radius:999px;background:var(--secondary);overflow:hidden}
+.fill{height:100%;background:var(--primary);border-radius:inherit}
+.buttons{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;padding:6px 12px;border-radius:calc(var(--radius) - 1px);border:1px solid transparent;cursor:default}
+.btn.primary{background:var(--primary);color:var(--primary-foreground)}
+.btn.secondary{background:var(--secondary);color:var(--secondary-foreground);border-color:var(--border)}
+.btn.ghost{background:transparent;color:var(--foreground);border-color:var(--input)}
+.btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+@media (max-width:620px){.table-card{overflow-x:auto}}
+</style>
+<style>
+/* ===== RAW tweakcn 'graphite' (https://tweakcn.com/r/themes/graphite.json) — valores para copiar =====
+   theme: font-sans: Inter, sans-serif; font-mono: Fira Code, monospace; radius: 0.35rem;
+   .dark {
+     --background: oklch(0.2178 0 0);
+     --foreground: oklch(0.8853 0 0);
+     --card: oklch(0.2435 0 0);
+     --card-foreground: oklch(0.8853 0 0);
+     --popover: oklch(0.2435 0 0);
+     --popover-foreground: oklch(0.8853 0 0);
+     --primary: oklch(0.7058 0 0);
+     --primary-foreground: oklch(0.2178 0 0);
+     --secondary: oklch(0.3092 0 0);
+     --secondary-foreground: oklch(0.8853 0 0);
+     --muted: oklch(0.2850 0 0);
+     --muted-foreground: oklch(0.5999 0 0);
+     --accent: oklch(0.3715 0 0);
+     --accent-foreground: oklch(0.8853 0 0);
+     --destructive: oklch(0.6591 0.1530 22.1703);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.3290 0 0);
+     --input: oklch(0.3092 0 0);
+     --ring: oklch(0.7058 0 0);
+     --chart-1: oklch(0.7058 0 0);
+     --chart-2: oklch(0.6714 0.0339 206.3482);
+     --chart-3: oklch(0.5452 0 0);
+     --chart-4: oklch(0.4604 0 0);
+     --chart-5: oklch(0.3715 0 0);
+     --sidebar: oklch(0.2393 0 0);
+     --sidebar-foreground: oklch(0.8853 0 0);
+     --sidebar-primary: oklch(0.7058 0 0);
+     --sidebar-primary-foreground: oklch(0.2178 0 0);
+     --sidebar-accent: oklch(0.3715 0 0);
+     --sidebar-accent-foreground: oklch(0.8853 0 0);
+     --sidebar-border: oklch(0.3290 0 0);
+     --sidebar-ring: oklch(0.7058 0 0);
+     --shadow-sm: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+   }
+   .light {
+     --background: oklch(0.9551 0 0);
+     --foreground: oklch(0.3211 0 0);
+     --card: oklch(0.9702 0 0);
+     --card-foreground: oklch(0.3211 0 0);
+     --popover: oklch(0.9702 0 0);
+     --popover-foreground: oklch(0.3211 0 0);
+     --primary: oklch(0.4891 0 0);
+     --primary-foreground: oklch(1.0000 0 0);
+     --secondary: oklch(0.9067 0 0);
+     --secondary-foreground: oklch(0.3211 0 0);
+     --muted: oklch(0.8853 0 0);
+     --muted-foreground: oklch(0.5103 0 0);
+     --accent: oklch(0.8078 0 0);
+     --accent-foreground: oklch(0.3211 0 0);
+     --destructive: oklch(0.5594 0.1900 25.8625);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.8576 0 0);
+     --input: oklch(0.9067 0 0);
+     --ring: oklch(0.4891 0 0);
+     --chart-1: oklch(0.4891 0 0);
+     --chart-2: oklch(0.4863 0.0361 196.0278);
+     --chart-3: oklch(0.6534 0 0);
+     --chart-4: oklch(0.7316 0 0);
+     --chart-5: oklch(0.8078 0 0);
+     --sidebar: oklch(0.9370 0 0);
+     --sidebar-foreground: oklch(0.3211 0 0);
+     --sidebar-primary: oklch(0.4891 0 0);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(0.8078 0 0);
+     --sidebar-accent-foreground: oklch(0.3211 0 0);
+     --sidebar-border: oklch(0.8576 0 0);
+     --sidebar-ring: oklch(0.4891 0 0);
+     --shadow-sm: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+   }
+   pos/neg provisório: --pos = var(--chart-2), --neg = var(--destructive)  // Paleta de gráficos é quase toda cinza; positivo = --chart-2 (único tom com croma, teal acinzentado); negativo = --destructive.
+*/
+.t-graphite.dark { --background: oklch(0.2178 0 0); --foreground: oklch(0.8853 0 0); --card: oklch(0.2435 0 0); --card-foreground: oklch(0.8853 0 0); --popover: oklch(0.2435 0 0); --popover-foreground: oklch(0.8853 0 0); --primary: oklch(0.7058 0 0); --primary-foreground: oklch(0.2178 0 0); --secondary: oklch(0.3092 0 0); --secondary-foreground: oklch(0.8853 0 0); --muted: oklch(0.2850 0 0); --muted-foreground: oklch(0.5999 0 0); --accent: oklch(0.3715 0 0); --accent-foreground: oklch(0.8853 0 0); --destructive: oklch(0.6591 0.1530 22.1703); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.3290 0 0); --input: oklch(0.3092 0 0); --ring: oklch(0.7058 0 0); --chart-1: oklch(0.7058 0 0); --chart-2: oklch(0.6714 0.0339 206.3482); --chart-3: oklch(0.5452 0 0); --chart-4: oklch(0.4604 0 0); --chart-5: oklch(0.3715 0 0); --sidebar: oklch(0.2393 0 0); --sidebar-foreground: oklch(0.8853 0 0); --sidebar-primary: oklch(0.7058 0 0); --sidebar-primary-foreground: oklch(0.2178 0 0); --sidebar-accent: oklch(0.3715 0 0); --sidebar-accent-foreground: oklch(0.8853 0 0); --sidebar-border: oklch(0.3290 0 0); --sidebar-ring: oklch(0.7058 0 0); --shadow-sm: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: Fira Code, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.35rem; --pos: var(--chart-2); /* positivo = --chart-2 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-graphite.light { --background: oklch(0.9551 0 0); --foreground: oklch(0.3211 0 0); --card: oklch(0.9702 0 0); --card-foreground: oklch(0.3211 0 0); --popover: oklch(0.9702 0 0); --popover-foreground: oklch(0.3211 0 0); --primary: oklch(0.4891 0 0); --primary-foreground: oklch(1.0000 0 0); --secondary: oklch(0.9067 0 0); --secondary-foreground: oklch(0.3211 0 0); --muted: oklch(0.8853 0 0); --muted-foreground: oklch(0.5103 0 0); --accent: oklch(0.8078 0 0); --accent-foreground: oklch(0.3211 0 0); --destructive: oklch(0.5594 0.1900 25.8625); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.8576 0 0); --input: oklch(0.9067 0 0); --ring: oklch(0.4891 0 0); --chart-1: oklch(0.4891 0 0); --chart-2: oklch(0.4863 0.0361 196.0278); --chart-3: oklch(0.6534 0 0); --chart-4: oklch(0.7316 0 0); --chart-5: oklch(0.8078 0 0); --sidebar: oklch(0.9370 0 0); --sidebar-foreground: oklch(0.3211 0 0); --sidebar-primary: oklch(0.4891 0 0); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(0.8078 0 0); --sidebar-accent-foreground: oklch(0.3211 0 0); --sidebar-border: oklch(0.8576 0 0); --sidebar-ring: oklch(0.4891 0 0); --shadow-sm: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: Fira Code, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.35rem; --pos: var(--chart-2); /* positivo = --chart-2 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+</style>
+<style>
+/* ===== RAW tweakcn 'vercel' (https://tweakcn.com/r/themes/vercel.json) — valores para copiar =====
+   theme: font-sans: Geist, sans-serif; font-mono: Geist Mono, monospace; radius: 0.5rem;
+   .dark {
+     --background: oklch(0 0 0);
+     --foreground: oklch(1 0 0);
+     --card: oklch(0.1400 0 0);
+     --card-foreground: oklch(1 0 0);
+     --popover: oklch(0.1800 0 0);
+     --popover-foreground: oklch(1 0 0);
+     --primary: oklch(1 0 0);
+     --primary-foreground: oklch(0 0 0);
+     --secondary: oklch(0.2500 0 0);
+     --secondary-foreground: oklch(1 0 0);
+     --muted: oklch(0.2300 0 0);
+     --muted-foreground: oklch(0.7200 0 0);
+     --accent: oklch(0.3200 0 0);
+     --accent-foreground: oklch(1 0 0);
+     --destructive: oklch(0.6900 0.2000 23.9100);
+     --destructive-foreground: oklch(0 0 0);
+     --border: oklch(0.2600 0 0);
+     --input: oklch(0.3200 0 0);
+     --ring: oklch(0.7200 0 0);
+     --chart-1: oklch(0.8100 0.1700 75.3500);
+     --chart-2: oklch(0.5800 0.2100 260.8400);
+     --chart-3: oklch(0.5600 0 0);
+     --chart-4: oklch(0.4400 0 0);
+     --chart-5: oklch(0.9200 0 0);
+     --sidebar: oklch(0.1800 0 0);
+     --sidebar-foreground: oklch(1 0 0);
+     --sidebar-primary: oklch(1 0 0);
+     --sidebar-primary-foreground: oklch(0 0 0);
+     --sidebar-accent: oklch(0.3200 0 0);
+     --sidebar-accent-foreground: oklch(1 0 0);
+     --sidebar-border: oklch(0.3200 0 0);
+     --sidebar-ring: oklch(0.7200 0 0);
+     --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
+   }
+   .light {
+     --background: oklch(0.9900 0 0);
+     --foreground: oklch(0 0 0);
+     --card: oklch(1 0 0);
+     --card-foreground: oklch(0 0 0);
+     --popover: oklch(0.9900 0 0);
+     --popover-foreground: oklch(0 0 0);
+     --primary: oklch(0 0 0);
+     --primary-foreground: oklch(1 0 0);
+     --secondary: oklch(0.9400 0 0);
+     --secondary-foreground: oklch(0 0 0);
+     --muted: oklch(0.9700 0 0);
+     --muted-foreground: oklch(0.4400 0 0);
+     --accent: oklch(0.9400 0 0);
+     --accent-foreground: oklch(0 0 0);
+     --destructive: oklch(0.6300 0.1900 23.0300);
+     --destructive-foreground: oklch(1 0 0);
+     --border: oklch(0.9200 0 0);
+     --input: oklch(0.9400 0 0);
+     --ring: oklch(0 0 0);
+     --chart-1: oklch(0.8100 0.1700 75.3500);
+     --chart-2: oklch(0.5500 0.2200 264.5300);
+     --chart-3: oklch(0.7200 0 0);
+     --chart-4: oklch(0.9200 0 0);
+     --chart-5: oklch(0.5600 0 0);
+     --sidebar: oklch(0.9900 0 0);
+     --sidebar-foreground: oklch(0 0 0);
+     --sidebar-primary: oklch(0 0 0);
+     --sidebar-primary-foreground: oklch(1 0 0);
+     --sidebar-accent: oklch(0.9400 0 0);
+     --sidebar-accent-foreground: oklch(0 0 0);
+     --sidebar-border: oklch(0.9400 0 0);
+     --sidebar-ring: oklch(0 0 0);
+     --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
+   }
+   pos/neg provisório: --pos = var(--chart-2), --neg = var(--destructive)  // Sem verde na paleta; positivo = --chart-2 (azul); negativo = --destructive. --chart-1 (âmbar) fica livre p/ avisos.
+*/
+.t-vercel.dark { --background: oklch(0 0 0); --foreground: oklch(1 0 0); --card: oklch(0.1400 0 0); --card-foreground: oklch(1 0 0); --popover: oklch(0.1800 0 0); --popover-foreground: oklch(1 0 0); --primary: oklch(1 0 0); --primary-foreground: oklch(0 0 0); --secondary: oklch(0.2500 0 0); --secondary-foreground: oklch(1 0 0); --muted: oklch(0.2300 0 0); --muted-foreground: oklch(0.7200 0 0); --accent: oklch(0.3200 0 0); --accent-foreground: oklch(1 0 0); --destructive: oklch(0.6900 0.2000 23.9100); --destructive-foreground: oklch(0 0 0); --border: oklch(0.2600 0 0); --input: oklch(0.3200 0 0); --ring: oklch(0.7200 0 0); --chart-1: oklch(0.8100 0.1700 75.3500); --chart-2: oklch(0.5800 0.2100 260.8400); --chart-3: oklch(0.5600 0 0); --chart-4: oklch(0.4400 0 0); --chart-5: oklch(0.9200 0 0); --sidebar: oklch(0.1800 0 0); --sidebar-foreground: oklch(1 0 0); --sidebar-primary: oklch(1 0 0); --sidebar-primary-foreground: oklch(0 0 0); --sidebar-accent: oklch(0.3200 0 0); --sidebar-accent-foreground: oklch(1 0 0); --sidebar-border: oklch(0.3200 0 0); --sidebar-ring: oklch(0.7200 0 0); --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18); --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: Geist Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.5rem; --pos: var(--chart-2); /* positivo = --chart-2 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-vercel.light { --background: oklch(0.9900 0 0); --foreground: oklch(0 0 0); --card: oklch(1 0 0); --card-foreground: oklch(0 0 0); --popover: oklch(0.9900 0 0); --popover-foreground: oklch(0 0 0); --primary: oklch(0 0 0); --primary-foreground: oklch(1 0 0); --secondary: oklch(0.9400 0 0); --secondary-foreground: oklch(0 0 0); --muted: oklch(0.9700 0 0); --muted-foreground: oklch(0.4400 0 0); --accent: oklch(0.9400 0 0); --accent-foreground: oklch(0 0 0); --destructive: oklch(0.6300 0.1900 23.0300); --destructive-foreground: oklch(1 0 0); --border: oklch(0.9200 0 0); --input: oklch(0.9400 0 0); --ring: oklch(0 0 0); --chart-1: oklch(0.8100 0.1700 75.3500); --chart-2: oklch(0.5500 0.2200 264.5300); --chart-3: oklch(0.7200 0 0); --chart-4: oklch(0.9200 0 0); --chart-5: oklch(0.5600 0 0); --sidebar: oklch(0.9900 0 0); --sidebar-foreground: oklch(0 0 0); --sidebar-primary: oklch(0 0 0); --sidebar-primary-foreground: oklch(1 0 0); --sidebar-accent: oklch(0.9400 0 0); --sidebar-accent-foreground: oklch(0 0 0); --sidebar-border: oklch(0.9400 0 0); --sidebar-ring: oklch(0 0 0); --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18); --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: Geist Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.5rem; --pos: var(--chart-2); /* positivo = --chart-2 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+</style>
+<style>
+/* ===== RAW tweakcn 'modern-minimal' (https://tweakcn.com/r/themes/modern-minimal.json) — valores para copiar =====
+   theme: font-sans: Inter, sans-serif; font-mono: JetBrains Mono, monospace; radius: 0.375rem;
+   .dark {
+     --background: oklch(0.2046 0 0);
+     --foreground: oklch(0.9219 0 0);
+     --card: oklch(0.2686 0 0);
+     --card-foreground: oklch(0.9219 0 0);
+     --popover: oklch(0.2686 0 0);
+     --popover-foreground: oklch(0.9219 0 0);
+     --primary: oklch(0.6231 0.1880 259.8145);
+     --primary-foreground: oklch(1.0000 0 0);
+     --secondary: oklch(0.2686 0 0);
+     --secondary-foreground: oklch(0.9219 0 0);
+     --muted: oklch(0.2393 0 0);
+     --muted-foreground: oklch(0.7155 0 0);
+     --accent: oklch(0.3791 0.1378 265.5222);
+     --accent-foreground: oklch(0.8823 0.0571 254.1284);
+     --destructive: oklch(0.6368 0.2078 25.3313);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.3715 0 0);
+     --input: oklch(0.3715 0 0);
+     --ring: oklch(0.6231 0.1880 259.8145);
+     --chart-1: oklch(0.7137 0.1434 254.6240);
+     --chart-2: oklch(0.6231 0.1880 259.8145);
+     --chart-3: oklch(0.5461 0.2152 262.8809);
+     --chart-4: oklch(0.4882 0.2172 264.3763);
+     --chart-5: oklch(0.4244 0.1809 265.6377);
+     --sidebar: oklch(0.2046 0 0);
+     --sidebar-foreground: oklch(0.9219 0 0);
+     --sidebar-primary: oklch(0.6231 0.1880 259.8145);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(0.3791 0.1378 265.5222);
+     --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284);
+     --sidebar-border: oklch(0.3715 0 0);
+     --sidebar-ring: oklch(0.6231 0.1880 259.8145);
+     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+   }
+   .light {
+     --background: oklch(1.0000 0 0);
+     --foreground: oklch(0.3211 0 0);
+     --card: oklch(1.0000 0 0);
+     --card-foreground: oklch(0.3211 0 0);
+     --popover: oklch(1.0000 0 0);
+     --popover-foreground: oklch(0.3211 0 0);
+     --primary: oklch(0.6231 0.1880 259.8145);
+     --primary-foreground: oklch(1.0000 0 0);
+     --secondary: oklch(0.9670 0.0029 264.5419);
+     --secondary-foreground: oklch(0.4461 0.0263 256.8018);
+     --muted: oklch(0.9846 0.0017 247.8389);
+     --muted-foreground: oklch(0.5510 0.0234 264.3637);
+     --accent: oklch(0.9514 0.0250 236.8242);
+     --accent-foreground: oklch(0.3791 0.1378 265.5222);
+     --destructive: oklch(0.6368 0.2078 25.3313);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.9276 0.0058 264.5313);
+     --input: oklch(0.9276 0.0058 264.5313);
+     --ring: oklch(0.6231 0.1880 259.8145);
+     --chart-1: oklch(0.6231 0.1880 259.8145);
+     --chart-2: oklch(0.5461 0.2152 262.8809);
+     --chart-3: oklch(0.4882 0.2172 264.3763);
+     --chart-4: oklch(0.4244 0.1809 265.6377);
+     --chart-5: oklch(0.3791 0.1378 265.5222);
+     --sidebar: oklch(0.9846 0.0017 247.8389);
+     --sidebar-foreground: oklch(0.3211 0 0);
+     --sidebar-primary: oklch(0.6231 0.1880 259.8145);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(0.9514 0.0250 236.8242);
+     --sidebar-accent-foreground: oklch(0.3791 0.1378 265.5222);
+     --sidebar-border: oklch(0.9276 0.0058 264.5313);
+     --sidebar-ring: oklch(0.6231 0.1880 259.8145);
+     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+   }
+   pos/neg provisório: --pos = var(--chart-1), --neg = var(--destructive)  // Positivo = --chart-1 (azul claro); negativo = --destructive. Toda a paleta de gráficos é azul monocromático.
+*/
+.t-modern-minimal.dark { --background: oklch(0.2046 0 0); --foreground: oklch(0.9219 0 0); --card: oklch(0.2686 0 0); --card-foreground: oklch(0.9219 0 0); --popover: oklch(0.2686 0 0); --popover-foreground: oklch(0.9219 0 0); --primary: oklch(0.6231 0.1880 259.8145); --primary-foreground: oklch(1.0000 0 0); --secondary: oklch(0.2686 0 0); --secondary-foreground: oklch(0.9219 0 0); --muted: oklch(0.2393 0 0); --muted-foreground: oklch(0.7155 0 0); --accent: oklch(0.3791 0.1378 265.5222); --accent-foreground: oklch(0.8823 0.0571 254.1284); --destructive: oklch(0.6368 0.2078 25.3313); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.3715 0 0); --input: oklch(0.3715 0 0); --ring: oklch(0.6231 0.1880 259.8145); --chart-1: oklch(0.7137 0.1434 254.6240); --chart-2: oklch(0.6231 0.1880 259.8145); --chart-3: oklch(0.5461 0.2152 262.8809); --chart-4: oklch(0.4882 0.2172 264.3763); --chart-5: oklch(0.4244 0.1809 265.6377); --sidebar: oklch(0.2046 0 0); --sidebar-foreground: oklch(0.9219 0 0); --sidebar-primary: oklch(0.6231 0.1880 259.8145); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(0.3791 0.1378 265.5222); --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284); --sidebar-border: oklch(0.3715 0 0); --sidebar-ring: oklch(0.6231 0.1880 259.8145); --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.375rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-modern-minimal.light { --background: oklch(1.0000 0 0); --foreground: oklch(0.3211 0 0); --card: oklch(1.0000 0 0); --card-foreground: oklch(0.3211 0 0); --popover: oklch(1.0000 0 0); --popover-foreground: oklch(0.3211 0 0); --primary: oklch(0.6231 0.1880 259.8145); --primary-foreground: oklch(1.0000 0 0); --secondary: oklch(0.9670 0.0029 264.5419); --secondary-foreground: oklch(0.4461 0.0263 256.8018); --muted: oklch(0.9846 0.0017 247.8389); --muted-foreground: oklch(0.5510 0.0234 264.3637); --accent: oklch(0.9514 0.0250 236.8242); --accent-foreground: oklch(0.3791 0.1378 265.5222); --destructive: oklch(0.6368 0.2078 25.3313); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.9276 0.0058 264.5313); --input: oklch(0.9276 0.0058 264.5313); --ring: oklch(0.6231 0.1880 259.8145); --chart-1: oklch(0.6231 0.1880 259.8145); --chart-2: oklch(0.5461 0.2152 262.8809); --chart-3: oklch(0.4882 0.2172 264.3763); --chart-4: oklch(0.4244 0.1809 265.6377); --chart-5: oklch(0.3791 0.1378 265.5222); --sidebar: oklch(0.9846 0.0017 247.8389); --sidebar-foreground: oklch(0.3211 0 0); --sidebar-primary: oklch(0.6231 0.1880 259.8145); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(0.9514 0.0250 236.8242); --sidebar-accent-foreground: oklch(0.3791 0.1378 265.5222); --sidebar-border: oklch(0.9276 0.0058 264.5313); --sidebar-ring: oklch(0.6231 0.1880 259.8145); --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.375rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+</style>
+<style>
+/* ===== RAW tweakcn 'supabase' (https://tweakcn.com/r/themes/supabase.json) — valores para copiar =====
+   theme: font-sans: Outfit, sans-serif; font-mono: monospace; radius: 0.5rem;
+   .dark {
+     --background: oklch(0.1822 0 0);
+     --foreground: oklch(0.9288 0.0126 255.5078);
+     --card: oklch(0.2046 0 0);
+     --card-foreground: oklch(0.9288 0.0126 255.5078);
+     --popover: oklch(0.2603 0 0);
+     --popover-foreground: oklch(0.7348 0 0);
+     --primary: oklch(0.4365 0.1044 156.7556);
+     --primary-foreground: oklch(0.9213 0.0135 167.1556);
+     --secondary: oklch(0.2603 0 0);
+     --secondary-foreground: oklch(0.9851 0 0);
+     --muted: oklch(0.2393 0 0);
+     --muted-foreground: oklch(0.7122 0 0);
+     --accent: oklch(0.3132 0 0);
+     --accent-foreground: oklch(0.9851 0 0);
+     --destructive: oklch(0.3123 0.0852 29.7877);
+     --destructive-foreground: oklch(0.9368 0.0045 34.3092);
+     --border: oklch(0.2809 0 0);
+     --input: oklch(0.2603 0 0);
+     --ring: oklch(0.8003 0.1821 151.7110);
+     --chart-1: oklch(0.8003 0.1821 151.7110);
+     --chart-2: oklch(0.7137 0.1434 254.6240);
+     --chart-3: oklch(0.7090 0.1592 293.5412);
+     --chart-4: oklch(0.8369 0.1644 84.4286);
+     --chart-5: oklch(0.7845 0.1325 181.9120);
+     --sidebar: oklch(0.1822 0 0);
+     --sidebar-foreground: oklch(0.6301 0 0);
+     --sidebar-primary: oklch(0.4365 0.1044 156.7556);
+     --sidebar-primary-foreground: oklch(0.9213 0.0135 167.1556);
+     --sidebar-accent: oklch(0.3132 0 0);
+     --sidebar-accent-foreground: oklch(0.9851 0 0);
+     --sidebar-border: oklch(0.2809 0 0);
+     --sidebar-ring: oklch(0.8003 0.1821 151.7110);
+     --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
+   }
+   .light {
+     --background: oklch(0.9911 0 0);
+     --foreground: oklch(0.2046 0 0);
+     --card: oklch(0.9911 0 0);
+     --card-foreground: oklch(0.2046 0 0);
+     --popover: oklch(0.9911 0 0);
+     --popover-foreground: oklch(0.4386 0 0);
+     --primary: oklch(0.8348 0.1302 160.9080);
+     --primary-foreground: oklch(0.2626 0.0147 166.4589);
+     --secondary: oklch(0.9940 0 0);
+     --secondary-foreground: oklch(0.2046 0 0);
+     --muted: oklch(0.9461 0 0);
+     --muted-foreground: oklch(0.2435 0 0);
+     --accent: oklch(0.9461 0 0);
+     --accent-foreground: oklch(0.2435 0 0);
+     --destructive: oklch(0.5523 0.1927 32.7272);
+     --destructive-foreground: oklch(0.9934 0.0032 17.2118);
+     --border: oklch(0.9037 0 0);
+     --input: oklch(0.9731 0 0);
+     --ring: oklch(0.8348 0.1302 160.9080);
+     --chart-1: oklch(0.8348 0.1302 160.9080);
+     --chart-2: oklch(0.6231 0.1880 259.8145);
+     --chart-3: oklch(0.6056 0.2189 292.7172);
+     --chart-4: oklch(0.7686 0.1647 70.0804);
+     --chart-5: oklch(0.6959 0.1491 162.4796);
+     --sidebar: oklch(0.9911 0 0);
+     --sidebar-foreground: oklch(0.5452 0 0);
+     --sidebar-primary: oklch(0.8348 0.1302 160.9080);
+     --sidebar-primary-foreground: oklch(0.2626 0.0147 166.4589);
+     --sidebar-accent: oklch(0.9461 0 0);
+     --sidebar-accent-foreground: oklch(0.2435 0 0);
+     --sidebar-border: oklch(0.9037 0 0);
+     --sidebar-ring: oklch(0.8348 0.1302 160.9080);
+     --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17);
+   }
+   pos/neg provisório: --pos = var(--chart-1), --neg = var(--destructive)  // Positivo = --chart-1 (verde). No ESCURO o --destructive (L 0,31) é escuro demais p/ texto: negativo vira pílula --destructive + --destructive-foreground e o texto do resultado usa --destructive-foreground. Ajuste provável.
+*/
+.t-supabase.dark { --background: oklch(0.1822 0 0); --foreground: oklch(0.9288 0.0126 255.5078); --card: oklch(0.2046 0 0); --card-foreground: oklch(0.9288 0.0126 255.5078); --popover: oklch(0.2603 0 0); --popover-foreground: oklch(0.7348 0 0); --primary: oklch(0.4365 0.1044 156.7556); --primary-foreground: oklch(0.9213 0.0135 167.1556); --secondary: oklch(0.2603 0 0); --secondary-foreground: oklch(0.9851 0 0); --muted: oklch(0.2393 0 0); --muted-foreground: oklch(0.7122 0 0); --accent: oklch(0.3132 0 0); --accent-foreground: oklch(0.9851 0 0); --destructive: oklch(0.3123 0.0852 29.7877); --destructive-foreground: oklch(0.9368 0.0045 34.3092); --border: oklch(0.2809 0 0); --input: oklch(0.2603 0 0); --ring: oklch(0.8003 0.1821 151.7110); --chart-1: oklch(0.8003 0.1821 151.7110); --chart-2: oklch(0.7137 0.1434 254.6240); --chart-3: oklch(0.7090 0.1592 293.5412); --chart-4: oklch(0.8369 0.1644 84.4286); --chart-5: oklch(0.7845 0.1325 181.9120); --sidebar: oklch(0.1822 0 0); --sidebar-foreground: oklch(0.6301 0 0); --sidebar-primary: oklch(0.4365 0.1044 156.7556); --sidebar-primary-foreground: oklch(0.9213 0.0135 167.1556); --sidebar-accent: oklch(0.3132 0 0); --sidebar-accent-foreground: oklch(0.9851 0 0); --sidebar-border: oklch(0.2809 0 0); --sidebar-ring: oklch(0.8003 0.1821 151.7110); --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17); --font-sans: Outfit, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.5rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); --neg-text: var(--destructive-foreground); /* destructive L0.31 ilegível como texto */ }
+.t-supabase.light { --background: oklch(0.9911 0 0); --foreground: oklch(0.2046 0 0); --card: oklch(0.9911 0 0); --card-foreground: oklch(0.2046 0 0); --popover: oklch(0.9911 0 0); --popover-foreground: oklch(0.4386 0 0); --primary: oklch(0.8348 0.1302 160.9080); --primary-foreground: oklch(0.2626 0.0147 166.4589); --secondary: oklch(0.9940 0 0); --secondary-foreground: oklch(0.2046 0 0); --muted: oklch(0.9461 0 0); --muted-foreground: oklch(0.2435 0 0); --accent: oklch(0.9461 0 0); --accent-foreground: oklch(0.2435 0 0); --destructive: oklch(0.5523 0.1927 32.7272); --destructive-foreground: oklch(0.9934 0.0032 17.2118); --border: oklch(0.9037 0 0); --input: oklch(0.9731 0 0); --ring: oklch(0.8348 0.1302 160.9080); --chart-1: oklch(0.8348 0.1302 160.9080); --chart-2: oklch(0.6231 0.1880 259.8145); --chart-3: oklch(0.6056 0.2189 292.7172); --chart-4: oklch(0.7686 0.1647 70.0804); --chart-5: oklch(0.6959 0.1491 162.4796); --sidebar: oklch(0.9911 0 0); --sidebar-foreground: oklch(0.5452 0 0); --sidebar-primary: oklch(0.8348 0.1302 160.9080); --sidebar-primary-foreground: oklch(0.2626 0.0147 166.4589); --sidebar-accent: oklch(0.9461 0 0); --sidebar-accent-foreground: oklch(0.2435 0 0); --sidebar-border: oklch(0.9037 0 0); --sidebar-ring: oklch(0.8348 0.1302 160.9080); --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px hsl(0 0% 0% / 0.17); --font-sans: Outfit, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.5rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-supabase.dark .pill.neg { background: var(--destructive); color: var(--destructive-foreground); }
+</style>
+<style>
+/* ===== RAW tweakcn 'amber-minimal' (https://tweakcn.com/r/themes/amber-minimal.json) — valores para copiar =====
+   theme: font-sans: Inter, sans-serif; font-mono: JetBrains Mono, monospace; radius: 0.375rem;
+   .dark {
+     --background: oklch(0.2046 0 0);
+     --foreground: oklch(0.9219 0 0);
+     --card: oklch(0.2686 0 0);
+     --card-foreground: oklch(0.9219 0 0);
+     --popover: oklch(0.2686 0 0);
+     --popover-foreground: oklch(0.9219 0 0);
+     --primary: oklch(0.7686 0.1647 70.0804);
+     --primary-foreground: oklch(0 0 0);
+     --secondary: oklch(0.2686 0 0);
+     --secondary-foreground: oklch(0.9219 0 0);
+     --muted: oklch(0.2393 0 0);
+     --muted-foreground: oklch(0.7155 0 0);
+     --accent: oklch(0.4732 0.1247 46.2007);
+     --accent-foreground: oklch(0.9243 0.1151 95.7459);
+     --destructive: oklch(0.6368 0.2078 25.3313);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.3715 0 0);
+     --input: oklch(0.3715 0 0);
+     --ring: oklch(0.7686 0.1647 70.0804);
+     --chart-1: oklch(0.8369 0.1644 84.4286);
+     --chart-2: oklch(0.6658 0.1574 58.3183);
+     --chart-3: oklch(0.4732 0.1247 46.2007);
+     --chart-4: oklch(0.5553 0.1455 48.9975);
+     --chart-5: oklch(0.4732 0.1247 46.2007);
+     --sidebar: oklch(0.1684 0 0);
+     --sidebar-foreground: oklch(0.9219 0 0);
+     --sidebar-primary: oklch(0.7686 0.1647 70.0804);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(0.4732 0.1247 46.2007);
+     --sidebar-accent-foreground: oklch(0.9243 0.1151 95.7459);
+     --sidebar-border: oklch(0.3715 0 0);
+     --sidebar-ring: oklch(0.7686 0.1647 70.0804);
+     --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10);
+   }
+   .light {
+     --background: oklch(1.0000 0 0);
+     --foreground: oklch(0.2686 0 0);
+     --card: oklch(1.0000 0 0);
+     --card-foreground: oklch(0.2686 0 0);
+     --popover: oklch(1.0000 0 0);
+     --popover-foreground: oklch(0.2686 0 0);
+     --primary: oklch(0.7686 0.1647 70.0804);
+     --primary-foreground: oklch(0 0 0);
+     --secondary: oklch(0.9670 0.0029 264.5419);
+     --secondary-foreground: oklch(0.4461 0.0263 256.8018);
+     --muted: oklch(0.9846 0.0017 247.8389);
+     --muted-foreground: oklch(0.5510 0.0234 264.3637);
+     --accent: oklch(0.9869 0.0214 95.2774);
+     --accent-foreground: oklch(0.4732 0.1247 46.2007);
+     --destructive: oklch(0.6368 0.2078 25.3313);
+     --destructive-foreground: oklch(1.0000 0 0);
+     --border: oklch(0.9276 0.0058 264.5313);
+     --input: oklch(0.9276 0.0058 264.5313);
+     --ring: oklch(0.7686 0.1647 70.0804);
+     --chart-1: oklch(0.7686 0.1647 70.0804);
+     --chart-2: oklch(0.6658 0.1574 58.3183);
+     --chart-3: oklch(0.5553 0.1455 48.9975);
+     --chart-4: oklch(0.4732 0.1247 46.2007);
+     --chart-5: oklch(0.4137 0.1054 45.9038);
+     --sidebar: oklch(0.9846 0.0017 247.8389);
+     --sidebar-foreground: oklch(0.2686 0 0);
+     --sidebar-primary: oklch(0.7686 0.1647 70.0804);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(0.9869 0.0214 95.2774);
+     --sidebar-accent-foreground: oklch(0.4732 0.1247 46.2007);
+     --sidebar-border: oklch(0.9276 0.0058 264.5313);
+     --sidebar-ring: oklch(0.7686 0.1647 70.0804);
+     --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10);
+   }
+   pos/neg provisório: --pos = var(--chart-1), --neg = var(--destructive)  // Positivo = --chart-1 (âmbar); negativo = --destructive. Âmbar (h≈84) e vermelho (h≈25) se distinguem, mas positivo 'amarelo' é pouco convencional.
+*/
+.t-amber-minimal.dark { --background: oklch(0.2046 0 0); --foreground: oklch(0.9219 0 0); --card: oklch(0.2686 0 0); --card-foreground: oklch(0.9219 0 0); --popover: oklch(0.2686 0 0); --popover-foreground: oklch(0.9219 0 0); --primary: oklch(0.7686 0.1647 70.0804); --primary-foreground: oklch(0 0 0); --secondary: oklch(0.2686 0 0); --secondary-foreground: oklch(0.9219 0 0); --muted: oklch(0.2393 0 0); --muted-foreground: oklch(0.7155 0 0); --accent: oklch(0.4732 0.1247 46.2007); --accent-foreground: oklch(0.9243 0.1151 95.7459); --destructive: oklch(0.6368 0.2078 25.3313); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.3715 0 0); --input: oklch(0.3715 0 0); --ring: oklch(0.7686 0.1647 70.0804); --chart-1: oklch(0.8369 0.1644 84.4286); --chart-2: oklch(0.6658 0.1574 58.3183); --chart-3: oklch(0.4732 0.1247 46.2007); --chart-4: oklch(0.5553 0.1455 48.9975); --chart-5: oklch(0.4732 0.1247 46.2007); --sidebar: oklch(0.1684 0 0); --sidebar-foreground: oklch(0.9219 0 0); --sidebar-primary: oklch(0.7686 0.1647 70.0804); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(0.4732 0.1247 46.2007); --sidebar-accent-foreground: oklch(0.9243 0.1151 95.7459); --sidebar-border: oklch(0.3715 0 0); --sidebar-ring: oklch(0.7686 0.1647 70.0804); --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.375rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-amber-minimal.light { --background: oklch(1.0000 0 0); --foreground: oklch(0.2686 0 0); --card: oklch(1.0000 0 0); --card-foreground: oklch(0.2686 0 0); --popover: oklch(1.0000 0 0); --popover-foreground: oklch(0.2686 0 0); --primary: oklch(0.7686 0.1647 70.0804); --primary-foreground: oklch(0 0 0); --secondary: oklch(0.9670 0.0029 264.5419); --secondary-foreground: oklch(0.4461 0.0263 256.8018); --muted: oklch(0.9846 0.0017 247.8389); --muted-foreground: oklch(0.5510 0.0234 264.3637); --accent: oklch(0.9869 0.0214 95.2774); --accent-foreground: oklch(0.4732 0.1247 46.2007); --destructive: oklch(0.6368 0.2078 25.3313); --destructive-foreground: oklch(1.0000 0 0); --border: oklch(0.9276 0.0058 264.5313); --input: oklch(0.9276 0.0058 264.5313); --ring: oklch(0.7686 0.1647 70.0804); --chart-1: oklch(0.7686 0.1647 70.0804); --chart-2: oklch(0.6658 0.1574 58.3183); --chart-3: oklch(0.5553 0.1455 48.9975); --chart-4: oklch(0.4732 0.1247 46.2007); --chart-5: oklch(0.4137 0.1054 45.9038); --sidebar: oklch(0.9846 0.0017 247.8389); --sidebar-foreground: oklch(0.2686 0 0); --sidebar-primary: oklch(0.7686 0.1647 70.0804); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(0.9869 0.0214 95.2774); --sidebar-accent-foreground: oklch(0.4732 0.1247 46.2007); --sidebar-border: oklch(0.9276 0.0058 264.5313); --sidebar-ring: oklch(0.7686 0.1647 70.0804); --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10); --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.375rem; --pos: var(--chart-1); /* positivo = --chart-1 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+</style>
+<style>
+/* ===== RAW tweakcn 'darkmatter' (https://tweakcn.com/r/themes/darkmatter.json) — valores para copiar =====
+   theme: font-sans: Geist Mono, ui-monospace, monospace; font-mono: JetBrains Mono, monospace; radius: 0.75rem;
+   .dark {
+     --background: oklch(0.1797 0.0043 308.1928);
+     --foreground: oklch(0.8109 0 0);
+     --card: oklch(0.1822 0 0);
+     --card-foreground: oklch(0.8109 0 0);
+     --popover: oklch(0.1797 0.0043 308.1928);
+     --popover-foreground: oklch(0.8109 0 0);
+     --primary: oklch(0.7214 0.1337 49.9802);
+     --primary-foreground: oklch(0.1797 0.0043 308.1928);
+     --secondary: oklch(0.5940 0.0443 196.0233);
+     --secondary-foreground: oklch(0.1797 0.0043 308.1928);
+     --muted: oklch(0.2520 0 0);
+     --muted-foreground: oklch(0.6268 0 0);
+     --accent: oklch(0.3211 0 0);
+     --accent-foreground: oklch(0.8109 0 0);
+     --destructive: oklch(0.5940 0.0443 196.0233);
+     --destructive-foreground: oklch(0.1797 0.0043 308.1928);
+     --border: oklch(0.2520 0 0);
+     --input: oklch(0.2520 0 0);
+     --ring: oklch(0.7214 0.1337 49.9802);
+     --chart-1: oklch(0.5940 0.0443 196.0233);
+     --chart-2: oklch(0.7214 0.1337 49.9802);
+     --chart-3: oklch(0.8721 0.0864 68.5474);
+     --chart-4: oklch(0.6268 0 0);
+     --chart-5: oklch(0.6830 0 0);
+     --sidebar: oklch(0.1822 0 0);
+     --sidebar-foreground: oklch(0.8109 0 0);
+     --sidebar-primary: oklch(0.7214 0.1337 49.9802);
+     --sidebar-primary-foreground: oklch(0.1797 0.0043 308.1928);
+     --sidebar-accent: oklch(0.3211 0 0);
+     --sidebar-accent-foreground: oklch(0.8109 0 0);
+     --sidebar-border: oklch(0.2520 0 0);
+     --sidebar-ring: oklch(0.7214 0.1337 49.9802);
+     --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+   }
+   .light {
+     --background: oklch(1.0000 0 0);
+     --foreground: oklch(0.2101 0.0318 264.6645);
+     --card: oklch(1.0000 0 0);
+     --card-foreground: oklch(0.2101 0.0318 264.6645);
+     --popover: oklch(1.0000 0 0);
+     --popover-foreground: oklch(0.2101 0.0318 264.6645);
+     --primary: oklch(0.6716 0.1368 48.5130);
+     --primary-foreground: oklch(1.0000 0 0);
+     --secondary: oklch(0.5360 0.0398 196.0280);
+     --secondary-foreground: oklch(1.0000 0 0);
+     --muted: oklch(0.9670 0.0029 264.5419);
+     --muted-foreground: oklch(0.5510 0.0234 264.3637);
+     --accent: oklch(0.9491 0 0);
+     --accent-foreground: oklch(0.2101 0.0318 264.6645);
+     --destructive: oklch(0.6368 0.2078 25.3313);
+     --destructive-foreground: oklch(0.9851 0 0);
+     --border: oklch(0.9276 0.0058 264.5313);
+     --input: oklch(0.9276 0.0058 264.5313);
+     --ring: oklch(0.6716 0.1368 48.5130);
+     --chart-1: oklch(0.5940 0.0443 196.0233);
+     --chart-2: oklch(0.7214 0.1337 49.9802);
+     --chart-3: oklch(0.8721 0.0864 68.5474);
+     --chart-4: oklch(0.6268 0 0);
+     --chart-5: oklch(0.6830 0 0);
+     --sidebar: oklch(0.9670 0.0029 264.5419);
+     --sidebar-foreground: oklch(0.2101 0.0318 264.6645);
+     --sidebar-primary: oklch(0.6716 0.1368 48.5130);
+     --sidebar-primary-foreground: oklch(1.0000 0 0);
+     --sidebar-accent: oklch(1.0000 0 0);
+     --sidebar-accent-foreground: oklch(0.2101 0.0318 264.6645);
+     --sidebar-border: oklch(0.9276 0.0058 264.5313);
+     --sidebar-ring: oklch(0.6716 0.1368 48.5130);
+     --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+   }
+   pos/neg provisório: --pos = var(--chart-3), --neg = var(--destructive)  // Positivo = --chart-3 (âmbar claro). ATENÇÃO: no ESCURO o --destructive deste tema é teal (h 196), não vermelho — negativo aparece teal. No claro volta a ser vermelho.
+*/
+.t-darkmatter.dark { --background: oklch(0.1797 0.0043 308.1928); --foreground: oklch(0.8109 0 0); --card: oklch(0.1822 0 0); --card-foreground: oklch(0.8109 0 0); --popover: oklch(0.1797 0.0043 308.1928); --popover-foreground: oklch(0.8109 0 0); --primary: oklch(0.7214 0.1337 49.9802); --primary-foreground: oklch(0.1797 0.0043 308.1928); --secondary: oklch(0.5940 0.0443 196.0233); --secondary-foreground: oklch(0.1797 0.0043 308.1928); --muted: oklch(0.2520 0 0); --muted-foreground: oklch(0.6268 0 0); --accent: oklch(0.3211 0 0); --accent-foreground: oklch(0.8109 0 0); --destructive: oklch(0.5940 0.0443 196.0233); --destructive-foreground: oklch(0.1797 0.0043 308.1928); --border: oklch(0.2520 0 0); --input: oklch(0.2520 0 0); --ring: oklch(0.7214 0.1337 49.9802); --chart-1: oklch(0.5940 0.0443 196.0233); --chart-2: oklch(0.7214 0.1337 49.9802); --chart-3: oklch(0.8721 0.0864 68.5474); --chart-4: oklch(0.6268 0 0); --chart-5: oklch(0.6830 0 0); --sidebar: oklch(0.1822 0 0); --sidebar-foreground: oklch(0.8109 0 0); --sidebar-primary: oklch(0.7214 0.1337 49.9802); --sidebar-primary-foreground: oklch(0.1797 0.0043 308.1928); --sidebar-accent: oklch(0.3211 0 0); --sidebar-accent-foreground: oklch(0.8109 0 0); --sidebar-border: oklch(0.2520 0 0); --sidebar-ring: oklch(0.7214 0.1337 49.9802); --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05); --font-sans: Geist Mono, ui-monospace, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.75rem; --pos: var(--chart-3); /* positivo = --chart-3 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+.t-darkmatter.light { --background: oklch(1.0000 0 0); --foreground: oklch(0.2101 0.0318 264.6645); --card: oklch(1.0000 0 0); --card-foreground: oklch(0.2101 0.0318 264.6645); --popover: oklch(1.0000 0 0); --popover-foreground: oklch(0.2101 0.0318 264.6645); --primary: oklch(0.6716 0.1368 48.5130); --primary-foreground: oklch(1.0000 0 0); --secondary: oklch(0.5360 0.0398 196.0280); --secondary-foreground: oklch(1.0000 0 0); --muted: oklch(0.9670 0.0029 264.5419); --muted-foreground: oklch(0.5510 0.0234 264.3637); --accent: oklch(0.9491 0 0); --accent-foreground: oklch(0.2101 0.0318 264.6645); --destructive: oklch(0.6368 0.2078 25.3313); --destructive-foreground: oklch(0.9851 0 0); --border: oklch(0.9276 0.0058 264.5313); --input: oklch(0.9276 0.0058 264.5313); --ring: oklch(0.6716 0.1368 48.5130); --chart-1: oklch(0.5940 0.0443 196.0233); --chart-2: oklch(0.7214 0.1337 49.9802); --chart-3: oklch(0.8721 0.0864 68.5474); --chart-4: oklch(0.6268 0 0); --chart-5: oklch(0.6830 0 0); --sidebar: oklch(0.9670 0.0029 264.5419); --sidebar-foreground: oklch(0.2101 0.0318 264.6645); --sidebar-primary: oklch(0.6716 0.1368 48.5130); --sidebar-primary-foreground: oklch(1.0000 0 0); --sidebar-accent: oklch(1.0000 0 0); --sidebar-accent-foreground: oklch(0.2101 0.0318 264.6645); --sidebar-border: oklch(0.9276 0.0058 264.5313); --sidebar-ring: oklch(0.6716 0.1368 48.5130); --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05); --font-sans: Geist Mono, ui-monospace, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; --radius: 0.75rem; --pos: var(--chart-3); /* positivo = --chart-3 */ --neg: var(--destructive); /* negativo = --destructive */ --neg-text: var(--neg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="intro">
+    <h1>Goodies v2 · temas base (shadcn / tweakcn)</h1>
+    <p class="lead">Escolha uma base (ou combinações: ex. "neutros do X com o acento do Y"). Os números/cores positivos e negativos são provisórios.</p>
+    <p>Personalidade-alvo: <i>sóbrio e técnico, tipo terminal de trader, porém arejado</i>. Escuro primeiro; o claro aparece ao lado para checar se a base aguenta os dois modos.</p>
+    <p>Fontes: só os nomes do tema com fallback do sistema (nada é baixado), então Inter/Geist/JetBrains Mono podem aparecer como a fonte do seu sistema. Cada chip mostra o valor <code>D</code> (escuro) e <code>L</code> (claro); os valores brutos de cada tema estão num comentário <code>&lt;style&gt;</code> no código-fonte.</p>
+    <nav class="toc"><a href="#graphite">01 · Graphite</a><a href="#vercel">02 · Vercel</a><a href="#modern-minimal">03 · Modern Minimal</a><a href="#supabase">04 · Supabase</a><a href="#amber-minimal">05 · Amber Minimal</a><a href="#darkmatter">06 · Darkmatter</a></nav>
+  </header>
+<section class="theme-block" id="graphite">
+  <div class="theme-head"><span class="num-tag">01</span><h2>Graphite</h2><span class="slug">graphite</span></div>
+  <p class="register">Grafite fosco, baixo contraste — calmo, de planilha bem cuidada.</p>
+  <p class="why">Neutro puro (croma 0) com contraste macio: o mais 'arejado' dos sóbrios.</p>
+  <p class="note"><b>Positivo/negativo:</b> Paleta de gráficos é quase toda cinza; positivo = --chart-2 (único tom com croma, teal acinzentado); negativo = --destructive.</p>
+  <div class="meta">font-sans: Inter, sans-serif · font-mono: Fira Code, monospace · radius: 0.35rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0.2178 0 0)"></span><span style="background:oklch(0.9551 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0.2178 0 0)</div><div class="chip-val">L oklch(0.9551 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2435 0 0)"></span><span style="background:oklch(0.9702 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.2435 0 0)</div><div class="chip-val">L oklch(0.9702 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8853 0 0)"></span><span style="background:oklch(0.3211 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(0.8853 0 0)</div><div class="chip-val">L oklch(0.3211 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5999 0 0)"></span><span style="background:oklch(0.5103 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.5999 0 0)</div><div class="chip-val">L oklch(0.5103 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7058 0 0)"></span><span style="background:oklch(0.4891 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(0.7058 0 0)</div><div class="chip-val">L oklch(0.4891 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3715 0 0)"></span><span style="background:oklch(0.8078 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.3715 0 0)</div><div class="chip-val">L oklch(0.8078 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3290 0 0)"></span><span style="background:oklch(0.8576 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.3290 0 0)</div><div class="chip-val">L oklch(0.8576 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6591 0.1530 22.1703)"></span><span style="background:oklch(0.5594 0.1900 25.8625)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.6591 0.1530 22.1703)</div><div class="chip-val">L oklch(0.5594 0.1900 25.8625)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7058 0 0)"></span><span style="background:oklch(0.4891 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.7058 0 0)</div><div class="chip-val">L oklch(0.4891 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6714 0.0339 206.3482)"></span><span style="background:oklch(0.4863 0.0361 196.0278)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.6714 0.0339 206.3482)</div><div class="chip-val">L oklch(0.4863 0.0361 196.0278)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5452 0 0)"></span><span style="background:oklch(0.6534 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.5452 0 0)</div><div class="chip-val">L oklch(0.6534 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4604 0 0)"></span><span style="background:oklch(0.7316 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.4604 0 0)</div><div class="chip-val">L oklch(0.7316 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3715 0 0)"></span><span style="background:oklch(0.8078 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.3715 0 0)</div><div class="chip-val">L oklch(0.8078 0 0)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-graphite dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-graphite light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+<section class="theme-block" id="vercel">
+  <div class="theme-head"><span class="num-tag">02</span><h2>Vercel</h2><span class="slug">vercel</span></div>
+  <p class="register">Preto absoluto e branco puro — seco, editorial, alto contraste.</p>
+  <p class="why">Referência neutra 'Geist': nada além de preto/branco + 2 sinais (âmbar/azul).</p>
+  <p class="note"><b>Positivo/negativo:</b> Sem verde na paleta; positivo = --chart-2 (azul); negativo = --destructive. --chart-1 (âmbar) fica livre p/ avisos.</p>
+  <div class="meta">font-sans: Geist, sans-serif · font-mono: Geist Mono, monospace · radius: 0.5rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0 0 0)"></span><span style="background:oklch(0.9900 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0 0 0)</div><div class="chip-val">L oklch(0.9900 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.1400 0 0)"></span><span style="background:oklch(1 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.1400 0 0)</div><div class="chip-val">L oklch(1 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(1 0 0)"></span><span style="background:oklch(0 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(1 0 0)</div><div class="chip-val">L oklch(0 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7200 0 0)"></span><span style="background:oklch(0.4400 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.7200 0 0)</div><div class="chip-val">L oklch(0.4400 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(1 0 0)"></span><span style="background:oklch(0 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(1 0 0)</div><div class="chip-val">L oklch(0 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3200 0 0)"></span><span style="background:oklch(0.9400 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.3200 0 0)</div><div class="chip-val">L oklch(0.9400 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2600 0 0)"></span><span style="background:oklch(0.9200 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.2600 0 0)</div><div class="chip-val">L oklch(0.9200 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6900 0.2000 23.9100)"></span><span style="background:oklch(0.6300 0.1900 23.0300)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.6900 0.2000 23.9100)</div><div class="chip-val">L oklch(0.6300 0.1900 23.0300)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8100 0.1700 75.3500)"></span><span style="background:oklch(0.8100 0.1700 75.3500)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.8100 0.1700 75.3500)</div><div class="chip-val">L oklch(0.8100 0.1700 75.3500)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5800 0.2100 260.8400)"></span><span style="background:oklch(0.5500 0.2200 264.5300)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.5800 0.2100 260.8400)</div><div class="chip-val">L oklch(0.5500 0.2200 264.5300)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5600 0 0)"></span><span style="background:oklch(0.7200 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.5600 0 0)</div><div class="chip-val">L oklch(0.7200 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4400 0 0)"></span><span style="background:oklch(0.9200 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.4400 0 0)</div><div class="chip-val">L oklch(0.9200 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.9200 0 0)"></span><span style="background:oklch(0.5600 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.9200 0 0)</div><div class="chip-val">L oklch(0.5600 0 0)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-vercel dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-vercel light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+<section class="theme-block" id="modern-minimal">
+  <div class="theme-head"><span class="num-tag">03</span><h2>Modern Minimal</h2><span class="slug">modern-minimal</span></div>
+  <p class="register">Cinza neutro com azul elétrico — técnico, confiável, 'ferramenta'.</p>
+  <p class="why">Substitui azure-mono/claude-azure (indisponíveis): azul técnico sobre neutros sem tinta.</p>
+  <p class="note"><b>Positivo/negativo:</b> Positivo = --chart-1 (azul claro); negativo = --destructive. Toda a paleta de gráficos é azul monocromático.</p>
+  <div class="meta">font-sans: Inter, sans-serif · font-mono: JetBrains Mono, monospace · radius: 0.375rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0.2046 0 0)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0.2046 0 0)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2686 0 0)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.2686 0 0)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.9219 0 0)"></span><span style="background:oklch(0.3211 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(0.9219 0 0)</div><div class="chip-val">L oklch(0.3211 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7155 0 0)"></span><span style="background:oklch(0.5510 0.0234 264.3637)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.7155 0 0)</div><div class="chip-val">L oklch(0.5510 0.0234 264.3637)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6231 0.1880 259.8145)"></span><span style="background:oklch(0.6231 0.1880 259.8145)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(0.6231 0.1880 259.8145)</div><div class="chip-val">L oklch(0.6231 0.1880 259.8145)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3791 0.1378 265.5222)"></span><span style="background:oklch(0.9514 0.0250 236.8242)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.3791 0.1378 265.5222)</div><div class="chip-val">L oklch(0.9514 0.0250 236.8242)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3715 0 0)"></span><span style="background:oklch(0.9276 0.0058 264.5313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.3715 0 0)</div><div class="chip-val">L oklch(0.9276 0.0058 264.5313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6368 0.2078 25.3313)"></span><span style="background:oklch(0.6368 0.2078 25.3313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.6368 0.2078 25.3313)</div><div class="chip-val">L oklch(0.6368 0.2078 25.3313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7137 0.1434 254.6240)"></span><span style="background:oklch(0.6231 0.1880 259.8145)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.7137 0.1434 254.6240)</div><div class="chip-val">L oklch(0.6231 0.1880 259.8145)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6231 0.1880 259.8145)"></span><span style="background:oklch(0.5461 0.2152 262.8809)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.6231 0.1880 259.8145)</div><div class="chip-val">L oklch(0.5461 0.2152 262.8809)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5461 0.2152 262.8809)"></span><span style="background:oklch(0.4882 0.2172 264.3763)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.5461 0.2152 262.8809)</div><div class="chip-val">L oklch(0.4882 0.2172 264.3763)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4882 0.2172 264.3763)"></span><span style="background:oklch(0.4244 0.1809 265.6377)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.4882 0.2172 264.3763)</div><div class="chip-val">L oklch(0.4244 0.1809 265.6377)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4244 0.1809 265.6377)"></span><span style="background:oklch(0.3791 0.1378 265.5222)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.4244 0.1809 265.6377)</div><div class="chip-val">L oklch(0.3791 0.1378 265.5222)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-modern-minimal dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-modern-minimal light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+<section class="theme-block" id="supabase">
+  <div class="theme-head"><span class="num-tag">04</span><h2>Supabase</h2><span class="slug">supabase</span></div>
+  <p class="register">Grafite com verde-sinal — terminal, 'sistema online'.</p>
+  <p class="why">Substitui mint-signal (indisponível): verde de sinal sobre cinza neutro, o mais 'trader'.</p>
+  <p class="note"><b>Positivo/negativo:</b> Positivo = --chart-1 (verde). No ESCURO o --destructive (L 0,31) é escuro demais p/ texto: negativo vira pílula --destructive + --destructive-foreground e o texto do resultado usa --destructive-foreground. Ajuste provável.</p>
+  <div class="meta">font-sans: Outfit, sans-serif · font-mono: monospace · radius: 0.5rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0.1822 0 0)"></span><span style="background:oklch(0.9911 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0.1822 0 0)</div><div class="chip-val">L oklch(0.9911 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2046 0 0)"></span><span style="background:oklch(0.9911 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.2046 0 0)</div><div class="chip-val">L oklch(0.9911 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.9288 0.0126 255.5078)"></span><span style="background:oklch(0.2046 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(0.9288 0.0126 255.5078)</div><div class="chip-val">L oklch(0.2046 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7122 0 0)"></span><span style="background:oklch(0.2435 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.7122 0 0)</div><div class="chip-val">L oklch(0.2435 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4365 0.1044 156.7556)"></span><span style="background:oklch(0.8348 0.1302 160.9080)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(0.4365 0.1044 156.7556)</div><div class="chip-val">L oklch(0.8348 0.1302 160.9080)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3132 0 0)"></span><span style="background:oklch(0.9461 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.3132 0 0)</div><div class="chip-val">L oklch(0.9461 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2809 0 0)"></span><span style="background:oklch(0.9037 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.2809 0 0)</div><div class="chip-val">L oklch(0.9037 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3123 0.0852 29.7877)"></span><span style="background:oklch(0.5523 0.1927 32.7272)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.3123 0.0852 29.7877)</div><div class="chip-val">L oklch(0.5523 0.1927 32.7272)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8003 0.1821 151.7110)"></span><span style="background:oklch(0.8348 0.1302 160.9080)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.8003 0.1821 151.7110)</div><div class="chip-val">L oklch(0.8348 0.1302 160.9080)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7137 0.1434 254.6240)"></span><span style="background:oklch(0.6231 0.1880 259.8145)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.7137 0.1434 254.6240)</div><div class="chip-val">L oklch(0.6231 0.1880 259.8145)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7090 0.1592 293.5412)"></span><span style="background:oklch(0.6056 0.2189 292.7172)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.7090 0.1592 293.5412)</div><div class="chip-val">L oklch(0.6056 0.2189 292.7172)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8369 0.1644 84.4286)"></span><span style="background:oklch(0.7686 0.1647 70.0804)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.8369 0.1644 84.4286)</div><div class="chip-val">L oklch(0.7686 0.1647 70.0804)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7845 0.1325 181.9120)"></span><span style="background:oklch(0.6959 0.1491 162.4796)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.7845 0.1325 181.9120)</div><div class="chip-val">L oklch(0.6959 0.1491 162.4796)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-supabase dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-supabase light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+<section class="theme-block" id="amber-minimal">
+  <div class="theme-head"><span class="num-tag">05</span><h2>Amber Minimal</h2><span class="slug">amber-minimal</span></div>
+  <p class="register">Neutro com âmbar quente — monitor de fósforo âmbar, mais humano.</p>
+  <p class="why">Substitui amber-slate (indisponível): mesmo esqueleto do Modern Minimal, acento âmbar.</p>
+  <p class="note"><b>Positivo/negativo:</b> Positivo = --chart-1 (âmbar); negativo = --destructive. Âmbar (h≈84) e vermelho (h≈25) se distinguem, mas positivo 'amarelo' é pouco convencional.</p>
+  <div class="meta">font-sans: Inter, sans-serif · font-mono: JetBrains Mono, monospace · radius: 0.375rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0.2046 0 0)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0.2046 0 0)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2686 0 0)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.2686 0 0)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.9219 0 0)"></span><span style="background:oklch(0.2686 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(0.9219 0 0)</div><div class="chip-val">L oklch(0.2686 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7155 0 0)"></span><span style="background:oklch(0.5510 0.0234 264.3637)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.7155 0 0)</div><div class="chip-val">L oklch(0.5510 0.0234 264.3637)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7686 0.1647 70.0804)"></span><span style="background:oklch(0.7686 0.1647 70.0804)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(0.7686 0.1647 70.0804)</div><div class="chip-val">L oklch(0.7686 0.1647 70.0804)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4732 0.1247 46.2007)"></span><span style="background:oklch(0.9869 0.0214 95.2774)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.4732 0.1247 46.2007)</div><div class="chip-val">L oklch(0.9869 0.0214 95.2774)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3715 0 0)"></span><span style="background:oklch(0.9276 0.0058 264.5313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.3715 0 0)</div><div class="chip-val">L oklch(0.9276 0.0058 264.5313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6368 0.2078 25.3313)"></span><span style="background:oklch(0.6368 0.2078 25.3313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.6368 0.2078 25.3313)</div><div class="chip-val">L oklch(0.6368 0.2078 25.3313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8369 0.1644 84.4286)"></span><span style="background:oklch(0.7686 0.1647 70.0804)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.8369 0.1644 84.4286)</div><div class="chip-val">L oklch(0.7686 0.1647 70.0804)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6658 0.1574 58.3183)"></span><span style="background:oklch(0.6658 0.1574 58.3183)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.6658 0.1574 58.3183)</div><div class="chip-val">L oklch(0.6658 0.1574 58.3183)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4732 0.1247 46.2007)"></span><span style="background:oklch(0.5553 0.1455 48.9975)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.4732 0.1247 46.2007)</div><div class="chip-val">L oklch(0.5553 0.1455 48.9975)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5553 0.1455 48.9975)"></span><span style="background:oklch(0.4732 0.1247 46.2007)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.5553 0.1455 48.9975)</div><div class="chip-val">L oklch(0.4732 0.1247 46.2007)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.4732 0.1247 46.2007)"></span><span style="background:oklch(0.4137 0.1054 45.9038)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.4732 0.1247 46.2007)</div><div class="chip-val">L oklch(0.4137 0.1054 45.9038)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-amber-minimal dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-amber-minimal light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+<section class="theme-block" id="darkmatter">
+  <div class="theme-head"><span class="num-tag">06</span><h2>Darkmatter</h2><span class="slug">darkmatter</span></div>
+  <p class="register">Quase-preto com laranja queimado e teal frio — cockpit noturno, tipografia mono.</p>
+  <p class="why">O mais 'terminal': Geist Mono como fonte de corpo, raio largo, contraste baixo.</p>
+  <p class="note"><b>Positivo/negativo:</b> Positivo = --chart-3 (âmbar claro). ATENÇÃO: no ESCURO o --destructive deste tema é teal (h 196), não vermelho — negativo aparece teal. No claro volta a ser vermelho.</p>
+  <div class="meta">font-sans: Geist Mono, ui-monospace, monospace · font-mono: JetBrains Mono, monospace · radius: 0.75rem</div>
+  <div class="chips">
+<div class="chip"><div class="sw"><span style="background:oklch(0.1797 0.0043 308.1928)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--background</div><div class="chip-val">D oklch(0.1797 0.0043 308.1928)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.1822 0 0)"></span><span style="background:oklch(1.0000 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--card</div><div class="chip-val">D oklch(0.1822 0 0)</div><div class="chip-val">L oklch(1.0000 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8109 0 0)"></span><span style="background:oklch(0.2101 0.0318 264.6645)"></span></div>
+<div class="chip-meta"><div class="chip-name">--foreground</div><div class="chip-val">D oklch(0.8109 0 0)</div><div class="chip-val">L oklch(0.2101 0.0318 264.6645)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6268 0 0)"></span><span style="background:oklch(0.5510 0.0234 264.3637)"></span></div>
+<div class="chip-meta"><div class="chip-name">--muted-foreground</div><div class="chip-val">D oklch(0.6268 0 0)</div><div class="chip-val">L oklch(0.5510 0.0234 264.3637)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7214 0.1337 49.9802)"></span><span style="background:oklch(0.6716 0.1368 48.5130)"></span></div>
+<div class="chip-meta"><div class="chip-name">--primary</div><div class="chip-val">D oklch(0.7214 0.1337 49.9802)</div><div class="chip-val">L oklch(0.6716 0.1368 48.5130)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.3211 0 0)"></span><span style="background:oklch(0.9491 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--accent</div><div class="chip-val">D oklch(0.3211 0 0)</div><div class="chip-val">L oklch(0.9491 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.2520 0 0)"></span><span style="background:oklch(0.9276 0.0058 264.5313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--border</div><div class="chip-val">D oklch(0.2520 0 0)</div><div class="chip-val">L oklch(0.9276 0.0058 264.5313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5940 0.0443 196.0233)"></span><span style="background:oklch(0.6368 0.2078 25.3313)"></span></div>
+<div class="chip-meta"><div class="chip-name">--destructive</div><div class="chip-val">D oklch(0.5940 0.0443 196.0233)</div><div class="chip-val">L oklch(0.6368 0.2078 25.3313)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.5940 0.0443 196.0233)"></span><span style="background:oklch(0.5940 0.0443 196.0233)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-1</div><div class="chip-val">D oklch(0.5940 0.0443 196.0233)</div><div class="chip-val">L oklch(0.5940 0.0443 196.0233)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.7214 0.1337 49.9802)"></span><span style="background:oklch(0.7214 0.1337 49.9802)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-2</div><div class="chip-val">D oklch(0.7214 0.1337 49.9802)</div><div class="chip-val">L oklch(0.7214 0.1337 49.9802)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.8721 0.0864 68.5474)"></span><span style="background:oklch(0.8721 0.0864 68.5474)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-3</div><div class="chip-val">D oklch(0.8721 0.0864 68.5474)</div><div class="chip-val">L oklch(0.8721 0.0864 68.5474)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6268 0 0)"></span><span style="background:oklch(0.6268 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-4</div><div class="chip-val">D oklch(0.6268 0 0)</div><div class="chip-val">L oklch(0.6268 0 0)</div></div></div>
+<div class="chip"><div class="sw"><span style="background:oklch(0.6830 0 0)"></span><span style="background:oklch(0.6830 0 0)"></span></div>
+<div class="chip-meta"><div class="chip-name">--chart-5</div><div class="chip-val">D oklch(0.6830 0 0)</div><div class="chip-val">L oklch(0.6830 0 0)</div></div></div>
+  </div>
+  <div class="modes">
+<div class="ui t-darkmatter dark">
+  <div class="mode-tag">Escuro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+<div class="ui t-darkmatter light">
+  <div class="mode-tag">Claro</div>
+  <nav class="topbar" aria-label="Navegação principal">
+    <span class="brand">goodies</span>
+    <a class="tab active" aria-current="page">Visão geral</a><span class="sep">·</span>
+    <a class="tab">Caixa</a><span class="sep">·</span>
+    <a class="tab">Investimentos</a><span class="sep">·</span>
+    <a class="tab">Ajustes</a>
+  </nav>
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Patrimônio</div><div class="k-value">R$ 68.695,66</div><div class="k-sub">atualizado há 2 h</div></div>
+    <div class="card kpi"><div class="k-label">Resultado do mês</div><div class="k-value">R$ 883,79</div><div class="k-sub"><span class="pos">+R$ 112,40</span> vs. setembro</div></div>
+    <div class="card kpi"><div class="k-label">Rentabilidade 12m</div><div class="k-value">10,9% <small>a.a.</small></div><div class="k-sub">real <span class="mono">6,2%</span> · XIRR</div></div>
+  </div>
+  <div class="card alerts">
+    <div class="sec-title">Central de avisos <span class="count">2</span></div>
+    <div class="alert warn"><span class="dot"></span><span>Saldo divergente em <b class="mono">R$ 37,20</b> — <a class="link">ver transações</a></span></div>
+    <div class="alert info"><span class="dot"></span><span>Importe o relatório B3 a partir de <b class="mono">14/10</b></span></div>
+  </div>
+  <div class="card table-card">
+    <div class="sec-title">Posições <span class="muted small">5 itens · R$ 28.936,02</span></div>
+    <table>
+      <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Valor atual</th><th class="num">Resultado</th><th class="num">%</th></tr></thead>
+      <tbody>
+<tr><td class="asset">BBAS3</td><td class="muted">Ações</td><td class="num">R$ 8.412,30</td><td class="num pos">+R$ 682,10</td><td class="num"><span class="pill pos">+8,82%</span></td></tr>
+<tr><td class="asset">PETR4</td><td class="muted">Ações</td><td class="num">R$ 6.905,40</td><td class="num pos">+R$ 3.192,77</td><td class="num"><span class="pill pos">+85,86%</span></td></tr>
+<tr><td class="asset">GOLD11</td><td class="muted">ETF</td><td class="num">R$ 4.120,00</td><td class="num neg">−R$ 91,05</td><td class="num"><span class="pill neg">−2,16%</span></td></tr>
+<tr><td class="asset">USDB11</td><td class="muted">ETF</td><td class="num">R$ 3.380,55</td><td class="num neg">−R$ 163,80</td><td class="num"><span class="pill neg">−4,62%</span></td></tr>
+<tr><td class="asset">Bloco cripto</td><td class="muted">Cripto</td><td class="num">R$ 6.117,77</td><td class="num neg">−R$ 86,23</td><td class="num"><span class="pill neg">−1,39%</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="p-row"><span>Aporte do mês</span><span class="mono"><b>R$ 2.300</b> <span class="muted">de R$ 4.500</span></span></div>
+    <div class="track" role="progressbar" aria-valuenow="51" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:51.1%"></div></div>
+    <div class="p-row small muted"><span>51% da meta</span><span class="mono">faltam R$ 2.200</span></div>
+  </div>
+  <div class="buttons"><button class="btn primary">Registrar aporte</button><button class="btn secondary">Importar extrato</button><button class="btn ghost">Ajustar meta</button></div>
+</div>
+  </div>
+</section>
+</div>
+</body>
+</html>

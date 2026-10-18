@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Orçamento do mês</title>
+<style>
+/*
+  KEY SCREEN — Caixa › Orçamento
+  Governado por:
+  - .memlog.md › bloco aprovado (3) Orçamento: conta aberta linha a linha (receita do trabalho + resgates − custos fixos
+    − aporte planejado − dívidas [input inline] = disponível; consumido; restante; linha 'consumo financiado por resgate';
+    estado negativo em vermelho); Densidade: resumo com detalhe sob demanda
+  - EXPERIENCE.md › Information Architecture (Caixa › Orçamento, FR-17); Component Patterns: Tabela de dados (Resumo/Detalhado,
+    linha de grupo com chevron), Carimbo de data, Abas; Interaction Primitives › Edição (inline: Enter grava, Esc reverte)
+  - EXPERIENCE.md › Números e formatação financeira (−R$ com menos tipográfico; valores completos)
+  - DESIGN.md › Colors (negative = vermelho), Typography (B1), Components: data-table
+  Fontes pretendidas (não carregadas, mock offline): Geist / Inter (sans) e Geist Mono / JetBrains Mono (números).
+  Spines vencem em caso de conflito com este mock.
+*/
+
+/* ===== Tokens (DESIGN.md front-matter; A2 + B1; valores de mockups/paleta-tipografia.html) ===== */
+.t-dark{
+  --background:#121113; --foreground:#c1c1c1; --card:#121212; --card-foreground:#c1c1c1;
+  --popover:#121113; --popover-foreground:#c1c1c1; --muted:#222222; --muted-foreground:#888888;
+  --border:#222222; --input:#666666; --ring:#4ade80; --row-highlight:#1e1e1e;
+  --primary:#006239; --primary-foreground:#dde8e3;
+  --secondary:#333333; --secondary-foreground:#c1c1c1; --accent:#333333; --accent-foreground:#c1c1c1;
+  --positive:#4ade80; --negative:#fb605c; --destructive:#fb605c;
+  --warning:#e78a53; --warning-dot:#e78a53;
+  --positive-tint:#1a2f21; --negative-tint:#331d1c; --warning-tint:#30231b;
+  --sidebar:#121212; --sidebar-foreground:#c1c1c1; --sidebar-accent:#333333; --sidebar-border:#222222;
+  --chart-1:#4ade80; --chart-2:#888888; --chart-3:#636363;
+  --tint:14%; --card-shadow:none; --overlay:rgb(0 0 0 / .62);
+  --float-shadow:0 10px 38px -10px rgb(0 0 0 / .7), 0 10px 20px -15px rgb(0 0 0 / .5);
+  color-scheme:dark;
+}
+.t-light{
+  --background:#ffffff; --foreground:#111827; --card:#ffffff; --card-foreground:#111827;
+  --popover:#ffffff; --popover-foreground:#111827; --muted:#f3f4f6; --muted-foreground:#6b7280;
+  --border:#e5e7eb; --input:#8b8f97; --ring:#047745; --row-highlight:#f9fafb;
+  --primary:#72e3ad; --primary-foreground:#1e2723;
+  --secondary:#eeeeee; --secondary-foreground:#111827; --accent:#eeeeee; --accent-foreground:#111827;
+  --positive:#047745; --negative:#c51e21; --destructive:#c51e21;
+  --warning:#a6501a; --warning-dot:#d87943;
+  --positive-tint:#e6f1ec; --negative-tint:#f9e8e9; --warning-tint:#f6eee8;
+  --sidebar:#f3f4f6; --sidebar-foreground:#111827; --sidebar-accent:#ffffff; --sidebar-border:#e5e7eb;
+  --chart-1:#047745; --chart-2:#6b7280; --chart-3:#8f8f8f;
+  --tint:10%; --card-shadow:0 1px 4px hsl(0 0% 0% / .05); --overlay:rgb(17 24 39 / .38);
+  --float-shadow:0 10px 38px -10px rgb(17 24 39 / .25), 0 10px 20px -15px rgb(17 24 39 / .15);
+  color-scheme:light;
+}
+
+
+/* ===== Página de apresentação (fora do app) ===== */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#0b0b0c;color:#d6d6d6;font:14px/1.5 Geist,Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:32px 24px 64px}
+.sheet{width:1440px;margin:0 auto}
+.sheet-head{margin:0 0 14px}
+.sheet-head h1{font-size:18px;font-weight:600;margin:0 0 4px;color:#ededed}
+.sheet-head p{margin:0;color:#9a9a9a;font-size:13px;max-width:120ch}
+.variant{margin:40px 0 12px;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:#9a9a9a}
+
+/* ===== Moldura de navegador 1:1 (1440px) ===== */
+.frame{width:1440px;border-radius:12px;overflow:hidden;border:1px solid #2a2a2c;background:var(--background)}
+.chrome{height:40px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1c1e;border-bottom:1px solid #2a2a2c}
+.t-light .chrome{background:#e9e9eb;border-bottom-color:#d4d4d8}
+.chrome .dots{display:flex;gap:7px}
+.chrome .dots i{width:11px;height:11px;border-radius:50%;background:#3a3a3c;display:block}
+.t-light .chrome .dots i{background:#c4c4c8}
+.chrome .url{flex:1;max-width:620px;margin:0 auto;height:26px;border-radius:7px;background:#121214;color:#8a8a8e;font:12px/26px ui-monospace,SFMono-Regular,Menlo,monospace;padding:0 12px}
+.t-light .chrome .url{background:#ffffff;color:#6b6b70}
+
+/* ===== App shell ===== */
+.app{position:relative;display:grid;grid-template-columns:240px 1fr;min-height:940px;background:var(--background);color:var(--foreground);
+  font-family:Geist,Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5}
+.num,.mono{font-family:"Geist Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+b,strong{font-weight:600}
+span.num{white-space:nowrap}
+a{color:inherit;text-decoration:none}
+
+.sidebar{background:var(--sidebar);color:var(--sidebar-foreground);border-right:1px solid var(--sidebar-border);padding:16px 12px;display:flex;flex-direction:column;gap:16px}
+.brand{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-weight:600;font-size:15px;letter-spacing:-0.02em;padding:4px 8px;display:flex;align-items:center;gap:8px}
+.brand::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--positive)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{position:relative;display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;font-size:14px;color:var(--sidebar-foreground)}
+.nav a svg{flex:none;opacity:.85}
+.nav a.active{background:var(--sidebar-accent);font-weight:600}
+.nav a.active::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--positive)}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 32px;border-bottom:1px solid var(--border);background:var(--background)}
+.period{display:flex;align-items:center;gap:4px}
+.icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--input);background:transparent;color:var(--muted-foreground);font:inherit;padding:0}
+.period-trigger{height:30px;display:inline-flex;align-items:center;gap:8px;padding:0 10px;border-radius:10px;border:1px solid var(--input);background:var(--background);color:var(--foreground);font:inherit}
+.period-trigger .num{font-size:14px}
+.topbar .spacer{flex:1}
+.bell{position:relative}
+.bell .count{position:absolute;top:-6px;right:-7px;min-width:18px;height:17px;padding:0 5px;border-radius:9999px;background:var(--secondary);color:var(--secondary-foreground);font:600 12px/17px "Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.02em;text-align:center}
+.theme-switch{width:28px;height:28px}
+
+.content{padding:24px 32px 40px;display:flex;flex-direction:column;gap:24px;max-width:1440px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.page-title{font-size:20px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;margin:0}
+.tabs{display:flex;gap:20px;border-bottom:1px solid var(--border);margin-top:-8px}
+.tabs a{padding:8px 0 9px;font-size:14px;color:var(--muted-foreground);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.active{color:var(--foreground);font-weight:600;border-bottom-color:var(--positive)}
+
+/* ===== Componentes ===== */
+.card{background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:12px;box-shadow:var(--card-shadow);min-width:0}
+.card-head{display:flex;align-items:baseline;gap:10px;padding:14px 16px 10px}
+.section-title{font-size:14px;font-weight:600;line-height:1.4;margin:0}
+.card-head .right{margin-left:auto}
+.label{font-size:12px;font-weight:500;line-height:1.3;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground)}
+.caption{font-size:12px;line-height:1.4;color:var(--muted-foreground)}
+.body-sm{font-size:13px;line-height:1.45}
+.muted{color:var(--muted-foreground)}
+.pos{color:var(--positive)} .neg{color:var(--negative)} .warn-text{color:var(--warning)}
+.link{color:var(--positive);text-decoration:underline;text-underline-offset:2px;font-size:13px;white-space:nowrap}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.span2{grid-column:span 2}
+
+.kpi{padding:16px;display:flex;flex-direction:column;gap:4px}
+.kpi-value{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:24px;font-weight:600;line-height:1.2;letter-spacing:-0.02em;white-space:nowrap;margin:2px 0}
+.kpi-sub{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:13px;color:var(--muted-foreground)}
+.kpi-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
+
+.stamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.4;color:var(--muted-foreground);white-space:nowrap}
+.stamp .num{font-size:12px}
+.stamp.stale::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warning-dot)}
+
+.pill{display:inline-block;min-width:66px;text-align:right;padding:1px 7px;border-radius:4px;font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}
+.pill.pos{color:var(--positive);background:var(--positive-tint)}
+.pill.neg{color:var(--negative);background:var(--negative-tint)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:0 8px;border-radius:9999px;background:var(--secondary);color:var(--secondary-foreground);font:600 12px/1.5 "Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.02em;white-space:nowrap}
+.badge.warn{background:var(--warning-tint);color:var(--warning)}
+.badge.div{background:var(--negative-tint);color:var(--negative)}
+.badge .ck{width:10px;height:10px}
+
+.tag{flex:none;display:inline-block;font:600 12px/1.5 "Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.02em;padding:0 6px;border-radius:4px;white-space:nowrap}
+.tag.warn{color:var(--warning);background:var(--warning-tint)}
+.tag.err{color:var(--negative);background:var(--negative-tint)}
+.tag.neutral{color:var(--secondary-foreground);background:var(--secondary)}
+
+.alert{display:flex;gap:10px;align-items:baseline;padding:10px 16px;border-top:1px solid var(--border);font-size:14px}
+.alert .dot{flex:none;width:7px;height:7px;border-radius:50%;transform:translateY(-1px)}
+.alert.warn .dot{background:var(--warning-dot);box-shadow:0 0 0 3px color-mix(in srgb,var(--warning-dot) 22%,transparent)}
+.alert.err .dot{background:var(--negative);box-shadow:0 0 0 3px color-mix(in srgb,var(--negative) 22%,transparent)}
+.alert .msg{flex:1;min-width:0}
+.alert > .tag{min-width:calc(11ch + 12px);text-align:center}
+.alert.compact{padding:6px 16px 8px 44px;font-size:13px;border-top:0}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;border-radius:10px;border:1px solid transparent;font:inherit;font-size:14px;font-weight:600;white-space:nowrap}
+.btn.sm{height:28px;padding:0 10px;font-size:13px}
+.btn.primary{background:var(--primary);color:var(--primary-foreground)}
+.btn.secondary{background:var(--secondary);color:var(--secondary-foreground);border-color:var(--border)}
+.btn.ghost{background:transparent;color:var(--foreground);border-color:var(--input)}
+.btn.block{width:100%}
+.btn[aria-disabled="true"]{opacity:.5}
+
+.track{position:relative;height:8px;border-radius:9999px;background:var(--muted);box-shadow:inset 0 0 0 1px var(--input);overflow:hidden;display:flex}
+.track .fill{height:100%;background:var(--positive)}
+.track .transit{height:100%;border-left:1px solid var(--card);border-right:1px solid var(--card);background:repeating-linear-gradient(135deg,var(--positive) 0 2px,transparent 2px 5px)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.sw.real{background:var(--positive)} .sw.transit{background:repeating-linear-gradient(135deg,var(--positive) 0 2px,transparent 2px 4px);box-shadow:inset 0 0 0 1px var(--positive)} .sw.pend{background:var(--muted);box-shadow:inset 0 0 0 1px var(--input)}
+
+table.dt{width:100%;border-collapse:collapse;font-size:13px;line-height:1.45}
+.dt th{font-size:12px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--foreground);text-align:left;padding:8px 16px;background:var(--muted);border-top:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap}
+.dt td{padding:8px 16px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.dt tr:last-child td{border-bottom:0}
+.dt .r{text-align:right}
+.dt td.r{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.dt tr.group td{font-weight:500}
+.dt tr.group td:first-child{font-weight:600}
+.dt tr.child td:first-child{padding-left:44px}
+.dt tr.total td{font-weight:600;background:var(--muted)}
+.chev{display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;margin-right:6px;color:var(--muted-foreground);vertical-align:-3px}
+
+.seg{display:inline-flex;background:var(--muted);border-radius:10px;padding:2px;gap:2px}
+.seg span{padding:2px 10px;border-radius:8px;font-size:13px;color:var(--foreground)}
+.seg span.on{background:var(--background);color:var(--foreground);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+
+.input{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--input);border-radius:10px;background:var(--background);color:var(--foreground)}
+.focus{outline:2px solid var(--ring);outline-offset:2px}
+/* Tabela nunca corta: rolagem horizontal com pista (fade/sombra na borda com conteúdo escondido) */
+.tscroll{overflow-x:auto;background:linear-gradient(to right,var(--card) 30%,transparent) left center/32px 100% no-repeat local,linear-gradient(to left,var(--card) 30%,transparent) right center/32px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,color-mix(in srgb,var(--foreground) 22%,transparent),transparent) left center/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,color-mix(in srgb,var(--foreground) 22%,transparent),transparent) right center/10px 100% no-repeat scroll}
+.tscroll:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+/* Faixas de largura (DESIGN › Layout): KPIs em 2×2 abaixo de 1280px; pares empilham quando estreitos */
+.content{container-type:inline-size}
+@container (max-width:1040px){.grid4.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:860px){.grid4.pair{grid-template-columns:minmax(0,1fr)}.grid4.pair>.span2{grid-column:auto}}
+.num-lg{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;line-height:1.4}
+/* Slot fixo de anotação depois do número (cadeado, piso): o número não sai da borda */
+.slot{display:inline-block;width:40px;padding-left:8px;text-align:left;vertical-align:baseline;color:var(--muted-foreground);font:400 12px/1 Geist,Inter,ui-sans-serif,system-ui,sans-serif}
+.slot svg{color:var(--foreground);vertical-align:-2px}
+.dt th.r.slotted{padding-right:56px}
+.dt tfoot td{border-top:1px solid var(--border)}
+
+kbd{display:inline-block;min-width:22px;padding:0 6px;border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;background:var(--muted);color:var(--foreground);font:600 11px/18px "Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;text-align:center}
+
+
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+@container (max-width:1100px){.cols{grid-template-columns:minmax(0,1fr)}}
+.ledger{list-style:none;margin:0;padding:0 16px 8px}
+.ledger li{display:grid;grid-template-columns:20px 1fr auto;align-items:baseline;gap:4px 10px;padding:10px 0;border-top:1px solid var(--border)}
+.ledger li:first-child{border-top:0}
+.ledger .op{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;color:var(--muted-foreground);text-align:center}
+.ledger .val{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.ledger .sub{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:2px 16px;font-size:12px;color:var(--muted-foreground);margin-top:-2px}
+.ledger li.sum{border-top:1px solid var(--foreground)}
+.ledger li.sum .name,.ledger li.sum .val{font-weight:600;font-size:16px} /* num-lg */
+.ledger li.sum .op{color:var(--foreground)}
+.ledger .inline-input{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--input);border-radius:10px;background:var(--background);min-width:150px;justify-content:flex-end;margin-inline-end:-11px}
+.ledger .inline-input .cur{color:var(--muted-foreground)}
+.funded{margin:16px 16px 16px;padding:16px 0 0;border-top:1px solid var(--border);font-size:13px;display:grid;grid-template-columns:1fr auto;gap:4px 16px;align-items:baseline}
+.funded .val{font-family:"Geist Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.funded .why{grid-column:1 / 3;font-size:13px;color:var(--muted-foreground)}
+.card-head .right2{margin-left:auto;display:flex;align-items:center;gap:12px}
+.alt{max-width:560px}
+.kvs{padding:8px 16px;border-top:1px solid var(--border)}
+.kv{display:flex;justify-content:space-between;gap:16px;padding:3px 0;font-size:13px}
+.tbl-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
+
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="sheet-head"><h1>Orçamento do mês</h1><p>Caixa › Orçamento em out/2026: a conta aberta linha a linha até o restante, a linha de consumo financiado por resgate (notebook, R$ 4.487,99) e o consumido por grupo em modo Resumo, com taxa de poupança no rodapé. Abaixo, o estado alternativo: restante negativo em vermelho.</p></div>
+  <div class="variant">Escuro</div><div class="t-dark">
+<div class="frame">
+  <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><div class="url">localhost:3000/caixa/orcamento?periodo=2026-10</div></div>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">goodies</div>
+      <a class="btn primary block" href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.6L8 2.5l3.2 3.1M2.5 10.5v2.5h11v-2.5"/></svg>Importar</a>
+      <nav class="nav"><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg><span>Visão geral</span></a><a href="#" class="active" aria-current="page"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.8" y="4" width="12.4" height="8.5" rx="1.5"/><path d="M1.8 7h12.4"/></svg><span>Caixa</span></a><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 12.5l4-4 3 2.5 5-6"/><path d="M10.5 5H14v3.5"/></svg><span>Investimentos</span></a><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg><span>Ajustes</span></a></nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div class="period" aria-label="Período">
+          <button class="icon-btn" aria-label="Mês anterior"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
+          <button class="period-trigger" aria-haspopup="dialog"><span class="num">out/2026</span><span class="badge">aberto</span><span class="muted"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg></span></button>
+          <button class="icon-btn" aria-label="Próximo mês" aria-disabled="true" style="opacity:.45"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+        </div>
+        <div class="spacer"></div>
+        <button class="icon-btn bell" aria-label="Avisos: 5 ativos"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z"/><path d="M6.5 14h3"/></svg><span class="count">5</span></button>
+        <button class="icon-btn theme-switch" aria-label="Tema: sistema"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></svg></button>
+      </header>
+      <main class="content">
+<div class="page-head"><h1 class="page-title">Caixa</h1></div>
+<nav class="tabs" aria-label="Caixa"><a href="#">Transações</a><a class="active" href="#" aria-current="page">Orçamento</a><a href="#">Custos fixos</a></nav>
+<div class="cols">
+<section class="card" aria-labelledby="h-conta">
+  <div class="card-head"><h2 class="section-title" id="h-conta">Orçamento de out/2026</h2><span class="stamp right">até <span class="num">16/10/2026</span></span></div>
+  
+<ul class="ledger">
+  <li><span class="op">+</span><span class="name">Receita do trabalho</span><span class="val">R$ 12.480,00</span>
+    <span class="sub"><span>Flash <span class="num">R$ 11.200,00</span></span><span>Betuel <span class="num">R$ 1.280,00</span></span></span></li>
+  <li><span class="op">+</span><span class="name">Resgates</span><span class="val">R$ 4.487,99</span>
+    <span class="sub"><span>caixinha Turbo · <span class="num">09/10/2026</span></span></span></li>
+  <li><span class="op">−</span><span class="name">Custos fixos</span><span class="val">R$ 3.412,40</span>
+    <span class="sub"><span>todos os do mês: pago <span class="num">R$ 2.582,30</span></span><span>a pagar <span class="num">R$ 830,10</span></span></span></li>
+  <li><span class="op">−</span><span class="name">Aporte planejado</span><span class="val">R$ 4.500,00</span></li>
+  <li><span class="op">−</span><span class="name">Dívidas do mês</span><span class="val"><span class="inline-input num" role="textbox" aria-label="Dívidas do mês"><span class="cur">R$</span>650,00</span></span>
+    <span class="sub"><span>valor que você informa · Enter grava, Esc reverte</span></span></li>
+  <li class="sum"><span class="op">=</span><span class="name">Disponível para consumo</span><span class="val">R$ 8.405,59</span></li>
+  <li><span class="op">−</span><span class="name">Consumido</span><span class="val">R$ 6.912,37</span>
+    <span class="sub"><span>gastos do mês sem os custos fixos: <span class="num">R$ 9.494,67</span> − <span class="num">R$ 2.582,30</span> pagos</span></span></li>
+  <li class="sum"><span class="op">=</span><span class="name">Restante</span><span class="val">R$ 1.493,22</span></li>
+</ul>
+  <div class="funded" role="group" aria-label="Consumo financiado por resgate">
+    <span>Consumo financiado por resgate</span><span class="val">R$ 4.487,99</span>
+    <span class="why">Notebook (KABUM, <span class="num">09/10/2026</span>) pago com o resgate da caixinha Turbo. Sem o resgate, o restante seria <span class="num neg">−R$ 2.994,77</span>.</span>
+  </div>
+</section>
+<section class="card" aria-labelledby="h-gastos">
+  <div class="card-head"><h2 class="section-title" id="h-gastos">Consumido por grupo</h2><span class="caption">sem os custos fixos</span>
+    <span class="right2"><span class="seg" role="radiogroup" aria-label="Modo da tabela"><span class="on" role="radio" aria-checked="true">Resumo</span><span role="radio" aria-checked="false">Detalhado</span></span></span></div>
+  <div class="tscroll" tabindex="0" role="region" aria-label="Consumido por grupo">
+  <table class="dt">
+    <thead><tr><th scope="col">Grupo</th><th scope="col" class="r">Gasto</th><th scope="col" class="r">% do consumido</th><th scope="col" class="r">Transações</th></tr></thead>
+    <tbody><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Compras</td><td class="r">R$ 4.612,99</td><td class="r">66,74%</td><td class="r">3</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Alimentação</td><td class="r">R$ 1.284,50</td><td class="r">18,58%</td><td class="r">21</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Transporte</td><td class="r">R$ 412,30</td><td class="r">5,96%</td><td class="r">9</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Saúde</td><td class="r">R$ 268,10</td><td class="r">3,88%</td><td class="r">5</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Lazer</td><td class="r">R$ 214,48</td><td class="r">3,10%</td><td class="r">4</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Casa</td><td class="r">R$ 120,00</td><td class="r">1,74%</td><td class="r">2</td></tr>
+      <tr class="total"><td>Consumido</td><td class="r">R$ 6.912,37</td><td class="r">100,00%</td><td class="r">44</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="kvs">
+    <div class="kv"><span class="muted">Custos fixos pagos (fora do consumido)</span><span class="num">R$ 2.582,30</span></div>
+    <div class="kv"><span class="muted">Gastos do mês</span><span class="num">R$ 9.494,67</span></div>
+    <div class="kv"><span class="muted">Investimento (realizado total, fora dos gastos)</span><span class="num">R$ 2.800,00</span></div>
+    <div class="kv"><span class="muted">Taxa de poupança</span><span class="num">23,92%</span></div>
+    <div class="kv"><span class="muted">Aporte ÷ receita do trabalho</span><span class="num">22,44%</span></div>
+  </div>
+  <div class="tbl-foot"><span class="caption">Expanda um grupo para ver as subcategorias, ou use Detalhado.</span><a class="link" href="#">Ver em Transações</a></div>
+</section></div>
+</main>
+    </div>
+    
+  </div>
+</div></div><div class="variant">Claro</div><div class="t-light">
+<div class="frame">
+  <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><div class="url">localhost:3000/caixa/orcamento?periodo=2026-10</div></div>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">goodies</div>
+      <a class="btn primary block" href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.6L8 2.5l3.2 3.1M2.5 10.5v2.5h11v-2.5"/></svg>Importar</a>
+      <nav class="nav"><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg><span>Visão geral</span></a><a href="#" class="active" aria-current="page"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.8" y="4" width="12.4" height="8.5" rx="1.5"/><path d="M1.8 7h12.4"/></svg><span>Caixa</span></a><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 12.5l4-4 3 2.5 5-6"/><path d="M10.5 5H14v3.5"/></svg><span>Investimentos</span></a><a href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg><span>Ajustes</span></a></nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div class="period" aria-label="Período">
+          <button class="icon-btn" aria-label="Mês anterior"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
+          <button class="period-trigger" aria-haspopup="dialog"><span class="num">out/2026</span><span class="badge">aberto</span><span class="muted"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg></span></button>
+          <button class="icon-btn" aria-label="Próximo mês" aria-disabled="true" style="opacity:.45"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+        </div>
+        <div class="spacer"></div>
+        <button class="icon-btn bell" aria-label="Avisos: 5 ativos"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z"/><path d="M6.5 14h3"/></svg><span class="count">5</span></button>
+        <button class="icon-btn theme-switch" aria-label="Tema: sistema"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></svg></button>
+      </header>
+      <main class="content">
+<div class="page-head"><h1 class="page-title">Caixa</h1></div>
+<nav class="tabs" aria-label="Caixa"><a href="#">Transações</a><a class="active" href="#" aria-current="page">Orçamento</a><a href="#">Custos fixos</a></nav>
+<div class="cols">
+<section class="card" aria-labelledby="h-conta">
+  <div class="card-head"><h2 class="section-title" id="h-conta">Orçamento de out/2026</h2><span class="stamp right">até <span class="num">16/10/2026</span></span></div>
+  
+<ul class="ledger">
+  <li><span class="op">+</span><span class="name">Receita do trabalho</span><span class="val">R$ 12.480,00</span>
+    <span class="sub"><span>Flash <span class="num">R$ 11.200,00</span></span><span>Betuel <span class="num">R$ 1.280,00</span></span></span></li>
+  <li><span class="op">+</span><span class="name">Resgates</span><span class="val">R$ 4.487,99</span>
+    <span class="sub"><span>caixinha Turbo · <span class="num">09/10/2026</span></span></span></li>
+  <li><span class="op">−</span><span class="name">Custos fixos</span><span class="val">R$ 3.412,40</span>
+    <span class="sub"><span>todos os do mês: pago <span class="num">R$ 2.582,30</span></span><span>a pagar <span class="num">R$ 830,10</span></span></span></li>
+  <li><span class="op">−</span><span class="name">Aporte planejado</span><span class="val">R$ 4.500,00</span></li>
+  <li><span class="op">−</span><span class="name">Dívidas do mês</span><span class="val"><span class="inline-input num" role="textbox" aria-label="Dívidas do mês"><span class="cur">R$</span>650,00</span></span>
+    <span class="sub"><span>valor que você informa · Enter grava, Esc reverte</span></span></li>
+  <li class="sum"><span class="op">=</span><span class="name">Disponível para consumo</span><span class="val">R$ 8.405,59</span></li>
+  <li><span class="op">−</span><span class="name">Consumido</span><span class="val">R$ 6.912,37</span>
+    <span class="sub"><span>gastos do mês sem os custos fixos: <span class="num">R$ 9.494,67</span> − <span class="num">R$ 2.582,30</span> pagos</span></span></li>
+  <li class="sum"><span class="op">=</span><span class="name">Restante</span><span class="val">R$ 1.493,22</span></li>
+</ul>
+  <div class="funded" role="group" aria-label="Consumo financiado por resgate">
+    <span>Consumo financiado por resgate</span><span class="val">R$ 4.487,99</span>
+    <span class="why">Notebook (KABUM, <span class="num">09/10/2026</span>) pago com o resgate da caixinha Turbo. Sem o resgate, o restante seria <span class="num neg">−R$ 2.994,77</span>.</span>
+  </div>
+</section>
+<section class="card" aria-labelledby="h-gastos">
+  <div class="card-head"><h2 class="section-title" id="h-gastos">Consumido por grupo</h2><span class="caption">sem os custos fixos</span>
+    <span class="right2"><span class="seg" role="radiogroup" aria-label="Modo da tabela"><span class="on" role="radio" aria-checked="true">Resumo</span><span role="radio" aria-checked="false">Detalhado</span></span></span></div>
+  <div class="tscroll" tabindex="0" role="region" aria-label="Consumido por grupo">
+  <table class="dt">
+    <thead><tr><th scope="col">Grupo</th><th scope="col" class="r">Gasto</th><th scope="col" class="r">% do consumido</th><th scope="col" class="r">Transações</th></tr></thead>
+    <tbody><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Compras</td><td class="r">R$ 4.612,99</td><td class="r">66,74%</td><td class="r">3</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Alimentação</td><td class="r">R$ 1.284,50</td><td class="r">18,58%</td><td class="r">21</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Transporte</td><td class="r">R$ 412,30</td><td class="r">5,96%</td><td class="r">9</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Saúde</td><td class="r">R$ 268,10</td><td class="r">3,88%</td><td class="r">5</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Lazer</td><td class="r">R$ 214,48</td><td class="r">3,10%</td><td class="r">4</td></tr><tr class="group" aria-expanded="false"><td><span class="chev"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></span>Casa</td><td class="r">R$ 120,00</td><td class="r">1,74%</td><td class="r">2</td></tr>
+      <tr class="total"><td>Consumido</td><td class="r">R$ 6.912,37</td><td class="r">100,00%</td><td class="r">44</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="kvs">
+    <div class="kv"><span class="muted">Custos fixos pagos (fora do consumido)</span><span class="num">R$ 2.582,30</span></div>
+    <div class="kv"><span class="muted">Gastos do mês</span><span class="num">R$ 9.494,67</span></div>
+    <div class="kv"><span class="muted">Investimento (realizado total, fora dos gastos)</span><span class="num">R$ 2.800,00</span></div>
+    <div class="kv"><span class="muted">Taxa de poupança</span><span class="num">23,92%</span></div>
+    <div class="kv"><span class="muted">Aporte ÷ receita do trabalho</span><span class="num">22,44%</span></div>
+  </div>
+  <div class="tbl-foot"><span class="caption">Expanda um grupo para ver as subcategorias, ou use Detalhado.</span><a class="link" href="#">Ver em Transações</a></div>
+</section></div>
+</main>
+    </div>
+    
+  </div>
+</div></div><div class="variant">Estado alternativo · restante negativo · escuro</div><div class="t-dark">
+<div class="app" style="display:block;min-height:0;padding:24px;background:var(--background)">
+  <section class="card alt" aria-label="Orçamento: restante negativo">
+    <div class="card-head"><h2 class="section-title">Orçamento de out/2026 · trecho final</h2><span class="stamp right">até <span class="num">16/10/2026</span></span></div>
+    
+<ul class="ledger">
+  <li class="sum"><span class="op">=</span><span class="name">Disponível para consumo</span><span class="val">R$ 3.917,60</span></li>
+  <li><span class="op">−</span><span class="name">Consumido</span><span class="val">R$ 4.230,08</span></li>
+  <li class="sum" aria-label="Restante: menos R$ 312,48"><span class="op">=</span><span class="name">Restante</span><span class="val neg"><span aria-hidden="true">▼</span> −R$ 312,48</span>
+    <span class="sub"><span>Gasto acima do disponível em <span class="num">R$ 312,48</span>.</span></span></li>
+</ul>
+  </section>
+</div></div><div class="variant">Estado alternativo · restante negativo · claro</div><div class="t-light">
+<div class="app" style="display:block;min-height:0;padding:24px;background:var(--background)">
+  <section class="card alt" aria-label="Orçamento: restante negativo">
+    <div class="card-head"><h2 class="section-title">Orçamento de out/2026 · trecho final</h2><span class="stamp right">até <span class="num">16/10/2026</span></span></div>
+    
+<ul class="ledger">
+  <li class="sum"><span class="op">=</span><span class="name">Disponível para consumo</span><span class="val">R$ 3.917,60</span></li>
+  <li><span class="op">−</span><span class="name">Consumido</span><span class="val">R$ 4.230,08</span></li>
+  <li class="sum" aria-label="Restante: menos R$ 312,48"><span class="op">=</span><span class="name">Restante</span><span class="val neg"><span aria-hidden="true">▼</span> −R$ 312,48</span>
+    <span class="sub"><span>Gasto acima do disponível em <span class="num">R$ 312,48</span>.</span></span></li>
+</ul>
+  </section>
+</div></div>
+</div>
+</body>
+</html>
