@@ -18,7 +18,7 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool   # postgres 
 **m1 — Ritual confiável:**
 - Poupança de jun/2026 = 55,48% (teste `dados_reais`), contagens iguais, zero órfãs e só os deltas esperados no script
   de comparação mês × categoria.
-- Invariantes contra o baseline da Story 1.3: XIRR consolidado/por ativo, caixinhas, aplicado Flash = R$ 12.000,00.
+- Invariantes contra o baseline da Story 1.3: XIRR consolidado/por ativo, caixinhas, aplicado Flash = baseline (R$ 16.000,00: 16 integralizações de jul/2025 a out/2026).
 - UJ-1 executada no app: importar → revisar → conta PF "conferido". UJ-5: meses de jun/2026 até o anterior fechados.
 - `jul/2024–mai/2026` fechados (`origin = retro`).
 

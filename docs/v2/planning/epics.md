@@ -2021,8 +2021,8 @@ So that eu largue o JSON mantido à mão.
 **Given** a revisão da story
 **When** roda
 **Then** existe `debentures` (dona `portfolio`, ligada a `assets`: emissor, taxa, início, vencimento) e `debenture_contributions` (aporte sugerido: transação, debênture, valor, status)
-**And** as 12 integralizações que já estão em `asset_operations` (do `seed_debentures_flash`) são ligadas a `debentures`/`assets` sem reinserir; o JSON fica só como conferência
-**And** o teste de invariante prova que o aplicado Flash continua R$ 12.000,00 e a revisão é idempotente
+**And** as 16 integralizações (jul/2025–out/2026, R$ 1.000,00 cada — `files/debentures-flash/integralizacoes.json`) que já estão em `asset_operations` são ligadas a `debentures`/`assets` sem reinserir e ficam editáveis em Ajustes › Debêntures (P17); o JSON fica só como conferência
+**And** o teste de invariante prova que o aplicado Flash continua igual ao do baseline da Story 1.3 (R$ 16.000,00 na base completa) e a revisão é idempotente
 
 **Given** Ajustes › Debêntures
 **When** o Vitor cadastra ou edita

@@ -16,9 +16,14 @@ from typing import Any
 import asyncpg
 from pydantic import BaseModel, Field
 
+from engines.common.cache import invalidate_xirr_cache
+from engines.common.dates import today_brt
 from engines.common.money import Money
 from engines.common.owner import get_owner_id
 from engines.ledger import queries as ledger_queries
+from engines.market import service as market_service
+from engines.portfolio import calc
+from engines.portfolio.rf import pre_value, rf_rate_assets
 
 RAIL_PREFIX = "invest:debentures"
 
@@ -277,3 +282,166 @@ async def dismiss_contribution(conn: asyncpg.Connection, contribution_id: str) -
     )
     if status.endswith(" 0"):
         raise DebentureNotFound(contribution_id)
+
+
+# ---- Integralizações editáveis (P17): as operações de aporte do ativo da debênture ----
+
+
+class ContributionIn(BaseModel):
+    data: date
+    valor: Decimal = Field(gt=0)
+
+
+class ContributionPatch(BaseModel):
+    data: date | None = None
+    valor: Decimal | None = Field(default=None, gt=0)
+
+
+class ContributionRow(BaseModel):
+    id: str  # a operação de aporte
+    data: date
+    valor: Money
+    saldo: Money  # o valor hoje pela taxa cadastrada (até o vencimento)
+    transacao: str | None  # a saída da conta ligada ("dd/mm/aaaa · descrição"), se houver
+
+
+class ContributionNotFound(LookupError):
+    pass
+
+
+class LinkedContributionError(ValueError):
+    """Integralização ligada a uma transação: sai recategorizando a transação, não por aqui."""
+
+
+class FutureContributionError(ValueError):
+    pass
+
+
+_CONTRIBUTIONS = """
+    SELECT o.id::text AS id, o.data_operacao AS data, o.quantidade * o.valor_unitario AS valor,
+           t.date AS t_date, t.description AS t_description
+    FROM asset_operations o LEFT JOIN transactions t ON t.id = o.transaction_id
+    WHERE o.asset_id = $1::uuid AND o.tipo = 'aporte'
+"""
+
+
+async def _target(conn: asyncpg.Connection, debenture_id: str) -> tuple[DebentureRow, Any]:
+    debenture = await get_debenture(conn, debenture_id)
+    rate = (await rf_rate_assets(conn)).get(debenture.symbol)
+    return debenture, rate
+
+
+async def _reprice(conn: asyncpg.Connection, debenture: DebentureRow, rate: Any) -> None:
+    """O preço do ativo (valor pela taxa ÷ quantidade), como o job `rf_cdi` faz todo dia."""
+    ops = await conn.fetch(
+        "SELECT tipo, quantidade, valor_unitario, data_operacao FROM asset_operations "
+        "WHERE asset_id = $1::uuid ORDER BY data_operacao",
+        debenture.asset_id,
+    )
+    qty = calc.quantity(ops)
+    if rate is not None and qty > 0:
+        value = pre_value(ops, today_brt(), *rate)
+        await market_service.upsert_price(
+            conn, debenture.symbol, float(value / qty), source="taxa", is_manual=False
+        )
+    await invalidate_xirr_cache(await get_owner_id(conn))
+
+
+async def list_contributions(conn: asyncpg.Connection, debenture_id: str) -> list[ContributionRow]:
+    debenture, rate = await _target(conn, debenture_id)
+    rows = await conn.fetch(_CONTRIBUTIONS + " ORDER BY o.data_operacao DESC", debenture.asset_id)
+    today = today_brt()
+    out = []
+    for r in rows:
+        single = [
+            {
+                "tipo": "aporte",
+                "quantidade": r["valor"],
+                "valor_unitario": 1,
+                "data_operacao": r["data"],
+            }
+        ]
+        saldo = pre_value(single, today, *rate) if rate is not None else Decimal(r["valor"])
+        link = (
+            f"{r['t_date']:%d/%m/%Y} · {r['t_description'] or 'sem descrição'}"
+            if r["t_date"]
+            else None
+        )
+        out.append(
+            ContributionRow(
+                id=r["id"], data=r["data"], valor=r["valor"], saldo=saldo, transacao=link
+            )
+        )
+    return out
+
+
+async def add_contribution(
+    conn: asyncpg.Connection, debenture_id: str, body: ContributionIn
+) -> ContributionRow:
+    if body.data > today_brt():
+        raise FutureContributionError(body.data)
+    debenture, rate = await _target(conn, debenture_id)
+    async with conn.transaction():
+        op = await conn.fetchval(
+            "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, tipo, "
+            "quantidade, valor_unitario, data_operacao, source, protected, asset_id) "
+            "VALUES ($1, $2, $3, 'Renda Fixa', 'aporte', $4, 1, $5, 'manual', true, $6::uuid) "
+            "RETURNING id::text",
+            await get_owner_id(conn),
+            debenture.issuer,
+            debenture.symbol,
+            body.valor,
+            body.data,
+            debenture.asset_id,
+        )
+        await _reprice(conn, debenture, rate)
+    return next(c for c in await list_contributions(conn, debenture_id) if c.id == op)
+
+
+async def update_contribution(
+    conn: asyncpg.Connection, debenture_id: str, operation_id: str, body: ContributionPatch
+) -> ContributionRow:
+    if body.data is not None and body.data > today_brt():
+        raise FutureContributionError(body.data)
+    debenture, rate = await _target(conn, debenture_id)
+    async with conn.transaction():
+        status = await conn.execute(
+            "UPDATE asset_operations SET data_operacao = coalesce($3, data_operacao), "
+            "quantidade = coalesce($4, quantidade), valor_unitario = CASE WHEN $4::numeric IS NULL "
+            "THEN valor_unitario ELSE 1 END WHERE id = $1::uuid AND asset_id = $2::uuid "
+            "AND tipo = 'aporte'",
+            operation_id,
+            debenture.asset_id,
+            body.data,
+            body.valor,
+        )
+        if status.endswith(" 0"):
+            raise ContributionNotFound(operation_id)
+        if body.valor is not None:
+            await conn.execute(
+                "UPDATE debenture_contributions SET amount = $2, updated_at = now() "
+                "WHERE operation_id = $1::uuid",
+                operation_id,
+                body.valor,
+            )
+        await _reprice(conn, debenture, rate)
+    return next(c for c in await list_contributions(conn, debenture_id) if c.id == operation_id)
+
+
+async def delete_contribution(
+    conn: asyncpg.Connection, debenture_id: str, operation_id: str
+) -> None:
+    debenture, rate = await _target(conn, debenture_id)
+    row = await conn.fetchrow(
+        "SELECT transaction_id FROM asset_operations WHERE id = $1::uuid AND asset_id = $2::uuid "
+        "AND tipo = 'aporte'",
+        operation_id,
+        debenture.asset_id,
+    )
+    if row is None:
+        raise ContributionNotFound(operation_id)
+    if row["transaction_id"] is not None:
+        raise LinkedContributionError(operation_id)
+    async with conn.transaction():
+        await conn.execute("DELETE FROM asset_operations WHERE id = $1::uuid", operation_id)
+        await _reprice(conn, debenture, rate)

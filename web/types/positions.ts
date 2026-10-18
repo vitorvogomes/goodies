@@ -61,6 +61,15 @@ export interface Debenture {
   aplicado: number;
 }
 
+// Integralização da debênture (P17): a operação de aporte, editável.
+export interface DebentureContribution {
+  id: string;
+  data: string;
+  valor: number;
+  saldo: number; // valor hoje pela taxa
+  transacao: string | null; // a saída da conta ligada, se houver
+}
+
 export interface DebentureIn {
   issuer?: string;
   rate_label?: string;

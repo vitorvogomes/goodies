@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { ContributionsBlock } from "@/components/investimentos/ContributionsBlock";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,6 +160,9 @@ export default function DebenturesPage() {
         getRowId={(d) => d.id}
         empty={debentures.isLoading ? "Carregando…" : "Nenhuma debênture. Cadastre para valorar pela taxa."}
       />
+      {(debentures.data ?? []).map((d) => (
+        <ContributionsBlock key={d.id} debenture={d} />
+      ))}
       {editing && (
         <DebentureForm
           key={editing === "nova" ? "nova" : editing.id}

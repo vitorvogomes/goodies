@@ -10,6 +10,7 @@ import type { Leitura } from "@/lib/period";
 import type {
   BrokerCard,
   Debenture,
+  DebentureContribution,
   DebentureIn,
   PositionsReport,
   Reconciliation,
@@ -39,6 +40,37 @@ export function useSaveDebenture() {
       apiFetch<Debenture>(`/api/v1/portfolio/debentures${id ? `/${id}` : ""}`, {
         method: id ? "PATCH" : "POST",
         body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "portfolio"),
+  });
+}
+
+export function useContributions(debentureId: string) {
+  return useQuery({
+    queryKey: ["portfolio", "debentures", debentureId, "contributions"],
+    queryFn: () =>
+      apiFetch<DebentureContribution[]>(`/api/v1/portfolio/debentures/${debentureId}/contributions`),
+  });
+}
+
+export function useSaveContribution(debentureId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data, valor }: { id: string | null; data: string; valor: string }) =>
+      apiFetch<DebentureContribution>(
+        `/api/v1/portfolio/debentures/${debentureId}/contributions${id ? `/${id}` : ""}`,
+        { method: id ? "PATCH" : "POST", body: JSON.stringify({ data, valor }) },
+      ),
+    onSuccess: () => invalidateAfter(queryClient, "portfolio"),
+  });
+}
+
+export function useDeleteContribution(debentureId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/portfolio/debentures/${debentureId}/contributions/${id}`, {
+        method: "DELETE",
       }),
     onSuccess: () => invalidateAfter(queryClient, "portfolio"),
   });
