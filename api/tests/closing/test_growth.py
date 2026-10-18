@@ -1,42 +1,68 @@
-"""Story 9.2 — crescimento do patrimônio = aporte + resultado, rentabilidade por classe e ativo e o
-ativo de melhor desempenho; antes do primeiro mês coberto → indisponível com o motivo."""
+"""Story 9.2 — crescimento do patrimônio = aporte + resultado (aporte = o aplicado que entrou;
+proventos no resultado), as duas pontas da mesma fonte; o ativo de melhor desempenho; antes do
+primeiro mês fechado ou sem o consolidado B3 → indisponível com o motivo."""
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
-from engines.common.dates import today_brt
+from engines.closing import growth as growth_service
 
 D = Decimal
-URL = "/api/v1/closing/growth"
+
+
+async def _closed(
+    conn: Any, month: date, invested: int, applied: int, covered: bool = True
+) -> None:
+    coverage = "{}" if covered else '{"B3": "patrimônio não coberto"}'
+    await conn.execute(
+        "INSERT INTO month_closes (month, version, status, coverage) VALUES ($1, 1, 'closed', $2)",
+        month,
+        coverage,
+    )
+    await conn.execute(
+        "INSERT INTO month_summary_totals (month, version, as_of, valor_investido, aplicado) "
+        "VALUES ($1, 1, $2, $3, $4)",
+        month,
+        month.replace(day=28),
+        invested,
+        applied,
+    )
 
 
 @pytest.mark.asyncio
-async def test_growth_identity_and_best(api, auth_headers) -> None:
+async def test_growth_from_snapshots(pool) -> None:
     import main  # noqa: F401
 
-    mes = f"{today_brt():%Y-%m}"
-    body = (await api.get(f"{URL}?periodo={mes}&leitura=mes", headers=auth_headers)).json()
-    assert body["available"] is True and body["reason"] is None
-    crescimento, aporte, resultado = (
-        D(str(body[k])) for k in ("crescimento", "aporte", "resultado")
-    )
-    assert crescimento == aporte + resultado
-    assert D(str(body["end_value"])) - D(str(body["start_value"])) == crescimento
-    rates = [a["xirr_mensal"] for a in body["assets"]]
-    assert rates == sorted(rates, reverse=True)  # do melhor para o pior
+    async with pool.acquire() as conn:
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            await _closed(conn, date(2097, 1, 1), 1000, 900)
+            await _closed(conn, date(2097, 2, 1), 1300, 1100)
+            await _closed(conn, date(2097, 3, 1), 1400, 1150, covered=False)
+            feb = await growth_service.growth(conn, "2097-02", "mes")
+            mar = await growth_service.growth(conn, "2097-03", "mes")
+            before = await growth_service.growth(conn, "2097-01", "mes")
+        finally:
+            await tx.rollback()
+    assert (feb.available, feb.start_value, feb.end_value) == (True, D(1000), D(1300))
+    assert (feb.crescimento, feb.aporte, feb.resultado) == (D(300), D(200), D(100))
+    assert (mar.available, mar.reason) == (False, "patrimonio_nao_coberto")
+    assert (before.available, before.reason) == (False, "antes_do_primeiro_fechamento")
+    rates = [a.xirr_mensal for a in feb.assets]
+    assert rates == sorted(rates, reverse=True)
     if rates:
-        assert body["best"]["xirr_mensal"] == rates[0]
+        assert feb.best is not None and feb.best.xirr_mensal == rates[0]
 
 
 @pytest.mark.asyncio
-async def test_before_first_month_is_unavailable(api, auth_headers) -> None:
-    r = (await api.get(f"{URL}?periodo=2024-07&leitura=mes", headers=auth_headers)).json()
-    assert (r["available"], r["reason"]) == (False, "antes_do_primeiro_fechamento")
-    assert r["crescimento"] is None and r["aporte"] is None
-    since = (
-        await api.get(f"{URL}?periodo={today_brt():%Y-%m}&leitura=inicio", headers=auth_headers)
-    ).json()
-    assert since["available"] is True and since["start_value"] == 0.0
+async def test_route(api, auth_headers) -> None:
+    r = await api.get("/api/v1/closing/growth?periodo=2024-07&leitura=mes", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False and body["crescimento"] is None

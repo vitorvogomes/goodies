@@ -47,6 +47,7 @@ class Figures:
     planejado: Decimal | None = None  # Σ dos meses com aporte planejado (nenhum → None)
     por_grupo: dict[str, Decimal] = field(default_factory=dict)
     months: int = 0
+    planned_months: int = 0  # meses com aporte planejado (a média do planejado é sobre eles)
 
     def add(self, other: Figures) -> None:
         self.receitas += other.receitas
@@ -56,6 +57,7 @@ class Figures:
         self.investido += other.investido
         if other.planejado is not None:
             self.planejado = (self.planejado or Decimal(0)) + other.planejado
+            self.planned_months += other.planned_months
         for k, v in other.por_grupo.items():
             self.por_grupo[k] = self.por_grupo.get(k, Decimal(0)) + v
         self.months += other.months
@@ -167,6 +169,7 @@ async def _month(
             planejado=s.aporte_planejado,
             por_grupo=by_group(s.gastos_por_categoria),
             months=1,
+            planned_months=1 if s.aporte_planejado is not None else 0,
         )
         return _Month(f, "snapshot", s.as_of, False)
     ledger = await ledger_service.ledger_month(conn, month)
@@ -181,6 +184,7 @@ async def _month(
         planejado=plan.aporte_planejado,
         por_grupo=by_group(ledger.gastos_por_categoria),
         months=1,
+        planned_months=1 if plan.aporte_planejado is not None else 0,
     )
     # receita do trabalho vem do MEI: sem cobrir o mês, os números do mês estão defasados
     stale = mei_until is not None and mei_until < month_end(month) and as_of >= mei_until
@@ -255,6 +259,12 @@ async def history(conn: asyncpg.Connection, periodo: str, leitura: str) -> Histo
         if window:
             avg_total, _ = await _sum(conn, window, groups, mei_until, cache)
             average = avg_total.scaled(Decimal(len(months)) / Decimal(len(window)))
+            # o planejado só existe nos meses que tiveram plano: a média é sobre eles
+            average.planejado = (
+                avg_total.planejado / avg_total.planned_months * len(months)
+                if avg_total.planejado is not None and avg_total.planned_months
+                else None
+            )
     rows = [
         _row(
             "receitas",

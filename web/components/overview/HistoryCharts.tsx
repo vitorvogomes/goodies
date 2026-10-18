@@ -153,7 +153,9 @@ function AverageMarker(props: { x?: number; y?: number; width?: number; height?:
   return <line x1={x + width} x2={x + width} y1={y - 2} y2={y + height + 2} stroke={C3} strokeWidth={2} />;
 }
 
-function Spending({ groups, periodo }: { groups: HistoryRow[]; periodo: string }) {
+// O clique abre as transações do grupo — Caixa › Transações é de um mês: só na leitura "mês" a
+// lista bate com a barra.
+function Spending({ groups, periodo, clickable }: { groups: HistoryRow[]; periodo: string; clickable: boolean }) {
   const router = useRouter();
   const data = groups.map((g) => ({
     key: g.key.replace(/^grupo:/, ""),
@@ -186,8 +188,8 @@ function Spending({ groups, periodo }: { groups: HistoryRow[]; periodo: string }
               dataKey="periodo"
               fill={C2}
               isAnimationActive={false}
-              cursor="pointer"
-              onClick={(d) => open((d as unknown as { key: string }).key)}
+              cursor={clickable ? "pointer" : undefined}
+              onClick={clickable ? (d) => open((d as unknown as { key: string }).key) : undefined}
             >
               <LabelList dataKey="periodo" position="right" formatter={(v) => money(Number(v))} style={AXIS} />
             </Bar>
@@ -211,7 +213,7 @@ function Spending({ groups, periodo }: { groups: HistoryRow[]; periodo: string }
           Média 12m
         </li>
       </ul>
-      <p className="type-caption text-muted-foreground">Clique numa barra para ver as transações do grupo.</p>
+      {clickable && <p className="type-caption text-muted-foreground">Clique numa barra para ver as transações do grupo.</p>}
     </ChartCard>
   );
 }
@@ -276,7 +278,9 @@ export function HistoryCharts({ periodo, leitura }: { periodo: string; leitura: 
           Disponível a partir do primeiro mês fechado na v2.
         </p>
       )}
-      {history.data.groups.length > 0 && <Spending groups={history.data.groups} periodo={periodo} />}
+      {history.data.groups.length > 0 && (
+        <Spending groups={history.data.groups} periodo={periodo} clickable={leitura === "mes"} />
+      )}
       {points.length > 0 && <Contribution points={points} media={series.data.realizado_media12} />}
     </div>
   );

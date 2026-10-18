@@ -37,7 +37,7 @@ class SeriesPoint(BaseModel):
 
 class Series(BaseModel):
     points: list[SeriesPoint]
-    realizado_media12: Money | None  # média dos 12 últimos meses da série (marcador)
+    realizado_media12: Money | None  # média dos 12 meses antes de `ate` (marcador)
 
 
 async def _first_closed(conn: asyncpg.Connection) -> date | None:
@@ -86,6 +86,8 @@ async def series(conn: asyncpg.Connection, ate: date) -> Series:
     while month <= ate:
         points.append(await _point(conn, owner, month))
         month = add_months(month, 1)
-    last12 = [p.realizado for p in points[-12:]]
+    # média dos 12 meses antes do período (a mesma janela do Histórico): sem o mês escolhido, que
+    # pode estar aberto e parcial
+    last12 = [p.realizado for p in points[:-1][-12:]]
     media = (sum(last12, Decimal(0)) / len(last12)).quantize(_CENT) if last12 else None
     return Series(points=points, realizado_media12=media)

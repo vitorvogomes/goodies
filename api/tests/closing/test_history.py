@@ -61,3 +61,14 @@ async def test_history_route(api, auth_headers) -> None:
     assert all(r["previous"] is None and r["var_previous"] is None for r in start["rows"])
     future = await api.get("/api/v1/closing/history?periodo=2999-01", headers=auth_headers)
     assert future.status_code == 422
+
+
+def test_planned_average_over_planned_months() -> None:
+    """Revisão do Épico 9: a média do planejado é sobre os meses que tiveram plano."""
+    window = Figures()
+    for planned in (None, None, D(2200), D(2200)):
+        window.add(
+            Figures(planejado=planned, months=1, planned_months=1 if planned is not None else 0)
+        )
+    assert window.planned_months == 2 and window.planejado == D(4400)
+    assert window.planejado / window.planned_months == D(2200)
