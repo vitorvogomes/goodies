@@ -41,7 +41,7 @@ Sub-telas são **Abas**; Hub de import, Revisão de transações, Central de avi
 | Investimentos | **Posições** | Seletor de leitura; classe → ativo: aplicado, valor atual, resultado, alocação × meta ± banda, XIRR nominal × real (% a.m. por ativo, exceto RF e Cripto); bloco cripto; caixa em corretora e a caminho. RF: "{x}% do CDI · CDI até dd/mm/aaaa"; debênture: "valorada pela taxa cadastrada"; preço manual: Selo de estado "manual" | FR-21–FR-25, FR-27 |
 | Investimentos | **Aportes** · [`mockups/key-aportes.html`](mockups/key-aportes.html) | Input do aporte planejado + linha "Disponível para consumo depois do aporte"; andamento (realizado total, pendente, Barra de progresso); Distribuição do aporte | FR-28–FR-31 |
 | Investimentos | **Conciliação** | Cartões de corretora; abaixo, posições × consolidado B3 e × scan das carteiras (app, origem, diferença, Selo de estado, Carimbo de data) | FR-25, FR-26 |
-| Ajustes | 8 abas (tabela abaixo) | Cadastros editáveis | FR-8, FR-10, FR-11, FR-24, FR-27, FR-35 |
+| Ajustes | 10 abas (tabela abaixo) | Cadastros editáveis | FR-8, FR-10, FR-11, FR-24, FR-27, FR-35 |
 | Global | **Hub de import** (painel lateral) | Upload multi-fonte, prévia, confirmação, Bloco Fontes, Histórico de imports | FR-1–FR-4, FR-6 |
 | Global | **Revisão de transações** (painel lateral largo) · [`mockups/key-revisao.html`](mockups/key-revisao.html) | Transações novas do lote; Proposta de regra | FR-9, FR-10, FR-12, FR-24 |
 | Global | **Central de avisos** (painel lateral) | Lista única de avisos com tipo, mensagem e ação | FR-14 |
@@ -58,6 +58,8 @@ Sub-telas são **Abas**; Hub de import, Revisão de transações, Central de avi
 | Debêntures | Emissor, taxa, início, vencimento | "Nenhuma debênture. Cadastre para valorar pela taxa." · Nova debênture |
 | Metas | Classe → ativo: %, banda (p.p.), piso (R$). Cada nível soma 100%; senão, "Soma em {x}%. Ajuste para 100%." e Salvar desabilitado | "Nenhuma meta. Sem metas, a distribuição do aporte não tem base." · Definir metas |
 | Preços manuais | Só ativos sem fonte de mercado; valor + data | "Nenhum ativo sem fonte de mercado." |
+| Posições manuais | Posições que nenhum scan alcança (SideSwap confidencial, DeFi): ativo, quantidade, data e, na DeFi, vencimento | "Nenhuma posição manual. Cadastre o que nenhum scan alcança." |
+| Atualização | Cada job com última execução, último sucesso, próxima e erro, em BRT; "Atualizar tudo" roda o catch-up | — |
 
 ## Voice and Tone
 
@@ -90,7 +92,9 @@ Sub-telas são **Abas**; Hub de import, Revisão de transações, Central de avi
 | caixa em corretora divergente | "Caixa na {corretora}: calculado R$ {a}, informado R$ {b}." | Ver conciliação |
 | posição divergente da origem | "{Ativo}: {q} no app, {q'} no consolidado B3." | Ver conciliação |
 | ajuste em mês fechado | "Ajuste em {mês}, já fechado. O resumo congelado não mudou. Se reabrir, {métrica} passa de R$ {congelado} para R$ {ao vivo}." | Reabrir mês |
-| mês aberto há mais de 10 dias | "{Mês} segue aberto. Confira o saldo e feche." | Ir para Histórico |
+| gasto acima da média | "{Categoria} em R$ {valor}, {x}% acima da média de 3 meses." | Ver transações |
+| posição DeFi vencendo | "{Posição} vence em {dd/mm/aaaa}." | Ver posições manuais |
+| mês aberto depois do dia 15 | "{Mês} segue aberto. Confira o saldo e feche." | Ir para Histórico |
 | worker atrasado ou com falha | "{Job} sem atualização desde {dd/mm/aaaa hh:mm}." · "Backup do banco falhou em {dd/mm/aaaa}." | Ver atualização |
 | scan de carteiras antigo | "Carteiras sem scan desde {dd/mm/aaaa hh:mm}." | Ver conciliação |
 

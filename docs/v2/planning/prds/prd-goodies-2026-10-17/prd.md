@@ -305,7 +305,11 @@ Uma lista única de **avisos**, cada um com tipo, mensagem e ação sugerida. Os
 - caixa em corretora divergente da conferência;
 - posição divergente da origem;
 - ajuste em mês fechado;
-- mês aberto há mais de 10 dias depois do fim do mês.
+- mês ainda aberto depois do dia 15 do mês seguinte;
+- gasto de uma categoria acima de 120% da média dos últimos 3 meses;
+- posição DeFi vencendo em até 7 dias;
+- worker atrasado ou com falha (inclui o backup);
+- scan de carteiras com mais de 14 h.
 
 
 Comportamento:
@@ -476,7 +480,9 @@ O Vitor cria, edita, desativa ou arquiva, sem mexer em código:
 - debêntures;
 - metas de alocação por classe e por ativo, bandas e pisos;
 - o multiplicador da reserva de emergência (padrão 6×);
-- preços manuais, só para ativos sem fonte.
+- preços manuais, só para ativos sem fonte;
+- posições manuais que nenhum scan alcança (cripto confidencial, DeFi com vencimento);
+- lançamento manual de transação (em Caixa › Transações).
 
 ### 4.9 Navegação
 
@@ -522,7 +528,9 @@ transações como painéis laterais; a etapa de UX confirma]`
 
 **Primárias**
 - **SM-1:** 30 dias seguidos sem abrir a planilha "Rotina" para as tarefas do escopo v2.0, contados
-  a partir do marco 3.
+  a partir do marco 3. Uma versão parcial (tarefas de caixa) começa a contar no marco 2. Abrir a planilha
+  para o que é da v2.1 (estratégia 1MM, projeção RF × RV, Gestão Qualificada) não zera a contagem. Início e
+  aberturas ficam registrados pelo comando de métricas.
 - **SM-2:** em todo mês fechado, o saldo calculado da conta Nubank PF bate ao centavo com o saldo
   informado no arquivo. Valida FR-5 e FR-32.
 - **SM-3:** em todo mês fechado, o patrimônio por classe bate com a origem (consolidado B3,

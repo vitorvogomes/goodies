@@ -172,7 +172,10 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
       sem ela (`suggestion`, `pending`); `category_rule_id` é `ON DELETE SET NULL`.
     - O lote vira `undone`. Lote `legacy` não se desfaz.
   - "Atualizado até" e lacunas (FR-3, FR-4) derivam só de `import_batch_files` dos lotes `applied`
-    e `legacy`.
+    e `legacy`. Lacuna por intervalo só no Nubank; consolidado B3 = mês sem arquivo; B3 movimentação/
+    negociação só pelo aviso de transferência não coberta; lote `legacy` sem lacuna interna.
+  - Escolha feita na prévia (conta do CSV, período B3) gera nova prévia com `overrides`: novo `staged` e
+    hash que cobre os overrides.
   - Toda escrita de lote invalida o cache de XIRR (`common.cache`).
 
 ### AD-6 — Categorização e derivações do caixa
@@ -204,7 +207,7 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
     adapter Nubank, antes das regras.
   - `transactions.category_source ∈ {rule, suggestion, manual}`; `manual` nunca é sobrescrito.
     `review_status ∈ {pending, confirmed}`. Toda mudança gera linha em `categorization_events`
-    (append-only: antes, depois, origem, lote) — base de SM-5, SM-6 e SM-C1.
+    (append-only: antes, depois, origem, `cause`, lote) — base de SM-5, SM-6 e SM-C1.
   - Regras em `category_rules` ("descrição contém", `created_in_batch`). Vence a condição mais
     longa; empate → a mais recente. `transactions.category_rule_id` guarda a regra aplicada.
   - Pagador (`transactions.payer`) é campo extraído pelo adapter; nunca entra em regra.
@@ -227,6 +230,7 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   | Termo | Mora em | Definição |
   | --- | --- | --- |
   | saldo calculado | `ledger/calc` | `opening_balance` da conta + Σ transações até a data |
+  | conferência de saldo (PF) | `ledger/calc` | encadeada: saldo informado anterior + Σ transações do intervalo = saldo informado atual; mês conferido = primeiro saldo informado ≥ fim do mês com todos os intervalos batendo |
   | receita do trabalho, resgates, devoluções | `ledger/calc` | por `role` |
   | gastos | `ledger/calc` | Σ `kind = expense`, brutos por categoria |
   | consumido | `ledger/calc` | gastos − deduções; cada transação cai em **um** balde: custo fixo casado > dívida > devolução |
@@ -458,12 +462,19 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   - Sem deploy e sem CI na v2.0 (ADR-014). Fly.io, Vercel e GitHub Actions foram removidos;
     nenhum host de nuvem recebe dado.
   - Roda: `docker compose` (postgres 15, redis 7, api) + `pnpm dev`.
-  - O container da api, ao subir: backup → `alembic upgrade head` → uvicorn.
-  - **Backup:** job diário `db_backup` + antes de toda migração; `pg_dump` em diretório fora do
-    repositório, configurado no `.env`; guarda 30; restauração documentada em `docs/LOCAL_DEV.md`.
+  - O container da api não migra sozinho (`AUTO_MIGRATE=false`): se o banco não estiver no `head`, não sobe. O
+    banco real só migra por `scripts.ops.migrar` (main limpa, testes `dados_reais` verdes, backup na hora); o
+    desenvolvimento usa `goodies_dev`. O serviço do banco real roda sem `--reload`.
+  - **Backup:** job diário `db_backup` + antes de toda escrita de dado; `pg_dump` 15 em diretório fora do
+    repositório e fora de pasta sincronizada com a nuvem, configurado no `.env`; retenção 30 diários + 12
+    mensais, separada dos pré-migração; restauração mensal automática de conferência; runbook em
+    `docs/LOCAL_DEV.md`; criptografia (`age`) e cópia externa opcionais.
   - APScheduler no processo da API; catch-up ao abrir o app; Binance só via cron.
   - CORS só `http://localhost:3000`; cookie de refresh `httpOnly`, `samesite=lax`, sem `secure`
     em localhost.
+  - Portas publicadas só em `127.0.0.1`; Postgres e Redis com senha; a api recusa subir com segredo
+    `dev-insecure-*` fora de teste; login com limite de tentativas; Hermes desligado na v2.0
+    (`HERMES_ENABLED=false`).
   - `DATABASE_URL` e `REDIS_URL` só apontam para `localhost` ou o compose. Projetos remotos antigos
     (Fly, Supabase, Upstash) são desativados pelo Vitor; o código não depende deles.
   - Segredos só em `.env` (gitignored) sincronizado com `.env.example`; gitleaks no pre-commit;
@@ -564,7 +575,7 @@ erDiagram
 | `jobs` | `job_runs` |
 | `market` | `asset_prices`, `asset_price_history`, `benchmark_data` |
 | `ledger` | `accounts`, `account_balances`, `transactions`, `category_groups`, `categories`, `category_rules`, `categorization_events`, `fixed_costs`, `fixed_cost_payments` |
-| `wallet` | `wallet_positions`, `defi_positions`, `crypto_cost_basis` |
+| `wallet` | `wallet_positions`, `wallet_position_history`, `defi_positions`, `crypto_cost_basis` |
 | `portfolio` | `assets`, `asset_aliases`, `asset_operations`, `debentures`, `debenture_contributions`, `broker_position_snapshots`, `broker_cash_checks` |
 | `planning` | `goals`, `goal_assets`, `portfolio_targets` (metas, banda, piso), `month_plans` (aporte planejado, dívidas, travas) |
 | `closing` | `month_closes`, `month_summary_totals`, `month_summary_lines` |
