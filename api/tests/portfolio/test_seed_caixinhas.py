@@ -94,10 +94,10 @@ async def seed_env(pool):
 
 def test_registry_has_active_caixinhas():
     enabled = {c.symbol for c in CAIXINHAS if c.enabled}
-    assert {"Nubank-SnowTrip", "Nubank-Turbo"} <= enabled
-    # Reserva listada mas desabilitada (próxima a criar; zerada hoje).
-    reserva = next(c for c in CAIXINHAS if c.symbol == "Nubank-Reserva")
-    assert reserva.enabled is False
+    # Nu Reserva Imediata ativa desde jul/2026 (OFX de jul-out/2026); HotCash segue encerrada.
+    assert {"Nubank-SnowTrip", "Nubank-Turbo", "Nubank-Reserva"} <= enabled
+    hotcash = next(c for c in CAIXINHAS if c.symbol == "Nubank-HotCash")
+    assert hotcash.enabled is False
     assert CDB_GUANABARA.pct_cdi == 117.5
 
 

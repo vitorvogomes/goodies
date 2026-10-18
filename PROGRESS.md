@@ -94,7 +94,7 @@
 
 **Gate marco 1 (`/gate m1`):**
 - `GET /api/v1/health` → 200 com postgres e redis; `scripts.ops.migrar` em `head`.
-- Testes `dados_reais` verdes e **nenhum pulado**: poupança jun/2026 = 55,48%, contagens, zero órfãs, deltas esperados, invariantes de caixinhas/debêntures/XIRR contra o baseline da Story 1.3.
+- Testes `dados_reais` verdes e **nenhum pulado**: poupança de cada mês = baseline (jun/2026 = 57,46%, ADR-016), contagens, zero órfãs, deltas esperados, invariantes de caixinhas/debêntures/XIRR contra o baseline da Story 1.3.
 - UJ-1 de ponta a ponta (importar → revisar → saldo PF conferido) e UJ-5 (jun/2026 → mês anterior fechados pelo Assistente).
 - Jul/2024–mai/2026 fechados em bloco (`close_retro`).
 
@@ -117,7 +117,7 @@
 
 **Gate marco 2 (`/gate m2`):**
 - Golden tests do orçamento verdes a partir de `tests/fixtures/mockup_out2026.json` (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77).
-- Poupança jun/2026 = 55,48% e deltas dos meses com Repasse conferidos.
+- Poupança por mês = baseline (ADR-016) e deltas dos meses com Repasse conferidos.
 - **SM-1 parcial começa:** `metricas --sm1-inicio <data>` registrado (tarefas de caixa sem a planilha).
 
 ---

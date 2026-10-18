@@ -120,11 +120,12 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 
 Todos os marcos exigem: suíte verde com cobertura ≥ 80%, `pnpm test/lint/build`, `GET /api/v1/health` → 200 com
 postgres+redis, banco em `head` e **nenhum teste `dados_reais` pulado**. Gate de dados permanente:
-**taxa de poupança jun/2026 = 55,48%** (a receita do trabalho não inclui resgates — ADR-015).
+**taxa de poupança de cada mês = a do baseline fixado** (jun/2026 = 57,46% com a base completa; os 55,48% da
+planilha não são reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015).
 
 | Marco | Épicos | Gate (`/gate mK`) |
 |---|---|---|
-| m1 — Ritual confiável | 1–5 | 55,48%, contagens, zero órfãs, deltas esperados, XIRR = baseline da Story 1.3; UJ-1 (importar → revisar → saldo PF conferido) e UJ-5 (Assistente de recuperação); jul/2024–mai/2026 fechados em bloco |
+| m1 — Ritual confiável | 1–5 | poupança por mês = baseline (ADR-016), contagens, zero órfãs, deltas esperados, XIRR = baseline da Story 1.3; UJ-1 (importar → revisar → saldo PF conferido) e UJ-5 (Assistente de recuperação); jul/2024–mai/2026 fechados em bloco |
 | m2 — Caixa e orçamento | 6 | golden do orçamento (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77); deltas dos meses com Repasse; SM-1 parcial registrada |
 | m3 — Investimentos e aportes | 7–8 | XIRR consolidado = baseline (salvo correção explicada); conciliação B3/carteiras nas tolerâncias da AD-13; distribuição fecha ao centavo (2.200 = 1.700 + 500); SM-1 registrada |
 | m4 — Histórico e ajustes | 9–10 | `metricas`: SM-1 ≥ 30 dias, SM-2/SM-3/SM-5 na meta; nenhuma rota v1 sem substituto; "no raw color" sem exceções |

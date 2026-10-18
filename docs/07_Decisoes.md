@@ -346,6 +346,23 @@ O ADR-011 fica substituído nesse ponto. Ver spine AD-6/AD-7/AD-16.
 
 ---
 
+## ADR-016 — Base completa até 16/10/2026 e gate de dados pela própria base
+
+**Data:** 2026-10-18  
+**Status:** Aceito (v2.0, Épico 2)
+
+### Decisão
+Arquivos de `files/` importados (Nubank PF/MEI até 16/10/2026, movimentação B3 jun–out/2026 sem a liquidação D+2
+duplicada, integralizações Flash, consolidado B3 de set/2026, caixinha Nu Reserva Imediata). Transações importadas
+desde 2026-10-18T06:07Z ficam pendentes de revisão (categoria sugerida pelo histórico, nunca `manual`).
+
+### Consequências
+Os 55,48% da planilha não são reproduzíveis pela base; o invariante das revisões de dado é a taxa de poupança de
+cada mês igual à do baseline fixado (jun/2026 = 57,46%), salvo deltas esperados listados. Ver
+`.claude/memory/decisions.md`.
+
+---
+
 *→ [[02_Arquitetura]]*
 *→ [[01_PRD]]*
 *→ [[00_Sistema/MOCs/MOC_Vitor.html]]*

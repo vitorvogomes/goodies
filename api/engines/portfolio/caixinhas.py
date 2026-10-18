@@ -39,12 +39,13 @@ class CaixinhaSpec:
     enabled: bool = True
 
 
-# As caixinhas ativas hoje: Snow Trip (o grosso) e Turbo (float/emergência, cap 5k).
-# Reserva está zerada (próxima a criar) e HotCash encerrada — enabled=False.
+# As caixinhas ativas: Snow Trip (o grosso), Turbo (float/emergência, cap 5k) e Reserva (Nu Reserva
+# Imediata, desde jul/2026). HotCash encerrada — enabled=False.
 CAIXINHAS: list[CaixinhaSpec] = [
     CaixinhaSpec("Nubank-SnowTrip", "Nubank", 100.0, ("snow",)),
     CaixinhaSpec("Nubank-Turbo", "Nubank", 115.0, ("turbo",), cap=5000.0),
-    CaixinhaSpec("Nubank-Reserva", "Nubank", 100.0, ("reserva", "resp. ltda"), enabled=False),
+    # Nu Reserva Imediata: criada em jul/2026 (OFX de jul-out/2026), ativa desde então.
+    CaixinhaSpec("Nubank-Reserva", "Nubank", 100.0, ("reserva", "resp. ltda")),
     CaixinhaSpec("Nubank-HotCash", "Nubank", 100.0, ("hotcash",), enabled=False),
 ]
 

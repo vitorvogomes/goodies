@@ -144,3 +144,18 @@ Config não-endereço (também `.env`): `LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQU
 
 `{engine}:{type}:{identifier}`
 Ex: `price:b3:PETR4`, `price:crypto:BTC`, `wallet:binance:spot`, `xirr:consolidated`
+
+## ADR-016 — Base completa até 16/10/2026 e gate de dados pela própria base
+Decidido 2026-10-18, a pedido do Vitor ("importar os arquivos de `files/` e fazer os cálculos com base no que temos").
+- Os OFX do Nubank (PF jun/2024–16/10/2026, MEI 2025–16/10/2026), a movimentação B3 de jun–out/2026 e as
+  integralizações Flash de jul–out/2026 foram importados pelo caminho v1 (dedup por FITID/`operation_hash`).
+  A liquidação D+2 que repete negócios já importados por negociação foi descartada (7 operações de 09/06/2026).
+  Preços do consolidado B3 de set/2026 aplicados; caixinha Nu Reserva Imediata ativada (desde jul/2026).
+- **Transações importadas a partir de 2026-10-18T06:07Z não foram revisadas pelo Vitor.** 128 das 148 sem padrão
+  receberam categoria sugerida pelo histórico (Jaccard de tokens ≥ 0,6); 20 seguem "outros". Na Story 2.4 elas
+  entram com `category_source = suggestion` (ou `rule` se um padrão casa) e `review_status = pending`, nunca
+  `manual`.
+- **Gate de dados:** os 55,48% da planilha não são reproduzíveis pela base (jun/2026 completo = 57,46%, com 2
+  transações a classificar). O invariante das revisões de dado passa a ser a taxa de poupança **de cada mês igual à
+  do baseline fixado** (`tests/dados_reais/pinned_baseline.txt`), salvo os deltas esperados listados no teste da
+  revisão. Onde os docs de planejamento dizem "55,48%", leia-se "taxa de jun/2026 do baseline".
