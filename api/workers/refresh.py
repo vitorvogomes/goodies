@@ -12,13 +12,15 @@ from __future__ import annotations
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
 from config import settings
 from engines.common.dates import today_brt
+from engines.wallet import service as wallet_service
 from workers.backup import run_db_backup, run_restore_check
 from workers.benchmark_workers import run_benchmark_daily
 from workers.price_workers import run_price_b3, run_price_crypto
@@ -46,15 +48,29 @@ class JobSpec:
 
 
 async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
-    """scanned_at mais antigo das posições escaneadas (idade real do dado de carteira).
+    """scanned_at mais antigo das posições escaneadas (a regra mora em `wallet.service`)."""
+    return await wallet_service.oldest_scan(conn)
 
-    Ignora a Binance: ela só é atualizada pelo cron, então no uso local envelheceria e
-    deixaria o wallet_scan eternamente vencido num catch-up que nem a atualiza. A idade
-    da linha Binance segue visível por posição em /wallets."""
-    value: datetime | None = await conn.fetchval(
-        "SELECT MIN(scanned_at) FROM wallet_positions WHERE NOT is_manual AND source <> 'binance'"
-    )
-    return value
+
+_BRT = ZoneInfo("America/Sao_Paulo")
+_B3_RUN_HOUR = 19
+
+
+def _last_b3_slot(now: datetime) -> datetime:
+    """O último horário de cron do price_b3 (dia útil, 19:00 BRT) até `now`."""
+    local = now.astimezone(_BRT)
+    slot = local.replace(hour=_B3_RUN_HOUR, minute=0, second=0, microsecond=0)
+    if slot > local:
+        slot -= timedelta(days=1)
+    while slot.weekday() >= 5:  # sábado/domingo: o cron não roda
+        slot -= timedelta(days=1)
+    return slot
+
+
+def b3_due(last_run: datetime | None, now: datetime) -> bool:
+    """price_b3 vence só quando passou um horário de cron (dia útil 19:00) desde o último run:
+    no fim de semana nada vence (e o catch-up não gasta a cota do BRAPI à toa)."""
+    return last_run is None or last_run < _last_b3_slot(now)
 
 
 def monthly_due(last_run: datetime | None, now: datetime) -> bool:
@@ -135,7 +151,7 @@ PROCESS_STARTED = datetime.now(UTC)
 def default_jobs() -> list[JobSpec]:
     """Jobs reais + limiares = ttl do cache da fonte (B3 26h, cripto 2h, carteira 14h…)."""
     return [
-        JobSpec("price_b3", _job_b3, settings.ttl_b3),
+        JobSpec("price_b3", _job_b3, settings.ttl_b3, is_due=b3_due),
         JobSpec("price_crypto", _job_crypto, settings.ttl_crypto),
         JobSpec(
             "wallet_scan",

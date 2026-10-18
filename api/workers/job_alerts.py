@@ -28,6 +28,23 @@ LABELS = {
     "restore_check": "Conferência do backup",
 }
 _ACTION = AlertAction(label="Ver atualização", route="/refresh")
+# O run grava o horário em que começou e o limiar é o próprio intervalo do cron: sem folga, todo
+# ciclo agendado "atrasaria" enquanto roda. Atraso = mais de 1,5 intervalo sem sucesso.
+LATE_FACTOR = 1.5
+DUE_MARGIN = timedelta(hours=1)
+
+
+def is_late(spec: refresh.JobSpec, success: datetime | None, now: datetime) -> bool:
+    if spec.is_due is not None:  # vencimento próprio (dia útil, mensal): com 1 h de folga
+        return spec.is_due(success, now - DUE_MARGIN)
+    if success is None:
+        return True
+    return (now - success).total_seconds() >= spec.threshold_seconds * LATE_FACTOR
+
+
+def alert_fingerprint(success: datetime | None) -> str:
+    """Só o último sucesso: uma nova tentativa que falha não faz o aviso dispensado voltar."""
+    return fingerprint(success)
 
 
 async def job_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
@@ -41,11 +58,7 @@ async def job_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]
     for spec in refresh.default_jobs():
         r = rows.get(spec.name)
         success = r["last_success_at"] if r is not None else None
-        if spec.is_due is not None:
-            late = spec.is_due(success, now)
-        else:
-            late = success is None or (now - success).total_seconds() >= spec.threshold_seconds
-        if not late:
+        if not is_late(spec, success, now):
             continue
         tried_and_failed = r is not None and r["ok"] is False and r["last_run"] >= started
         if not tried_and_failed and now - started < GRACE:
@@ -62,7 +75,7 @@ async def job_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]
         alerts.append(
             Alert(
                 key=f"job:{spec.name}",
-                fingerprint=fingerprint(success, r["last_run"] if r is not None else None),
+                fingerprint=alert_fingerprint(success),
                 severity="aviso",
                 message=message,
                 action=_ACTION,

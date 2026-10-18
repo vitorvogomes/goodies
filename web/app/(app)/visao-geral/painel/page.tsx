@@ -62,11 +62,10 @@ function Painel() {
     );
   }
   const data = painel.data;
-  const anterior = data?.resultado_mes_anterior.value;
+  // A variação vem pronta da API (AD-4: o front não faz conta de dinheiro).
+  const delta = data?.variacao_resultado_mes.value;
   const variation =
-    data && data.resultado_mes.value !== null && anterior !== null && anterior !== undefined
-      ? `${formatSignedBRL(data.resultado_mes.value - anterior)} vs. mês anterior`
-      : undefined;
+    delta !== null && delta !== undefined ? `${formatSignedBRL(delta)} vs. mês anterior` : undefined;
 
   return (
     <div className="space-y-section-gap">

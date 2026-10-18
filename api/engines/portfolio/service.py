@@ -593,9 +593,13 @@ class PortfolioSnapshot:
     income: Decimal  # proventos recebidos
     as_of: date | None  # o mais antigo entre preços das posições e scan das carteiras
     stale: bool  # alguma posição sem preço
+    prices_as_of: date | None = None  # Bloco Fontes "Preços": a mesma data do patrimônio
+    wallets_as_of: date | None = None
 
 
 async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> PortfolioSnapshot:
+    from engines.wallet.service import oldest_scan
+
     from . import calc
     from .crypto_sleeve import sleeve_cost_basis, sleeve_current_value
 
@@ -611,21 +615,27 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
         if p["asset_category"] not in _CRYPTO_CATS
     ]
     stale = any(p["valor_atual"] is None for p in positions)
+    # Posição aberta sem preço sai dos dois lados (como no XIRR): sem valor terminal, o aportado
+    # dela derrubaria o resultado.
+    unpriced = {p["asset_symbol"] for p in positions if p["valor_atual"] is None}
+    ops = [op for op in ops if op["asset_symbol"] not in unpriced]
     positions_value = sum(
         (Decimal(repr(p["valor_atual"])) for p in positions if p["valor_atual"] is not None),
         Decimal(0),
     )
     sleeve = await sleeve_current_value(conn, user_id)
     cost = await sleeve_cost_basis(conn)
-    dates = await conn.fetchrow(
-        # Preço manual não envelhece (ADR-012): a data é a do preço de mercado mais antigo.
-        "SELECT (SELECT min(fetched_at)::date FROM asset_prices "
-        "WHERE ticker = ANY($1::text[]) AND NOT is_manual) "
-        "AS prices, (SELECT min(scanned_at)::date FROM wallet_positions WHERE NOT is_manual) "
-        "AS wallets",
-        [p["asset_symbol"] for p in positions],
+    # Preço manual não envelhece (ADR-012): a data é a do preço de mercado mais antigo das
+    # posições abertas. Datas no fuso de Brasília (o run das 22h de BRT é do mesmo dia).
+    prices_at = await conn.fetchval(
+        "SELECT min(fetched_at) FROM asset_prices WHERE ticker = ANY($1::text[]) "
+        "AND NOT is_manual",
+        [p["asset_symbol"] for p in positions if p["valor_atual"] is not None],
     )
-    known = [d for d in (dates["prices"], dates["wallets"]) if d is not None]
+    scan_at = await oldest_scan(conn)
+    prices_as_of = today_brt(prices_at) if prices_at else None
+    wallets_as_of = today_brt(scan_at) if scan_at else None
+    known = [d for d in (prices_as_of, wallets_as_of) if d is not None]
     oldest = min(known) if known else None
     # API externa falhando: o valor segue com o último preço, marcado defasado (nunca erro).
     lagging = oldest is not None and (today_brt() - oldest).days > STALE_AFTER_DAYS
@@ -636,4 +646,6 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
         income=calc.income_received(ops),
         as_of=oldest,
         stale=stale or sleeve.stale or lagging,
+        prices_as_of=prices_as_of,
+        wallets_as_of=wallets_as_of,
     )

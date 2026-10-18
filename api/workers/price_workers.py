@@ -28,9 +28,12 @@ logger = structlog.get_logger()
 
 
 async def _symbols_in(conn: asyncpg.Connection, categories: Iterable[str]) -> list[str]:
+    # Só ticker com posição aberta: vendido/deslistado não tem cotação (falha falsa) e gasta a
+    # cota do BRAPI (1 ticker por requisição).
     rows = await conn.fetch(
-        "SELECT DISTINCT asset_symbol FROM asset_operations "
-        "WHERE asset_category = ANY($1::text[])",
+        "SELECT asset_symbol FROM asset_operations WHERE asset_category = ANY($1::text[]) "
+        "GROUP BY asset_symbol HAVING sum(CASE WHEN tipo IN ('compra', 'aporte') THEN quantidade "
+        "WHEN tipo IN ('venda', 'resgate') THEN -quantidade ELSE 0 END) > 0",
         [str(c) for c in categories],
     )
     return [r["asset_symbol"] for r in rows]

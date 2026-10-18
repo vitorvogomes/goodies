@@ -22,7 +22,7 @@ from engines.ledger import service as ledger_service
 from engines.market import service as market_service
 from engines.portfolio import calc as portfolio_calc
 from engines.portfolio import service as portfolio_service
-from engines.wallet import service as wallet_service
+from engines.portfolio import transit
 
 from .models import Fonte, Painel
 
@@ -45,11 +45,19 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     pending = await ledger_service.pending_review_count(conn)
     resultado = await _month_result(conn, month)
     anterior = await _month_result(conn, _previous(month))
+    variacao = (
+        Valued[Decimal](
+            value=resultado.value - anterior.value, as_of=resultado.as_of, source="ledger"
+        )
+        if resultado.value is not None and anterior.value is not None
+        else Valued[Decimal](unavailable_reason="nao_definido")
+    )
     if month != today.replace(day=1):
         return Painel(
             periodo=f"{month:%Y-%m}",
             resultado_mes=resultado,
             resultado_mes_anterior=anterior,
+            variacao_resultado_mes=variacao,
             patrimonio=_CLOSED,
             resultado_investimentos=_CLOSED,
             rentabilidade_nominal=_CLOSED,
@@ -58,8 +66,15 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     owner = await get_owner_id(conn)
     snap = await portfolio_service.portfolio_snapshot(conn, owner)
     accounts = await ledger_service.accounts_balance(conn, today)
+    rails = (await transit.calculate_transit(conn, owner))["rails"]
+    # Caixa em corretora (AD-7): o resíduo positivo de cada trilho (o negativo é cobertura que
+    # falta, não dinheiro). A separação "a caminho" × caixa chega no Épico 7.
+    broker_cash = sum(
+        (Decimal(repr(r["caixa_corretora_brl"])) for r in rails if r["caixa_corretora_brl"] > 0),
+        Decimal(0),
+    )
     invested = portfolio_calc.invested_value(
-        positions=snap.positions_value, crypto=snap.crypto_value
+        positions=snap.positions_value, crypto=snap.crypto_value, broker_cash=broker_cash
     )
     dates = [d for d in (snap.as_of, accounts.as_of) if d is not None]
     as_of = min(dates) if dates else None
@@ -68,6 +83,7 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
         periodo=f"{month:%Y-%m}",
         resultado_mes=resultado,
         resultado_mes_anterior=anterior,
+        variacao_resultado_mes=variacao,
         patrimonio=Valued(
             value=portfolio_calc.patrimony(invested, accounts=accounts.value),
             as_of=as_of,
@@ -106,13 +122,11 @@ async def fontes(conn: asyncpg.Connection) -> list[Fonte]:
     rows = [
         Fonte(**r.model_dump(), opens_hub=True) for r in await ingest_service.sources(conn, today)
     ]
-    prices = await market_service.oldest_market_price(conn)
-    scan = await wallet_service.oldest_scan(conn)
-    index = await market_service.latest_index_date(conn)
+    snap = await portfolio_service.portfolio_snapshot(conn, await get_owner_id(conn))
     auto = (
-        ("precos", "Preços", prices.date() if prices else None),
-        ("carteiras", "Carteiras", scan.date() if scan else None),
-        ("indices", "CDI/IPCA", index),
+        ("precos", "Preços", snap.prices_as_of),
+        ("carteiras", "Carteiras", snap.wallets_as_of),
+        ("indices", "CDI/IPCA", await market_service.latest_index_date(conn)),
     )
     for key, label, until in auto:
         rows.append(

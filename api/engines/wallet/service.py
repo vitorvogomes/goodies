@@ -303,8 +303,10 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
 
 
 async def oldest_scan(conn: asyncpg.Connection) -> datetime | None:
-    """Scan de carteira mais antigo (as manuais, como a SideSwap, não contam)."""
+    """Scan de carteira mais antigo — idade real do dado de carteira. Não contam as manuais (como
+    a SideSwap) nem a Binance, que só o cron atualiza (no uso local envelheceria e deixaria o
+    scan eternamente vencido); a idade da Binance segue visível por posição em /wallets."""
     found: datetime | None = await conn.fetchval(
-        "SELECT min(scanned_at) FROM wallet_positions WHERE NOT is_manual"
+        "SELECT min(scanned_at) FROM wallet_positions WHERE NOT is_manual AND source <> 'binance'"
     )
     return found

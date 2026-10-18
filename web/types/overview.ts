@@ -21,6 +21,7 @@ export interface Painel {
   periodo: string;
   resultado_mes: Valued;
   resultado_mes_anterior: Valued;
+  variacao_resultado_mes: Valued;
   patrimonio: Valued;
   resultado_investimentos: Valued;
   rentabilidade_nominal: Valued;

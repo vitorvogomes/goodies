@@ -12,7 +12,8 @@ from engines.ingest.models import SourceRow
 class Painel(BaseModel):
     periodo: str
     resultado_mes: Valued[Money]
-    resultado_mes_anterior: Valued[Money]  # a variação só aparece se o mês anterior existe
+    resultado_mes_anterior: Valued[Money]
+    variacao_resultado_mes: Valued[Money]  # vs. o mês anterior; só se ele existe (AD-4: na API)
     patrimonio: Valued[Money]
     resultado_investimentos: Valued[Money]
     rentabilidade_nominal: Valued[Pct]  # XIRR desde o início até o fim do período, em % a.a.
