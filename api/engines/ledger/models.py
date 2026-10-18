@@ -316,3 +316,32 @@ class BalanceCandidates(BaseModel):
     end: dt.date
     difference: Money
     items: list[BalanceCandidate]
+
+
+# ---- Custos fixos v2 (Story 6.1 — FR-18) ----
+
+
+class FixedCostIn(BaseModel):
+    name: str = Field(min_length=1)
+    amount: Money
+    due_day: int  # 1–31, validado na rota com a mensagem do catálogo
+    category_id: Uuid
+    valid_from: dt.date | None = None  # 1º dia do mês; sem → mês atual
+
+
+class FixedCostPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    amount: Money | None = None
+    due_day: int | None = None
+    category_id: Uuid | None = None
+
+
+class FixedCostRow(BaseModel):
+    id: str
+    name: str
+    amount: Money
+    due_day: int
+    category_id: str
+    category_label: str
+    valid_from: dt.date
+    valid_to: dt.date | None

@@ -10,7 +10,7 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -29,15 +29,23 @@ from engines.common.month_status import month_status
 
 from . import queries
 from .calc import (
+    MATCH_DAYS_AFTER,
+    MATCH_DAYS_BEFORE,
     BalanceInterval,
+    CostDue,
+    CostMatch,
+    Decision,
     Movement,
     Rule,
+    TxCandidate,
     best_rule,
     chained_check,
     computed_balance,
     devolucoes,
+    due_date,
     gastos,
     investido,
+    match_fixed_costs,
     month_checked,
     month_result,
     opening_balance,
@@ -57,6 +65,9 @@ from .models import (
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
+    FixedCostIn,
+    FixedCostPatch,
+    FixedCostRow,
     GroupCreate,
     GroupUpdate,
     ManualTransactionCreate,
@@ -1487,3 +1498,163 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
             {"code": "mei_nao_cobre", "kind": "confirma", "message": f"MEI não cobre {label}."}
         )
     return found
+
+
+# --------------------------------------------------------------------------------------------
+# Custos fixos com vigência e casamento (Story 6.1 — FR-18, AD-9)
+# --------------------------------------------------------------------------------------------
+
+_FIXED_COST_ROW = """
+    SELECT f.id, f.name, f.amount, f.due_day, f.category_id, f.valid_from, f.valid_to,
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label
+    FROM fixed_costs f JOIN categories c ON c.id = f.category_id
+    JOIN category_groups g ON g.id = c.group_id
+"""
+
+
+class FixedCostNotFound(LookupError):
+    pass
+
+
+class UnknownCategoryError(LookupError):
+    pass
+
+
+def _fixed_cost_row(r: asyncpg.Record) -> FixedCostRow:
+    return FixedCostRow(
+        id=str(r["id"]),
+        name=r["name"],
+        amount=r["amount"],
+        due_day=r["due_day"],
+        category_id=str(r["category_id"]),
+        category_label=r["category_label"],
+        valid_from=r["valid_from"],
+        valid_to=r["valid_to"],
+    )
+
+
+async def list_fixed_costs_v2(conn: asyncpg.Connection) -> list[FixedCostRow]:
+    """Cadastro (Ajustes › Custos fixos): os vigentes hoje ou no futuro, por vencimento."""
+    current = today_brt().replace(day=1)
+    rows = await conn.fetch(
+        _FIXED_COST_ROW
+        + " WHERE f.valid_to IS NULL OR f.valid_to >= $1 ORDER BY f.due_day, f.name",
+        current,
+    )
+    return [_fixed_cost_row(r) for r in rows]
+
+
+async def _fixed_cost(conn: asyncpg.Connection, cost_id: str) -> FixedCostRow:
+    row = await conn.fetchrow(_FIXED_COST_ROW + " WHERE f.id = $1::uuid", cost_id)
+    if row is None:
+        raise FixedCostNotFound(cost_id)
+    return _fixed_cost_row(row)
+
+
+async def create_fixed_cost(conn: asyncpg.Connection, body: FixedCostIn) -> FixedCostRow:
+    label = await conn.fetchval(
+        "SELECT name FROM categories WHERE id = $1::uuid", str(body.category_id)
+    )
+    if label is None:
+        raise UnknownCategoryError(str(body.category_id))
+    cost_id = await conn.fetchval(
+        "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, valid_from) "
+        "VALUES ($1, $2, $3, $4, $5::uuid, $6) RETURNING id",
+        body.name,
+        body.amount,
+        body.due_day,
+        label,
+        str(body.category_id),
+        (body.valid_from or today_brt()).replace(day=1),
+    )
+    return await _fixed_cost(conn, str(cost_id))
+
+
+async def update_fixed_cost(
+    conn: asyncpg.Connection, cost_id: str, body: FixedCostPatch
+) -> FixedCostRow:
+    await _fixed_cost(conn, cost_id)
+    label = None
+    if body.category_id is not None:
+        label = await conn.fetchval(
+            "SELECT name FROM categories WHERE id = $1::uuid", str(body.category_id)
+        )
+        if label is None:
+            raise UnknownCategoryError(str(body.category_id))
+    await conn.execute(
+        "UPDATE fixed_costs SET name = COALESCE($2, name), amount = COALESCE($3, amount), "
+        "due_day = COALESCE($4, due_day), category_id = COALESCE($5::uuid, category_id), "
+        "category = COALESCE($6, category) WHERE id = $1::uuid",
+        cost_id,
+        body.name,
+        body.amount,
+        body.due_day,
+        str(body.category_id) if body.category_id is not None else None,
+        label,
+    )
+    return await _fixed_cost(conn, cost_id)
+
+
+async def delete_fixed_cost(conn: asyncpg.Connection, cost_id: str) -> None:
+    """Sem decisão gravada: apaga. Com histórico de pagamento: encerra a vigência no mês atual
+    (os meses passados continuam enxergando o custo)."""
+    await _fixed_cost(conn, cost_id)
+    used = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid)", cost_id
+    )
+    if used:
+        await conn.execute(
+            "UPDATE fixed_costs SET valid_to = greatest(valid_from, $2), is_active = false "
+            "WHERE id = $1::uuid",
+            cost_id,
+            today_brt().replace(day=1),
+        )
+    else:
+        await conn.execute("DELETE FROM fixed_costs WHERE id = $1::uuid", cost_id)
+
+
+async def fixed_costs_due(conn: asyncpg.Connection, month: date) -> list[asyncpg.Record]:
+    """Custos vigentes no mês (valid_from ≤ mês ≤ valid_to)."""
+    return list(
+        await conn.fetch(
+            _FIXED_COST_ROW
+            + " WHERE f.valid_from <= $1 AND (f.valid_to IS NULL OR f.valid_to >= $1)"
+            " ORDER BY f.due_day, f.name",
+            month,
+        )
+    )
+
+
+async def fixed_cost_matches(conn: asyncpg.Connection, month: date) -> list[CostMatch]:
+    """Casamento do mês (AD-9, derivado na leitura): decisões de `fixed_cost_payments` e o guloso
+    de `ledger/calc` sobre as saídas de −5 dias do 1º vencimento a +5 do último."""
+    costs = [
+        CostDue(str(r["id"]), r["amount"], due_date(month, r["due_day"]))
+        for r in await fixed_costs_due(conn, month)
+    ]
+    if not costs:
+        return []
+    start = min(c.due for c in costs) - timedelta(days=MATCH_DAYS_BEFORE)
+    end = max(c.due for c in costs) + timedelta(days=MATCH_DAYS_AFTER)
+    txs = [
+        TxCandidate(str(r["id"]), -r["amount"], r["date"])
+        for r in await conn.fetch(
+            "SELECT id, amount, date FROM transactions WHERE amount < 0 AND kind = 'expense' "
+            "AND date BETWEEN $1 AND $2",
+            start,
+            end,
+        )
+    ]
+    decisions = [
+        Decision(
+            str(r["fixed_cost_id"]),
+            r["kind"],
+            str(r["transaction_id"]) if r["transaction_id"] else None,
+        )
+        for r in await conn.fetch(
+            "SELECT fixed_cost_id, kind, transaction_id FROM fixed_cost_payments WHERE month = $1",
+            month,
+        )
+    ]
+    found = match_fixed_costs(costs, txs, decisions)
+    return [found[c.cost_id] for c in costs]

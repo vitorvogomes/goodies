@@ -10,6 +10,8 @@ import type {
   Alert,
   BalanceCandidates,
   CashflowProjection,
+  FixedCostItem,
+  FixedCostItemIn,
   Category,
   CategoryBreakdown,
   CategoryCreate,
@@ -487,5 +489,34 @@ export function useBalanceCandidates(range: { start: string; end: string } | nul
         `/api/v1/ledger/balance-check/candidates?inicio=${range?.start}&fim=${range?.end}`,
       ),
     enabled: range !== null,
+  });
+}
+
+// ---- Custos fixos v2 (Story 6.1) ----
+
+export function useFixedCostItems() {
+  return useQuery({
+    queryKey: ["ledger", "fixed-costs"],
+    queryFn: () => apiFetch<FixedCostItem[]>("/api/v1/ledger/fixed-costs"),
+  });
+}
+
+export function useSaveFixedCostItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string | null; body: FixedCostItemIn }) =>
+      apiFetch<FixedCostItem>(`/api/v1/ledger/fixed-costs${id ? `/${id}` : ""}`, {
+        method: id ? "PATCH" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+export function useDeleteFixedCostItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/v1/ledger/fixed-costs/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }

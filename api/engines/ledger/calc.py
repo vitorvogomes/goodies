@@ -6,9 +6,10 @@ Story 2.5 — escolha da regra de categoria (AD-6): "descrição contém", com d
 
 from __future__ import annotations
 
+import calendar
 from bisect import bisect_right
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from itertools import pairwise
@@ -180,3 +181,107 @@ def computed_balance(
 ) -> Decimal:
     """Saldo calculado (AD-7): saldo de abertura + Σ transações até a data."""
     return opening + sum((a for d, a in transactions if d <= until), Decimal(0))
+
+
+# --------------------------------------------------------------------------------------------
+# Casamento de custo fixo (Story 6.1 — AD-7, AD-9)
+# --------------------------------------------------------------------------------------------
+
+MATCH_VALUE_TOLERANCE = Decimal("0.10")  # ±10% do valor cadastrado
+MATCH_DAYS_BEFORE = 5  # até 5 dias antes do vencimento
+MATCH_DAYS_AFTER = 5  # até 5 dias depois
+
+
+@dataclass(frozen=True)
+class CostDue:
+    cost_id: str
+    amount: Decimal  # valor cadastrado (positivo)
+    due: date  # vencimento no mês
+
+
+@dataclass(frozen=True)
+class TxCandidate:
+    transaction_id: str
+    amount: Decimal  # magnitude da saída (positivo)
+    date: date
+
+
+@dataclass(frozen=True)
+class Decision:
+    """Decisão humana gravada em `fixed_cost_payments`: confirmado/corrigido (com a transação),
+    manual (pago sem transação) ou desfeito (aquela transação não é deste custo)."""
+
+    cost_id: str
+    kind: str  # confirmado | corrigido | manual | desfeito
+    transaction_id: str | None
+
+
+@dataclass(frozen=True)
+class CostMatch:
+    cost_id: str
+    status: str  # pago | manual | pendente
+    transaction_id: str | None = None
+    source: str | None = None  # decisao | auto
+    candidates: list[str] = field(default_factory=list)  # "2 candidatas": nada pago até escolher
+
+
+def due_date(month: date, due_day: int) -> date:
+    """Vencimento no mês; dia além do fim do mês cai no último dia."""
+    last = calendar.monthrange(month.year, month.month)[1]
+    return month.replace(day=min(due_day, last))
+
+
+def _eligible(cost: CostDue, tx: TxCandidate) -> bool:
+    if abs(tx.amount - cost.amount) > cost.amount * MATCH_VALUE_TOLERANCE:
+        return False
+    return -MATCH_DAYS_BEFORE <= (tx.date - cost.due).days <= MATCH_DAYS_AFTER
+
+
+def match_fixed_costs(
+    costs: Sequence[CostDue], txs: Sequence[TxCandidate], decisions: Sequence[Decision]
+) -> dict[str, CostMatch]:
+    """Decisões primeiro; depois o guloso global 1:1 por (|Δvalor|, |Δdata|, custo, transação).
+    Um custo que, depois do guloso, ainda tem outra candidata livre fica pendente com as candidatas
+    (casamento ambíguo: nada pago até a escolha)."""
+    out: dict[str, CostMatch] = {}
+    tx_ids = {t.transaction_id for t in txs}
+    taken: set[str] = set()
+    rejected: set[tuple[str, str]] = set()
+    for d in decisions:
+        if d.kind == "desfeito":
+            if d.transaction_id is not None:
+                rejected.add((d.cost_id, d.transaction_id))
+        elif d.kind == "manual":
+            out[d.cost_id] = CostMatch(d.cost_id, "manual", source="decisao")
+        elif d.transaction_id is not None and d.transaction_id in tx_ids:
+            out[d.cost_id] = CostMatch(d.cost_id, "pago", d.transaction_id, "decisao")
+            taken.add(d.transaction_id)
+    free_costs = [c for c in costs if c.cost_id not in out]
+    pairs = sorted(
+        (
+            (abs(t.amount - c.amount), abs((t.date - c.due).days), c.cost_id, t.transaction_id)
+            for c in free_costs
+            for t in txs
+            if t.transaction_id not in taken
+            and (c.cost_id, t.transaction_id) not in rejected
+            and _eligible(c, t)
+        ),
+    )
+    eligible: dict[str, list[str]] = {}
+    for *_, cid, tid in pairs:
+        eligible.setdefault(cid, []).append(tid)
+    auto: dict[str, str] = {}
+    for *_, cid, tid in pairs:
+        if cid not in auto and tid not in taken:
+            auto[cid] = tid
+            taken.add(tid)
+    for c in free_costs:
+        chosen = auto.get(c.cost_id)
+        others = [t for t in eligible.get(c.cost_id, []) if t not in taken]
+        if chosen is not None and not others:
+            out[c.cost_id] = CostMatch(c.cost_id, "pago", chosen, "auto")
+        elif chosen is not None:
+            out[c.cost_id] = CostMatch(c.cost_id, "pendente", candidates=sorted([chosen, *others]))
+        else:
+            out[c.cost_id] = CostMatch(c.cost_id, "pendente")
+    return out

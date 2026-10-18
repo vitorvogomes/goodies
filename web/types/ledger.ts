@@ -335,3 +335,22 @@ export interface BalanceCandidates {
     category_label: string;
   }[];
 }
+
+// Custos fixos v2 (Story 6.1) — Ajustes › Custos fixos.
+export interface FixedCostItem {
+  id: string;
+  name: string;
+  amount: number;
+  due_day: number;
+  category_id: string;
+  category_label: string;
+  valid_from: string;
+  valid_to: string | null;
+}
+
+export interface FixedCostItemIn {
+  name?: string;
+  amount?: string; // "123.45" (Money em string, AD-4)
+  due_day?: number;
+  category_id?: string;
+}

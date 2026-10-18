@@ -29,6 +29,9 @@ from .models import (
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
+    FixedCostIn,
+    FixedCostPatch,
+    FixedCostRow,
     GroupCreate,
     GroupUpdate,
     ManualTransactionCreate,
@@ -354,6 +357,61 @@ async def review_confirm(body: ReviewConfirmIn, user: AuthUser, db: Db) -> Revie
         ) from None
     except LookupError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND) from None
+
+
+# ---- Custos fixos v2 (Story 6.1) — Ajustes › Custos fixos ----
+
+_BAD_DUE = {"error": "vencimento_invalido", "message": "Vencimento entre 1 e 31."}
+
+
+def _check_due(due_day: int | None) -> None:
+    if due_day is not None and not 1 <= due_day <= 31:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_DUE)
+
+
+def _fixed_cost_errors(exc: Exception) -> HTTPException:
+    if isinstance(exc, service.FixedCostNotFound):
+        return HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            {"error": "custo_fixo_nao_encontrado", "message": "Custo fixo não encontrado."},
+        )
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        {"error": "categoria_invalida", "message": "Categoria não encontrada."},
+    )
+
+
+@v2.get("/fixed-costs", response_model=list[FixedCostRow])
+async def list_fixed_costs_v2(user: AuthUser, db: Db) -> list[FixedCostRow]:
+    return await service.list_fixed_costs_v2(db)
+
+
+@v2.post("/fixed-costs", response_model=FixedCostRow, status_code=status.HTTP_201_CREATED)
+async def create_fixed_cost(body: FixedCostIn, user: AuthUser, db: Db) -> FixedCostRow:
+    _check_due(body.due_day)
+    try:
+        return await service.create_fixed_cost(db, body)
+    except (service.FixedCostNotFound, service.UnknownCategoryError) as exc:
+        raise _fixed_cost_errors(exc) from None
+
+
+@v2.patch("/fixed-costs/{cost_id}", response_model=FixedCostRow)
+async def update_fixed_cost(
+    cost_id: Uuid, body: FixedCostPatch, user: AuthUser, db: Db
+) -> FixedCostRow:
+    _check_due(body.due_day)
+    try:
+        return await service.update_fixed_cost(db, str(cost_id), body)
+    except (service.FixedCostNotFound, service.UnknownCategoryError) as exc:
+        raise _fixed_cost_errors(exc) from None
+
+
+@v2.delete("/fixed-costs/{cost_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_fixed_cost(cost_id: Uuid, user: AuthUser, db: Db) -> None:
+    try:
+        await service.delete_fixed_cost(db, str(cost_id))
+    except service.FixedCostNotFound as exc:
+        raise _fixed_cost_errors(exc) from None
 
 
 router.include_router(v2)
