@@ -60,16 +60,15 @@ class Settings(BaseSettings):
     # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).
     evaluation_date: date | None = None
 
-    # Categorias do LEDGER (transactions.category) cujo fluxo BRL é o custo do "sleeve"
-    # cripto (m4). Cripto não vive em asset_operations — o sleeve cruza estas saídas com o
-    # valor escaneado das carteiras. São NOMES de categoria (CRUD do usuário), não o enum
-    # AssetCategory; inclui o nome real com typo histórico ("Cripto Nubnak"). Override via
-    # env CRYPTO_LEDGER_CATEGORIES (JSON).
-    crypto_ledger_categories: list[str] = [
-        "Binance",
-        "Cripto Diversos",
-        "Cripto Nubnak",
-        "Liquid/DeFi",
+    # Subcategorias do LEDGER (por `categories.key`, imutável — Story 2.3) cujo fluxo BRL é o custo
+    # do
+    # "sleeve" cripto (m4). Cripto não vive em asset_operations — o sleeve cruza estas saídas com o
+    # valor escaneado das carteiras. Override via env CRYPTO_LEDGER_CATEGORY_KEYS (JSON).
+    crypto_ledger_category_keys: list[str] = [
+        "invest:binance",
+        "invest:cripto_diversos",
+        "invest:cripto_nubank",
+        "invest:liquid_defi",
     ]
 
     # ---- Market Engine (m3) — fetchers de preço ----

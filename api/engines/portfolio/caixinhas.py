@@ -17,6 +17,7 @@ from typing import Any
 
 import asyncpg
 
+from engines.ledger import queries as ledger_queries
 from engines.portfolio.constants import AssetCategory
 from engines.portfolio.migration import import_operations
 from engines.portfolio.rf_cdi import valor_atual_cdi
@@ -34,7 +35,7 @@ class CaixinhaSpec:
     broker: str
     pct_cdi: float  # 100.0 / 115.0 / 117.5
     desc_match: tuple[str, ...]  # tokens ILIKE (case-insensitive) na descrição
-    source_categories: tuple[str, ...] = ("Caixinha/RDB Nubank",)
+    source_keys: tuple[str, ...] = ("invest:caixinha_rdb",)  # `categories.key` (Story 2.3)
     cap: float | None = None  # informativo (ex.: Turbo R$5.000)
     enabled: bool = True
 
@@ -55,7 +56,7 @@ CDB_GUANABARA = CaixinhaSpec(
     "Guanabara",
     117.5,
     ("guanabara",),
-    source_categories=("Renda Fixa Nubank",),
+    source_keys=("invest:renda_fixa_nubank",),
 )
 
 
@@ -68,14 +69,8 @@ async def build_caixinha_ops(conn: asyncpg.Connection, spec: CaixinhaSpec) -> li
     """
     if not spec.desc_match:
         return []
-    conds = " OR ".join(
-        f"description ILIKE '%' || ${i + 2} || '%'" for i in range(len(spec.desc_match))
-    )
-    rows = await conn.fetch(
-        f"SELECT date, amount, external_id FROM transactions "
-        f"WHERE category = ANY($1::text[]) AND ({conds}) ORDER BY date",
-        list(spec.source_categories),
-        *spec.desc_match,
+    rows = await ledger_queries.transactions_by_category_keys(
+        conn, spec.source_keys, description_any=spec.desc_match
     )
     ops: list[dict[str, Any]] = []
     for r in rows:

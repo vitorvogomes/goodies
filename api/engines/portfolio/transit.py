@@ -18,15 +18,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import asyncpg
+
+from engines.ledger import queries as ledger_queries
 
 
 @dataclass(frozen=True)
 class Rail:
     name: str
-    ledger_categories: tuple[str, ...]  # categorias do ledger (kind=investment)
+    ledger_keys: tuple[str, ...]  # `categories.key` do ledger (kind=investment) — Story 2.3
     asset_categories: tuple[str, ...]  # categorias em asset_operations
     asset_brokers: tuple[str, ...] | None  # None = qualquer broker
 
@@ -35,18 +38,18 @@ class Rail:
 RAILS: tuple[Rail, ...] = (
     Rail(
         "B3 (corretoras)",
-        ("Toro (B3)",),
+        ("invest:toro_b3",),
         ("Ações Nacionais", "ETFs", "FIIs"),
         ("Toro/B3", "B3-negociacao", "B3-movimentacao", "B3-consolidado"),
     ),
-    Rail("Tesouro Direto", ("Tesouro Direto Nubank",), ("Aposentadoria",), None),
+    Rail("Tesouro Direto", ("invest:tesouro_nubank",), ("Aposentadoria",), None),
     Rail(
         "Renda Fixa Nubank",
-        ("Caixinha/RDB Nubank", "Renda Fixa Nubank"),
+        ("invest:caixinha_rdb", "invest:renda_fixa_nubank"),
         ("Renda Fixa",),
         ("Nubank", "Guanabara"),
     ),
-    Rail("Debêntures Flash", ("Flash Capital debêntures",), ("Renda Fixa",), ("Flash",)),
+    Rail("Debêntures Flash", ("invest:debentures_flash",), ("Renda Fixa",), ("Flash",)),
 )
 
 # Tolerância de reconciliação (R$): centralizada aqui (o front não decide mais a regra).
@@ -66,14 +69,11 @@ _APLICADO_SQL = (
 )
 
 
-async def _saiu(conn: asyncpg.Connection, categories: Sequence[str]) -> float:
-    """Quanto saiu do Nubank p/ o trilho (líq.): -Σ(amount) do ledger (outflow negativo)."""
-    val = await conn.fetchval(
-        "SELECT COALESCE(SUM(amount), 0) FROM transactions "
-        "WHERE kind = 'investment' AND category = ANY($1)",
-        list(categories),
-    )
-    return -float(val)
+async def _saiu(conn: asyncpg.Connection, keys: Sequence[str]) -> float:
+    """Quanto saiu do Nubank p/ o trilho (líq.): -Σ(amount) do ledger (outflow negativo), lido por
+    `categories.key` pela função pública do ledger (AD-3)."""
+    rows = await ledger_queries.transactions_by_category_keys(conn, keys, kind="investment")
+    return -float(sum((r["amount"] for r in rows), Decimal(0)))
 
 
 async def _aplicado(
@@ -112,7 +112,7 @@ async def calculate_transit(
 ) -> dict[str, Any]:
     rails: list[dict[str, Any]] = []
     for rail in RAILS:
-        saiu = await _saiu(conn, rail.ledger_categories)
+        saiu = await _saiu(conn, rail.ledger_keys)
         aplicado, proventos = await _aplicado(conn, user_id, rail)
         em_transito = saiu - aplicado
         # Resíduo real = caixa na corretora = saiu + proventos - aplicado. É o número-título

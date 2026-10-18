@@ -99,4 +99,5 @@ async def test_hermes_expense_respects_investment_category_kind(api, account, po
         assert kind == "investment"
     finally:
         async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM transactions WHERE category = 'ZZHermesInv'")
             await conn.execute("DELETE FROM categories WHERE name = 'ZZHermesInv'")

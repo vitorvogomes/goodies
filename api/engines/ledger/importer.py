@@ -124,8 +124,8 @@ def classify(
     if "transfer" in desc and any(s.lower() in desc for s in self_identifiers):
         return Classification("transfer", "Transferência interna")
     if entry.amount > 0:
-        return Classification("income", "outros")
-    return Classification("expense", "outros")
+        return Classification("income", "Entrada a classificar")
+    return Classification("expense", "Saída a classificar")
 
 
 async def _load_rules(conn: asyncpg.Connection) -> list[MatchRule]:

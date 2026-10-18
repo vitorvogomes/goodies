@@ -102,7 +102,7 @@ class TestCostBasis:
         async with pool.acquire() as conn:
             await _tx(conn, acc, -1000.0, "Binance")
             await _tx(conn, acc, -200.0, "Cripto Diversos")
-            await _tx(conn, acc, 50.0, "Cripto Nubnak")  # typo real da categoria
+            await _tx(conn, acc, 50.0, "Cripto Nubank")  # ex-typo "Cripto Nubnak" (Story 2.3)
             cost = await sleeve_cost_basis(conn)
         assert abs(cost["cost_basis_brl"] - 1200.0) < 0.01
         assert abs(cost["returned_brl"] - 50.0) < 0.01

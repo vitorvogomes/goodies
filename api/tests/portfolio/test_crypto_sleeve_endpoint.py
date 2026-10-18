@@ -106,7 +106,7 @@ class TestCryptoSleeveEndpoint:
         )
         async with pool.acquire() as conn:
             await _tx(conn, acc, -1000.0, "Binance")
-            await _tx(conn, acc, -500.0, "Cripto Nubnak")
+            await _tx(conn, acc, -500.0, "Cripto Nubank")
             await _tx(conn, acc, 100.0, "Binance")  # net_invested = 1400
             await _price(conn, "TKNA", 200.0)
             await _price(conn, "TKND", 4.0)
@@ -148,10 +148,10 @@ class TestCryptoSleeveEndpoint:
     async def test_misspelled_category_counted(
         self, api: AsyncClient, crypto_user: dict
     ) -> None:
-        """'Cripto Nubnak' (typo real) entra no custo do sleeve."""
+        """'Cripto Nubank' (key invest:cripto_nubank, ex-typo Nubnak) entra no custo do sleeve."""
         pool, acc = crypto_user["pool"], crypto_user["account_id"]
         async with pool.acquire() as conn:
-            await _tx(conn, acc, -300.0, "Cripto Nubnak")
+            await _tx(conn, acc, -300.0, "Cripto Nubank")
         resp = await api.get(
             "/api/v1/portfolio/crypto-sleeve", headers=crypto_user["headers"]
         )

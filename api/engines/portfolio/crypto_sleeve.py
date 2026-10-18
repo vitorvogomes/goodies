@@ -6,7 +6,7 @@ Este módulo cruza as duas fontes de verdade já existentes:
 - **valor atual** (user-scoped): `wallet_positions` + `defi_positions`, valorados pelo cache
   de preço do m3 (reuso de `list_wallet_positions`/`list_defi_valued`).
 - **custo/cashflows** (BRL): `transactions` nas categorias cripto do ledger
-  (`settings.crypto_ledger_categories`).
+  (`settings.crypto_ledger_category_keys`).
 
 O custo/resultado/XIRR são conhecidos só no NÍVEL DO SLEEVE (cripto como um bucket) — fiel à
 reconciliação estilo "caixa parado na Toro" (caixa enviado vs posição atual). NUNCA fabricar
@@ -25,6 +25,7 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.ledger import queries as ledger_queries
 from engines.wallet.service import list_defi_valued, list_wallet_positions
 
 from .constants import AssetCategory
@@ -38,9 +39,8 @@ async def sleeve_cost_basis(conn: asyncpg.Connection) -> dict[str, Any]:
     `cost_basis` = Σ|saídas| (amount<0); `returned` = Σ entradas (amount>0);
     `net_invested` = cost_basis - returned. `by_category` traz o investido líquido por rail.
     """
-    rows = await conn.fetch(
-        "SELECT category, amount FROM transactions WHERE category = ANY($1::text[])",
-        settings.crypto_ledger_categories,
+    rows = await ledger_queries.transactions_by_category_keys(
+        conn, settings.crypto_ledger_category_keys
     )
     cost_basis = 0.0
     returned = 0.0
@@ -51,7 +51,7 @@ async def sleeve_cost_basis(conn: asyncpg.Connection) -> dict[str, Any]:
             cost_basis += -amt
         else:
             returned += amt
-        by_category[r["category"]] += -amt  # saída (negativa) → investido positivo
+        by_category[r["category_name"]] += -amt  # saída (negativa) → investido positivo
     return {
         "cost_basis_brl": cost_basis,
         "returned_brl": returned,
@@ -65,10 +65,8 @@ async def sleeve_cost_basis(conn: asyncpg.Connection) -> dict[str, Any]:
 
 async def sleeve_cashflows(conn: asyncpg.Connection) -> list[tuple[date, float]]:
     """Série de cashflows do ledger cripto (sinais crus: aporte<0, retorno>0)."""
-    rows = await conn.fetch(
-        "SELECT date, amount FROM transactions WHERE category = ANY($1::text[]) "
-        "ORDER BY date",
-        settings.crypto_ledger_categories,
+    rows = await ledger_queries.transactions_by_category_keys(
+        conn, settings.crypto_ledger_category_keys
     )
     return [(r["date"], float(r["amount"])) for r in rows]
 
