@@ -340,3 +340,8 @@ HISTORY_VERSION = """
     SELECT (SELECT count(*) FROM transactions WHERE review_status = 'confirmed'),
            (SELECT max(created_at) FROM categorization_events)
 """
+LAST_DATE_IN_MONTH = """
+    SELECT max(date) FROM transactions
+    WHERE date >= $1::date AND date < ($1::date + interval '1 month')
+"""
+ANCHORED_ACCOUNTS = "SELECT id, opening_balance FROM accounts WHERE opening_balance IS NOT NULL"

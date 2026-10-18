@@ -34,6 +34,8 @@ from .calc import (
     Rule,
     best_rule,
     chained_check,
+    computed_balance,
+    month_result,
     opening_balance,
     savings_rate,
 )
@@ -1311,3 +1313,42 @@ async def recompute_anchor(conn: asyncpg.Connection, account_id: Any) -> None:
         opening_balance(first["balance"], first["as_of"], moves),
         first["as_of"],
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Termos do Painel (Story 4.1 — AD-7): resultado do mês e saldo das contas
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DatedAmount:
+    value: Decimal
+    as_of: date | None
+
+
+async def month_result_for(conn: asyncpg.Connection, month: date) -> DatedAmount | None:
+    """Resultado do mês por `ledger/calc.month_result`; `as_of` = dados até (último lançamento
+    do mês, ou o fim do mês). Mês sem transação → None."""
+    rows = await queries.month_movements(conn, [month])
+    if not rows:
+        return None
+    value = month_result([Movement(r["amount"], r["kind"], r["role"]) for r in rows])
+    last = await conn.fetchval(queries.LAST_DATE_IN_MONTH, month)
+    return DatedAmount(value, last)
+
+
+async def accounts_balance(conn: asyncpg.Connection, until: date) -> DatedAmount:
+    """Saldo calculado das contas com âncora (`opening_balance`) até a data; a conta do MEI fica
+    sempre zerada e não tem âncora."""
+    total = Decimal(0)
+    latest: date | None = None
+    for acc in await conn.fetch(queries.ANCHORED_ACCOUNTS):
+        moves = [
+            (r["date"], r["amount"])
+            for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, acc["id"])
+        ]
+        total += computed_balance(acc["opening_balance"], moves, until)
+        dated = [d for d, _ in moves if d <= until]
+        if dated:
+            latest = max(latest or dated[-1], dated[-1])
+    return DatedAmount(total, latest)

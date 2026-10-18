@@ -53,3 +53,10 @@ def test_month_checked_uses_first_balance_after_month_end() -> None:
     assert month_checked(intervals, date(2024, 9, 30)) is False  # nenhum saldo depois
     broken = chained_check([(date(2024, 7, 31), D("570")), (date(2024, 8, 3), D("1"))], tx)
     assert month_checked(broken + intervals[1:], date(2024, 8, 31)) is False
+
+
+def test_computed_balance_until_a_date() -> None:
+    from engines.ledger.calc import computed_balance
+
+    assert computed_balance(D("500.00"), TX, date(2024, 8, 31)) == D("600.00")
+    assert computed_balance(D("500.00"), TX, date(2024, 7, 1)) == D("500.00")

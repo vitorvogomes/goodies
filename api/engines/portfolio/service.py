@@ -18,7 +18,9 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 import asyncpg
@@ -575,3 +577,63 @@ async def calculate_portfolio_xirr(
     }
     await cache().set(xirr_key(user_id), result, _XIRR_TTL_SECONDS)
     return result
+
+
+# --------------------------------------------------------------------------- #
+# Retrato do portfolio para o Painel (Story 4.1 — AD-7)
+# --------------------------------------------------------------------------- #
+STALE_AFTER_DAYS = 3  # preço diário (B3/Tesouro) + fim de semana
+
+
+@dataclass(frozen=True)
+class PortfolioSnapshot:
+    positions_value: Decimal  # posições (sem cripto) a preço atual
+    crypto_value: Decimal  # bloco cripto (carteiras)
+    contributed: Decimal  # aportado líquido: operações + bloco cripto (ledger)
+    income: Decimal  # proventos recebidos
+    as_of: date | None  # o mais antigo entre preços das posições e scan das carteiras
+    stale: bool  # alguma posição sem preço
+
+
+async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> PortfolioSnapshot:
+    from . import calc
+    from .crypto_sleeve import sleeve_cost_basis, sleeve_current_value
+
+    ops = await conn.fetch(
+        "SELECT asset_symbol, tipo, quantidade, valor_unitario FROM asset_operations "
+        "WHERE user_id = $1 AND asset_category <> ALL($2::text[])",
+        user_id,
+        _CRYPTO_CATS,
+    )
+    positions = [
+        p
+        for p in await calculate_positions(conn, user_id)
+        if p["asset_category"] not in _CRYPTO_CATS
+    ]
+    stale = any(p["valor_atual"] is None for p in positions)
+    positions_value = sum(
+        (Decimal(repr(p["valor_atual"])) for p in positions if p["valor_atual"] is not None),
+        Decimal(0),
+    )
+    sleeve = await sleeve_current_value(conn, user_id)
+    cost = await sleeve_cost_basis(conn)
+    dates = await conn.fetchrow(
+        # Preço manual não envelhece (ADR-012): a data é a do preço de mercado mais antigo.
+        "SELECT (SELECT min(fetched_at)::date FROM asset_prices "
+        "WHERE ticker = ANY($1::text[]) AND NOT is_manual) "
+        "AS prices, (SELECT min(scanned_at)::date FROM wallet_positions WHERE NOT is_manual) "
+        "AS wallets",
+        [p["asset_symbol"] for p in positions],
+    )
+    known = [d for d in (dates["prices"], dates["wallets"]) if d is not None]
+    oldest = min(known) if known else None
+    # API externa falhando: o valor segue com o último preço, marcado defasado (nunca erro).
+    lagging = oldest is not None and (today_brt() - oldest).days > STALE_AFTER_DAYS
+    return PortfolioSnapshot(
+        positions_value=positions_value,
+        crypto_value=Decimal(repr(sleeve.total_brl)),
+        contributed=calc.net_contributed(ops) + Decimal(repr(cost["net_invested_brl"])),
+        income=calc.income_received(ops),
+        as_of=oldest,
+        stale=stale or sleeve.stale or lagging,
+    )

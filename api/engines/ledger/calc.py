@@ -173,3 +173,10 @@ def month_checked(intervals: Sequence[BalanceInterval], month_end: date) -> bool
         if interval.end >= month_end:
             return all(x.ok for x in intervals[: i + 1])
     return False
+
+
+def computed_balance(
+    opening: Decimal, transactions: Sequence[tuple[date, Decimal]], until: date
+) -> Decimal:
+    """Saldo calculado (AD-7): saldo de abertura + Σ transações até a data."""
+    return opening + sum((a for d, a in transactions if d <= until), Decimal(0))
