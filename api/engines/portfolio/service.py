@@ -464,6 +464,7 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
     valorada pelo histórico de preço; com dinheiro a caminho (7.7), o patrimônio fecha sem ele —
     ambos pedem "fechar mesmo assim"."""
     from engines.common.alerts import brl
+    from engines.common.assets import B3_CATEGORIES, TREASURY_CATEGORIES
     from engines.common.dates import month_end, month_label
     from engines.common.owner import get_owner_id
 
@@ -474,12 +475,22 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
     has = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date = $1)", end
     )
-    if not has:
+    # pedido de 18/10/2026: sem posição na B3 no fim do mês, não há o que o consolidado conferir
+    held = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM (SELECT asset_symbol, sum(CASE WHEN tipo IN "
+        "('compra', 'aporte') THEN quantidade WHEN tipo IN ('venda', 'resgate') THEN -quantidade "
+        "ELSE 0 END) AS q FROM asset_operations WHERE data_operacao <= $1 "
+        "AND asset_category = ANY($2::text[]) GROUP BY asset_symbol) x WHERE x.q > 0)",
+        end,
+        sorted(B3_CATEGORIES | TREASURY_CATEGORIES),
+    )
+    if not has and held:
         found.append(
             {
                 "code": "consolidado_ausente",
                 "kind": "confirma",
-                "message": f"Consolidado B3 de {month_label(month)} não importado.",
+                "message": f"Consolidado B3 de {month_label(month)} não importado: a B3 do mês "
+                "vale pelo histórico de preço.",
             }
         )
     # Story 7.7: dinheiro a caminho no fim do mês (o patrimônio fecha sem ele)

@@ -327,23 +327,46 @@ async def positions_as_of(conn: asyncpg.Connection, day: date) -> list[dict[str,
 
 async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
     """Precondição do fechamento (Story 5.3): sem scan de cripto no último dia do mês, o bloco é
-    estimado — pede "fechar mesmo assim"."""
+    estimado — pede "fechar mesmo assim". Pedido de 18/10/2026: sem cripto até o fim do mês, nada;
+    antes do primeiro scan das carteiras (o histórico não é recuperável), o bloco vale o aplicado e
+    o aviso é só informativo; depois, o aviso diz de que dia são as quantidades usadas."""
     from engines.common.dates import month_end, month_label
 
     end = month_end(month)
-    has = await conn.fetchval(
+    if await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM wallet_position_history WHERE ref_date = $1)", end
-    )
-    if has:
+    ):
         return []
+    last = await conn.fetchval(
+        "SELECT max(ref_date) FROM wallet_position_history WHERE ref_date <= $1", end
+    )
+    if last is not None:
+        return [
+            {
+                "code": "sem_scan_cripto",
+                "kind": "confirma",
+                "message": f"Sem scan de cripto no fim de {month_label(month)}: o bloco usa as "
+                f"quantidades de {last:%d/%m/%Y} com o preço do fim do mês.",
+            }
+        ]
+    has_crypto = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM transactions t JOIN categories c ON c.id = t.category_id "
+        "WHERE c.key = ANY($1::text[]) AND t.date <= $2)",
+        list(settings.crypto_ledger_category_keys),
+        end,
+    )
+    if not has_crypto:
+        return []
+    first = await conn.fetchval("SELECT min(ref_date) FROM wallet_position_history")
+    since = f"o scan das carteiras começou em {first:%d/%m/%Y}" if first else "ainda sem scan"
     return [
         {
             "code": "sem_scan_cripto",
-            "kind": "confirma",
-            "message": f"Sem scan de cripto no fim de {month_label(month)}.",
+            "kind": "info",
+            "message": f"Cripto de {month_label(month)} pelo aplicado: {since} e o histórico "
+            "das carteiras não é recuperável.",
         }
     ]
-
 
 
 async def manual_positions(conn: asyncpg.Connection, user_id: str) -> list[dict[str, Any]]:

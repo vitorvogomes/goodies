@@ -4,7 +4,7 @@
 // transações revisadas e as pendências do mês — check neutro quando ok, ponto de aviso + link na
 // pendência — e, abaixo, o resumo a congelar. Pendência que bloqueia desabilita o botão com o
 // motivo; as outras viram "Fechar {mês} com {n} pendências" (o "fechar mesmo assim" fica gravado).
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, InfoIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -86,11 +86,15 @@ export function CloseDialog({ periodo, onClose }: { periodo: string | null; onCl
           <>
             <ul className="space-y-1.5 type-body-sm">
               {data.items.map((item) => {
-                const href = !item.ok && periodo ? linkFor(item, periodo) : null;
+                // aviso informativo (ex.: cripto antes do primeiro scan): não é pendência nem tem o que abrir
+                const info = !item.ok && item.kind === "info";
+                const href = !item.ok && !info && periodo ? linkFor(item, periodo) : null;
                 return (
                   <li key={item.key} className="flex items-start gap-2">
                     {item.ok ? (
                       <CheckIcon aria-label="ok" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    ) : info ? (
+                      <InfoIcon aria-label="informação" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     ) : (
                       <span
                         aria-label={item.kind === "bloqueia" ? "bloqueia" : "pendência"}
@@ -101,7 +105,7 @@ export function CloseDialog({ periodo, onClose }: { periodo: string | null; onCl
                         }
                       />
                     )}
-                    <span>
+                    <span className={info ? "text-muted-foreground" : undefined}>
                       {item.message}{" "}
                       {href && (
                         <Link href={href} className="text-positive underline" onClick={onClose}>
