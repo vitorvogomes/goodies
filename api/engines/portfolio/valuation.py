@@ -50,6 +50,9 @@ class PortfolioValuation:
     income: Decimal = Decimal(0)  # proventos até a data
     xirr: float | None = None  # consolidado, desde o início até a data
     coverage: dict[str, str] = field(default_factory=dict)  # fonte → método de valoração
+    by_asset_id: dict[str, Decimal] = field(default_factory=dict)  # assets.id → valor (snapshot)
+    # Fluxos líquidos do mês por (classe, data), sinal do XIRR (aporte < 0): XIRR de período.
+    flows: dict[tuple[str, date], Decimal] = field(default_factory=dict)
     data_as_of: date | None = None
     stale: bool = False
 
@@ -78,8 +81,48 @@ async def valuation_as_of(
     conn: asyncpg.Connection, user_id: str, as_of: date
 ) -> PortfolioValuation:
     if as_of >= today_brt():
-        return await _live(conn, user_id, as_of)
-    return await _past(conn, user_id, as_of)
+        out = await _live(conn, user_id, as_of)
+    else:
+        out = await _past(conn, user_id, as_of)
+    await _asset_ids(conn, out)
+    await _month_flows(conn, user_id, out)
+    return out
+
+
+async def _asset_ids(conn: asyncpg.Connection, out: PortfolioValuation) -> None:
+    rows = await conn.fetch(
+        "SELECT DISTINCT ON (symbol) symbol, asset_id::text AS asset_id FROM asset_aliases "
+        "WHERE symbol = ANY($1::text[]) ORDER BY symbol, chain",
+        list(out.by_asset),
+    )
+    ids = {r["symbol"]: r["asset_id"] for r in rows}
+    for symbol, value in out.by_asset.items():
+        if symbol in ids:
+            out.by_asset_id[ids[symbol]] = out.by_asset_id.get(ids[symbol], Decimal(0)) + value
+
+
+async def _month_flows(conn: asyncpg.Connection, user_id: str, out: PortfolioValuation) -> None:
+    from .crypto_sleeve import sleeve_cashflows
+
+    start = out.as_of.replace(day=1)
+    ops = await conn.fetch(
+        "SELECT asset_category, tipo, quantidade, valor_unitario, data_operacao "
+        "FROM asset_operations WHERE user_id = $1 AND data_operacao BETWEEN $2 AND $3 "
+        "AND asset_category <> ALL($4::text[])",
+        user_id,
+        start,
+        out.as_of,
+        _CRYPTO,
+    )
+    for op in ops:
+        if op["tipo"] not in _FLOW_TIPOS:
+            continue
+        key = (_cls(op["asset_category"]), op["data_operacao"])
+        out.flows[key] = out.flows.get(key, Decimal(0)) + _signed(op)
+    for day, amount in await sleeve_cashflows(conn):
+        if start <= day <= out.as_of:
+            key = ("cripto", day)
+            out.flows[key] = out.flows.get(key, Decimal(0)) + _dec(amount)
 
 
 async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> PortfolioValuation:

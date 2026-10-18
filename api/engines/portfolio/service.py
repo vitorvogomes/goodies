@@ -649,3 +649,25 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
         prices_as_of=prices_as_of,
         wallets_as_of=wallets_as_of,
     )
+
+
+async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
+    """Precondição do fechamento (Story 5.3): sem o consolidado B3 daquele fim de mês, a B3 é
+    valorada pelo histórico de preço — pede "fechar mesmo assim"."""
+    import calendar
+
+    from engines.common.dates import month_label
+
+    end = month.replace(day=calendar.monthrange(month.year, month.month)[1])
+    has = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date = $1)", end
+    )
+    if has:
+        return []
+    return [
+        {
+            "code": "consolidado_ausente",
+            "kind": "confirma",
+            "message": f"Consolidado B3 de {month_label(month)} não importado.",
+        }
+    ]

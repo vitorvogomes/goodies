@@ -4,6 +4,7 @@ Em container a API roda em UTC. `date.today()` cru daria o dia SEGUINTE
 entre ~21-24h BRT -> off-by-one nas bordas 7d/30d dos alertas (compute-on-read).
 Toda lógica de "hoje" dos alertas deve passar por `today_brt()`.
 """
+
 from __future__ import annotations
 
 import re
@@ -58,3 +59,11 @@ def resolve_period(periodo: str, leitura: str) -> list[date]:
         months.append(start)
         start = _add_months(start, 1)
     return months
+
+
+_MONTHS_PT = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+
+
+def month_label(month: date) -> str:
+    """`date(2026, 10, 1)` → "out/2026" (rótulo de mês das mensagens)."""
+    return f"{_MONTHS_PT[month.month - 1]}/{month.year}"

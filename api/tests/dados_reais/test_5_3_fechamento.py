@@ -1,0 +1,66 @@
+"""Story 5.3 — fechar na base real: fev/2025 é bloqueado pelo saldo PF divergente (P8); mar/2025
+fecha com "fechar mesmo assim" das pendências `confirma`, e o snapshot é igual ao resumo ao vivo
+no instante do fechamento (golden)."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import date
+
+import asyncpg
+import pytest
+
+from engines.closing import service as closing
+from engines.closing.checks import run_checks
+from scripts.ops.ancorar_saldo import FILES_DIR, anchor
+from tests.dados_reais.conftest import restore_dados
+from workers.dbops import alembic_upgrade
+
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
+TERMS = (
+    "receitas",
+    "trabalho",
+    "resgates",
+    "devolucoes",
+    "gastos",
+    "investido",
+    "resultado_mes",
+    "saldo_contas",
+    "valor_investido",
+    "patrimonio",
+    "aplicado",
+    "resultado_investimentos",
+    "taxa_poupanca",
+    "rentabilidade",
+)
+
+
+async def test_fechamento_golden() -> None:
+    import main  # noqa: F401
+
+    dsn = await restore_dados()
+    try:
+        await asyncio.to_thread(alembic_upgrade, dsn, "head")
+        conn = await asyncpg.connect(dsn)
+        try:
+            # a base fixada é anterior à âncora da Story 3.12: grava os saldos informados
+            await anchor(conn, sorted(FILES_DIR.rglob("*.ofx")), write=True)
+            feb = await run_checks(conn, date(2025, 2, 1))
+            assert any(c.code == "saldo_pf_divergente" and c.kind == "bloqueia" for c in feb)
+            march = date(2025, 3, 1)
+            checks = await run_checks(conn, march)
+            assert not [c for c in checks if c.kind == "bloqueia"], checks
+            confirm = [c.code for c in checks if c.kind == "confirma"]
+            live = await closing.build_month_summary(conn, march, date(2025, 3, 31))
+            out = await closing.close_month(conn, march, confirm)
+            assert out.version == 1
+            row = await conn.fetchrow(
+                "SELECT * FROM month_summary_totals WHERE month = $1 AND version = 1", march
+            )
+            for term in TERMS:
+                assert row[term] == getattr(live, term), term
+        finally:
+            await conn.close()
+    finally:
+        await restore_dados()

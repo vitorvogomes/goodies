@@ -16,9 +16,11 @@ from config import assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.alerts import service as alerts_service
 from engines.alerts.router import router as alerts_router
+from engines.closing import service as closing_service
+from engines.closing.checks import register_close_check
 from engines.closing.router import router as closing_router
 from engines.common.cache import check_redis
-from engines.common.month_status import AllMonthsOpen, register_month_status
+from engines.common.month_status import register_month_status
 from engines.ingest import service as ingest_service
 from engines.ingest.router import router as ingest_router
 from engines.ledger import service as ledger_service
@@ -35,6 +37,7 @@ from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.router import router as portfolio_router
 from engines.portfolio.transit_routes import router as portfolio_transit_router
+from engines.wallet import service as wallet_service
 from engines.wallet.defi import defi_maturity_provider
 from engines.wallet.defi_router import router as defi_router
 from engines.wallet.router import router as wallet_router
@@ -44,7 +47,7 @@ from workers.job_alerts import job_alerts
 from workers.router import router as jobs_router
 
 # Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
-register_month_status(AllMonthsOpen())
+register_month_status(closing_service.ClosingMonthStatus())
 register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
 ledger_service.register_on_transactions_deleting(portfolio_hooks.on_transactions_deleting)
 market_service.register_on_price_changed(portfolio_service.invalidate_xirr_for_ticker)
@@ -56,6 +59,13 @@ ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo, layer=3)
 ingest_service.register_undo_counter(portfolio_hooks.count_derived_for_undo)
 ingest_service.register_account_holders(ledger_service.account_holders)
 ingest_service.register_source_balances(ledger_service.source_balances)
+# Fechamento (AD-8): cada engine registra as precondições do mês.
+for _check in (
+    ledger_service.close_checks,
+    portfolio_service.close_checks,
+    wallet_service.close_checks,
+):
+    register_close_check(_check)
 # Central de avisos (AD-10): cada engine registra seu provider; nenhuma importa `alerts`.
 for _provider in (
     ledger_service.fixed_cost_alerts,

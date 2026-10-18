@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from engines.common.money import Money, Pct
 
@@ -38,6 +38,28 @@ class MonthSummary(BaseModel):
     rentabilidade: Pct | None  # XIRR desde o início até as_of, em % a.a.
     valor_por_classe: dict[str, Money]
     valor_por_ativo: dict[str, Money]
+    caixa_corretora: Money
+    # Para o snapshot (AD-8): valor por `assets.id` e fluxos líquidos por (classe, data) no mês.
+    asset_ids_value: dict[str, Money] = Field(default_factory=dict, exclude=True)
+    flows: dict[tuple[str, date], Money] = Field(default_factory=dict, exclude=True)
     portfolio_as_of: date | None
     portfolio_stale: bool
     coverage: dict[str, str]  # fonte → método de valoração ("B3: consolidado de 30/09/2026")
+
+
+class CloseCheck(BaseModel):
+    """Precondição do fechamento (AD-8): `bloqueia` impede; `confirma` pede "fechar mesmo assim"."""
+
+    code: str
+    kind: str  # bloqueia | confirma
+    message: str
+
+
+class CloseIn(BaseModel):
+    confirmar: list[str] = []  # códigos das verificações `confirma` aceitas
+
+
+class CloseOut(BaseModel):
+    month: date
+    version: int
+    confirmations: list[CloseCheck]

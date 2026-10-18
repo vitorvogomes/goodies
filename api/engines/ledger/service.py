@@ -24,7 +24,7 @@ from engines.common.alerts import (
     brl,
     fingerprint,
 )
-from engines.common.dates import parse_periodo
+from engines.common.dates import month_label, parse_periodo, today_brt
 from engines.common.month_status import month_status
 
 from . import queries
@@ -1417,3 +1417,61 @@ async def pf_month_checked(conn: asyncpg.Connection, month_end: date) -> bool | 
     if check is None or not check.intervals:
         return None
     return month_checked(check.intervals, month_end)
+
+
+# --------------------------------------------------------------------------------------------
+# Precondições do fechamento que o ledger registra em `closing` (Story 5.3 — AD-8)
+# --------------------------------------------------------------------------------------------
+
+
+async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
+    """Pendentes e saldo PF divergente bloqueiam; PF sem saldo conferido e MEI que não cobre o
+    mês pedem "fechar mesmo assim"."""
+    from engines.ingest import service as ingest_service
+
+    found: list[dict[str, str]] = []
+    end = date(month.year + month.month // 12, month.month % 12 + 1, 1) - datetime.timedelta(1)
+    pending = await conn.fetchval(
+        "SELECT count(*) FROM transactions WHERE review_status = 'pending' "
+        "AND date >= $1 AND date <= $2",
+        month,
+        end,
+    )
+    label = month_label(month)
+    if pending:
+        found.append(
+            {
+                "code": "transacoes_pendentes",
+                "kind": "bloqueia",
+                "message": f"{pending} transações a revisar em {label}.",
+            }
+        )
+    check = await pf_balance_check(conn)
+    intervals = check.intervals if check is not None else []
+    for i in intervals:
+        if not i.ok and i.start < end and i.end >= month:
+            found.append(
+                {
+                    "code": "saldo_pf_divergente",
+                    "kind": "bloqueia",
+                    "message": f"Saldo da conta PF divergente em {brl(abs(i.difference))} "
+                    f"({i.start:%d/%m/%Y} a {i.end:%d/%m/%Y}).",
+                }
+            )
+    if not any(f["code"] == "saldo_pf_divergente" for f in found) and not month_checked(
+        intervals, end
+    ):
+        found.append(
+            {
+                "code": "saldo_pf_nao_conferido",
+                "kind": "confirma",
+                "message": f"Saldo da conta PF não conferido no fim de {label}.",
+            }
+        )
+    sources = await ingest_service.sources(conn, today_brt(), with_balances=False)
+    mei = next((s for s in sources if s.key == "nubank_mei"), None)
+    if mei is not None and (mei.updated_until is None or mei.updated_until < end):
+        found.append(
+            {"code": "mei_nao_cobre", "kind": "confirma", "message": f"MEI não cobre {label}."}
+        )
+    return found
