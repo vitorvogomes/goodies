@@ -2,33 +2,51 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, status
 
 from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
 from . import goals, service, targets
-from .models import DividasIn, MonthPlanOut
+from .models import AporteIn, DividasIn, MonthPlanOut
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
 
 
-@router.put("/months/{mes}/dividas", response_model=MonthPlanOut)
-async def set_dividas(mes: str, body: DividasIn, user: AuthUser, db: Db) -> MonthPlanOut:
+def _month(mes: str) -> date:
     try:
-        month = parse_periodo(mes)
+        return parse_periodo(mes)
     except ValueError:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             {"error": "periodo_invalido", "message": "Período inválido (use AAAA-MM)."},
         ) from None
+
+
+def _closed(what: str) -> HTTPException:
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        {"error": "mes_fechado", "message": f"Mês fechado: reabra para mudar {what}."},
+    )
+
+
+@router.put("/months/{mes}/dividas", response_model=MonthPlanOut)
+async def set_dividas(mes: str, body: DividasIn, user: AuthUser, db: Db) -> MonthPlanOut:
     try:
-        return await service.set_dividas(db, month, body.valor)
+        return await service.set_dividas(db, _month(mes), body.valor)
     except service.MonthClosedError:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            {"error": "mes_fechado", "message": "Mês fechado: reabra para mudar as dívidas."},
-        ) from None
+        raise _closed("as dívidas") from None
+
+
+@router.put("/months/{mes}/aporte", response_model=MonthPlanOut)
+async def set_aporte(mes: str, body: AporteIn, user: AuthUser, db: Db) -> MonthPlanOut:
+    """Story 8.4: o aporte planejado do mês (None = não definido)."""
+    try:
+        return await service.set_aporte(db, _month(mes), body.valor)
+    except service.MonthClosedError:
+        raise _closed("o aporte planejado") from None
 
 
 # ---- Objetivos (Story 8.1) ----

@@ -54,6 +54,19 @@ async def set_dividas(conn: asyncpg.Connection, month: date, value: Decimal | No
     return await month_plan(conn, month)
 
 
+async def set_aporte(conn: asyncpg.Connection, month: date, value: Decimal | None) -> MonthPlanOut:
+    """Story 8.4: grava o aporte planejado do mês (None = não definido). Recusa em mês fechado."""
+    if await month_status().is_closed(conn, month):
+        raise MonthClosedError(f"{month:%Y-%m}")
+    await conn.execute(
+        "INSERT INTO month_plans (month, aporte_planejado) VALUES ($1, $2) ON CONFLICT (month) "
+        "DO UPDATE SET aporte_planejado = EXCLUDED.aporte_planejado, updated_at = now()",
+        month,
+        value,
+    )
+    return await month_plan(conn, month)
+
+
 async def ensure_month_plan(conn: asyncpg.Connection, month: date, *, mode: str) -> MonthPlanOut:
     """Plano do mês para o fechamento (Story 6.8). `retro`: dívidas = Σ das transações de role
     `divida` não casadas a custo fixo; aporte planejado nulo (`nao_definido`) — só quando o mês

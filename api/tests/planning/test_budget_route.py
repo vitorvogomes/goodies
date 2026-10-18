@@ -153,3 +153,33 @@ async def test_closed_month_budget_is_frozen_whole(api, auth_headers, pool, seed
     for key in ("consumido_por_grupo", "custos_fixos_pagos", "gastos", "dividas"):
         assert frozen[key] == live[key], key
     assert frozen["disponivel"]["value"] == live["disponivel"]["value"]
+
+
+@pytest.mark.asyncio
+async def test_aporte_planejado_write(api, auth_headers, pool, seeded) -> None:
+    """Story 8.4: o aporte planejado grava em month_plans e o disponível recalcula pela API; nulo
+    volta a "não definido"; mês fechado é só leitura."""
+    import main  # noqa: F401
+
+    url = f"/api/v1/planning/months/{MES}/aporte"
+    budget = f"/api/v1/closing/months/{MES}/budget"
+    before = (await api.get(budget, headers=auth_headers)).json()  # fixture: 4.500,00
+    r = await api.put(url, json={"valor": "4000.00"}, headers=auth_headers)
+    assert r.status_code == 200 and r.json()["aporte_planejado"] == 4000.0
+    after = (await api.get(budget, headers=auth_headers)).json()
+    assert after["aporte_definido"] is True and after["aporte_planejado"] == 4000.0
+    assert Decimal(str(after["disponivel"]["value"])) == Decimal(
+        str(before["disponivel"]["value"])
+    ) + Decimal(500)
+    r = await api.put(url, json={"valor": None}, headers=auth_headers)
+    assert r.status_code == 200 and r.json()["aporte_planejado"] is None
+    undefined = (await api.get(budget, headers=auth_headers)).json()
+    assert undefined["aporte_definido"] is False
+    bad = await api.put(url, json={"valor": "-1"}, headers=auth_headers)
+    assert bad.status_code == 422
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO month_closes (month, version, status) VALUES ($1, 1, 'closed')", MONTH
+        )
+    r = await api.put(url, json={"valor": "100.00"}, headers=auth_headers)
+    assert r.status_code == 409 and r.json()["detail"]["error"] == "mes_fechado"

@@ -85,6 +85,10 @@ class DividasIn(BaseModel):
     valor: Money | None  # None = voltar ao pré-preenchido
 
 
+class AporteIn(BaseModel):
+    valor: Money | None = Field(default=None, ge=0)  # None = não definido
+
+
 class MonthPlanOut(BaseModel):
     month: date
     dividas: Money | None

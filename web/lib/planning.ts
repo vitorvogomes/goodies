@@ -115,3 +115,17 @@ export function useSaveTargets() {
     onSuccess: () => invalidateAfter(queryClient, "planning"),
   });
 }
+
+// ---- Aporte planejado (Story 8.4) ----
+
+export function useSetAporte() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ periodo, valor }: { periodo: string; valor: string | null }) =>
+      apiFetch<{ aporte_planejado: number | null }>(`/api/v1/planning/months/${periodo}/aporte`, {
+        method: "PUT",
+        body: JSON.stringify({ valor }),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "planning"),
+  });
+}
