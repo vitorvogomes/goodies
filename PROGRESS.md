@@ -25,15 +25,15 @@
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 1.1 | Arrumação dos docs vivos para a v2 | [ ] | — |
-| 1.2 | Backup diário do banco local | [ ] | — |
-| 1.3 | Versões da stack atualizadas | [ ] | — |
-| 1.4 | Fundação visual — shadcn, tokens e tema | [ ] | — |
-| 1.5 | Guarda-corpos do visual — teste "no raw color" e theme-showcase | [ ] | — |
-| 1.6 | Endurecimento local — portas, segredos e Hermes | [ ] | — |
-| 1.7 | Navegação em 4 áreas | [ ] | — |
-| 1.8 | Período na URL e formatação financeira | [ ] | — |
-| 1.9 | Login no visual novo e sessão que volta ao lugar | [ ] | — |
+| 1.1 | Arrumação dos docs vivos para a v2 | [x] | b20b4e8 |
+| 1.2 | Backup diário do banco local | [x] | 0d3b3fd |
+| 1.3 | Versões da stack atualizadas | [x] | 0d3b3fd, e0eecb9 |
+| 1.4 | Fundação visual — shadcn, tokens e tema | [x] | e0eecb9 |
+| 1.5 | Guarda-corpos do visual — teste "no raw color" e theme-showcase | [x] | e0eecb9 |
+| 1.6 | Endurecimento local — portas, segredos e Hermes | [x] | 0d3b3fd |
+| 1.7 | Navegação em 4 áreas | [x] | 1897688 |
+| 1.8 | Período na URL e formatação financeira | [x] | 1897688 |
+| 1.9 | Login no visual novo e sessão que volta ao lugar | [x] | 1897688 |
 
 ### Épico 2 — Categorias em dois níveis, regras e histórico corrigido
 
@@ -190,3 +190,5 @@
 | Data | Marco | Stories | Notas |
 |---|---|---|---|
 | 2026-10-18 | — | planejamento | Backlog v2 final (78 stories), prontidão PASS, revisão adversarial aplicada; tracker v1 arquivado em `docs/v1/PROGRESS-v1.md`. |
+| 2026-10-18 | m1 | 1.1–1.2 | Docs vivos na v2 (CLAUDE.md, conventions, .env.example sem Upstash + BACKUP_DIR, ADR-011 substituído, ADR-014/015 em docs/07). Backup pré-v2 em BACKUP_DIR/pre-migracao. 1.2: db_backup diário + restore_check mensal, guarda no Alembic, migrar/startup (AUTO_MIGRATE=false, sem --reload), goodies_dev/goodies_dados, runbook. 1.3: baseline (EVALUATION_DATE 2026-10-18, preços congelados) fixado + teste dados_reais; web Next 16.3.8/React 19.2.9/TS 5.9.3/Tailwind 4.3.0, pnpm 11, Node 24; API já no lock travado; suíte 585 verde, cov 93,76%; 16 telas v1 sem erro de console. 1.4: shadcn radix (Vega = new-york), tokens claro/escuro do DESIGN em globals.css, Geist/Geist Mono + tabular-nums, escala type-* e raios, Switch de tema (system, persiste), anel 2px+offset, Sonner; ui.tsx vira fachada; v1 migrada de gain/loss/accent. 1.5: Vitest 4 + `pnpm test` com "no raw color" (exceção v1 só a pizza da alocação), /dev/tema claro×escuro (404 em produção), hook roda eslint+vitest. 1.6: portas em 127.0.0.1, env_file .env, senha no Postgres (ALTER USER às cegas) e no Redis, api recusa dev-insecure-* fora de test, Hermes não montado (HERMES_ENABLED=false), login 5 erros/15 min → 429 com a mensagem; redis_url na config. 1.7: Barra lateral 240px (4 áreas + Importar, ativo pela área inclusive nas URLs v1), Barra superior 56px fixa, abas na URL com ←/→, telas v1 por link dentro da área, Importar em painel lateral 560px (200/150 ms, foco preso, Esc), / → Visão geral, empilha < 1024px; 35 rotas sem erro de console. 1.8: Seletor de período na Barra superior (out/2026 mono, ‹ ›, popover, futuro e < jul/2024 desabilitados com tooltip, URL < jul/2024 → jul/2024, sem período = mês atual BRT), lib/period (resolvePeriod mes/tri/ano/inicio) e lib/format (NBSP, menos tipográfico, 2 casas, p.p.) com Vitest. 1.9: login com tokens/componentes novos; 401 → refresh → repete; sem sessão (proxy, gate ou refresh falho) → /login?next=<rota+query> e volta com o período; next só relativo; token só em memória; testes de cookie (httpOnly, lax, sem secure) e CORS só localhost:3000. |
+| 2026-10-18 | m1 | Épico 1 fechado | Code review do épico: 10 achados aplicados com teste (open redirect no next, segredos placeholder, BACKUP_DIR relativo + *.dump no .gitignore, dados_reais roda o upgrade, Atualizar tudo não força backup, cores v1 de investimento, DSN com senha especial, guarda do Alembic só em escrita, baseline em Decimal, zero sem sinal). Suíte 606 verde, cov 93,86%, 0 dados_reais pulados; web 35 Vitest + lint + build. |
