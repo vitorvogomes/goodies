@@ -70,7 +70,7 @@ async def build_caixinha_ops(conn: asyncpg.Connection, spec: CaixinhaSpec) -> li
     if not spec.desc_match:
         return []
     rows = await ledger_queries.transactions_by_category_keys(
-        conn, spec.source_keys, description_any=spec.desc_match
+        conn, spec.source_keys, description_any=spec.desc_match, with_pairs=True
     )
     ops: list[dict[str, Any]] = []
     for r in rows:

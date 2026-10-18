@@ -13,7 +13,9 @@ _BY_KEYS = """
     SELECT t.date, t.amount, t.external_id, t.description, c.key AS category_key,
            c.name AS category_name
     FROM transactions t JOIN categories c ON c.id = t.category_id
-    WHERE c.key = ANY($1::text[])
+    WHERE (c.key = ANY($1::text[])
+           OR ($4 AND c.key IN (SELECT p.pair_key FROM categories p
+                                WHERE p.key = ANY($1::text[]) AND p.pair_key IS NOT NULL)))
       AND ($2::text IS NULL OR t.kind = $2)
       AND (cardinality($3::text[]) = 0
            OR EXISTS (SELECT 1 FROM unnest($3::text[]) d WHERE t.description ILIKE '%' || d || '%'))
@@ -27,11 +29,13 @@ async def transactions_by_category_keys(
     *,
     kind: str | None = None,
     description_any: Sequence[str] = (),
+    with_pairs: bool = False,
 ) -> list[asyncpg.Record]:
-    """Transações das subcategorias `keys` (opcional: só um `kind`; descrição com algum dos termos),
-    por data: date, amount, external_id, description, category_key, category_name."""
+    """Transações das subcategorias `keys` (opcional: só um `kind`; descrição com algum dos termos;
+    `with_pairs` inclui o par investimento ↔ resgate do trilho — Story 2.6), por data: date, amount,
+    external_id, description, category_key, category_name."""
     rows: list[asyncpg.Record] = await conn.fetch(
-        _BY_KEYS, list(keys), kind, list(description_any)
+        _BY_KEYS, list(keys), kind, list(description_any), with_pairs
     )
     return rows
 
@@ -82,3 +86,22 @@ async def category_id_by_key(conn: asyncpg.Connection, key: str) -> str:
     if value is None:
         raise LookupError(f"categoria de sistema ausente: {key}")
     return str(value)
+
+
+MONTH_MOVEMENTS = """
+    SELECT date_trunc('month', t.date)::date AS month, t.kind, c.role, sum(t.amount) AS amount
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    WHERE ($1::date[] IS NULL OR date_trunc('month', t.date)::date = ANY($1::date[]))
+    GROUP BY 1, 2, 3
+"""
+
+
+async def month_movements(
+    conn: asyncpg.Connection, months: Sequence[object] | None = None
+) -> list[asyncpg.Record]:
+    """Transações agregadas por (mês, kind, role) — os termos de AD-7 são somas, então a agregação
+    não muda o resultado das funções de `ledger/calc`."""
+    rows: list[asyncpg.Record] = await conn.fetch(
+        MONTH_MOVEMENTS, list(months) if months is not None else None
+    )
+    return rows

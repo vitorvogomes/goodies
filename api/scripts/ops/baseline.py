@@ -132,11 +132,35 @@ def dados_dsn() -> str:
     return DbTarget.from_dsn(settings.database_url).with_database("goodies_dados").dsn()
 
 
+PINNED_SAVINGS_V2_FILE = PINNED_BASELINE_FILE.with_name("pinned_savings_v2.txt")
+
+
+def pinned_savings_v2() -> dict[str, str | None] | None:
+    """Taxa de poupança v2 (`ledger/calc`, em %) por mês fixada depois da Story 2.6 (ADR-016)."""
+    if not PINNED_SAVINGS_V2_FILE.is_file():
+        return None
+    name = PINNED_SAVINGS_V2_FILE.read_text().strip()
+    path = validate_backup_dir(settings.backup_dir) / "baseline" / name if name else None
+    if path is None or not path.is_file():
+        return None
+    data: dict[str, str | None] = json.loads(path.read_text())
+    return data
+
+
 def pinned_baseline() -> Path | None:
     if not PINNED_BASELINE_FILE.is_file():
         return None
     name = PINNED_BASELINE_FILE.read_text().strip()
     return validate_backup_dir(settings.backup_dir) / "baseline" / name if name else None
+
+
+def load_pinned_baseline() -> dict[str, Any] | None:
+    """Conteúdo do baseline fixado (leitura síncrona, para os testes)."""
+    path = pinned_baseline()
+    if path is None or not path.is_file():
+        return None
+    data: dict[str, Any] = json.loads(path.read_text())
+    return data
 
 
 async def _build(evaluation_date: date) -> dict[str, Any]:
@@ -151,12 +175,41 @@ async def _build(evaluation_date: date) -> dict[str, Any]:
         await conn.close()
 
 
+async def _savings_v2() -> tuple[str, dict[str, str | None]]:
+    """Poupança v2 (`ledger/calc`, %) por mês da base fixada migrada até o head (Story 2.6)."""
+    from engines.ledger.service import monthly_savings
+    from workers.dbops import alembic_upgrade
+
+    source = pinned_dados_backup()
+    if source is None or not source.is_file():
+        raise RuntimeError("backup pré-migração fixado não encontrado")
+    await restore(source, dados_dsn())
+    await asyncio.to_thread(alembic_upgrade, dados_dsn(), "head")
+    conn = await asyncpg.connect(dados_dsn())
+    try:
+        rev = str(await conn.fetchval("SELECT version_num FROM alembic_version"))
+        rates = await monthly_savings(conn)
+    finally:
+        await conn.close()
+    return rev, {
+        m.isoformat()[:7]: None if r is None else str(round(r * 100, 6)) for m, r in rates.items()
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--salvar", type=Path, required=True)
     parser.add_argument("--data", type=date.fromisoformat, default=BASELINE_EVALUATION_DATE)
+    parser.add_argument("--poupanca-v2", action="store_true", help="grava só a poupança v2")
     args = parser.parse_args()
     out_dir = validate_backup_dir(str(args.salvar))
+    if args.poupanca_v2:
+        rev, rates = asyncio.run(_savings_v2())
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest = out_dir / f"savings_v2_{rev}.json"
+        dest.write_text(json.dumps(rates, indent=1, sort_keys=True))
+        print(f"poupança v2 gravada: {dest} (fixe o nome em {PINNED_SAVINGS_V2_FILE.name})")
+        sys.exit(0)
     data = asyncio.run(_build(args.data))
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"baseline_{data['revision']}_{args.data.isoformat()}.json"

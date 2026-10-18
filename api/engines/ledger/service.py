@@ -9,6 +9,7 @@ import datetime
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
@@ -17,7 +18,7 @@ from pydantic import BaseModel
 from engines.common.month_status import month_status
 
 from . import queries
-from .calc import Rule
+from .calc import Movement, Rule, savings_rate
 
 AlertData = dict[str, float | int | str]
 
@@ -254,3 +255,14 @@ async def categorize(
         for hook in _hooks:
             await hook(conn, list(result.changed))
     return result
+
+
+async def monthly_savings(
+    conn: asyncpg.Connection, months: Sequence[date] | None = None
+) -> dict[date, Decimal | None]:
+    """Taxa de poupança (fração) por mês pela função única de `ledger/calc` (Story 2.6, AD-7).
+    Mês sem receita do trabalho → None."""
+    by_month: dict[date, list[Movement]] = {}
+    for r in await queries.month_movements(conn, months):
+        by_month.setdefault(r["month"], []).append(Movement(r["amount"], r["kind"], r["role"]))
+    return {m: savings_rate(mv) for m, mv in sorted(by_month.items())}

@@ -39,19 +39,25 @@ async def sleeve_cost_basis(conn: asyncpg.Connection) -> dict[str, Any]:
     `cost_basis` = Σ|saídas| (amount<0); `returned` = Σ entradas (amount>0);
     `net_invested` = cost_basis - returned. `by_category` traz o investido líquido por rail.
     """
-    rows = await ledger_queries.transactions_by_category_keys(
-        conn, settings.crypto_ledger_category_keys
-    )
+    rails = settings.crypto_ledger_category_keys
+    rows = await ledger_queries.transactions_by_category_keys(conn, rails, with_pairs=True)
     cost_basis = 0.0
     returned = 0.0
-    by_category: dict[str, float] = defaultdict(float)
+    # Story 2.6: o resgate do trilho (`resgate:x`) soma no mesmo rail do investimento (`invest:x`),
+    # rotulado pelo nome da subcategoria de investimento.
+    by_rail: dict[str, float] = defaultdict(float)
+    label: dict[str, str] = {}
     for r in rows:
         amt = float(r["amount"])
         if amt < 0:
             cost_basis += -amt
         else:
             returned += amt
-        by_category[r["category_name"]] += -amt  # saída (negativa) → investido positivo
+        rail = str(r["category_key"]).split(":", 1)[-1]
+        by_rail[rail] += -amt  # saída (negativa) → investido positivo
+        if str(r["category_key"]).startswith("invest:") or rail not in label:
+            label[rail] = r["category_name"]
+    by_category = {label[k]: v for k, v in by_rail.items()}
     return {
         "cost_basis_brl": cost_basis,
         "returned_brl": returned,
@@ -65,9 +71,8 @@ async def sleeve_cost_basis(conn: asyncpg.Connection) -> dict[str, Any]:
 
 async def sleeve_cashflows(conn: asyncpg.Connection) -> list[tuple[date, float]]:
     """Série de cashflows do ledger cripto (sinais crus: aporte<0, retorno>0)."""
-    rows = await ledger_queries.transactions_by_category_keys(
-        conn, settings.crypto_ledger_category_keys
-    )
+    rails = settings.crypto_ledger_category_keys
+    rows = await ledger_queries.transactions_by_category_keys(conn, rails, with_pairs=True)
     return [(r["date"], float(r["amount"])) for r in rows]
 
 

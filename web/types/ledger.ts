@@ -123,7 +123,7 @@ export interface MonthlySummary {
   total_income: number;
   total_expense: number;
   net_cashflow: number;
-  savings_rate: number;
+  savings_rate: number | null; // null = sem receita do trabalho (Story 2.6)
   total_invested: number;
   investment_rate: number;
 }

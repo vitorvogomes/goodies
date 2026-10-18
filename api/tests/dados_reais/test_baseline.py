@@ -16,7 +16,8 @@ from typing import Any
 import asyncpg
 import pytest
 
-from scripts.ops.baseline import compute_baseline, pinned_baseline
+from engines.ledger.service import monthly_savings
+from scripts.ops.baseline import compute_baseline, pinned_baseline, pinned_savings_v2
 from tests.dados_reais.conftest import require_or_skip, restore_dados
 from workers.dbops import alembic_upgrade
 
@@ -54,6 +55,21 @@ async def test_portfolio_e_caixa_iguais_ao_baseline() -> None:
         await conn.close()
     got.pop("revision")
     expected.pop("revision")
+    # Story 2.6 (ADR-015): resgate virou receita, então a taxa da view v1 muda; a taxa canônica é a
+    # de `ledger/calc`, comparada com a lista v2 fixada.
+    got.pop("savings_rate")
+    expected.pop("savings_rate")
+    pinned_v2 = pinned_savings_v2()
+    if pinned_v2 is None:
+        require_or_skip("lista v2 de poupança não fixada")
+    conn2 = await asyncpg.connect(dados_dsn)
+    try:
+        v2 = await monthly_savings(conn2)
+    finally:
+        await conn2.close()
+    assert {
+        m.isoformat()[:7]: None if r is None else str(round(r * 100, 6)) for m, r in v2.items()
+    } == pinned_v2
     try:
         _close(expected, json.loads(json.dumps(got)), "baseline")
     finally:

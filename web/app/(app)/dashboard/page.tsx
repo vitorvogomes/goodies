@@ -28,7 +28,7 @@ function SummaryCards({ month }: { month: MonthlySummary }) {
         value={formatBRL(month.net_cashflow)}
         tone={month.net_cashflow < 0 ? "loss" : "gain"}
       />
-      <Stat label="Taxa de poupança" value={formatPercent(month.savings_rate)} tone="gain" />
+      <Stat label="Taxa de poupança" value={month.savings_rate == null ? "—" : formatPercent(month.savings_rate)} tone="gain" />
       <Stat label="Taxa de investimento" value={formatPercent(month.investment_rate)} tone="gain" />
     </div>
   );
@@ -44,12 +44,12 @@ function SavingsTrend({ months }: { months: MonthlySummary[] }) {
         {data.map((m) => (
           <div key={m.month} className="flex h-full flex-1 flex-col items-center gap-1.5">
             <span className="text-xs tabular-nums text-foreground/60">
-              {Math.round(m.savings_rate)}%
+              {m.savings_rate == null ? "—" : `${Math.round(m.savings_rate)}%`}
             </span>
             <div className="flex w-full flex-1 items-end">
               <div
                 className="w-full rounded-t bg-positive/70"
-                style={{ height: `${Math.max(2, Math.min(100, m.savings_rate))}%` }}
+                style={{ height: `${Math.max(2, Math.min(100, m.savings_rate ?? 0))}%` }}
               />
             </div>
             <span className="text-xs text-foreground/40">{formatMonth(m.month)}</span>

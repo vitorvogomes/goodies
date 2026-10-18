@@ -40,3 +40,62 @@ def best_rule(description: str, amount: Decimal, rules: Sequence[Rule]) -> Rule 
     if not candidates:
         return None
     return max(candidates, key=lambda r: (len(r.pattern), r.created_at or _EPOCH, r.rule_id or ""))
+
+
+# --------------------------------------------------------------------------------------------
+# Termos de dinheiro do mês (AD-7 — Story 2.6): uma função pura por termo, lida por `role`.
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Movement:
+    """Uma transação vista pelos termos: valor com sinal, `kind` (cópia do grupo) e `role`."""
+
+    amount: Decimal
+    kind: str
+    role: str
+
+
+def _sum(movements: Sequence[Movement], role: str) -> Decimal:
+    return sum((m.amount for m in movements if m.role == role), Decimal(0))
+
+
+def work_income(movements: Sequence[Movement]) -> Decimal:
+    """Receita do trabalho (role `work_income`): nunca resgate, devolução nem a classificar."""
+    return _sum(movements, "work_income")
+
+
+def resgates(movements: Sequence[Movement]) -> Decimal:
+    return _sum(movements, "resgate")
+
+
+def devolucoes(movements: Sequence[Movement]) -> Decimal:
+    return _sum(movements, "devolucao")
+
+
+def gastos(movements: Sequence[Movement]) -> Decimal:
+    """Gastos brutos (magnitude): Σ das transações de `kind = expense` (estorno abate)."""
+    return -sum((m.amount for m in movements if m.kind == "expense"), Decimal(0))
+
+
+def investido(movements: Sequence[Movement]) -> Decimal:
+    """Investimento líquido do mês (magnitude das aplicações; resgate é receita desde o ADR-015)."""
+    return -sum((m.amount for m in movements if m.kind == "investment"), Decimal(0))
+
+
+def receitas(movements: Sequence[Movement]) -> Decimal:
+    return sum((m.amount for m in movements if m.kind == "income"), Decimal(0))
+
+
+def savings_rate(movements: Sequence[Movement]) -> Decimal | None:
+    """Taxa de poupança (fração): (trabalho - (gastos - devoluções)) / trabalho. Sem receita do
+    trabalho → None (`sem_receita`), nunca 0%."""
+    trabalho = work_income(movements)
+    if trabalho <= 0:
+        return None
+    return (trabalho - (gastos(movements) - devolucoes(movements))) / trabalho
+
+
+def month_result(movements: Sequence[Movement]) -> Decimal:
+    """Resultado do mês: receitas - gastos - investimento."""
+    return receitas(movements) - gastos(movements) - investido(movements)

@@ -72,7 +72,8 @@ _APLICADO_SQL = (
 async def _saiu(conn: asyncpg.Connection, keys: Sequence[str]) -> float:
     """Quanto saiu do Nubank p/ o trilho (líq.): -Σ(amount) do ledger (outflow negativo), lido por
     `categories.key` pela função pública do ledger (AD-3)."""
-    rows = await ledger_queries.transactions_by_category_keys(conn, keys, kind="investment")
+    # Story 2.6: o resgate do trilho virou receita (`resgate:x`); o líquido lê as duas keys do par.
+    rows = await ledger_queries.transactions_by_category_keys(conn, keys, with_pairs=True)
     return -float(sum((r["amount"] for r in rows), Decimal(0)))
 
 

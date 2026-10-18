@@ -13,6 +13,7 @@ o saldo real é o running_balance abaixo (SUM de TODAS as linhas, inclusive inve
 
 import datetime
 import uuid
+from decimal import Decimal
 from typing import Annotated
 
 import asyncpg
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
+from engines.ledger import service as ledger_service
 
 router = APIRouter(prefix="/api/v1/cashflow", tags=["ledger:cashflow"])
 
@@ -38,7 +40,9 @@ class MonthlySummary(BaseModel):
     total_income: float
     total_expense: float
     net_cashflow: float
-    savings_rate: float  # (B) (receita-despesa)/receita
+    # Story 2.6: taxa de `ledger/calc` — (trabalho - (gastos - devoluções)) / trabalho, em %;
+    # null sem receita do trabalho (nunca 0%).
+    savings_rate: float | None
     total_invested: float  # aportes líquidos do mês (kind=investment)
     investment_rate: float  # (A) investido/receita
 
@@ -53,13 +57,13 @@ class CashflowEntry(BaseModel):
     running_balance: float
 
 
-def _summary(row: asyncpg.Record) -> MonthlySummary:
+def _summary(row: asyncpg.Record, rate: Decimal | None) -> MonthlySummary:
     return MonthlySummary(
         month=row["month"].strftime("%Y-%m"),
         total_income=float(row["total_income"]),
         total_expense=float(row["total_expense"]),
         net_cashflow=float(row["net_cashflow"]),
-        savings_rate=round(float(row["savings_rate"]), 2),
+        savings_rate=None if rate is None else round(float(rate * 100), 2),
         total_invested=float(row["total_invested"]),
         investment_rate=round(float(row["investment_rate"]), 2),
     )
@@ -121,7 +125,8 @@ async def summary(
 ) -> MonthlySummary | list[MonthlySummary]:
     if month is None:
         rows = await db.fetch(_SUMMARY_SELECT)
-        return [_summary(r) for r in rows]
+        rates = await ledger_service.monthly_savings(db)
+        return [_summary(r, rates.get(r["month"])) for r in rows]
 
     first = datetime.date(int(month[:4]), int(month[5:7]), 1)
     row = await db.fetchrow(
@@ -137,7 +142,8 @@ async def summary(
                 "message": "receita do período é zero; taxa de poupança indefinida",
             },
         )
-    return _summary(row)
+    rates = await ledger_service.monthly_savings(db, [first])
+    return _summary(row, rates.get(first))
 
 
 class CategoryBreakdownRow(BaseModel):

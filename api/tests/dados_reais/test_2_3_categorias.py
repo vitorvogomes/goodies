@@ -8,6 +8,7 @@ restaura → mede (rótulo esperado com os deltas listados) → `alembic upgrade
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date
 from typing import Any
 
@@ -18,7 +19,7 @@ from engines.portfolio import transit
 from engines.portfolio.caixinhas import CAIXINHAS, CDB_GUANABARA, build_caixinha_ops
 from engines.portfolio.crypto_sleeve import sleeve_cashflows
 from scripts._common import resolve_owner
-from scripts.ops.baseline import compute_baseline, pinned_baseline
+from scripts.ops.baseline import compute_baseline, load_pinned_baseline
 from scripts.ops.compare_categorias import LABEL_BY_ID, diff, snapshot, total
 from tests.dados_reais.conftest import require_or_skip, restore_dados
 from workers.dbops import alembic_upgrade
@@ -154,27 +155,37 @@ async def test_categorias_em_dois_niveis() -> None:
                 await conn.fetchval("SELECT count(*) FROM fixed_costs WHERE category_id IS NULL")
                 == 0
             )
-            # leitores por key iguais antes e depois
+            # poupança por mês (view v1, ainda válida na 0018) = baseline fixado (ADR-016)
+            base = load_pinned_baseline()
+            if base is None:
+                require_or_skip("baseline fixado não encontrado")
+                raise AssertionError("inalcançável")
+            v1 = {
+                r["m"]: None if r["s"] is None else str(round(r["s"], 6))
+                for r in await conn.fetch(
+                    "SELECT to_char(month, 'YYYY-MM') m, savings_rate s FROM monthly_summary"
+                )
+            }
+            assert v1 == base["savings_rate"]
+        finally:
+            await conn.close()
+
+        # Os leitores por key (com o par investimento ↔ resgate) são do código atual: medem a base
+        # migrada até o head contra a definição legada por nome, e não mudam com renome.
+        await asyncio.to_thread(alembic_upgrade, dsn, "head")
+        conn = await asyncpg.connect(dsn)
+        try:
             assert await _readers(conn) == readers_before
-            # e iguais depois de renomear TODAS as categorias (ninguém lê nome)
             await conn.execute("UPDATE categories SET name = name || ' (renomeada)'")
             assert await _readers(conn) == readers_before
             await conn.execute("UPDATE categories SET name = replace(name, ' (renomeada)', '')")
-            # poupança por mês e XIRR = baseline fixado (ADR-016)
-            path = pinned_baseline()
-            if path is None or not path.is_file():
-                require_or_skip("baseline fixado não encontrado")
-            import json
-
-            base = json.loads(path.read_text())  # type: ignore[union-attr]
             got = json.loads(
                 json.dumps(
                     await compute_baseline(conn, date.fromisoformat(base["evaluation_date"]))
                 )
             )
-            for k in ("savings_rate", "aplicado", "net", "counts"):
+            for k in ("xirr", "aplicado", "net", "counts"):
                 assert got[k] == base[k], k
-            assert got["xirr"] == base["xirr"]
         finally:
             await conn.close()
     finally:
