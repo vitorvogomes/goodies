@@ -43,6 +43,7 @@ register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
 # Ingestão (AD-5): adapters vivem na engine dona; derivações de cima por hook de lote.
 ingest_service.register_adapter(NubankStatementAdapter())
 ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
+ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo)
 # Central de avisos (AD-10): cada engine registra seu provider; nenhuma importa `alerts`.
 for _provider in (
     ledger_service.fixed_cost_alerts,
