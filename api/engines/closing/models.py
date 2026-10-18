@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from engines.common.money import Money, Pct
+from engines.planning.models import MonthBudget
 
 
 class MonthSummary(BaseModel):
@@ -51,6 +52,8 @@ class MonthSummary(BaseModel):
     portfolio_as_of: date | None
     portfolio_stale: bool
     coverage: dict[str, str]  # fonte → método de valoração ("B3: consolidado de 30/09/2026")
+    # Conta do orçamento inteira (Story 6.5): congelada junto no fechamento.
+    budget: MonthBudget | None = Field(default=None, exclude=True)
     # Termo sem valor no snapshot → motivo (`fora_do_resumo`: não existia quando o mês fechou).
     unavailable: dict[str, str] = Field(default_factory=dict)
 

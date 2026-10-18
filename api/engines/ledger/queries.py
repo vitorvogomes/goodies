@@ -244,7 +244,6 @@ CATEGORY_HAS_HISTORY = """
     SELECT EXISTS (SELECT 1 FROM categorization_events
                    WHERE before_category_id = $1::uuid OR after_category_id = $1::uuid)
 """
-ACTIVE_FIXED_COSTS = "SELECT id, name, due_day FROM fixed_costs WHERE is_active"
 CONSUMPTION_BY_CATEGORY = """
     SELECT date_trunc('month', t.date)::date AS month, c.id AS category_id,
            g.name || ' › ' || c.name AS label, SUM(-t.amount) AS total

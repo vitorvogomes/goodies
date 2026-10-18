@@ -117,3 +117,39 @@ async def test_no_work_income_is_unavailable(api, auth_headers) -> None:
     assert b["taxa_poupanca"]["value"] is None
     assert b["taxa_poupanca"]["unavailable_reason"] == "sem_receita"
     assert b["aporte_sobre_trabalho"]["unavailable_reason"] == "sem_receita"
+
+
+@pytest.mark.asyncio
+async def test_closed_month_budget_is_frozen_whole(api, auth_headers, pool, seeded) -> None:
+    """Revisão do Épico 6: mês fechado → a Conta inteira congelada (componentes e grupos batem com
+    os totais); ensure_month_plan não sobrescreve o plano informado; % dos grupos somam 100."""
+    import main  # noqa: F401
+    from engines.closing import service as closing
+    from engines.planning import service as planning
+
+    live = (await api.get(f"/api/v1/closing/months/{MES}/budget", headers=auth_headers)).json()
+    assert abs(sum(g["pct"] for g in live["consumido_por_grupo"]) - 100) < 0.05
+    async with pool.acquire() as conn:
+        await planning.ensure_month_plan(conn, MONTH, mode="retro")  # já tem plano: não mexe
+        plan = await planning.month_plan(conn, MONTH)
+        assert plan.dividas == Decimal("650.00") and plan.aporte_planejado == Decimal("4500.00")
+        # 2095 ainda "não terminou": grava a versão pelo mesmo caminho do fechamento
+        summary = await closing.build_month_summary(conn, MONTH, closing.month_end(MONTH))
+        await closing._store(conn, summary, 1, [], "live")
+        # um dado novo no mês fechado não mexe na Conta congelada
+        cat = await conn.fetchval("SELECT id FROM categories WHERE role = 'consumo' LIMIT 1")
+        acc = await conn.fetchval(
+            "SELECT account_id FROM transactions WHERE date >= $1 LIMIT 1", MONTH
+        )
+        await conn.execute(
+            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
+            "description) VALUES ($1, $2, -999.00, 'x', $3, 'expense', 'novo')",
+            acc,
+            MONTH.replace(day=20),
+            cat,
+        )
+    frozen = (await api.get(f"/api/v1/closing/months/{MES}/budget", headers=auth_headers)).json()
+    assert frozen["source"] == "snapshot" and frozen["detalhe"] is True
+    for key in ("consumido_por_grupo", "custos_fixos_pagos", "gastos", "dividas"):
+        assert frozen[key] == live[key], key
+    assert frozen["disponivel"]["value"] == live["disponivel"]["value"]

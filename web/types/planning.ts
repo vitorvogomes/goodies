@@ -46,4 +46,6 @@ export interface MonthBudget {
   taxa_poupanca: Valued;
   aporte_sobre_trabalho: Valued;
   consumido_por_grupo: ConsumedGroup[];
+  grupos_total: number;
+  detalhe: boolean; // false: fechado antes do orçamento — só os totais congelados
 }

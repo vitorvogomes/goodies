@@ -410,6 +410,16 @@ def _decision_errors(exc: Exception) -> HTTPException:
         )
     if isinstance(exc, service.FixedCostNotFound):
         return _fixed_cost_errors(exc)
+    if isinstance(exc, service.TransactionInUseError):
+        return HTTPException(
+            status.HTTP_409_CONFLICT,
+            {"error": "transacao_em_uso", "message": f"Essa transação já paga {exc.args[0]}."},
+        )
+    if isinstance(exc, service.DecisionError):
+        return HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "decisao_invalida", "message": "Escolha uma saída deste mês."},
+        )
     return HTTPException(
         status.HTTP_422_UNPROCESSABLE_CONTENT,
         {"error": "decisao_invalida", "message": "Escolha a transação."},
@@ -425,7 +435,7 @@ async def decide_fixed_cost(
     except (
         service.MonthClosedError,
         service.FixedCostNotFound,
-        service.DecisionError,
+        service.TransactionInUseError,
         ValueError,
     ) as exc:
         raise _decision_errors(exc) from None

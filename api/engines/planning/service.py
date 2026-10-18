@@ -56,15 +56,16 @@ async def set_dividas(conn: asyncpg.Connection, month: date, value: Decimal | No
 
 async def ensure_month_plan(conn: asyncpg.Connection, month: date, *, mode: str) -> MonthPlanOut:
     """Plano do mês para o fechamento (Story 6.8). `retro`: dívidas = Σ das transações de role
-    `divida` não casadas a custo fixo; aporte planejado nulo (`nao_definido`). Caminho de serviço
-    do `refechar`/`close_retro` — por isso não passa pela trava de mês fechado."""
+    `divida` não casadas a custo fixo; aporte planejado nulo (`nao_definido`) — só quando o mês
+    ainda não tem plano. Caminho de serviço do `refechar`/`close_retro` (sem a trava de mês
+    fechado)."""
     if mode != "retro":
         raise ValueError(mode)
     facts = await ledger_service.budget_facts(conn, month)
+    # só cria: o que o Vitor já informou no mês (dívidas, aporte) nunca é sobrescrito
     await conn.execute(
         "INSERT INTO month_plans (month, dividas, aporte_planejado) VALUES ($1, $2, NULL) "
-        "ON CONFLICT (month) DO UPDATE SET dividas = EXCLUDED.dividas, aporte_planejado = NULL, "
-        "updated_at = now()",
+        "ON CONFLICT (month) DO NOTHING",
         month,
         facts.consumed.dividas,
     )
@@ -118,6 +119,7 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         return Valued[Decimal](value=value, as_of=as_of, source="ledger")
 
     rate = facts.taxa_poupanca
+    groups_total = sum((v for v, _ in facts.by_category.values()), Decimal(0))
     return MonthBudget(
         month=month,
         as_of=as_of,
@@ -160,5 +162,8 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
             if facts.trabalho > 0
             else Valued[Decimal](unavailable_reason="sem_receita", as_of=as_of, source="ledger")
         ),
-        consumido_por_grupo=_groups(facts.by_category, facts.consumed.total),
+        # % sobre o total dos grupos (antes das devoluções): as linhas somam 100% e o rodapé mostra
+        # total dos grupos − devoluções = consumido
+        consumido_por_grupo=_groups(facts.by_category, groups_total),
+        grupos_total=groups_total,
     )

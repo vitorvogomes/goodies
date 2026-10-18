@@ -93,7 +93,7 @@ function DividasInput({
   return (
     <span className="inline-flex flex-col items-end gap-1">
       {budget.closed ? (
-        <span className="type-num-body">{formatBRL(budget.dividas)}</span>
+        <span className="type-num-body">{budget.detalhe ? formatBRL(budget.dividas) : "—"}</span>
       ) : (
         <Input
           aria-label="Dívidas do mês"
@@ -132,8 +132,16 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
   const save = useSetDividas();
   const disponivel = budget.disponivel.value;
   const restante = budget.restante.value;
+  // Mês fechado antes do orçamento existir: só os totais congelados; os componentes não existiam.
+  const part = (v: number) => (budget.detalhe ? formatBRL(v) : "—");
   return (
     <div className="space-y-section-gap">
+      {!budget.detalhe && (
+        <p className="type-body-sm text-muted-foreground">
+          Mês fechado antes do orçamento: só os totais congelados. Reabra o mês (ou rode o refechar) para
+          incluir o detalhe.
+        </p>
+      )}
       <table className="w-full type-body">
         <caption className="sr-only">Conta do orçamento</caption>
         <tbody>
@@ -167,11 +175,11 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
             {budget.resgates_itens.map((r) => `${r.description} · ${formatDate(r.date)}`).join("; ")}
           </Row>
           <Row op="−" label="Custos fixos" value={money(budget.custos_fixos)}>
-            todos os do mês: pago {formatBRL(budget.custos_fixos_pagos)} · a pagar{" "}
-            {formatBRL(budget.custos_fixos_a_pagar)}
+            {budget.detalhe &&
+              `todos os do mês: pago ${formatBRL(budget.custos_fixos_pagos)} · a pagar ${formatBRL(budget.custos_fixos_a_pagar)}`}
           </Row>
-          <Row op="−" label="Aporte planejado" value={formatBRL(budget.aporte_planejado)}>
-            {budget.aporte_definido ? null : "não definido"}
+          <Row op="−" label="Aporte planejado" value={part(budget.aporte_planejado)}>
+            {budget.detalhe && !budget.aporte_definido ? "não definido" : null}
           </Row>
           <Row
             op="−"
@@ -199,9 +207,13 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
               `O planejado passa da receita em ${formatBRL(-disponivel)}. Reduza o aporte ou as dívidas.`}
           </Row>
           <Row op="−" label="Consumido" value={money(budget.consumido)}>
-            gastos do mês sem os custos fixos: {formatBRL(budget.gastos)} − {formatBRL(budget.deducao_fixos)} pagos
-            {budget.deducao_dividas > 0 && ` − ${formatBRL(budget.deducao_dividas)} em dívidas`}
-            {budget.devolucoes > 0 && ` − ${formatBRL(budget.devolucoes)} de devoluções`}
+            {budget.detalhe && (
+              <>
+                gastos do mês sem os custos fixos: {formatBRL(budget.gastos)} − {formatBRL(budget.deducao_fixos)} pagos
+                {budget.deducao_dividas > 0 && ` − ${formatBRL(budget.deducao_dividas)} em dívidas`}
+                {budget.devolucoes > 0 && ` − ${formatBRL(budget.devolucoes)} de devoluções`}
+              </>
+            )}
           </Row>
           <Row
             op="="

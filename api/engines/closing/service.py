@@ -86,6 +86,7 @@ async def build_month_summary(
         restante=budget.restante.value or Decimal(0),
         restante_sem_resgates=budget.restante_sem_resgates.value or Decimal(0),
         consumo_financiado=budget.consumo_financiado.value or Decimal(0),
+        budget=budget,
         receitas_por_pagador=ledger.receitas_por_pagador,
         gastos_por_categoria=ledger.gastos_por_categoria,
         ledger_as_of=ledger.data_as_of,
@@ -231,6 +232,11 @@ def _totals(s: MonthSummary) -> tuple[dict[str, Any], dict[str, str]]:
     return totals, unavailable
 
 
+def _budget_json(budget: MonthBudget | None) -> str | None:
+    """Money/Decimal em texto (o Money não aceita float de volta)."""
+    return json.dumps(budget.model_dump(), default=str) if budget is not None else None
+
+
 def _lines(s: MonthSummary) -> list[Line]:
     lines: list[Line] = []
     lines += [("receitas", "payer", k, None, v) for k, v in s.receitas_por_pagador.items()]
@@ -261,6 +267,7 @@ async def _store(
         unavailable=unavailable,
         lines=_lines(s),
         coverage=coverage,
+        budget=_budget_json(s.budget),
         confirmations=[c.model_dump(mode="json") for c in accepted],
         origin=origin,
     )
@@ -279,6 +286,7 @@ async def _write_version(
     confirmations: list[dict[str, Any]],
     origin: str,
     dirty: bool = False,
+    budget: str | None = None,
 ) -> None:
     await conn.execute(
         "INSERT INTO month_closes (month, version, status, coverage, confirmations, origin, dirty) "
@@ -291,16 +299,18 @@ async def _write_version(
         dirty,
     )
     columns = [*_TERMS, "saldo_conferido"]
+    n = 4 + len(columns)
     await conn.execute(
         f"INSERT INTO month_summary_totals (month, version, as_of, {', '.join(columns)}, "
-        f"unavailable) VALUES ($1, $2, $3, "
-        + ", ".join(f"${i}" for i in range(4, 4 + len(columns)))
-        + f", ${4 + len(columns)}::jsonb)",
+        f"unavailable, budget) VALUES ($1, $2, $3, "
+        + ", ".join(f"${i}" for i in range(4, n))
+        + f", ${n}::jsonb, ${n + 1}::jsonb)",
         month,
         version,
         as_of,
         *[totals.get(c) for c in columns],
         json.dumps(unavailable),
+        budget,
     )
     await conn.executemany(
         "INSERT INTO month_summary_lines "
@@ -506,6 +516,7 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
         live = await build_month_summary(conn, month, month_end(month))
         live_totals, live_unavailable = _totals(live)
         confirmations = list(json.loads(close["confirmations"]))
+        budget = _budget_json(live.budget)
         if mode == "recalcular":
             totals, unavailable, lines = live_totals, live_unavailable, _lines(live)
             coverage, dirty = dict(live.coverage), False
@@ -535,6 +546,8 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
             lines += [ln for ln in _lines(live) if (ln[0], ln[1]) not in have]
             coverage = {**live.coverage, **dict(json.loads(close["coverage"]))}
             dirty = close["dirty"]
+            if frozen["budget"] is not None:  # o orçamento já congelado fica
+                budget = frozen["budget"]
         await conn.execute(
             "UPDATE month_closes SET status = 'reopened', reopened_at = now() "
             "WHERE month = $1 AND version = $2",
@@ -553,6 +566,7 @@ async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "comple
             confirmations=confirmations,
             origin=close["origin"],
             dirty=dirty,
+            budget=budget,
         )
     # o JSON guarda o Money como número: volta por texto (Money não aceita float)
     accepted = [
@@ -775,6 +789,11 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
     if close is None or close["status"] != "closed":
         return budget
     frozen, _ = await _frozen(conn, month, close["version"])
+    if frozen["budget"] is not None:  # a Conta inteira congelada
+        return MonthBudget.model_validate(
+            {**json.loads(frozen["budget"]), "source": "snapshot", "closed": True}
+        )
+    # snapshot anterior ao orçamento: só os totais congelados; o detalhe não existia
     reasons = dict(json.loads(frozen["unavailable"]))
     update: dict[str, Any] = {"source": "snapshot", "as_of": frozen["as_of"]}
     for term in (
@@ -792,4 +811,11 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
             if value is not None
             else Valued[Decimal](unavailable_reason=reasons.get(term, "fora_do_resumo"))
         )
+    update.update(
+        detalhe=False,
+        custos_fixos=Valued[Decimal](unavailable_reason="fora_do_resumo"),
+        trabalho_por_pagador=[],
+        resgates_itens=[],
+        consumido_por_grupo=[],
+    )
     return budget.model_copy(update=update)

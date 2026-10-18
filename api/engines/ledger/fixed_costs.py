@@ -2,6 +2,9 @@
 
 Custos recorrentes com dia de vencimento (1-31). Alimentam a projeção de caixa
 (01-06) e os alertas de vencimento (01-08). amount > 0 (magnitude do custo).
+
+Story 6.1 (revisão do Épico 6): a v2 lê a vigência, então desativar aqui encerra a vigência no mês
+anterior e reativar a reabre; criar aqui liga a categoria v2 pelo nome.
 """
 
 import uuid
@@ -77,8 +80,10 @@ async def list_fixed_costs(
 @router.post("", response_model=FixedCostResponse, status_code=status.HTTP_201_CREATED)
 async def create_fixed_cost(body: FixedCostCreate, user: AuthUser, db: Db) -> FixedCostResponse:
     row = await db.fetchrow(
-        "INSERT INTO fixed_costs (name, amount, due_day, category, is_active) "
-        f"VALUES ($1, $2, $3, $4, $5) RETURNING {_COLUMNS}",
+        "INSERT INTO fixed_costs (name, amount, due_day, category, is_active, category_id) "
+        "VALUES ($1, $2, $3, $4, $5, "
+        "(SELECT id FROM categories WHERE name = $4 ORDER BY is_active DESC LIMIT 1)) "
+        f"RETURNING {_COLUMNS}",
         body.name,
         as_decimal(body.amount),
         body.due_day,
@@ -99,7 +104,13 @@ async def update_fixed_cost(
           amount = COALESCE($3, amount),
           due_day = COALESCE($4, due_day),
           category = COALESCE($5, category),
-          is_active = COALESCE($6, is_active)
+          is_active = COALESCE($6, is_active),
+          valid_to = CASE
+            WHEN $6 IS NULL OR $6 = is_active THEN valid_to
+            WHEN $6 THEN NULL
+            ELSE greatest(valid_from, (date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo')
+              - interval '1 month')::date)
+          END
         WHERE id = $1
         """
         f" RETURNING {_COLUMNS}",

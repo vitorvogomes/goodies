@@ -67,6 +67,9 @@ class MonthBudget(BaseModel):
     taxa_poupanca: Valued[Decimal]  # em %; sem receita do trabalho → sem_receita
     aporte_sobre_trabalho: Valued[Decimal]  # investido ÷ trabalho, em %
     consumido_por_grupo: list[ConsumedGroup]
+    grupos_total: Money  # Σ dos grupos (consumido antes das devoluções); base dos %
+    # False: mês fechado antes do orçamento existir — só os totais congelados, sem o detalhe
+    detalhe: bool = True
 
 
 class DividasIn(BaseModel):

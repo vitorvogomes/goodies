@@ -212,10 +212,10 @@ def category_overspend_alerts(
 
 async def fixed_cost_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
     """Provider (Story 6.3): custo fixo sem pagamento casado — "{Custo} vence em {dd/mm/aaaa}."
-    faltando 3 dias ou menos; vencido, "{Custo} atrasado desde {dd/mm/aaaa}.". Mês atual e o
-    anterior, se ainda aberto."""
+    faltando 3 dias ou menos; vencido, "{Custo} atrasado desde {dd/mm/aaaa}.". Mês atual, o
+    seguinte (vencimento no começo dele) e o anterior, se ainda aberto."""
     current = ctx.today.replace(day=1)
-    months = [current]
+    months = [current, add_months(current, 1)]  # o seguinte: vencimento nos primeiros dias
     previous = add_months(current, -1)
     if not await ctx.months.is_closed(conn, previous):
         months.insert(0, previous)
@@ -1620,21 +1620,19 @@ async def update_fixed_cost(
 
 
 async def delete_fixed_cost(conn: asyncpg.Connection, cost_id: str) -> None:
-    """Sem decisão gravada: apaga. Com histórico de pagamento: encerra a vigência no mês atual
-    (os meses passados continuam enxergando o custo)."""
-    await _fixed_cost(conn, cost_id)
-    used = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM fixed_cost_payments WHERE fixed_cost_id = $1::uuid)", cost_id
-    )
-    if used:
-        await conn.execute(
-            "UPDATE fixed_costs SET valid_to = greatest(valid_from, $2), is_active = false "
-            "WHERE id = $1::uuid",
-            cost_id,
-            today_brt().replace(day=1),
-        )
-    else:
+    """Excluir encerra a vigência no mês anterior: some do mês atual em diante e os meses passados
+    (casados na leitura, sem linha gravada) continuam com ele. Custo que só vale a partir deste mês
+    não tem passado: apaga."""
+    cost = await _fixed_cost(conn, cost_id)
+    current = today_brt().replace(day=1)
+    if cost.valid_from >= current:
         await conn.execute("DELETE FROM fixed_costs WHERE id = $1::uuid", cost_id)
+    else:
+        await conn.execute(
+            "UPDATE fixed_costs SET valid_to = $2, is_active = false WHERE id = $1::uuid",
+            cost_id,
+            add_months(current, -1),
+        )
 
 
 async def fixed_costs_due(conn: asyncpg.Connection, month: date) -> list[asyncpg.Record]:
@@ -1651,22 +1649,29 @@ async def fixed_costs_due(conn: asyncpg.Connection, month: date) -> list[asyncpg
 
 async def fixed_cost_matches(conn: asyncpg.Connection, month: date) -> list[CostMatch]:
     """Casamento do mês (AD-9, derivado na leitura): decisões de `fixed_cost_payments` e o guloso
-    de `ledger/calc` sobre as saídas de −5 dias do 1º vencimento a +5 do último."""
+    de `ledger/calc` sobre as saídas do próprio mês (a janela −5/+5 do vencimento não cruza o mês:
+    a mesma transação nunca paga custo de outro mês nem conta duas vezes). A transação escolhida
+    numa decisão entra mesmo fora da janela."""
     costs = [
         CostDue(str(r["id"]), r["amount"], due_date(month, r["due_day"]))
         for r in await fixed_costs_due(conn, month)
     ]
     if not costs:
         return []
-    start = min(c.due for c in costs) - timedelta(days=MATCH_DAYS_BEFORE)
-    end = max(c.due for c in costs) + timedelta(days=MATCH_DAYS_AFTER)
+    start = max(min(c.due for c in costs) - timedelta(days=MATCH_DAYS_BEFORE), month)
+    end = min(max(c.due for c in costs) + timedelta(days=MATCH_DAYS_AFTER), month_end(month))
+    decided = await conn.fetch(
+        "SELECT fixed_cost_id, kind, transaction_id FROM fixed_cost_payments WHERE month = $1",
+        month,
+    )
     txs = [
         TxCandidate(str(r["id"]), -r["amount"], r["date"])
         for r in await conn.fetch(
-            "SELECT id, amount, date FROM transactions WHERE amount < 0 AND kind = 'expense' "
-            "AND date BETWEEN $1 AND $2",
+            "SELECT id, amount, date FROM transactions WHERE amount < 0 AND ((kind = 'expense' "
+            "AND date BETWEEN $1 AND $2) OR id = ANY($3::uuid[]))",
             start,
             end,
+            [r["transaction_id"] for r in decided if r["transaction_id"]],
         )
     ]
     decisions = [
@@ -1675,10 +1680,7 @@ async def fixed_cost_matches(conn: asyncpg.Connection, month: date) -> list[Cost
             r["kind"],
             str(r["transaction_id"]) if r["transaction_id"] else None,
         )
-        for r in await conn.fetch(
-            "SELECT fixed_cost_id, kind, transaction_id FROM fixed_cost_payments WHERE month = $1",
-            month,
-        )
+        for r in decided
     ]
     found = match_fixed_costs(costs, txs, decisions)
     return [found[c.cost_id] for c in costs]
@@ -1698,6 +1700,10 @@ class MonthClosedError(Exception):
 
 class DecisionError(ValueError):
     pass
+
+
+class TransactionInUseError(Exception):
+    """A transação já paga outro custo fixo (decisão confirmada)."""
 
 
 def _cost_status(match: CostMatch, due: date, today: date) -> str:
@@ -1775,6 +1781,22 @@ async def decide_fixed_cost(
         raise MonthClosedError(body.mes)
     if (body.kind == "manual") != (body.transaction_id is None):
         raise DecisionError("transação obrigatória, exceto em manual")
+    if body.transaction_id is not None:
+        tx = await conn.fetchrow(
+            "SELECT date, amount FROM transactions WHERE id = $1::uuid", str(body.transaction_id)
+        )
+        if tx is None or tx["amount"] >= 0 or tx["date"].replace(day=1) != month:
+            raise DecisionError("a transação precisa ser uma saída do mês")
+        if body.kind in ("confirmado", "corrigido"):
+            other = await conn.fetchval(
+                "SELECT f.name FROM fixed_cost_payments p JOIN fixed_costs f "
+                "ON f.id = p.fixed_cost_id WHERE p.transaction_id = $1::uuid "
+                "AND p.kind IN ('confirmado', 'corrigido') AND p.fixed_cost_id <> $2::uuid",
+                str(body.transaction_id),
+                cost_id,
+            )
+            if other is not None:
+                raise TransactionInUseError(other)
     await conn.execute(
         "INSERT INTO fixed_cost_payments (fixed_cost_id, month, kind, transaction_id) "
         "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (fixed_cost_id, month) DO UPDATE "

@@ -44,6 +44,13 @@ export function ConsumedByGroup({ budget }: { budget: MonthBudget }) {
       return next;
     });
   const total = budget.consumido_por_grupo.reduce((n, g) => n + g.count, 0);
+  if (!budget.detalhe) {
+    return (
+      <p className="type-body-sm text-muted-foreground">
+        O consumido por grupo não existia quando este mês foi fechado.
+      </p>
+    );
+  }
   return (
     <section aria-labelledby="consumido-grupo" className="space-y-2 self-start">
       <h2 id="consumido-grupo" className="type-section-title">
@@ -104,27 +111,34 @@ export function ConsumedByGroup({ budget }: { budget: MonthBudget }) {
         </tbody>
         <tfoot className="border-t border-foreground">
           <tr>
-            <th scope="row" className="py-1.5 text-left font-semibold">
-              Consumido
+            <th scope="row" className="py-1.5 text-left font-normal">
+              Total dos grupos
             </th>
-            <td className="py-1.5 text-right type-num-table font-semibold">
-              {budget.consumido.value === null ? "—" : formatBRL(budget.consumido.value)}
-            </td>
+            <td className="py-1.5 text-right type-num-table">{formatBRL(budget.grupos_total)}</td>
             <td className="py-1.5 text-right type-num-table">{budget.consumido_por_grupo.length ? "100,00%" : "—"}</td>
             <td className="py-1.5 text-right type-num-table">{total}</td>
-          </tr>
-          <tr className="text-muted-foreground">
-            <th scope="row" className="py-1 text-left font-normal">
-              Gastos brutos do mês
-            </th>
-            <td className="py-1 text-right type-num-table">{formatBRL(budget.gastos)}</td>
-            <td colSpan={2} />
           </tr>
           <tr className="text-muted-foreground">
             <th scope="row" className="py-1 text-left font-normal">
               − Devoluções
             </th>
             <td className="py-1 text-right type-num-table">{formatBRL(budget.devolucoes)}</td>
+            <td colSpan={2} />
+          </tr>
+          <tr>
+            <th scope="row" className="py-1.5 text-left font-semibold">
+              = Consumido
+            </th>
+            <td className="py-1.5 text-right type-num-table font-semibold">
+              {budget.consumido.value === null ? "—" : formatBRL(budget.consumido.value)}
+            </td>
+            <td colSpan={2} />
+          </tr>
+          <tr className="text-muted-foreground">
+            <th scope="row" className="py-1 text-left font-normal">
+              Gastos brutos do mês
+            </th>
+            <td className="py-1 text-right type-num-table">{formatBRL(budget.gastos)}</td>
             <td colSpan={2} />
           </tr>
         </tfoot>
