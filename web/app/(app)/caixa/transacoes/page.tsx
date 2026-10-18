@@ -74,6 +74,17 @@ function Transacoes() {
   };
   const txs = useLedgerTransactions(periodo);
   const options = useCategoryOptions();
+  // Ação "Ver transações" do aviso de gasto acima da média: ?categoria=<id> (Story 6.4).
+  const categoryFilter = params.get("categoria");
+  const clearCategory = () => {
+    const next = new URLSearchParams(params);
+    next.delete("categoria");
+    router.replace(next.size ? `${pathname}?${next}` : pathname);
+  };
+  const shown = categoryFilter
+    ? (txs.data?.items ?? EMPTY).filter((t) => t.category_id === categoryFilter)
+    : (txs.data?.items ?? EMPTY);
+  const filterLabel = options.data?.find((o) => o.id === categoryFilter)?.label;
   const setCategory = useSetTransactionCategory();
   const remove = useDeleteManualTransaction();
   const [form, setForm] = useState<{ open: boolean; tx: LedgerTransaction | null }>({
@@ -151,6 +162,14 @@ function Transacoes() {
   return (
     <div className="space-y-3">
       {conferencia && <BalanceCandidates range={conferencia} onClose={closeConferencia} />}
+      {categoryFilter && (
+        <p className="type-body-sm" role="status">
+          Só {filterLabel ?? "a categoria do aviso"} em {formatMonth(periodo)} ({shown.length}).{" "}
+          <button type="button" className="text-positive underline" onClick={clearCategory}>
+            Ver todas
+          </button>
+        </p>
+      )}
       <div className="flex justify-end">
         <Button variant="secondary" onClick={() => setForm({ open: true, tx: null })}>
           <PlusIcon aria-hidden />
@@ -195,7 +214,7 @@ function Transacoes() {
       <DataTable
       tableId="caixa-transacoes"
       caption={`Transações de ${formatMonth(periodo)}`}
-      data={txs.data?.items ?? EMPTY}
+      data={shown}
       columns={columns}
       getRowId={(t) => t.id}
       empty={
