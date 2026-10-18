@@ -15,6 +15,7 @@ import pytest
 from engines.common.cache import PriceCache
 from engines.market.fetchers.base import PriceQuote
 from engines.market.service import price_cache_key
+from engines.portfolio import service as portfolio_service
 from workers.price_workers import run_price_b3, run_price_crypto
 
 
@@ -79,8 +80,9 @@ async def test_worker_to_endpoints_end_to_end(api: Any, pool: Any, portfolio_use
         assert prices["MKT_FLASH"]["stale"] is False
 
         # Portfolio passa a valorar com o preço buscado (qtd 10 x 28.5)
-        pos = await api.get("/api/v1/portfolio/positions", headers=headers)
-        by = {p["asset_symbol"]: p for p in pos.json()}
+        async with pool.acquire() as conn:
+            pos = await portfolio_service.calculate_positions(conn, uid)
+        by = {p["asset_symbol"]: p for p in pos}
         assert by["MKT_PETR4"]["valor_atual"] == pytest.approx(285.0)
     finally:
         await _cleanup_keys()

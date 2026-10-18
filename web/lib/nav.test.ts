@@ -8,14 +8,6 @@ describe("areaOf", () => {
     expect(areaOf("/ajustes")).toBe("ajustes");
   });
 
-  it("marca a área das telas v1", () => {
-    expect(areaOf("/dashboard")).toBe("visao-geral");
-    expect(areaOf("/ledger/import")).toBe("caixa");
-    expect(areaOf("/portfolio/positions")).toBe("investimentos");
-    expect(areaOf("/wallets/reconciliation")).toBe("investimentos");
-    expect(areaOf("/refresh")).toBe("ajustes");
-  });
-
   it("devolve null fora das áreas", () => {
     expect(areaOf("/login")).toBeNull();
     expect(areaOf("/dev/tema")).toBeNull();
@@ -36,8 +28,8 @@ describe("AREAS", () => {
     expect(AREAS[3].tabs).toHaveLength(10);
   });
 
-  it("cada tela v1 aparece numa área só", () => {
-    const hrefs = AREAS.flatMap((a) => a.v1.map((l) => l.href));
-    expect(new Set(hrefs).size).toBe(hrefs.length);
+  it("sem telas da v1 (Story 10.6)", () => {
+    expect(AREAS.every((a) => !("v1" in a))).toBe(true);
+    expect(areaOf("/dashboard")).toBeNull(); // o endereço antigo só redireciona
   });
 });

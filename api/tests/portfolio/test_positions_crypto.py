@@ -1,9 +1,9 @@
-"""Cripto como BLOCO em Posições → Alocação/Rebalanceamento (m4).
+"""Cripto como BLOCO em Posições → Alocação (m4).
 
 Cripto não tem a granularidade fiel de B3/RF (custo por ativo só parcialmente recuperável —
 `docs/15`). Em Posições aparece como UMA linha-bloco (sleeve: investido vs valor atual); o
-detalhe por moeda/chain vive nas Carteiras Cripto. A Alocação/Rebalanceamento somam o valor do
-bloco como categoria Cripto. Tickers sintéticos.
+detalhe por moeda/chain vive nas Carteiras Cripto. A Alocação soma o valor do bloco como
+categoria Cripto. Tickers sintéticos (serviço direto: as rotas v1 saíram na Story 10.6).
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from httpx import AsyncClient
 
-from tests.portfolio.conftest import set_price
+from engines.portfolio import service
+from tests.portfolio.conftest import run
 
 
 async def _price(conn: Any, ticker: str, brl: float) -> None:
@@ -48,38 +48,20 @@ async def _defi(conn: Any, uid: str, sym: str, bal: float) -> None:
     )
 
 
-async def _b3_buy(api: AsyncClient, headers: dict, sym: str, qty: float, price: float) -> None:
-    await api.post(
-        "/api/v1/asset-operations",
-        json={
-            "broker": "B3",
-            "asset_symbol": sym,
-            "asset_category": "Ações Nacionais",
-            "tipo": "compra",
-            "quantidade": qty,
-            "valor_unitario": price,
-            "data_operacao": "2026-01-02",
-        },
-        headers=headers,
-    )
-    await set_price(sym, price)
-
-
 class TestCryptoBucket:
     @pytest.mark.asyncio
     async def test_single_bucket_row(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
+        self, pool: Any, portfolio_user: dict
     ) -> None:
         """Carteira + DeFi → UMA linha 'Cripto' (is_bucket); valor = soma; sem ledger custo None."""
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await _price(conn, "TKNA", 100.0)
             await _price(conn, "TKND", 4.0)
             await _wallet(conn, uid, "binance", "TKNA", 2.0)  # 200
             await _defi(conn, uid, "TKND", 25.0)  # 100
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        assert resp.status_code == 200
-        crypto = [p for p in resp.json() if p["asset_category"] == "Cripto"]
+        data = await run(pool, service.calculate_positions, uid)
+        crypto = [p for p in data if p["asset_category"] == "Cripto"]
         assert len(crypto) == 1
         bucket = crypto[0]
         assert bucket["asset_symbol"] == "Cripto"
@@ -92,24 +74,22 @@ class TestCryptoBucket:
         assert bucket["resultado"] is None
 
     @pytest.mark.asyncio
-    async def test_no_crypto_no_bucket(self, api: AsyncClient, portfolio_user: dict) -> None:
-        resp = await api.get("/api/v1/portfolio/positions", headers=portfolio_user["headers"])
-        assert resp.status_code == 200
-        assert not [p for p in resp.json() if p["asset_category"] == "Cripto"]
+    async def test_no_crypto_no_bucket(self, pool: Any, portfolio_user: dict) -> None:
+        data = await run(pool, service.calculate_positions, portfolio_user["user_id"])
+        assert not [p for p in data if p["asset_category"] == "Cripto"]
 
     @pytest.mark.asyncio
     async def test_crypto_asset_operation_is_not_double_counted(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
+        self, pool: Any, portfolio_user: dict
     ) -> None:
         """Achado C6: uma op de categoria Cripto em asset_operations NÃO pode virar linha
-        per-ativo (o sleeve/bloco já valora cripto pelas carteiras) — senão conta 2x.
-        O IR-cripto continua lendo asset_operations direto, então a op fica preservada."""
+        per-ativo (o sleeve/bloco já valora cripto pelas carteiras) — senão conta 2x."""
         # ticker sintético (não-BTC) p/ não colidir com preço cacheado no Redis de outro teste
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await _price(conn, "TKCRP", 300000.0)
             await _wallet(conn, uid, "binance", "TKCRP", 0.01)  # bloco = 3000
-            # op Cripto registrada (ex.: para o IR-cripto) — caminho vivo
+            # op Cripto registrada em asset_operations
             await conn.execute(
                 "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
                 "asset_category, tipo, quantidade, valor_unitario, data_operacao) "
@@ -117,9 +97,8 @@ class TestCryptoBucket:
                 "'2026-01-02')",
                 uid,
             )
-        resp = await api.get("/api/v1/portfolio/positions", headers=headers)
-        assert resp.status_code == 200
-        crypto = [p for p in resp.json() if p["asset_category"] == "Cripto"]
+        data = await run(pool, service.calculate_positions, uid)
+        crypto = [p for p in data if p["asset_category"] == "Cripto"]
         assert len(crypto) == 1  # só o bloco — NÃO uma linha TKCRP per-ativo
         assert crypto[0]["is_bucket"] is True
         # o bloco vale o saldo da carteira (3000), não soma a op (que viraria +2000 custo)
@@ -129,34 +108,16 @@ class TestCryptoBucket:
 class TestAllocationCryptoFold:
     @pytest.mark.asyncio
     async def test_allocation_includes_cripto(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
+        self, pool: Any, portfolio_user: dict
     ) -> None:
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
+        uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await _price(conn, "TKNA", 100.0)
             await _wallet(conn, uid, "ethereum", "TKNA", 1.0)  # 100
-        resp = await api.get("/api/v1/portfolio/allocation", headers=headers)
-        assert resp.status_code == 200
-        cats = {c["category"]: c for c in resp.json()["categories"]}
+        data = await run(pool, service.calculate_allocation, uid)
+        cats = {c["category"]: c for c in data["categories"]}
         assert "Cripto" in cats
         assert cats["Cripto"]["valor_atual"] > 0
         assert cats["Cripto"]["pct_meta"] == 5.0
         assert cats["Cripto"]["desvio_pp"] is not None
 
-
-class TestRebalancingCryptoFold:
-    @pytest.mark.asyncio
-    async def test_rebalancing_includes_cripto_when_below_target(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
-    ) -> None:
-        """B3=1000, cripto=10 → Cripto ~1% < meta 5% → recebe aporte."""
-        headers, uid = portfolio_user["headers"], portfolio_user["user_id"]
-        await _b3_buy(api, headers, "XPTO", 100.0, 10.0)  # 1000 em Ações Nacionais
-        async with pool.acquire() as conn:
-            await _price(conn, "TKNA", 100.0)
-            await _wallet(conn, uid, "ethereum", "TKNA", 0.1)  # 10
-        resp = await api.get("/api/v1/portfolio/rebalancing?amount=1000", headers=headers)
-        assert resp.status_code == 200
-        suggestions = resp.json()["suggestions"]
-        assert "Cripto" in suggestions
-        assert suggestions["Cripto"] > 0

@@ -29,8 +29,8 @@ async def _cat(conn: Any) -> Any:
 async def _cost(conn: Any, amount: str, day: int, valid_from: date) -> str:
     return str(
         await conn.fetchval(
-            "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, valid_from) "
-            "VALUES ($1, $2, $3, 'x', $4, $5) RETURNING id",
+            "INSERT INTO fixed_costs (name, amount, due_day, category_id, valid_from) VALUES "
+            "($1, $2, $3, $4, $5) RETURNING id",
             f"Custo {uuid.uuid4().hex[:6]}",
             Decimal(amount),
             day,
@@ -43,8 +43,8 @@ async def _cost(conn: Any, amount: str, day: int, valid_from: date) -> str:
 async def _tx(conn: Any, account: str, d: date, amount: str, kind: str = "expense") -> str:
     return str(
         await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description) VALUES ($1::uuid, $2, $3, 'x', $4, $5, 't') RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description) VALUES ($1::uuid, $2, $3, $4, $5, 't') RETURNING id",
             account,
             d,
             Decimal(amount),
@@ -124,24 +124,3 @@ async def test_due_soon_looks_into_next_month(pool) -> None:
         )
         alerts = {a.key: a for a in await ledger.fixed_cost_alerts(conn, ctx)}
     assert alerts[f"custo_fixo:{cost}:2094-11"].message.endswith("vence em 01/11/2094.")
-
-
-@pytest.mark.asyncio
-async def test_v1_deactivate_ends_vigencia(api, auth_headers, pool) -> None:
-    current = today_brt().replace(day=1)
-    async with pool.acquire() as conn:
-        cost = await _cost(conn, "80", 8, date(2025, 1, 1))
-    r = await api.put(
-        f"/api/v1/fixed-costs/{cost}", json={"is_active": False}, headers=auth_headers
-    )
-    assert r.status_code == 200, r.text
-    async with pool.acquire() as conn:
-        assert await conn.fetchval(
-            "SELECT valid_to FROM fixed_costs WHERE id = $1::uuid", cost
-        ) == add_months(current, -1)
-    await api.put(f"/api/v1/fixed-costs/{cost}", json={"is_active": True}, headers=auth_headers)
-    async with pool.acquire() as conn:
-        assert (
-            await conn.fetchval("SELECT valid_to FROM fixed_costs WHERE id = $1::uuid", cost)
-            is None
-        )

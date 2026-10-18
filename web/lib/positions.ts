@@ -83,3 +83,28 @@ export function reconciliationSummary(r: Reconciliation): string | null {
   const day = new Date(when).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   return `Tudo bate ${b3} e com as carteiras de ${day}.`;
 }
+
+// ---- Operações (Story 10.6 — substituto da tela v1 /portfolio/history) ----
+
+export interface OperationRow {
+  id: string;
+  data_operacao: string;
+  asset_symbol: string;
+  asset_category: string;
+  tipo: string;
+  quantidade: string;
+  valor_unitario: number;
+  total: number;
+}
+
+export function useOperations(filters: { ativo: string; tipo: string; de: string; ate: string }) {
+  const q = new URLSearchParams();
+  if (filters.ativo) q.set("asset_symbol", filters.ativo);
+  if (filters.tipo) q.set("tipo", filters.tipo);
+  if (filters.de) q.set("data_from", filters.de);
+  if (filters.ate) q.set("data_to", filters.ate);
+  return useQuery({
+    queryKey: ["portfolio", "operations-v2", q.toString()],
+    queryFn: () => apiFetch<OperationRow[]>(`/api/v1/portfolio/operations?${q}`),
+  });
+}

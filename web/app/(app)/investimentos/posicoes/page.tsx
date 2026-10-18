@@ -11,6 +11,7 @@ import { ChevronRightIcon } from "lucide-react";
 import { Fragment, Suspense, useState } from "react";
 
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
+import { OperationsBlock } from "@/components/investimentos/OperationsBlock";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatDate, formatMonth, formatPercent, formatPP, formatSignedBRL } from "@/lib/format";
@@ -251,6 +252,7 @@ function Posicoes() {
           </table>
         </div>
       )}
+      <OperationsBlock />
     </div>
   );
 }

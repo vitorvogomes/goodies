@@ -140,7 +140,8 @@ async def _scanned_binance(conn: Any, uid: str) -> dict[str, float]:
 
 async def _ledger_binance(conn: Any) -> float:
     v = await conn.fetchval(
-        "SELECT COALESCE(sum(amount),0) FROM transactions WHERE category='Binance'"
+        "SELECT COALESCE(sum(t.amount),0) FROM transactions t JOIN categories c "
+        "ON c.id = t.category_id WHERE c.name = 'Binance'"
     )
     return float(v)
 

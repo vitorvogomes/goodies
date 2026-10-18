@@ -33,8 +33,9 @@ async def _seed(pool: Any) -> None:
             f"Conta bkp {uuid.uuid4().hex[:6]}",
         )
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, description, amount, category) "
-            "VALUES ($1, '2026-06-01', 'bkp', -10.50, 'Outros')",
+            "INSERT INTO transactions (account_id, date, description, amount, category_id) "
+            "VALUES ($1, '2026-06-01', 'bkp', -10.50, (SELECT id FROM categories WHERE name = "
+            "'Outros'))",
             acc,
         )
 

@@ -23,10 +23,10 @@ async def _seed(pool: Any, account: str) -> dict[str, str]:
             conn, [BatchFileIn(source="nubank_ofx", account_id=account, file_name="jul.ofx")]
         )
         tx_rule = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
             "description, batch_id, source, category_source, category_rule_id, review_status, "
-            "payer) VALUES ($1, '2099-07-10', -45.50, 'Lazer', $2, 'expense', 'ZZ-CINE-27 sala 3', "
-            "$3, 'nubank_ofx', 'rule', $4, 'confirmed', NULL) RETURNING id",
+            "payer) VALUES ($1, '2099-07-10', -45.50, $2, 'expense', 'ZZ-CINE-27 sala 3', $3, "
+            "'nubank_ofx', 'rule', $4, 'confirmed', NULL) RETURNING id",
             account,
             rule_cat,
             batch,
@@ -34,10 +34,10 @@ async def _seed(pool: Any, account: str) -> dict[str, str]:
         )
         rec = await conn.fetchval("SELECT id FROM categories WHERE key = 'trabalho:recorrente'")
         tx_income = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description, category_source, review_status, payer) "
-            "VALUES ($1, '2099-07-05', 7000, 'Recorrente', $2, 'income', 'PIX salário', "
-            "'manual', 'confirmed', 'Flash Capital') RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, category_source, review_status, payer) VALUES ($1, '2099-07-05', "
+            "7000, $2, 'income', 'PIX salário', 'manual', 'confirmed', 'Flash Capital') "
+            "RETURNING id",
             account,
             rec,
         )

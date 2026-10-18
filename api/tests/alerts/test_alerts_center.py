@@ -110,11 +110,5 @@ async def test_not_dismissible_is_refused(api, auth_headers, fake_provider) -> N
 
 
 @pytest.mark.asyncio
-async def test_v1_cashflow_alerts_still_answer(api, auth_headers) -> None:
-    r = await api.get("/api/v1/cashflow/alerts", headers=auth_headers)
-    assert r.status_code == 200 and isinstance(r.json(), list)
-
-
-@pytest.mark.asyncio
 async def test_requires_auth(api) -> None:
     assert (await api.get(URL)).status_code == 401

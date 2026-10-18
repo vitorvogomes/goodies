@@ -1,8 +1,7 @@
 // Teste "no raw color" (Story 1.5 — UX-DR3, DESIGN.md › Brand & Style).
 // Fora de `app/globals.css` (o arquivo de tokens), nenhum .ts/.tsx/.css pode usar hex, rgb(), hsl(),
 // oklch() ou classe de paleta do Tailwind (`text-red-500`, `bg-emerald-*`, `text-white`...).
-// Telas v1 ainda não migradas ficam em EXCECOES_V1; a lista só pode diminuir: um arquivo da lista
-// que fica limpo faz o teste falhar até sair dela.
+// Desde a Story 10.6 (fim das telas v1) não há exceção: EXCECOES_V1 fica vazia (gate m4).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -12,9 +11,7 @@ const ROOT = join(__dirname, "..");
 const DIRS = ["app", "components", "lib"];
 const TOKENS_FILE = "app/globals.css";
 
-const EXCECOES_V1: readonly string[] = [
-  "app/(app)/portfolio/allocation/page.tsx", // pizza v1 com paleta própria; sai com a Story 10.6
-];
+const EXCECOES_V1: readonly string[] = [];
 
 const PALETTE =
   "slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
@@ -54,9 +51,8 @@ describe("no raw color", () => {
     expect(found, found.join("\n")).toEqual([]);
   });
 
-  it("a lista de exceções v1 só diminui (arquivo limpo sai da lista)", () => {
-    const clean = EXCECOES_V1.filter((f) => violations(join(ROOT, f)).length === 0);
-    expect(clean, `remova de EXCECOES_V1: ${clean.join(", ")}`).toEqual([]);
+  it("sem exceções v1 (Story 10.6)", () => {
+    expect(EXCECOES_V1).toEqual([]);
   });
 
   it("o detector pega os casos do DESIGN.md", () => {

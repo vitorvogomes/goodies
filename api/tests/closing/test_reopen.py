@@ -47,9 +47,9 @@ async def test_snapshot_reopen_and_versions(api, auth_headers, account, pool, cl
             "WHERE c.role = 'consumo' AND NOT g.is_system ORDER BY c.key LIMIT 1"
         )
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description, review_status, category_source) VALUES ($1::uuid, '2025-06-15', -123.45, "
-            "'x', $2, 'expense', $3, 'confirmed', 'manual')",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, review_status, category_source) VALUES ($1::uuid, '2025-06-15', "
+            "-123.45, $2, 'expense', $3, 'confirmed', 'manual')",
             account,
             cat,
             f"ajuste {uuid.uuid4().hex[:6]}",

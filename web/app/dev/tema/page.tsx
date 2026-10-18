@@ -6,7 +6,6 @@
 import { notFound } from "next/navigation";
 import { toast } from "sonner";
 
-import { Badge as V1Badge } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,10 +212,6 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
           <Badge>padrão</Badge>
           <Badge variant="secondary">secundário</Badge>
           <Badge variant="outline">contorno</Badge>
-          <V1Badge tone="gain">v1 gain</V1Badge>
-          <V1Badge tone="warning">v1 aviso</V1Badge>
-          <V1Badge tone="accent">v1 neutro</V1Badge>
-          <V1Badge tone="loss">v1 loss</V1Badge>
         </div>
       </Section>
 

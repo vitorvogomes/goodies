@@ -22,8 +22,8 @@ async def _tx(conn: Any, account_id: str, key: str, amount: str, d: date) -> str
     cat = await conn.fetchval("SELECT id FROM categories WHERE key = $1", key)
     return str(
         await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description, review_status, category_source) VALUES ($1::uuid, $2, $3, 'x', $4, "
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, review_status, category_source) VALUES ($1::uuid, $2, $3, $4, "
             "(SELECT g.kind FROM categories c JOIN category_groups g ON g.id = c.group_id "
             "WHERE c.id = $4), $5, 'pending', 'rule') RETURNING id",
             account_id,

@@ -35,8 +35,8 @@ async def seeded(pool: Any, account: str):
         }
         for t in FIXTURE["transactions"]:
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-                "description, payer) VALUES ($1::uuid, $2, $3, 'x', $4, $5, $6, $7)",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description, payer) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)",
                 account,
                 date.fromisoformat(t["date"]).replace(year=YEAR),
                 Decimal(t["amount"]),
@@ -49,8 +49,8 @@ async def seeded(pool: Any, account: str):
         for c in FIXTURE["fixed_costs"]:
             costs.append(
                 await conn.fetchval(
-                    "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, "
-                    "valid_from) VALUES ($1, $2, $3, 'x', $4, $5) RETURNING id",
+                    "INSERT INTO fixed_costs (name, amount, due_day, category_id, valid_from) "
+                    "VALUES ($1, $2, $3, $4, $5) RETURNING id",
                     f"{c['name']} {uuid.uuid4().hex[:4]}",
                     Decimal(c["amount"]),
                     c["due_day"],
@@ -142,8 +142,8 @@ async def test_closed_month_budget_is_frozen_whole(api, auth_headers, pool, seed
             "SELECT account_id FROM transactions WHERE date >= $1 LIMIT 1", MONTH
         )
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description) VALUES ($1, $2, -999.00, 'x', $3, 'expense', 'novo')",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description) VALUES ($1, $2, -999.00, $3, 'expense', 'novo')",
             acc,
             MONTH.replace(day=20),
             cat,

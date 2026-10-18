@@ -19,8 +19,8 @@ from engines.ledger import service as ledger
 async def _spend(conn: Any, account: str, cat: Any, kind: str, values: dict[date, str]) -> None:
     for d, v in values.items():
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description) VALUES ($1::uuid, $2, $3, 'x', $4, $5, $6)",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description) VALUES ($1::uuid, $2, $3, $4, $5, $6)",
             account,
             d,
             Decimal(v),

@@ -53,9 +53,9 @@ async def pf_divergent(pool: Any) -> AsyncIterator[None]:
             "SELECT id FROM categories WHERE key = 'sistema:saida_a_classificar'"
         )
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description, review_status) VALUES ($1, '2001-02-10', -20.00, 'x', $2, 'expense', "
-            "'t', 'confirmed')",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, review_status) VALUES ($1, '2001-02-10', -20.00, $2, 'expense', 't', "
+            "'confirmed')",
             acc,
             cat,
         )

@@ -54,14 +54,16 @@ async def test_file_row_without_batch_is_refused_by_the_schema(pool: Any) -> Non
         )
         with pytest.raises(asyncpg.CheckViolationError):
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, source) "
-                "VALUES ($1, '2099-01-01', -1, 'outros', 'nubank_ofx')",
+                "INSERT INTO transactions (account_id, date, amount, category_id, source) "
+                "VALUES ($1, '2099-01-01', -1, (SELECT id FROM categories WHERE name = "
+                "'outros'), 'nubank_ofx')",
                 acc,
             )
         # lançamento à mão: sem lote, origem manual (padrão)
         src = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category) "
-            "VALUES ($1, '2099-01-01', -1, 'outros') RETURNING source",
+            "INSERT INTO transactions (account_id, date, amount, category_id) VALUES ($1, "
+            "'2099-01-01', -1, (SELECT id FROM categories WHERE name = 'outros')) RETURNING "
+            "source",
             acc,
         )
         owner = await conn.fetchval("SELECT user_id FROM accounts WHERE id = $1", acc)

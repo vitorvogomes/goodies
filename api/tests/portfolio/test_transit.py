@@ -7,7 +7,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from httpx import AsyncClient
 
 from engines.portfolio.transit import calculate_transit
 
@@ -41,8 +40,9 @@ async def _ins_op(
 
 async def _ins_tx(conn: Any, acc: Any, amount: str, category: str, ext: str) -> None:
     await conn.execute(
-        "INSERT INTO transactions (account_id, date, amount, category, kind, "
-        "description, external_id) VALUES ($1,$2,$3,$4,'investment','x',$5)",
+        "INSERT INTO transactions (account_id, date, amount, category_id, kind, description, "
+        "external_id) VALUES ($1,$2,$3,(SELECT id FROM categories WHERE name = "
+        "$4),'investment','x',$5)",
         acc,
         date(2026, 6, 1),
         Decimal(amount),
@@ -211,22 +211,3 @@ class TestTransit:
         assert res["crypto"]["net_invested_brl"] == 0.0
         assert res["crypto"]["current_value_brl"] == 0.0
 
-
-class TestTransitEndpoint:
-    @pytest.mark.asyncio
-    async def test_endpoint_shape(self, api: AsyncClient, pool: Any, portfolio_user: dict) -> None:
-        async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM transactions")
-        resp = await api.get("/api/v1/portfolio/transit", headers=portfolio_user["headers"])
-        assert resp.status_code == 200
-        body = resp.json()
-        assert any(r["rail"] == "B3 (corretoras)" for r in body["rails"])
-        assert "net_invested_brl" in body["crypto"]
-        # review m4→main: o response_model não pode podar os campos que a tela usa
-        for r in body["rails"]:
-            assert {"dividendos_juros_brl", "caixa_corretora_brl", "status"} <= r.keys()
-            assert r["status"] in {
-                "reconciled",
-                "caixa_em_corretora",
-                "rendimento_reinvestido",
-            }

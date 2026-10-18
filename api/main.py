@@ -40,15 +40,12 @@ from engines.portfolio import debentures as portfolio_debentures
 from engines.portfolio import hooks as portfolio_hooks
 from engines.portfolio import reconciliation as portfolio_reconciliation
 from engines.portfolio import service as portfolio_service
-from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.brokers_router import router as portfolio_brokers_router
 from engines.portfolio.debentures_router import router as portfolio_debentures_router
-from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.manual_prices import router as portfolio_manual_prices_router
+from engines.portfolio.operations_router import router as portfolio_operations_router
 from engines.portfolio.reconciliation_router import router as portfolio_reconciliation_router
-from engines.portfolio.router import router as portfolio_router
-from engines.portfolio.transit_routes import router as portfolio_transit_router
 from engines.wallet import service as wallet_service
 from engines.wallet.defi import defi_maturity_provider
 from engines.wallet.defi_router import router as defi_router
@@ -140,13 +137,10 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(ledger_router)
-app.include_router(portfolio_router)
-app.include_router(portfolio_analytics_router)
-app.include_router(portfolio_import_b3_router)
-app.include_router(portfolio_transit_router)
 app.include_router(portfolio_debentures_router)
 app.include_router(portfolio_brokers_router)
 app.include_router(portfolio_manual_prices_router)
+app.include_router(portfolio_operations_router)
 app.include_router(portfolio_reconciliation_router)
 app.include_router(market_router)
 if settings.hermes_enabled:  # Story 1.6: Hermes desligado na v2.0 (HERMES_ENABLED=false)

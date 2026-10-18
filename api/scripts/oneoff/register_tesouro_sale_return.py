@@ -61,7 +61,8 @@ async def register_tesouro_sale_return(
     # reaproveita a conta que já lança as transações do Tesouro (não fabrica conta nova).
     account_id = await conn.fetchval(
         "SELECT account_id FROM transactions "
-        "WHERE kind = 'investment' AND category = $1 AND account_id IS NOT NULL "
+        "WHERE kind = 'investment' AND account_id IS NOT NULL "
+        "AND category_id = (SELECT id FROM categories WHERE name = $1) "
         "GROUP BY account_id ORDER BY COUNT(*) DESC LIMIT 1",
         _LEDGER_CATEGORY,
     )
@@ -76,8 +77,9 @@ async def register_tesouro_sale_return(
     }
     if apply:
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, kind, "
-            "description, external_id) VALUES ($1, $2, $3, $4, 'investment', $5, $6)",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, external_id) VALUES ($1, $2, $3, "
+            "(SELECT id FROM categories WHERE name = $4), 'investment', $5, $6)",
             account_id, venda["data_operacao"], amount, _LEDGER_CATEGORY,
             f"Devolução - venda {venda['asset_symbol']} (caixa de volta ao Nubank)",
             _MARKER,

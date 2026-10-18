@@ -70,8 +70,8 @@ async def test_vigencia_and_month_match(pool, account) -> None:
         ):
             ids.append(
                 await conn.fetchval(
-                    "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, "
-                    "valid_from, valid_to) VALUES ($1, 100, 10, 'x', $2, $3, $4) RETURNING id",
+                    "INSERT INTO fixed_costs (name, amount, due_day, category_id, valid_from, "
+                    "valid_to) VALUES ($1, 100, 10, $2, $3, $4) RETURNING id",
                     f"{name} {uuid.uuid4().hex[:6]}",
                     uuid.UUID(cat),
                     date.fromisoformat(frm),
@@ -79,8 +79,8 @@ async def test_vigencia_and_month_match(pool, account) -> None:
                 )
             )
         tx = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description) VALUES ($1::uuid, '2098-03-11', -100.00, 'x', $2, 'expense', 'plano') "
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description) VALUES ($1::uuid, '2098-03-11', -100.00, $2, 'expense', 'plano') "
             "RETURNING id",
             account,
             uuid.UUID(cat),
@@ -120,8 +120,8 @@ async def test_undo_batch_removes_decision(api, auth_headers, ofx_account, pool)
             "SELECT id FROM transactions WHERE batch_id = $1::uuid", body["batch_id"]
         )
         cost = await conn.fetchval(
-            "INSERT INTO fixed_costs (name, amount, due_day, category, category_id) "
-            "VALUES ($1, 10, 10, 'x', $2) RETURNING id",
+            "INSERT INTO fixed_costs (name, amount, due_day, category_id) VALUES ($1, 10, 10, "
+            "$2) RETURNING id",
             f"Undo {uuid.uuid4().hex[:6]}",
             uuid.UUID(cat),
         )

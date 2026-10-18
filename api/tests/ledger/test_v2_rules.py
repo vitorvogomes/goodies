@@ -29,9 +29,9 @@ async def _setup(pool: Any, account: str, sfx: str) -> dict[str, str]:
         for name, src, cat in (("auto", "suggestion", lazer), ("manual", "manual", lazer)):
             ids[name] = str(
                 await conn.fetchval(
-                    "INSERT INTO transactions (account_id, date, amount, category, category_id, "
-                    "kind, description, category_source) VALUES ($1, '2096-02-10', -20, 'Lazer', "
-                    "$2, 'expense', $3, $4) RETURNING id",
+                    "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                    "description, category_source) VALUES ($1, '2096-02-10', -20, $2, "
+                    "'expense', $3, $4) RETURNING id",
                     account,
                     cat,
                     f"ZZR{sfx} {name}",
@@ -78,8 +78,8 @@ async def test_list_edit_preview_and_reapply(api, auth_headers, account, pool) -
         async with pool.acquire() as conn:
             rows = dict(
                 await conn.fetch(
-                    "SELECT id::text, category_source || ':' || category FROM transactions "
-                    "WHERE id = ANY($1::uuid[])",
+                    "SELECT t.id::text, t.category_source || ':' || c.name FROM transactions t "
+                    "JOIN categories c ON c.id = t.category_id WHERE t.id = ANY($1::uuid[])",
                     [ids["auto"], ids["manual"]],
                 )
             )
@@ -102,7 +102,9 @@ async def test_list_edit_preview_and_reapply(api, auth_headers, account, pool) -
         assert again.json()["changes"] == []
         async with pool.acquire() as conn:
             kept = await conn.fetchval(
-                "SELECT category FROM transactions WHERE id = $1", ids["auto"]
+                "SELECT c.name FROM transactions t JOIN categories c ON c.id = t.category_id "
+                "WHERE t.id = $1",
+                ids["auto"],
             )
         assert kept == "Transporte"
 

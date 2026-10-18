@@ -84,7 +84,8 @@ async def test_delete_account_blocked_when_has_transactions(api, auth_headers, p
     acc_id = created.json()["id"]
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO transactions (account_id, date, amount, category_id) VALUES ($1, $2, "
+            "$3, (SELECT id FROM categories WHERE name = $4))",
             uuid.UUID(acc_id),
             date(2099, 6, 1),
             -10,

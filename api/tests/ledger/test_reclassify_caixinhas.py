@@ -15,9 +15,26 @@ import datetime
 import uuid
 from decimal import Decimal
 
+import pytest_asyncio
+
 from scripts.oneoff.reclassify_caixinhas import reclassify_caixinhas
 
 _MONTH = datetime.date(2099, 3, 1)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _resgate_category(pool):
+    """A categoria v1 "Resgate" (a origem do script) — a base de teste da v2 não a tem."""
+    async with pool.acquire() as conn:
+        created = await conn.fetchval(
+            "INSERT INTO categories (name, kind) VALUES ('Resgate', 'income') "
+            "ON CONFLICT DO NOTHING RETURNING id"
+        )
+    yield
+    if created is not None:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM transactions WHERE category_id = $1", created)
+            await conn.execute("DELETE FROM categories WHERE id = $1", created)
 
 
 async def _seed(conn, account_id: str) -> dict[str, str]:
@@ -42,8 +59,9 @@ async def _seed(conn, account_id: str) -> dict[str, str]:
     for key, (cat, kind, amount, desc) in rows.items():
         ids[key] = str(
             await conn.fetchval(
-                "INSERT INTO transactions (account_id, date, amount, category, kind, "
-                "description, external_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description, external_id) VALUES ($1,$2,$3,(SELECT id FROM categories WHERE "
+                "name = $4),$5,$6,$7) RETURNING id",
                 account_id,
                 _MONTH,
                 amount,
@@ -61,7 +79,9 @@ async def test_redemption_becomes_investment(pool, account):
         ids = await _seed(conn, account)
         result = await reclassify_caixinhas(conn)
         row = await conn.fetchrow(
-            "SELECT kind, category FROM transactions WHERE id = $1", ids["redemption"]
+            "SELECT t.kind, c.name AS category FROM transactions t "
+            "JOIN categories c ON c.id = t.category_id WHERE t.id = $1",
+            ids["redemption"],
         )
     assert row["kind"] == "investment"
     assert row["category"] == "Caixinha/RDB Nubank"
@@ -73,10 +93,14 @@ async def test_control_rows_untouched(pool, account):
         ids = await _seed(conn, account)
         await reclassify_caixinhas(conn)
         tesouro = await conn.fetchrow(
-            "SELECT kind, category FROM transactions WHERE id = $1", ids["tesouro"]
+            "SELECT t.kind, c.name AS category FROM transactions t "
+            "JOIN categories c ON c.id = t.category_id WHERE t.id = $1",
+            ids["tesouro"],
         )
         salario = await conn.fetchrow(
-            "SELECT kind, category FROM transactions WHERE id = $1", ids["salario"]
+            "SELECT t.kind, c.name AS category FROM transactions t "
+            "JOIN categories c ON c.id = t.category_id WHERE t.id = $1",
+            ids["salario"],
         )
     # Tesouro (investment positivo, categoria diferente) NÃO é tocado.
     assert (tesouro["kind"], tesouro["category"]) == ("investment", "Tesouro Direto Nubank")
@@ -89,7 +113,9 @@ async def test_app_stays_investment(pool, account):
         ids = await _seed(conn, account)
         await reclassify_caixinhas(conn)
         app = await conn.fetchrow(
-            "SELECT kind, category FROM transactions WHERE id = $1", ids["app"]
+            "SELECT t.kind, c.name AS category FROM transactions t "
+            "JOIN categories c ON c.id = t.category_id WHERE t.id = $1",
+            ids["app"],
         )
     assert (app["kind"], app["category"]) == ("investment", "Caixinha/RDB Nubank")
 

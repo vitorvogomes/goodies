@@ -307,9 +307,10 @@ async def test_import_categorizes_through_categorize(pool):
         ]
         await import_statement(conn, acc, entries)
         rows = await conn.fetch(
-            "SELECT t.category, t.category_source, t.review_status, "
+            "SELECT c.name, t.category_source, t.review_status, "
             "(SELECT cause FROM categorization_events e WHERE e.transaction_id = t.id) cause "
-            "FROM transactions t WHERE t.account_id = $1 ORDER BY t.date",
+            "FROM transactions t JOIN categories c ON c.id = t.category_id "
+            "WHERE t.account_id = $1 ORDER BY t.date",
             acc,
         )
         await conn.execute("DELETE FROM category_rules WHERE pattern = 'zzcinema'")

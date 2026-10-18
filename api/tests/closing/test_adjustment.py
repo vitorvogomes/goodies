@@ -50,9 +50,9 @@ async def _expense(conn: Any, account: str, value: str) -> None:
         "WHERE c.role = 'consumo' AND NOT g.is_system ORDER BY c.key LIMIT 1"
     )
     await conn.execute(
-        "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-        "description, review_status, category_source) VALUES ($1::uuid, '2025-08-20', $2, 'x', $3, "
-        "'expense', $4, 'confirmed', 'manual')",
+        "INSERT INTO transactions (account_id, date, amount, category_id, kind, description, "
+        "review_status, category_source) VALUES ($1::uuid, '2025-08-20', $2, $3, 'expense', "
+        "$4, 'confirmed', 'manual')",
         account,
         Decimal(value),
         cat,

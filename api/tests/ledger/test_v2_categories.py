@@ -65,7 +65,9 @@ async def test_tree_and_crud(api, auth_headers, account, pool) -> None:
         assert ren.status_code == 200
         async with pool.acquire() as conn:
             text = await conn.fetchval(
-                "SELECT category FROM transactions WHERE id = $1", tx.json()["id"]
+                "SELECT c.name FROM transactions t JOIN categories c ON c.id = t.category_id "
+                "WHERE t.id = $1",
+                tx.json()["id"],
             )
         assert text == f"Petshop {sfx}"
 
@@ -131,8 +133,8 @@ async def test_empty_category_can_be_deleted_and_system_is_locked(api, auth_head
 
 
 @pytest.mark.asyncio
-async def test_v1_screens_group_the_same_after_rename(api, auth_headers, account, pool) -> None:
-    """Fumaça v1: o by-category do dashboard agrupa igual antes e depois do renome."""
+async def test_totals_group_the_same_after_rename(api, auth_headers, account, pool) -> None:
+    """Os totais por categoria agrupam igual antes e depois do renome."""
     sfx = uuid.uuid4().hex[:6]
     tree = (await api.get(f"{URL}/category-tree", headers=auth_headers)).json()
     outros = next(g for g in tree if g["key"] == "outros")
@@ -158,10 +160,13 @@ async def test_v1_screens_group_the_same_after_rename(api, auth_headers, account
             )
 
         async def groups() -> dict[str, float]:
-            body = (
-                await api.get("/api/v1/cashflow/by-category?month=2097-03", headers=auth_headers)
-            ).json()
-            return {r["category"]: r["total"] for r in body["expense"]}
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT c.name, -SUM(t.amount) AS total FROM transactions t "
+                    "JOIN categories c ON c.id = t.category_id "
+                    "WHERE t.date BETWEEN '2097-03-01' AND '2097-03-31' GROUP BY c.name"
+                )
+            return {r["name"]: float(r["total"]) for r in rows}
 
         before = await groups()
         await api.patch(

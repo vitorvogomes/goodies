@@ -72,8 +72,8 @@ TX_STATE = """
 
 APPLY_CATEGORY = """
     UPDATE transactions SET
-      category_id = $2, category = $3, kind = $4, category_source = $5, category_rule_id = $6,
-      review_status = COALESCE($7, review_status)
+      category_id = $2, kind = $3, category_source = $4, category_rule_id = $5,
+      review_status = COALESCE($6, review_status)
     WHERE id = $1
 """
 
@@ -204,12 +204,6 @@ CATEGORY_ROW = """
            (SELECT count(*) FROM transactions t WHERE t.category_id = c.id) AS transaction_count
     FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.id = $1::uuid
 """
-# Renome (Story 2.9): o texto legado acompanha o nome — exceção documentada a "só categorize()
-# escreve categoria": não muda a subcategoria de nenhuma transação, só o rótulo (sem evento).
-RENAME_TEXT_COLUMNS = (
-    "UPDATE transactions SET category = $2 WHERE category_id = $1::uuid",
-    "UPDATE fixed_costs SET category = $2 WHERE category_id = $1::uuid",
-)
 
 
 RULES_LIST = """

@@ -4,7 +4,6 @@
 As funções de alerta recebem `today` injetado -> determinísticas e testáveis sem relógio nem DB.
 """
 
-import calendar
 import datetime
 import re
 import uuid
@@ -107,57 +106,10 @@ from .models import (
 
 
 @dataclass
-class FixedCostDue:
-    name: str
-    amount: float
-    due_day: int
-    category: str
-
-
-@dataclass
 class MonthCategoryTotal:
     month: datetime.date  # primeiro dia do mês
     category: str
     total: float  # magnitude da despesa (positivo)
-
-
-def _occurrence(year: int, month: int, due_day: int) -> datetime.date:
-    last = calendar.monthrange(year, month)[1]
-    return datetime.date(year, month, min(due_day, last))
-
-
-def _next_occurrence(due_day: int, today: datetime.date) -> datetime.date:
-    this_month = _occurrence(today.year, today.month, due_day)
-    if this_month >= today:
-        return this_month
-    if today.month == 12:
-        return _occurrence(today.year + 1, 1, due_day)
-    return _occurrence(today.year, today.month + 1, due_day)
-
-
-def upcoming_due_alerts(
-    items: list[FixedCostDue], today: datetime.date, horizon: int = 5
-) -> list[LegacyAlert]:
-    """Custos fixos com vencimento nos próximos `horizon` dias."""
-    alerts: list[LegacyAlert] = []
-    for fc in items:
-        days_until = (_next_occurrence(fc.due_day, today) - today).days
-        if 0 <= days_until <= horizon:
-            alerts.append(
-                LegacyAlert(
-                    type="fixed_cost_due",
-                    severity="warning",
-                    title="Custo fixo vencendo",
-                    message=f"{fc.name} vence em {days_until} dia(s) (dia {fc.due_day})",
-                    data={
-                        "name": fc.name,
-                        "amount": round(fc.amount, 2),
-                        "due_day": fc.due_day,
-                        "days_until": days_until,
-                    },
-                )
-            )
-    return alerts
 
 
 def _month_minus(month_start: datetime.date, n: int) -> datetime.date:
@@ -449,7 +401,6 @@ async def categorize(
             queries.APPLY_CATEGORY,
             ch.transaction_id,
             ch.category_id,
-            cat["name"],
             cat["kind"],
             ch.source,
             rule_id,
@@ -596,13 +547,12 @@ async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate)
     positive = body.amount > 0
     async with conn.transaction():
         tx_id = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-            "description, source) VALUES ($1::uuid, $2, $3, $4, "
-            "(SELECT id FROM categories WHERE key = $5), $6, $7, 'manual') RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, source) VALUES ($1::uuid, $2, $3, "
+            "(SELECT id FROM categories WHERE key = $4), $5, $6, 'manual') RETURNING id",
             body.account_id,
             body.date,
             body.amount,
-            "Entrada a classificar" if positive else "Saída a classificar",
             "sistema:entrada_a_classificar" if positive else "sistema:saida_a_classificar",
             "income" if positive else "expense",
             body.description,
@@ -844,8 +794,6 @@ async def update_category(
                 raise CategoryRuleError(
                     "categoria_existente", "Já existe uma categoria com esse nome."
                 ) from None
-            for sql in queries.RENAME_TEXT_COLUMNS:
-                await conn.execute(sql, category_id, body.name.strip())
         await conn.execute(
             "UPDATE categories SET role = $2, is_active = COALESCE($3, is_active) "
             "WHERE id = $1::uuid",
@@ -1589,10 +1537,10 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
 
 _FIXED_COST_ROW = """
     SELECT f.id, f.name, f.amount, f.due_day, f.category_id, f.valid_from, f.valid_to,
-           CASE WHEN c.id IS NULL THEN f.category WHEN g.is_system THEN c.name
-                ELSE g.name || ' › ' || c.name END AS category_label
-    FROM fixed_costs f LEFT JOIN categories c ON c.id = f.category_id
-    LEFT JOIN category_groups g ON g.id = c.group_id
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END
+             AS category_label
+    FROM fixed_costs f JOIN categories c ON c.id = f.category_id
+    JOIN category_groups g ON g.id = c.group_id
 """
 
 
@@ -1636,18 +1584,14 @@ async def _fixed_cost(conn: asyncpg.Connection, cost_id: str) -> FixedCostRow:
 
 
 async def create_fixed_cost(conn: asyncpg.Connection, body: FixedCostIn) -> FixedCostRow:
-    label = await conn.fetchval(
-        "SELECT name FROM categories WHERE id = $1::uuid", str(body.category_id)
-    )
-    if label is None:
+    if not await queries.category_exists(conn, str(body.category_id)):
         raise UnknownCategoryError(str(body.category_id))
     cost_id = await conn.fetchval(
-        "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, valid_from) "
-        "VALUES ($1, $2, $3, $4, $5::uuid, $6) RETURNING id",
+        "INSERT INTO fixed_costs (name, amount, due_day, category_id, valid_from) "
+        "VALUES ($1, $2, $3, $4::uuid, $5) RETURNING id",
         body.name,
         body.amount,
         body.due_day,
-        label,
         str(body.category_id),
         (body.valid_from or today_brt()).replace(day=1),
     )
@@ -1658,23 +1602,19 @@ async def update_fixed_cost(
     conn: asyncpg.Connection, cost_id: str, body: FixedCostPatch
 ) -> FixedCostRow:
     await _fixed_cost(conn, cost_id)
-    label = None
-    if body.category_id is not None:
-        label = await conn.fetchval(
-            "SELECT name FROM categories WHERE id = $1::uuid", str(body.category_id)
-        )
-        if label is None:
-            raise UnknownCategoryError(str(body.category_id))
+    if body.category_id is not None and not await queries.category_exists(
+        conn, str(body.category_id)
+    ):
+        raise UnknownCategoryError(str(body.category_id))
     await conn.execute(
         "UPDATE fixed_costs SET name = COALESCE($2, name), amount = COALESCE($3, amount), "
-        "due_day = COALESCE($4, due_day), category_id = COALESCE($5::uuid, category_id), "
-        "category = COALESCE($6, category) WHERE id = $1::uuid",
+        "due_day = COALESCE($4, due_day), category_id = COALESCE($5::uuid, category_id) "
+        "WHERE id = $1::uuid",
         cost_id,
         body.name,
         body.amount,
         body.due_day,
         str(body.category_id) if body.category_id is not None else None,
-        label,
     )
     return await _fixed_cost(conn, cost_id)
 

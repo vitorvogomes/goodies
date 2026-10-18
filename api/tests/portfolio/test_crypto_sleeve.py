@@ -34,8 +34,8 @@ async def _tx(
     conn: Any, account_id: uuid.UUID, amount: float, category: str, when: date = _TODAY
 ) -> None:
     await conn.execute(
-        "INSERT INTO transactions (account_id, date, amount, category, kind) "
-        "VALUES ($1, $2, $3, $4, 'investment')",
+        "INSERT INTO transactions (account_id, date, amount, category_id, kind) VALUES ($1, "
+        "$2, $3, (SELECT id FROM categories WHERE name = $4), 'investment')",
         account_id,
         when,
         amount,

@@ -29,8 +29,8 @@ async def test_monthly_summary_savings_rate(pool):
     async with pool.acquire() as conn:
         acc = await _make_account(conn)
         await conn.executemany(
-            "INSERT INTO transactions (account_id, date, amount, category, kind) "
-            "VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind) VALUES "
+            "($1, $2, $3, (SELECT id FROM categories WHERE name = $4), $5)",
             [
                 (acc, date(2099, 1, 5), 10000, "income", "income"),
                 (acc, date(2099, 1, 20), -4500, "food", "expense"),
@@ -64,8 +64,8 @@ async def test_transactions_external_id_unique_allows_nulls(pool):
         acc = await _make_account(conn)
         fitid = uuid.uuid4().hex
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, external_id) "
-            "VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO transactions (account_id, date, amount, category_id, external_id) "
+            "VALUES ($1, $2, $3, (SELECT id FROM categories WHERE name = $4), $5)",
             acc,
             date(2099, 2, 1),
             -10,
@@ -74,8 +74,8 @@ async def test_transactions_external_id_unique_allows_nulls(pool):
         )
         with pytest.raises(asyncpg.UniqueViolationError):
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, external_id) "
-                "VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO transactions (account_id, date, amount, category_id, external_id) "
+                "VALUES ($1, $2, $3, (SELECT id FROM categories WHERE name = $4), $5)",
                 acc,
                 date(2099, 2, 2),
                 -20,
@@ -84,14 +84,16 @@ async def test_transactions_external_id_unique_allows_nulls(pool):
             )
         # external_id NULL pode repetir (índice único parcial WHERE external_id IS NOT NULL).
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO transactions (account_id, date, amount, category_id) VALUES ($1, $2, "
+            "$3, (SELECT id FROM categories WHERE name = $4))",
             acc,
             date(2099, 2, 3),
             -30,
             "z",
         )
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO transactions (account_id, date, amount, category_id) VALUES ($1, $2, "
+            "$3, (SELECT id FROM categories WHERE name = $4))",
             acc,
             date(2099, 2, 4),
             -40,
@@ -105,8 +107,8 @@ async def test_transactions_notes_column(pool):
     async with pool.acquire() as conn:
         acc = await _make_account(conn)
         tx = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, notes) "
-            "VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id, notes) VALUES "
+            "($1, $2, $3, (SELECT id FROM categories WHERE name = $4), $5) RETURNING id",
             acc,
             date(2099, 3, 1),
             -10,
@@ -148,15 +150,15 @@ async def test_accounts_account_number_unique_allows_nulls(pool):
 async def test_fixed_costs_roundtrip(pool):
     async with pool.acquire() as conn:
         fc = await conn.fetchval(
-            "INSERT INTO fixed_costs (name, amount, due_day, category) "
-            "VALUES ($1, $2, $3, $4) RETURNING id",
+            "INSERT INTO fixed_costs (name, amount, due_day, category_id) VALUES ($1, $2, $3, "
+            "(SELECT id FROM categories WHERE name = $4)) RETURNING id",
             "Aluguel",
             1500,
             5,
             "moradia",
         )
         row = await conn.fetchrow(
-            "SELECT name, amount, due_day, category, is_active FROM fixed_costs WHERE id = $1",
+            "SELECT name, amount, due_day, category_id, is_active FROM fixed_costs WHERE id = $1",
             fc,
         )
         await conn.execute("DELETE FROM fixed_costs WHERE id = $1", fc)
@@ -164,3 +166,4 @@ async def test_fixed_costs_roundtrip(pool):
     assert row["name"] == "Aluguel"
     assert int(row["due_day"]) == 5
     assert row["is_active"] is True
+    assert row["category_id"] is not None

@@ -65,9 +65,9 @@ async def yield_env(pool: Any) -> Any:
             (Decimal("250.00"), "Resgate RDB - Caixinha Extra"),
         ):
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, kind, "
-                "description, external_id) VALUES ($1,'2025-09-01',$2,"
-                "'Caixinha/RDB Nubank','investment',$3,$4)",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description, external_id) VALUES ($1,'2025-09-01',$2,(SELECT id FROM "
+                "categories WHERE name = 'Caixinha/RDB Nubank'),'investment',$3,$4)",
                 acc,
                 amt,
                 desc,
@@ -173,9 +173,10 @@ async def test_closed_excludes_active_caixinhas(yield_env: Any, pool: Any) -> No
     """O bucket casa por exclusão de snow/turbo/guanabara — não captura as ativas."""
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO transactions (account_id, date, amount, category, kind, "
-            "description, external_id) VALUES ($1,'2025-09-02',-9999,"
-            "'Caixinha/RDB Nubank','investment','Aplicação RDB - Caixinha Turbo',$2)",
+            "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description, external_id) VALUES ($1,'2025-09-02',-9999,(SELECT id FROM "
+            "categories WHERE name = 'Caixinha/RDB Nubank'),'investment','Aplicação RDB - "
+            "Caixinha Turbo',$2)",
             yield_env["account_id"],
             f"cx-{uuid.uuid4().hex}",
         )

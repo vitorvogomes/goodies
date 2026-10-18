@@ -93,9 +93,9 @@ async def test_import_suggests_from_confirmed_history(pool: Any) -> None:
         )
         try:
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-                "description, external_id, category_source, review_status) "
-                "VALUES ($1, '2099-01-01', -10, 'x', $2, 'expense', $3, $4, 'manual', 'confirmed')",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description, external_id, category_source, review_status) VALUES ($1, "
+                "'2099-01-01', -10, $2, 'expense', $3, $4, 'manual', 'confirmed')",
                 acc,
                 target,
                 f"Loja {word} centro",

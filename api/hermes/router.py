@@ -66,19 +66,23 @@ _CATEGORY_KIND_OVERRIDES = {"investment", "transfer"}
 async def _insert(
     db: asyncpg.Connection, body: HermesEntry, signed_amount: float, kind: str
 ) -> HermesResult:
-    category_kind = await db.fetchval(
-        "SELECT kind FROM categories WHERE name = $1", body.category
+    category = await db.fetchrow(
+        "SELECT id, kind FROM categories WHERE name = $1", body.category
     )
-    if category_kind in _CATEGORY_KIND_OVERRIDES:
-        kind = str(category_kind)
+    if category is not None and category["kind"] in _CATEGORY_KIND_OVERRIDES:
+        kind = str(category["kind"])
     try:
+        # Nome desconhecido → sem category_id: o trigger cai em "a classificar" pelo sinal.
         row = await db.fetchrow(
-            "INSERT INTO transactions (account_id, date, amount, category, kind, description) "
-            "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, date, amount, category",
+            "WITH t AS (INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+            "description) VALUES ($1, $2, $3, $4, $5, $6) "
+            "RETURNING id, date, amount, category_id) "
+            "SELECT t.id, t.date, t.amount, c.name AS category "
+            "FROM t JOIN categories c ON c.id = t.category_id",
             body.account_id,
             body.date,
             Decimal(str(signed_amount)),
-            body.category,
+            category["id"] if category is not None else None,
             kind,
             body.description,
         )

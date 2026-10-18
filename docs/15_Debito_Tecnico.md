@@ -66,10 +66,9 @@ Legenda: **🔴 CRÍTICO** · **🟡 MÉDIO** · **⚪ MENOR (rastrear)**.
   → decidir no hub de ingestão v2 (proveniência de categoria).
 - **Projeção de caixa sem dado:** nenhuma transação tem `is_recurring` → receita
   projetada = 0. Redesenhar no PRD v2 (média de receita por `kind` dos últimos N meses?).
-- **`/cashflow/by-category` soma `ABS(amount)`** (mesma classe do overspend): estorno
-  infla o gasto da categoria e não bate com `monthly_summary`.
-- **Categorias:** `transactions.category` sem FK (rename/delete não propagam); regras não
-  reaplicáveis sem o destrutivo `reset_ledger`; sem proveniência (rule × manual).
+- ~~**`/cashflow/by-category` soma `ABS(amount)`**~~ — rota removida na Story 10.6.
+- ~~**Categorias:** `transactions.category` sem FK~~ — resolvido: `category_id` (0018), regras e
+  proveniência (Stories 2.4–2.5), e o texto saiu na revisão 0045 (Story 10.6).
 - **Import Nubank** sem transação de banco (crash = import parcial) e sem lote/
   proveniência (`source`, `import_batch`); sem parser de fatura de cartão.
 - **RF/caixinhas:** ops derivadas só via seeds manuais (`seed_caixinhas`,

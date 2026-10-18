@@ -207,58 +207,6 @@ async def test_unknown_or_malformed_ids_are_4xx(api, auth_headers, account):
 
 
 @pytest.mark.asyncio
-async def test_v1_put_refuses_money_fields_on_imported(api, auth_headers, account, pool):
-    async with pool.acquire() as conn:
-        await import_statement(
-            conn,
-            uuid.UUID(account),
-            [
-                StatementEntry(
-                    uuid.uuid4().hex, datetime.date(2099, 4, 1), Decimal("-20"), "Padaria"
-                )
-            ],
-        )
-        tx_id = await conn.fetchval(
-            "SELECT id FROM transactions WHERE account_id = $1::uuid", account
-        )
-    r = await api.put(f"/api/v1/transactions/{tx_id}", json={"amount": -99}, headers=auth_headers)
-    assert r.status_code == 409
-    r = await api.put(
-        f"/api/v1/transactions/{tx_id}",
-        json={"description": "Padaria do bairro"},
-        headers=auth_headers,
-    )
-    assert r.status_code == 409  # importada só muda de categoria (Story 2.8)
-
-
-@pytest.mark.asyncio
-async def test_v1_category_patterns_become_rules_and_kind_follows_group(api, auth_headers, pool):
-    lazer = await _group(api, auth_headers, "lazer")
-    cat = lazer["categories"][0]
-    pattern = f"zzv1{uuid.uuid4().hex[:6]}"
-    try:
-        r = await api.put(
-            f"/api/v1/categories/{cat['id']}",
-            json={"match_patterns": [pattern]},
-            headers=auth_headers,
-        )
-        assert r.status_code == 200 and pattern in r.json()["match_patterns"]
-        async with pool.acquire() as conn:
-            rules = await service.load_rules(conn)
-        rule = next(x for x in rules if x.pattern == pattern)
-        assert (rule.category_id, rule.direction) == (cat["id"], "saida")
-        listed = (await api.get("/api/v1/categories", headers=auth_headers)).json()
-        assert pattern in next(c for c in listed if c["id"] == cat["id"])["match_patterns"]
-        r = await api.put(
-            f"/api/v1/categories/{cat['id']}", json={"kind": "income"}, headers=auth_headers
-        )
-        assert r.status_code == 409
-    finally:
-        async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM category_rules WHERE pattern = $1", pattern)
-
-
-@pytest.mark.asyncio
 async def test_reapply_invalid_month_message(api, auth_headers):
     r = await api.post(
         f"{URL}/rules/reapply/preview",

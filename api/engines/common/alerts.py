@@ -70,7 +70,8 @@ AlertData = dict[str, float | int | str]
 
 
 class LegacyAlert(BaseModel):
-    """Formato dos avisos das telas v1 (`/cashflow/alerts`, `/wallet/defi/alerts`) até saírem."""
+    """Formato intermediário do cálculo de gasto acima da média (`ledger.service`), que o provider
+    converte em `Alert`; as rotas v1 que o expunham saíram na Story 10.6."""
 
     type: str
     severity: str

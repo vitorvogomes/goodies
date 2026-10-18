@@ -73,9 +73,9 @@ async def test_imported_only_changes_category(api, auth_headers, account, pool) 
             "INSERT INTO import_batches (status, applied_at) VALUES ('applied', now()) RETURNING id"
         )
         tx = await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category, description, "
-            "batch_id, source) VALUES ($1, '2099-08-05', -10, 'Saída a classificar', 'imp', $2, "
-            "'nubank_ofx') RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id, description, "
+            "batch_id, source) VALUES ($1, '2099-08-05', -10, (SELECT id FROM categories WHERE "
+            "name = 'Saída a classificar'), 'imp', $2, 'nubank_ofx') RETURNING id",
             account,
             batch,
         )

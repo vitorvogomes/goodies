@@ -141,7 +141,8 @@ async def register_closed_yield(
         return {"status": "already_done"}
     row = await conn.fetchrow(
         "SELECT COALESCE(-SUM(amount), 0) AS net_saiu, MAX(date) AS last_date "
-        "FROM transactions WHERE kind = 'investment' AND category = ANY($1::text[]) "
+        "FROM transactions t JOIN categories c ON c.id = t.category_id "
+        "WHERE t.kind = 'investment' AND c.name = ANY($1::text[]) "
         "AND description NOT ILIKE '%snow%' AND description NOT ILIKE '%turbo%' "
         "AND description NOT ILIKE '%guanabara%'",
         list(_RF_LEDGER_CATEGORIES),

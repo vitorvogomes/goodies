@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date
 from typing import Any
 
 import httpx
@@ -101,3 +102,55 @@ async def set_price(symbol: str, price: float) -> None:
         await market_service.invalidate_price_cache(symbol)
     finally:
         await conn.close()
+
+
+@pytest_asyncio.fixture
+async def user_id(pool: Any) -> AsyncIterator[str]:
+    """Usuário de teste sem metas; yields o id (os testes de serviço não passam pela HTTP)."""
+    uid, _headers = await _create_user_and_login(pool)
+    yield uid
+    await _cleanup_user(pool, uid)
+
+
+async def add_op(
+    user_id: str,
+    symbol: str,
+    qty: float,
+    price: float,
+    *,
+    tipo: str = "compra",
+    category: str = "Ações Nacionais",
+    day: date = date(2026, 1, 2),
+    broker: str = "B3",
+) -> None:
+    """Operação de teste direto pelo `operations` (a rota v1 /asset-operations saiu na Story
+    10.6); invalida o cache de XIRR como a rota fazia."""
+    import asyncpg
+
+    from engines.common.assets import canonical_category
+    from engines.common.cache import invalidate_xirr_cache
+    from engines.portfolio import operations
+    from tests.conftest import TEST_DSN
+
+    conn = await asyncpg.connect(TEST_DSN)
+    try:
+        await operations.create_operation(
+            conn,
+            user_id=user_id,
+            broker=broker,
+            asset_symbol=symbol,
+            asset_category=canonical_category(category),
+            tipo=tipo,
+            quantidade=qty,
+            valor_unitario=price,
+            data_operacao=day,
+        )
+    finally:
+        await conn.close()
+    await invalidate_xirr_cache(user_id)
+
+
+async def run(pool: Any, fn: Any, *args: Any) -> Any:
+    """Chama uma função de serviço do portfolio com uma conexão do pool."""
+    async with pool.acquire() as conn:
+        return await fn(conn, *args)

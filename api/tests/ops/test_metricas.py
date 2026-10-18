@@ -23,9 +23,9 @@ async def _events(conn: Any) -> tuple[str, list[str]]:
         txs.append(
             str(
                 await conn.fetchval(
-                    "INSERT INTO transactions (account_id, date, amount, category, category_id, "
-                    "kind, description) VALUES ($1, '2097-05-05', -10, 'x', $2, 'expense', $3) "
-                    "RETURNING id",
+                    "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                    "description) VALUES ($1, '2097-05-05', -10, $2, 'expense', $3) RETURNING "
+                    "id",
                     account,
                     cats[0],
                     f"sm {i}",

@@ -26,8 +26,8 @@ async def _tx(conn: Any, amount: float = -50, when: date = date(2099, 7, 3)) -> 
     )
     return str(
         await conn.fetchval(
-            "INSERT INTO transactions (account_id, date, amount, category) "
-            "VALUES ($1, $2, $3, 'Saída a classificar') RETURNING id",
+            "INSERT INTO transactions (account_id, date, amount, category_id) VALUES ($1, $2, "
+            "$3, (SELECT id FROM categories WHERE name = 'Saída a classificar')) RETURNING id",
             acc,
             when,
             amount,
@@ -61,8 +61,8 @@ async def test_writes_category_kind_text_source_and_event(pool: Any) -> None:
                 conn, [CategoryChange(tx, toro, "manual")], cause="inline_edit"
             )
             row = await conn.fetchrow(
-                "SELECT category, kind, category_source, category_id FROM transactions "
-                "WHERE id = $1",
+                "SELECT c.name AS category, t.kind, t.category_source, t.category_id "
+                "FROM transactions t JOIN categories c ON c.id = t.category_id WHERE t.id = $1",
                 tx,
             )
             ev = await conn.fetchrow(
@@ -105,7 +105,11 @@ async def test_manual_is_never_overwritten_by_rule_or_suggestion(pool: Any) -> N
             res2 = await service.categorize(
                 conn, [CategoryChange(tx, transporte, "suggestion")], cause="import"
             )
-            final = await conn.fetchval("SELECT category FROM transactions WHERE id = $1", tx)
+            final = await conn.fetchval(
+                "SELECT c.name FROM transactions t JOIN categories c ON c.id = t.category_id "
+                "WHERE t.id = $1",
+                tx,
+            )
             raise _Rollback
     except _Rollback:
         pass

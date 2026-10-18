@@ -51,8 +51,8 @@ async def _seed(pool: Any, acc: str, reported: list[tuple[date, str]], tx: list[
             )
         for d, v in tx:
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
-                "description) VALUES ($1::uuid, $2, $3, 'x', $4, 'expense', $5)",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description) VALUES ($1::uuid, $2, $3, $4, 'expense', $5)",
                 acc,
                 d,
                 Decimal(v),

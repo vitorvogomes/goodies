@@ -26,6 +26,9 @@ from db.connection import close_pool, get_pool, init_pool
 
 # Categoria-destino (investimento) onde as duas pernas da caixinha convivem.
 _INVEST_CATEGORY = "Caixinha/RDB Nubank"
+_RESGATE = "'Resgate'"
+# Story 10.6: a categoria é só o `category_id` (o texto da v1 saiu na revisão 0045).
+_BY_NAME = "(SELECT id FROM categories WHERE name = {})"
 
 
 def _rowcount(tag: str) -> int:
@@ -40,12 +43,13 @@ async def reclassify_caixinhas(conn: asyncpg.Connection) -> dict[str, int]:
     - resgates_moved: linhas income/Resgate movidas para investment/Caixinha-RDB.
     """
     apps = await conn.execute(
-        "UPDATE transactions SET kind = 'investment' WHERE category = $1 AND kind <> 'investment'",
+        "UPDATE transactions SET kind = 'investment' "
+        f"WHERE category_id = {_BY_NAME.format('$1')} AND kind <> 'investment'",
         _INVEST_CATEGORY,
     )
     resgates = await conn.execute(
-        "UPDATE transactions SET kind = 'investment', category = $1 "
-        "WHERE category = 'Resgate' AND kind <> 'investment'",
+        f"UPDATE transactions SET kind = 'investment', category_id = {_BY_NAME.format('$1')} "
+        f"WHERE category_id = {_BY_NAME.format(_RESGATE)} AND kind <> 'investment'",
         _INVEST_CATEGORY,
     )
     return {"apps_fixed": _rowcount(apps), "resgates_moved": _rowcount(resgates)}
@@ -55,8 +59,8 @@ async def _preflight(conn: asyncpg.Connection) -> int:
     """Conta linhas com cara de caixinha FORA das categorias esperadas (deve ser 0)."""
     return int(
         await conn.fetchval(
-            "SELECT count(*) FROM transactions "
-            "WHERE category NOT IN ('Caixinha/RDB Nubank','Resgate') "
+            "SELECT count(*) FROM transactions t JOIN categories c ON c.id = t.category_id "
+            "WHERE c.name NOT IN ('Caixinha/RDB Nubank','Resgate') "
             "AND (description ILIKE 'Aplicação RDB%' OR description ILIKE 'Resgate RDB%' "
             "OR description ILIKE 'Aplicação Fundo - Nu Reserva%' "
             "OR description ILIKE 'Resgate Fundo - Nu Reserva%' "
@@ -94,7 +98,7 @@ async def run(apply: bool) -> None:
             pending = int(
                 await conn.fetchval(
                     "SELECT count(*) FROM transactions "
-                    "WHERE category = 'Resgate' AND kind <> 'investment'"
+                    f"WHERE category_id = {_BY_NAME.format(_RESGATE)} AND kind <> 'investment'"
                 )
             )
             print(f"resgates a mover (income/Resgate → investment): {pending}")

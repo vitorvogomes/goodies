@@ -264,16 +264,14 @@ async def insert_entries(
             async with conn.transaction():
                 inserted = await conn.fetchval(
                     "INSERT INTO transactions "
-                    "(account_id, date, amount, category, category_id, kind, description, "
+                    "(account_id, date, amount, category_id, kind, description, "
                     "external_id, batch_id, source, payer, category_source, review_status) "
-                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'suggestion', "
-                    "'pending') "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
                     "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
                     "RETURNING id",
                     account_id,
                     entry.date,
                     entry.amount,
-                    "Entrada a classificar" if positive else "Saída a classificar",
                     pending_by_sign[positive],
                     "income" if positive else "expense",
                     entry.description,

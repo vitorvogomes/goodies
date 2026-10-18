@@ -70,8 +70,9 @@ async def seed_env(pool):
         ]
         for cat, kind, amount, desc in rows:
             await conn.execute(
-                "INSERT INTO transactions (account_id, date, amount, category, kind, "
-                "description, external_id) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                "description, external_id) VALUES ($1,$2,$3,(SELECT id FROM categories WHERE "
+                "name = $4),$5,$6,$7)",
                 acc,
                 datetime.date(2025, 8, 1),
                 amount,

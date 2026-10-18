@@ -1,8 +1,7 @@
 "use client";
 
 // Abas da área (DESIGN.md › tabs): na URL; ←/→ trocam de aba (roving focus do Radix, ativação
-// automática). Trocar de aba mantém o período; as telas v1 ficam como links abaixo, nunca como aba.
-import Link from "next/link";
+// automática). Trocar de aba mantém o período.
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,19 +25,6 @@ export function AreaTabs({ area }: { area: AreaKey }) {
           ))}
         </TabsList>
       </Tabs>
-      {def.v1.length > 0 && (
-        <p className="type-caption text-muted-foreground">
-          Telas da v1:{" "}
-          {def.v1.map((l, i) => (
-            <span key={l.href}>
-              {i > 0 && " · "}
-              <Link href={l.href} className="text-positive underline underline-offset-4 hover:no-underline">
-                {l.label}
-              </Link>
-            </span>
-          ))}
-        </p>
-      )}
     </div>
   );
 }

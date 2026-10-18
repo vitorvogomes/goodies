@@ -28,8 +28,8 @@ async def _seed(pool: Any, account: str) -> dict[str, str]:
         for key, amount, day in (("luz", "200", 5), ("plano", "450", 10), ("net", "100", 28)):
             ids[key] = str(
                 await conn.fetchval(
-                    "INSERT INTO fixed_costs (name, amount, due_day, category, category_id, "
-                    "valid_from) VALUES ($1, $2, $3, 'x', $4, '2097-01-01') RETURNING id",
+                    "INSERT INTO fixed_costs (name, amount, due_day, category_id, valid_from) "
+                    "VALUES ($1, $2, $3, $4, '2097-01-01') RETURNING id",
                     f"{key} {uuid.uuid4().hex[:4]}",
                     Decimal(amount),
                     day,
@@ -43,9 +43,8 @@ async def _seed(pool: Any, account: str) -> dict[str, str]:
         ):
             ids[key] = str(
                 await conn.fetchval(
-                    "INSERT INTO transactions (account_id, date, amount, category, category_id, "
-                    "kind, description) VALUES ($1::uuid, $2, $3, 'x', $4, 'expense', $5) "
-                    "RETURNING id",
+                    "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
+                    "description) VALUES ($1::uuid, $2, $3, $4, 'expense', $5) RETURNING id",
                     account,
                     date(2097, 5, day),
                     Decimal(amount),
