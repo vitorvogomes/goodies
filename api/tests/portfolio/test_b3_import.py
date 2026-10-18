@@ -192,6 +192,13 @@ class TestMapMovimentacao:
         assert map_movimentacao("Credito", "Rendimento") == "dividendo"
         assert map_movimentacao("Credito", "Juros Sobre Capital Próprio") == "juros"
 
+    def test_corporate_events(self) -> None:
+        """Story 7.9: bonificação entra como compra a custo zero; o leilão de fração é a venda da
+        fração (o dinheiro cai na corretora); a "Fração em Ativos" é coberta pelo leilão."""
+        assert map_movimentacao("Credito", "Bonificação em Ativos") == "compra"
+        assert map_movimentacao("Credito", "Leilão de Fração") == "venda"
+        assert map_movimentacao("Debito", "Fração em Ativos") is None
+
     def test_non_cashflow_returns_none(self) -> None:
         assert map_movimentacao("Credito", "Atualização") is None
         assert map_movimentacao("Debito", "Direitos de Subscrição - Não Exercido") is None
@@ -199,6 +206,37 @@ class TestMapMovimentacao:
 
 
 class TestParseMovimentacao:
+    def test_bonus_and_fraction_auction(self) -> None:
+        rows = [
+            (
+                "Credito",
+                "22/12/2025",
+                "Bonificação em Ativos",
+                "SOJA3 - BOA SAFRA",
+                "X",
+                1.26,
+                "-",
+                "-",
+            ),
+            ("Debito", "27/01/2026", "Fração em Ativos", "SOJA3 - BOA SAFRA", "X", 0.26, "-", "-"),
+            (
+                "Credito",
+                "13/03/2026",
+                "Leilão de Fração",
+                "SOJA3 - BOA SAFRA",
+                "X",
+                0.26,
+                9.5,
+                2.47,
+            ),
+        ]
+        ops = parse_b3_movimentacao(rows)
+        assert [(o["tipo"], o["quantidade"], o["valor_unitario"]) for o in ops] == [
+            ("compra", 1.26, 0.0),
+            ("venda", 0.26, 9.5),
+        ]
+        assert all(o["evento"] for o in ops)  # fora da regra de cobertura
+
     def test_filters_and_maps(self) -> None:
         ops = parse_b3_movimentacao(_ROWS)
         # 5 cashflows (2 linhas non-cashflow descartadas)

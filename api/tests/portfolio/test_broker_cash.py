@@ -83,3 +83,16 @@ async def test_cards_check_and_divergence(api, auth_headers, pool) -> None:
     finally:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM broker_cash_checks WHERE as_of = $1", day)
+
+
+def test_ad13_quantity_tolerances() -> None:
+    """Story 7.9 — tolerâncias da AD-13 em portfolio/calc (por quantidade)."""
+    from engines.portfolio.calc import quantity_status
+
+    assert quantity_status("acoes_br", D("10"), D("10")) == "conferido"
+    assert quantity_status("fiis", D("10"), D("9")) == "divergente"
+    assert quantity_status("etfs", D("1"), D("1.0001")) == "divergente"  # exata
+    assert quantity_status("aposentadoria", D("1.23"), D("1.24")) == "conferido"  # 0,01 título
+    assert quantity_status("aposentadoria", D("1.23"), D("1.25")) == "divergente"
+    assert quantity_status("cripto", D("0.5"), D("0.5000001")) == "divergente"
+    assert quantity_status("renda_fixa", D("1000"), None) == "valor calculado"

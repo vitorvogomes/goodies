@@ -1,7 +1,7 @@
 """Endpoints de leitura do Wallet Engine — STORY-04-10/04-11.
 
 `/api/v1/wallets/positions` (saldos escaneados valorados pelo preço m3) e
-`/api/v1/wallets/reconciliation` (escaneado vs registrado em asset_operations). Só
+`/api/v1/wallets/manual` (posições manuais, Story 7.8); a conciliação passou ao portfolio. Só
 leitura: a escrita é do worker `wallet_scan` (cron). Escopo por usuário.
 """
 from datetime import date
@@ -59,15 +59,6 @@ class ManualPositionOut(BaseModel):
     quantity: float
 
 
-class ReconciliationOut(BaseModel):
-    asset_symbol: str
-    scanned_quantity: float
-    registered_quantity: float
-    delta: float
-    value_brl: float | None = None
-    value_usd: float | None = None
-
-
 @router.get("/positions", response_model=list[WalletPositionOut])
 async def positions(user: AuthUser, db: Db) -> list[dict[str, object]]:
     return await service.list_wallet_positions(db, user["id"])
@@ -104,12 +95,6 @@ async def delete_manual_position(
     if not removed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição manual não encontrada")
     await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
-
-
-@router.get("/reconciliation", response_model=list[ReconciliationOut])
-async def reconciliation(user: AuthUser, db: Db) -> list[dict[str, object]]:
-    return await service.reconcile(db, user["id"])
-
 
 
 class ManualItem(BaseModel):

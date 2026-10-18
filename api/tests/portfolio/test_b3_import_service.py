@@ -97,6 +97,45 @@ class TestCoverage:
         assert await _count_ops(pool, uid) == 2  # legada + junho
 
     @pytest.mark.asyncio
+    async def test_corporate_events_ignore_coverage(self, pool: Any, portfolio_user: dict) -> None:
+        """Story 7.9: bonificação e leilão de fração só existem na movimentação — trades de outra
+        proveniência depois deles não os cobrem."""
+        uid = portfolio_user["user_id"]
+        await _seed_op(
+            pool, uid, "Toro/B3", "SOJA3", "Ações Nacionais", date(2026, 5, 20), "legacy-soja3"
+        )
+        header = (
+            "Entrada/Saída",
+            "Data",
+            "Movimentação",
+            "Produto",
+            "Instituição",
+            "Quantidade",
+            "Preço unitário",
+            "Valor da Operação",
+        )
+        sheets = {
+            "Movimentação": [
+                header,
+                (
+                    "Credito",
+                    "22/12/2025",
+                    "Bonificação em Ativos",
+                    "SOJA3 - X",
+                    "I",
+                    1.26,
+                    "-",
+                    "-",
+                ),
+                ("Credito", "10/03/2026", "Transferência - Liquidação", "SOJA3 - X", "I", 5, 9, 45),
+                ("Credito", "13/03/2026", "Leilão de Fração", "SOJA3 - X", "I", 0.26, 9.5, 2.47),
+            ]
+        }
+        async with pool.acquire() as conn:
+            rep = await import_b3_workbook(conn, uid, sheets, dry_run=False)
+        assert (rep["imported"], rep["skipped_overlap"]) == (2, 1)  # o trade de março é coberto
+
+    @pytest.mark.asyncio
     async def test_all_covered_confirms_zero_instead_of_crashing(
         self, pool: Any, portfolio_user: dict
     ) -> None:

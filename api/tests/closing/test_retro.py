@@ -160,7 +160,7 @@ def test_scripts_register_engines() -> None:
         "from scripts.ops import close_retro, refechar\n"
         "assert not checks._checks\n"
         "close_retro.register_engines(); refechar.register_engines()\n"
-        "assert len(checks._checks) == 3, checks._checks\n"
+        "assert len(checks._checks) == 4, checks._checks\n"
         "assert type(month_status()).__name__ == 'ClosingMonthStatus'\n"
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)

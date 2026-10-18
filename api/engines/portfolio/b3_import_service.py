@@ -139,7 +139,7 @@ async def import_b3_workbook(
     for op in ops:
         sym = op["asset_symbol"]
         cut = cutoffs.get(sym)
-        if cut is not None and op["data_operacao"] <= cut:
+        if cut is not None and op["data_operacao"] <= cut and not op.get("evento"):
             overlap_tickers.add(sym)
             continue
         kept.append(op)

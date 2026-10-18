@@ -1,14 +1,18 @@
 "use client";
 
-// Investimentos › Conciliação (Story 7.7; a 7.9 junta a conciliação com o consolidado B3 e as
-// carteiras): um Cartão de corretora por corretora — caixa em corretora × a caminho.
+// Investimentos › Conciliação (Stories 7.7 e 7.9): os Cartões de corretora (caixa em corretora ×
+// a caminho) e, abaixo, as posições do app × o consolidado B3 e × as carteiras.
 import { BrokerCards } from "@/components/investimentos/BrokerCards";
+import { ReconciliationTables } from "@/components/investimentos/ReconciliationTables";
 
 export default function ConciliacaoPage() {
   return (
-    <div className="space-y-3">
-      <h2 className="type-section-title">Corretoras</h2>
-      <BrokerCards />
+    <div className="space-y-section-gap">
+      <div className="space-y-3">
+        <h2 className="type-section-title">Corretoras</h2>
+        <BrokerCards />
+      </div>
+      <ReconciliationTables />
     </div>
   );
 }

@@ -4,9 +4,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import { invalidateAfter } from "@/lib/invalidate";
 import type { Leitura } from "@/lib/period";
-import type { BrokerCard, Debenture, DebentureIn, PositionsReport } from "@/types/positions";
+import type {
+  BrokerCard,
+  Debenture,
+  DebentureIn,
+  PositionsReport,
+  Reconciliation,
+} from "@/types/positions";
 
 export function usePositions(periodo: string, leitura: Leitura) {
   return useQuery({
@@ -56,4 +63,23 @@ export function useBrokerCheck() {
       }),
     onSuccess: () => invalidateAfter(queryClient, "portfolio"),
   });
+}
+
+// ---- Conciliação com o consolidado B3 e as carteiras (Story 7.9) ----
+
+export function useReconciliation() {
+  return useQuery({
+    queryKey: ["portfolio", "reconciliation"],
+    queryFn: () => apiFetch<Reconciliation>("/api/v1/portfolio/reconciliation"),
+  });
+}
+
+// "Tudo bate com o consolidado B3 de {data} e com as carteiras de {data}." — só quando tudo bate.
+export function reconciliationSummary(r: Reconciliation): string | null {
+  if (!r.all_ok || !r.b3.ref_date) return null;
+  const b3 = `com o consolidado B3 de ${formatDate(r.b3.ref_date)}`;
+  const when = r.wallets.scanned_at ?? r.wallets.attempt_at;
+  if (!r.wallets.rows.length || !when) return `Tudo bate ${b3}.`;
+  const day = new Date(when).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  return `Tudo bate ${b3} e com as carteiras de ${day}.`;
 }

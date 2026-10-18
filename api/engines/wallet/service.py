@@ -4,7 +4,8 @@
 recente do saldo por (usuário, chain, endereço, ativo). Idempotente (ON CONFLICT): uma
 nova varredura atualiza quantity/source e avança `scanned_at`, sem duplicar linhas.
 
-Leitura valorada (`list_wallet_positions`) e reconciliação (`reconcile`) alimentam os
+Leitura valorada (`list_wallet_positions`) e as quantidades escaneadas (a conciliação é do
+`portfolio`, Story 7.9) alimentam os
 endpoints `/api/v1/wallets/*` (consumidos pelo frontend 04-10/04-11).
 """
 from __future__ import annotations
@@ -17,11 +18,10 @@ from typing import Any
 import asyncpg
 
 from config import settings
-from engines.common.assets import CRYPTO_CATEGORIES, AssetCategory
+from engines.common.assets import AssetCategory
 from engines.common.numbers import value_of
 from engines.market import service as market_service
 from engines.market.fetchers.wallets.base import WalletBalance
-from engines.portfolio.service import net_quantity
 
 
 class ManualPositionConflict(Exception):
@@ -255,16 +255,10 @@ async def list_defi_valued(
     return out
 
 
-async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, Any]]:
-    """Reconcilia saldo escaneado vs registrado: `delta = Σ scanned - net_quantity(ops)`.
-
-    Por símbolo: soma a quantidade escaneada (todas as wallets) e compara com a quantidade
-    líquida das `asset_operations`. **Só cripto** (m4): só as carteiras são rastreadas por
-    scan; B3 e caixinhas Nubank vêm por outra via e não pertencem à reconciliação. O lado
-    escaneado (`wallet_positions`) já é 100% cripto; o registrado é filtrado por categoria.
-    """
-    # dedup manual vs escaneada (preferindo a escaneada) ANTES de somar — senão contaria 2x
-    scanned_rows = _prefer_scanned(
+async def scanned_quantities(conn: asyncpg.Connection, user_id: str) -> dict[str, float]:
+    """Quantidade escaneada por ativo, somada entre carteiras (a manual cede à escaneada do mesmo
+    ativo e cadeia — `_prefer_scanned`). A conciliação com as operações é do `portfolio` (AD-1)."""
+    rows = _prefer_scanned(
         await conn.fetch(
             "SELECT chain, asset_symbol, quantity, is_manual FROM wallet_positions "
             "WHERE user_id = $1",
@@ -272,41 +266,18 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
         )
     )
     scanned: dict[str, float] = defaultdict(float)
-    for r in scanned_rows:
+    for r in rows:
         scanned[r["asset_symbol"]] += float(r["quantity"])
+    return dict(scanned)
 
-    # categoria case-insensível: op cripto com casing divergente do enum não pode ser dropada
-    ops = await conn.fetch(
-        "SELECT asset_symbol, tipo, quantidade FROM asset_operations "
-        "WHERE user_id = $1 AND lower(asset_category) = ANY($2::text[])",
-        user_id,
-        [c.lower() for c in CRYPTO_CATEGORIES],
+
+async def last_scan_attempt(conn: asyncpg.Connection) -> datetime | None:
+    """Última TENTATIVA do scan de carteiras (não o último sucesso): com a máquina desligada, a
+    falta de scan conta de quando ela tentou pela última vez."""
+    value: datetime | None = await conn.fetchval(
+        "SELECT last_run FROM job_runs WHERE job = 'wallet_scan'"
     )
-    by_symbol: dict[str, list[Any]] = defaultdict(list)
-    for op in ops:
-        by_symbol[op["asset_symbol"]].append(op)
-    registered = {sym: net_quantity(rows) for sym, rows in by_symbol.items()}
-
-    symbols = sorted(set(scanned) | set(registered))
-    # valoração por símbolo (BRL+USD) reusando o mesmo lookup de preço (sem N+1)
-    prices = await prices_by_ticker(conn, symbols)
-
-    out: list[dict[str, Any]] = []
-    for sym in symbols:
-        s = scanned.get(sym, 0.0)
-        reg = registered.get(sym, 0.0)
-        brl, usd = prices.get(sym, (None, None))
-        out.append(
-            {
-                "asset_symbol": sym,
-                "scanned_quantity": s,
-                "registered_quantity": reg,
-                "delta": s - reg,
-                "value_brl": value_of(s, brl),
-                "value_usd": value_of(s, usd),
-            }
-        )
-    return out
+    return value
 
 
 async def oldest_scan(conn: asyncpg.Connection) -> datetime | None:

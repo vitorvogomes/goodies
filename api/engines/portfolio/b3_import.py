@@ -4,7 +4,8 @@ Fonte real (Toro/B3 + Tesouro Direto via NU). É a peça reutilizável pela futu
 rotina automatizada do Portal do Investidor (exporta o mesmo formato de
 "Movimentação"). Converte cada linha de movimentação em uma operação canônica,
 descartando eventos que não são cashflow (atualização de posição, subscrição,
-cessão de direitos, bonificação, desdobro/grupamento).
+cessão de direitos, desdobro/grupamento). Bonificação e leilão de fração mudam a quantidade
+e entram (Story 7.9).
 
 Layout da aba (sem cabeçalho, ao chamar parse_b3_movimentacao):
     Entrada/Saída | Data | Movimentação | Produto | Instituição |
@@ -76,9 +77,20 @@ def map_movimentacao(entrada_saida: str, movimentacao: str) -> str | None:
         return "dividendo"
     if "juros sobre capital" in m:
         return "juros"
-    # Atualização, Direitos de Subscrição, Cessão de Direitos, Bonificação,
-    # Desdobro, Grupamento, Fração... não são cashflow.
+    # Eventos corporativos (Story 7.9): a bonificação é compra a custo zero; o leilão de fração é a
+    # venda da fração (o dinheiro cai na corretora), então "Fração em Ativos" já está coberta.
+    if m.startswith("bonificação em ativos") or m.startswith("bonificacao em ativos"):
+        return "compra" if es == "credito" else None
+    if m.startswith("leilão de fração") or m.startswith("leilao de fracao"):
+        return "venda" if es == "credito" else None
+    # Atualização, Direitos de Subscrição, Cessão de Direitos, Desdobro, Grupamento, Fração...
+    # não são cashflow.
     return None
+
+
+def is_corporate_event(movimentacao: str) -> bool:
+    m = movimentacao.strip().lower()
+    return m.startswith(("bonificação", "bonificacao", "leilão de fração", "leilao de fracao"))
 
 
 def _to_float(value: Any) -> float | None:
@@ -280,6 +292,9 @@ def parse_b3_movimentacao(
         valor_total = _to_float(valor)
         if quantidade is None or quantidade == 0:
             continue
+        evento = is_corporate_event(str(movimentacao))
+        if evento and tipo == "compra" and valor_unitario is None and valor_total is None:
+            valor_unitario = 0.0  # bonificação: ações a custo zero
         if valor_unitario is None:
             if valor_total is None:
                 continue
@@ -298,6 +313,7 @@ def parse_b3_movimentacao(
                 "valor_unitario": valor_unitario,
                 "data_operacao": data_operacao,
                 "external_id": operation_hash(data_operacao, ticker, tipo, total, seq),
+                "evento": evento,  # só a movimentação traz: fora da regra de cobertura
             }
         )
     return ops

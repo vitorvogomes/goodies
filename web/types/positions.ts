@@ -75,3 +75,22 @@ export interface BrokerCard {
   informed_at: string | null;
   divergent: boolean;
 }
+
+// Investimentos › Conciliação — app × consolidado B3 × carteiras (Story 7.9, AD-13). Quantidades
+// chegam como texto decimal da API.
+export type ReconStatus = "conferido" | "divergente" | "valor calculado";
+
+export interface ReconRow {
+  symbol: string;
+  cls: string;
+  app: string;
+  origin: string | null;
+  diff: string | null;
+  status: ReconStatus;
+}
+
+export interface Reconciliation {
+  b3: { ref_date: string | null; rows: ReconRow[] };
+  wallets: { scanned_at: string | null; attempt_at: string | null; stale: boolean; rows: ReconRow[] };
+  all_ok: boolean;
+}

@@ -157,3 +157,25 @@ def broker_split(
     )
     on_the_way = min(residual, max(pending, Decimal(0)))
     return residual - on_the_way, on_the_way
+
+
+# --------------------------------------------------------------------------------------------
+# Conciliação por quantidade (Story 7.9 — AD-13: as tolerâncias num lugar só)
+# --------------------------------------------------------------------------------------------
+
+QTY_TOLERANCE: dict[str, Decimal] = {
+    "acoes_br": Decimal(0),  # ações, FII, ETF, BDR: quantidade exata contra o consolidado B3
+    "etfs": Decimal(0),
+    "fiis": Decimal(0),
+    "aposentadoria": Decimal("0.01"),  # Tesouro: 0,01 título
+    "cripto": Decimal(0),  # contra o scan: sem divergência
+}
+NOT_RECONCILED = frozenset({"renda_fixa"})  # caixinhas e debêntures: sem origem, "valor calculado"
+
+
+def quantity_status(cls: str, app: Decimal, origin: Decimal | None) -> str:
+    """conferido | divergente | valor calculado (RF sem origem para comparar)."""
+    if cls in NOT_RECONCILED or origin is None:
+        return "valor calculado"
+    tolerance = QTY_TOLERANCE.get(cls, Decimal(0))
+    return "conferido" if abs(app - origin) <= tolerance else "divergente"
