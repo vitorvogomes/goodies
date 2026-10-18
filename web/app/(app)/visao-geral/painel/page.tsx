@@ -4,13 +4,48 @@
 // (Disponível para consumo chega no Épico 6); Patrimônio | Resultado dos investimentos |
 // Rentabilidade nominal (a real chega com o IPCA). Cada bloco carrega, falha e tenta de novo
 // sozinho; durante a carga, Esqueleto com a geometria final.
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { SourcesBlock } from "@/components/ingest/SourcesBlock";
+import { AlertsStrip } from "@/components/overview/AlertsStrip";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatPercent, formatSignedBRL } from "@/lib/format";
-import { usePainel } from "@/lib/overview";
+import { useOverviewSources, usePainel } from "@/lib/overview";
 import { usePeriodo } from "@/lib/use-periodo";
+
+function Fontes() {
+  const fontes = useOverviewSources();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const openHub = () => {
+    const next = new URLSearchParams(params);
+    next.set("importar", "1");
+    router.push(`${pathname}?${next}`);
+  };
+  return (
+    <section aria-labelledby="fontes" className="space-y-2">
+      <h2 id="fontes" className="type-section-title">
+        Fontes
+      </h2>
+      {fontes.isError ? (
+        <p className="type-body-sm text-negative">
+          Não foi possível carregar as fontes.{" "}
+          <button type="button" className="underline" onClick={() => fontes.refetch()}>
+            Tentar de novo
+          </button>
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <SourcesBlock sources={fontes.data ?? []} loading={fontes.isLoading} onOpenSource={openHub} />
+        </div>
+      )}
+    </section>
+  );
+}
 
 function Painel() {
   const { periodo } = usePeriodo();
@@ -35,6 +70,15 @@ function Painel() {
 
   return (
     <div className="space-y-section-gap">
+      <AlertsStrip />
+      {data && data.a_revisar > 0 && (
+        <p className="type-body-sm">
+          {data.a_revisar === 1 ? "1 transação a revisar." : `${data.a_revisar} transações a revisar.`}{" "}
+          <Link href={`/caixa/transacoes?periodo=${periodo}&revisar=todas`} className="text-positive underline">
+            Revisar
+          </Link>
+        </p>
+      )}
       <div className="grid gap-card-gap lg:grid-cols-2">
         {data ? (
           <KpiCard
@@ -81,6 +125,7 @@ function Painel() {
           </>
         )}
       </div>
+      <Fontes />
     </div>
   );
 }

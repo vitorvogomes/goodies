@@ -6,7 +6,16 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SourceRow } from "@/types/ingest";
 
-export function SourcesBlock({ sources, loading }: { sources: SourceRow[]; loading?: boolean }) {
+export function SourcesBlock({
+  sources,
+  loading,
+  onOpenSource,
+}: {
+  sources: (SourceRow & { opens_hub?: boolean })[];
+  loading?: boolean;
+  /** Fonte de arquivo clicável (Painel): abre o Hub de import. */
+  onOpenSource?: (key: string) => void;
+}) {
   return (
     <table className="w-full type-body-sm">
       <caption className="sr-only">Fontes de arquivo</caption>
@@ -28,7 +37,15 @@ export function SourcesBlock({ sources, loading }: { sources: SourceRow[]; loadi
         )}
         {sources.map((s) => (
           <tr key={s.key} className="border-t border-border">
-            <td className="px-4 py-1.5">{s.label}</td>
+            <td className="px-4 py-1.5">
+              {onOpenSource && s.opens_hub ? (
+                <button type="button" className="text-left underline decoration-border underline-offset-2 hover:decoration-foreground" onClick={() => onOpenSource(s.key)}>
+                  {s.label}
+                </button>
+              ) : (
+                s.label
+              )}
+            </td>
             <td className="px-4 py-1.5 text-muted-foreground">{s.kind}</td>
             <td className="px-4 py-1.5 text-right whitespace-nowrap">
               {s.stale && (

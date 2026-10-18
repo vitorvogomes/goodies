@@ -10,9 +10,14 @@ from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
 from . import service
-from .models import Painel
+from .models import Fonte, Painel
 
 router = APIRouter(prefix="/api/v1/overview", tags=["overview"])
+
+
+@router.get("/fontes", response_model=list[Fonte])
+async def fontes(user: AuthUser, db: Db) -> list[Fonte]:
+    return await service.fontes(db)
 
 
 @router.get("/painel", response_model=Painel)

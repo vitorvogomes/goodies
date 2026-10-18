@@ -300,3 +300,11 @@ async def reconcile(conn: asyncpg.Connection, user_id: str) -> list[dict[str, An
             }
         )
     return out
+
+
+async def oldest_scan(conn: asyncpg.Connection) -> datetime | None:
+    """Scan de carteira mais antigo (as manuais, como a SideSwap, não contam)."""
+    found: datetime | None = await conn.fetchval(
+        "SELECT min(scanned_at) FROM wallet_positions WHERE NOT is_manual"
+    )
+    return found

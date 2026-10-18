@@ -4,6 +4,7 @@
 // ativos (sem vermelho, sem contador quando zero, aria-live polite) e abre o painel lateral de 560px
 // com divergências antes de avisos. A ação leva à tela filtrada e fecha o painel; foco no 1º aviso.
 import { BellIcon } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -21,7 +22,21 @@ import { useAlertCenter, useDismissAlert } from "@/lib/alerts";
 import { formatDate } from "@/lib/format";
 
 export function AlertsBell() {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const [openState, setOpen] = useState(false);
+  // "Ver todos" do Painel abre a Central por `?avisos=1`; fechar tira o parâmetro.
+  const fromLink = params.get("avisos") === "1";
+  const open = openState || fromLink;
+  const changeOpen = (value: boolean) => {
+    setOpen(value);
+    if (!value && fromLink) {
+      const next = new URLSearchParams(params);
+      next.delete("avisos");
+      router.replace(next.size ? `${pathname}?${next}` : pathname);
+    }
+  };
   const alerts = useAlertCenter();
   const dismiss = useDismissAlert();
   const firstLink = useRef<HTMLAnchorElement>(null);
@@ -30,7 +45,7 @@ export function AlertsBell() {
   const until = alerts.data?.data_until;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" aria-label={total ? `Avisos: ${total}` : "Avisos: nenhum"}>
           <BellIcon aria-hidden />

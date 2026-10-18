@@ -1352,3 +1352,7 @@ async def accounts_balance(conn: asyncpg.Connection, until: date) -> DatedAmount
         if dated:
             latest = max(latest or dated[-1], dated[-1])
     return DatedAmount(total, latest)
+
+
+async def pending_review_count(conn: asyncpg.Connection) -> int:
+    return int(await conn.fetchval(queries.PENDING_COUNT, None))

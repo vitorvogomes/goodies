@@ -4,11 +4,18 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
-import type { Painel } from "@/types/overview";
+import type { Fonte, Painel } from "@/types/overview";
 
 export function usePainel(periodo: string) {
   return useQuery({
     queryKey: ["overview", "painel", periodo],
     queryFn: () => apiFetch<Painel>(`/api/v1/overview/painel?periodo=${periodo}`),
+  });
+}
+
+export function useOverviewSources() {
+  return useQuery({
+    queryKey: ["overview", "fontes"],
+    queryFn: () => apiFetch<Fonte[]>("/api/v1/overview/fontes"),
   });
 }

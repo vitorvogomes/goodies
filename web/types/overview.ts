@@ -1,4 +1,5 @@
-// Painel principal (Story 4.1) — `Valued` da AD-15.
+// Painel principal (Stories 4.1 e 4.2) — `Valued` da AD-15.
+import type { SourceRow } from "@/types/ingest";
 export type UnavailableReason =
   | "nao_definido"
   | "aguardando_ipca"
@@ -23,4 +24,9 @@ export interface Painel {
   patrimonio: Valued;
   resultado_investimentos: Valued;
   rentabilidade_nominal: Valued;
+  a_revisar: number;
+}
+
+export interface Fonte extends SourceRow {
+  opens_hub: boolean;
 }

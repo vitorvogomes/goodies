@@ -362,3 +362,23 @@ async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
         return False
     await _price_changed(conn, ticker)
     return True
+
+
+# --------------------------------------------------------------------------------------------
+# Fontes automáticas do Painel (Story 4.2): até quando os preços e os índices estão atualizados
+# --------------------------------------------------------------------------------------------
+
+
+async def oldest_market_price(conn: asyncpg.Connection) -> datetime | None:
+    """O preço de mercado (não manual) mais antigo entre os tickers com posição — o que mais
+    atrasa a valoração. Preço manual não envelhece (ADR-012)."""
+    found: datetime | None = await conn.fetchval(
+        "SELECT min(p.fetched_at) FROM asset_prices p "
+        "WHERE NOT p.is_manual AND EXISTS (SELECT 1 FROM assets a WHERE a.price_ref = p.ticker)"
+    )
+    return found
+
+
+async def latest_index_date(conn: asyncpg.Connection) -> Any:
+    """Último dia com CDI publicado (o IPCA é mensal e sai depois)."""
+    return await conn.fetchval("SELECT max(ref_date) FROM benchmark_data WHERE series = 'CDI'")
