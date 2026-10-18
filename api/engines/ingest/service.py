@@ -87,8 +87,8 @@ async def list_batches(conn: asyncpg.Connection, limit: int = 20) -> list[BatchR
 # --------------------------------------------------------------------------------------------
 
 UNKNOWN_FORMAT = (
-    "Formato não reconhecido. Aceitos: OFX Nubank, CSV Nubank, B3 movimentação, negociação e "
-    "consolidado (.xlsx)."
+    "Formato não reconhecido. Aceitos: OFX Nubank, CSV Nubank, B3 movimentação e consolidado "
+    "(.xlsx)."
 )
 _adapters: list[SourceAdapter] = []
 BatchHook = Callable[[asyncpg.Connection, str], Awaitable[None]]

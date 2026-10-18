@@ -19,7 +19,6 @@ async def test_sources_block(api, auth_headers) -> None:
         "nubank_pf",
         "nubank_mei",
         "b3_movimentacao",
-        "b3_negociacao",
         "b3_consolidado",
         "precos",
         "carteiras",

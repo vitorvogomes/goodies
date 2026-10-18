@@ -262,7 +262,7 @@ export function ImportHub() {
             <UploadIcon aria-hidden className="size-5 text-muted-foreground" />
             <span className="font-semibold">Arraste os arquivos aqui ou clique para escolher</span>
             <span className="type-caption text-muted-foreground">
-              OFX ou CSV do Nubank · movimentação, negociação e consolidado da B3
+              OFX ou CSV do Nubank · movimentação e consolidado da B3
             </span>
           </button>
           <input

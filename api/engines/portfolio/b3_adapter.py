@@ -84,6 +84,10 @@ def period_from_name(file_name: str, ftype: B3FileType) -> tuple[date, date] | N
     return None
 
 
+NEGOCIACAO_REFUSED = (
+    "Relatório de negociação não é importado: use a movimentação e o consolidado da B3."
+)
+
 # Liquidação (movimentação, D+2 úteis) × negócio (negociação): mesma operação até 7 dias corridos.
 _PAIR_WINDOW_DAYS = 7
 _OTHER_BROKERS = {
@@ -205,6 +209,9 @@ class B3Adapter:
     ) -> FilePlan:
         ftype: B3FileType = parsed.data["type"]
         plan = FilePlan(parsed.source, parsed.file_name, parsed.file_hash, parsed=parsed)
+        if ftype == "negociacao":  # P20: só movimentação e consolidado
+            plan.error = NEGOCIACAO_REFUSED
+            return plan
         plan.broker = _BROKER_BY_TYPE[ftype]
         period = period_from_name(parsed.file_name, ftype)
         try:

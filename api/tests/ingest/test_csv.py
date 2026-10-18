@@ -13,8 +13,8 @@ from tests.ingest.test_protocol import _csv, _ofx, _preview
 
 URL = "/api/v1/ingest"
 UNKNOWN = (
-    "Formato não reconhecido. Aceitos: OFX Nubank, CSV Nubank, B3 movimentação, negociação e "
-    "consolidado (.xlsx)."
+    "Formato não reconhecido. Aceitos: OFX Nubank, CSV Nubank, B3 movimentação e consolidado "
+    "(.xlsx)."
 )
 CSV_ALERT = "CSV importado sem conferência de saldo. Só o OFX permite conferir."
 

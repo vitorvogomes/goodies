@@ -13,7 +13,7 @@ SOURCES: tuple[tuple[str, str, str], ...] = (
     ("nubank_pf", "Nubank PF", "OFX ou CSV"),
     ("nubank_mei", "Nubank MEI", "OFX ou CSV"),
     ("b3_movimentacao", "B3 movimentação", "xlsx"),
-    ("b3_negociacao", "B3 negociação", "xlsx"),
+    # P20: o relatório de negociação não é mais importado (a movimentação traz as operações)
     ("b3_consolidado", "B3 consolidado", "xlsx"),
 )
 PF_LIMIT_DAYS = 7

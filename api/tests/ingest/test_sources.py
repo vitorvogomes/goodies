@@ -50,7 +50,7 @@ async def test_sources_endpoint_and_alerts(api, auth_headers, ofx_account, pool)
     r = await api.get("/api/v1/ingest/sources", headers=auth_headers)
     assert r.status_code == 200
     keys = [s["key"] for s in r.json()]
-    assert keys == ["nubank_pf", "nubank_mei", "b3_movimentacao", "b3_negociacao", "b3_consolidado"]
+    assert keys == ["nubank_pf", "nubank_mei", "b3_movimentacao", "b3_consolidado"]
     first = r.json()[0]
     assert first["label"] == "Nubank PF" and first["kind"] == "OFX ou CSV"
     async with pool.acquire() as conn:

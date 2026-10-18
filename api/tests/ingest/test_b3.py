@@ -98,7 +98,9 @@ def test_period_from_name() -> None:
 
 
 @pytest.mark.asyncio
-async def test_movimentacao_and_negociacao_enter_once(api, auth_headers, pool) -> None:
+async def test_negociacao_is_refused_movimentacao_imports(api, auth_headers, pool) -> None:
+    """P20: o relatório de negociação não é mais importado (só movimentação e consolidado da B3);
+    o arquivo aparece com o motivo e nada dele entra."""
     import main  # noqa: F401
 
     t = f"ZB{uuid.uuid4().hex[:2].upper()}3"
@@ -136,16 +138,12 @@ async def test_movimentacao_and_negociacao_enter_once(api, auth_headers, pool) -
         ).json()
         batches.append(body["batch_id"])
         n, m = body["files"]
-        assert (n["source"], m["source"]) == ("b3_negociacao", "b3_movimentacao")
-        assert (n["period_start"], n["period_end"]) == ("2099-02-01", "2099-02-28")
-        assert (n["new"], m["new"]) == (1, 1)  # cada um, sozinho, seria novo
+        assert n["error"] == (
+            "Relatório de negociação não é importado: use a movimentação e o consolidado da B3."
+        )
+        assert (m["source"], m["new"]) == ("b3_movimentacao", 1)
         done = await _confirm(api, auth_headers, body)
-        assert done["imported"] == 1  # mas no lote entra uma vez só
-        again = (
-            await _preview(api, auth_headers, [("negociacao-2099-02-01_2099-02-28.xlsx", neg)])
-        ).json()
-        batches.append(again["batch_id"])
-        assert again["files"][0]["new"] == 0
+        assert done["imported"] == 1
     finally:
         await _cleanup(pool, [t], batches)
 
@@ -155,10 +153,26 @@ async def test_unnamed_file_needs_period(api, auth_headers, pool) -> None:
     import main  # noqa: F401
 
     t = f"ZC{uuid.uuid4().hex[:2].upper()}3"
-    neg = _xlsx({"Negociação": [_NEG, ("05/03/2099", "Compra", "Vista", "-", "X", t, 1, 5.0, 5.0)]})
+    mov = _xlsx(
+        {
+            "Movimentação": [
+                _MOV,
+                (
+                    "Credito",
+                    "07/03/2099",
+                    "Transferência - Liquidação",
+                    f"{t} - EMPRESA",
+                    "X",
+                    1,
+                    5.0,
+                    5.0,
+                ),
+            ]
+        }
+    )
     batches: list[str] = []
     try:
-        body = (await _preview(api, auth_headers, [("extrato.xlsx", neg)])).json()
+        body = (await _preview(api, auth_headers, [("extrato.xlsx", mov)])).json()
         batches.append(body["batch_id"])
         f = body["files"][0]
         assert f["needs"] == ["period"] and f["period_start"] is None
