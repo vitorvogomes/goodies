@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+import datetime as dt
 
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ KIND_LABEL = {
 
 class TransactionRow(BaseModel):
     id: str
-    date: date
+    date: dt.date
     description: str | None
     amount: Money
     kind: str
@@ -59,3 +59,19 @@ class CategoryOption(BaseModel):
     kind: str
     role: str
     is_active: bool
+
+
+class ManualTransactionCreate(BaseModel):
+    account_id: str
+    date: dt.date
+    amount: Money
+    description: str | None = None
+    category_id: str
+
+
+class ManualTransactionUpdate(BaseModel):
+    account_id: str | None = None
+    date: dt.date | None = None
+    amount: Money | None = None
+    description: str | None = None
+    category_id: str | None = None

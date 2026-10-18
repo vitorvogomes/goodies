@@ -19,11 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
+import { FormField, SideForm } from "@/components/forms/SideForm";
 import { ImportSheet } from "@/components/shell/ImportSheet";
 import { PeriodSelector } from "@/components/shell/PeriodSelector";
 import { ThemeSwitch } from "@/components/shell/ThemeSwitch";
@@ -69,6 +70,31 @@ const DEMO_OPTIONS = [
   { id: "a", key: "gasto:alimentacao", name: "Mercado", label: "Alimentação › Mercado", group_key: "alimentacao", group_name: "Alimentação", kind: "expense", role: "consumo", is_active: true },
   { id: "b", key: "gasto:transporte", name: "Transporte", label: "Transporte › Transporte", group_key: "transporte", group_name: "Transporte", kind: "expense", role: "consumo", is_active: true },
 ];
+
+function SideFormDemo({ failed = false }: { failed?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        {failed ? "Formulário (falha ao salvar)" : "Formulário em painel lateral"}
+      </Button>
+      <SideForm
+        open={open}
+        title="Novo custo fixo"
+        dirty={value !== ""}
+        saving={false}
+        failed={failed}
+        onClose={() => setOpen(false)}
+        onSubmit={() => setOpen(false)}
+      >
+        <FormField id="demo-nome" label="Nome" error={value === "" ? "Informe o nome." : null}>
+          <Input id="demo-nome" value={value} onChange={(e) => setValue(e.target.value)} />
+        </FormField>
+      </SideForm>
+    </>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -189,6 +215,13 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+      </Section>
+
+      <Section title="Formulário em painel lateral">
+        <div className="flex flex-wrap gap-2">
+          <SideFormDemo />
+          <SideFormDemo failed />
+        </div>
       </Section>
 
       <Section title="Selo de estado">

@@ -20,7 +20,14 @@ from engines.ledger.import_routes import router as import_router
 from engines.ledger.transactions import router as transactions_router
 
 from . import service
-from .models import CategoryChangeIn, CategoryOption, TransactionList, TransactionRow
+from .models import (
+    CategoryChangeIn,
+    CategoryOption,
+    ManualTransactionCreate,
+    ManualTransactionUpdate,
+    TransactionList,
+    TransactionRow,
+)
 
 router = APIRouter()
 router.include_router(accounts_router)
@@ -77,6 +84,54 @@ async def list_category_options(
     user: AuthUser, db: Db, incluir_arquivadas: bool = False
 ) -> list[CategoryOption]:
     return await service.category_options(db, incluir_arquivadas)
+
+
+_IMPORTED = {
+    "error": "transacao_importada",
+    "message": "Transação importada só muda de categoria.",
+}
+_NOT_FOUND = {"error": "transacao_inexistente", "message": "Transação não encontrada."}
+_BAD_CATEGORY = {"error": "categoria_inexistente", "message": "Categoria não existe."}
+_ZERO = {"error": "valor_zero", "message": "Informe um valor diferente de zero."}
+
+
+@v2.post("/transactions", response_model=TransactionRow, status_code=status.HTTP_201_CREATED)
+async def create_manual_transaction(
+    body: ManualTransactionCreate, user: AuthUser, db: Db
+) -> TransactionRow:
+    try:
+        return await service.create_manual(db, body)
+    except LookupError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_CATEGORY) from None
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _ZERO) from None
+
+
+@v2.patch("/transactions/{transaction_id}", response_model=TransactionRow)
+async def update_transaction(
+    transaction_id: str, body: ManualTransactionUpdate, user: AuthUser, db: Db
+) -> TransactionRow:
+    try:
+        row = await service.update_transaction(db, transaction_id, body)
+    except service.ImportedTransactionError:
+        raise HTTPException(status.HTTP_409_CONFLICT, _IMPORTED) from None
+    except LookupError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_CATEGORY) from None
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _ZERO) from None
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+    return row
+
+
+@v2.delete("/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_manual_transaction(transaction_id: str, user: AuthUser, db: Db) -> None:
+    try:
+        found = await service.delete_manual(db, transaction_id)
+    except service.ImportedTransactionError:
+        raise HTTPException(status.HTTP_409_CONFLICT, _IMPORTED) from None
+    if not found:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
 
 
 router.include_router(v2)

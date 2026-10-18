@@ -19,7 +19,14 @@ from engines.common.month_status import month_status
 
 from . import queries
 from .calc import Movement, Rule, savings_rate
-from .models import KIND_LABEL, CategoryOption, TransactionList, TransactionRow
+from .models import (
+    KIND_LABEL,
+    CategoryOption,
+    ManualTransactionCreate,
+    ManualTransactionUpdate,
+    TransactionList,
+    TransactionRow,
+)
 
 AlertData = dict[str, float | int | str]
 
@@ -342,3 +349,99 @@ async def category_options(
         )
         for r in await queries.category_options(conn, include_archived)
     ]
+
+
+# --------------------------------------------------------------------------------------------
+# Lançamento manual (Story 2.8)
+# --------------------------------------------------------------------------------------------
+
+
+class ImportedTransactionError(Exception):
+    """Transação importada: só a categoria muda."""
+
+
+async def _mark_months(conn: asyncpg.Connection, *days: date) -> None:
+    port = month_status()
+    for month in sorted({d.replace(day=1) for d in days}):
+        await port.mark_dirty(conn, month)
+
+
+async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate) -> TransactionRow:
+    if body.amount == 0:
+        raise ValueError("valor")
+    if not await queries.category_exists(conn, body.category_id):
+        raise LookupError("categoria")
+    positive = body.amount > 0
+    async with conn.transaction():
+        tx_id = await conn.fetchval(
+            "INSERT INTO transactions (account_id, date, amount, category, category_id, kind, "
+            "description, source) VALUES ($1::uuid, $2, $3, $4, "
+            "(SELECT id FROM categories WHERE key = $5), $6, $7, 'manual') RETURNING id",
+            body.account_id,
+            body.date,
+            body.amount,
+            "Entrada a classificar" if positive else "Saída a classificar",
+            "sistema:entrada_a_classificar" if positive else "sistema:saida_a_classificar",
+            "income" if positive else "expense",
+            body.description,
+        )
+        await categorize(
+            conn,
+            [CategoryChange(str(tx_id), body.category_id, "manual")],
+            cause="inline_edit",
+            review_status="confirmed",
+        )
+        await _mark_months(conn, body.date)
+        row = await queries.transaction_row(conn, str(tx_id))
+    assert row is not None
+    return to_row(row)
+
+
+async def update_transaction(
+    conn: asyncpg.Connection, tx_id: str, body: ManualTransactionUpdate
+) -> TransactionRow | None:
+    """Manual muda tudo; importada só a categoria (Story 2.8)."""
+    if body.category_id is not None and not await queries.category_exists(conn, body.category_id):
+        raise LookupError("categoria")
+    if body.amount is not None and body.amount == 0:
+        raise ValueError("valor")
+    fields = body.model_dump(exclude_none=True, exclude={"category_id"})
+    async with conn.transaction():
+        current = await queries.tx_source(conn, tx_id)
+        if current is None:
+            return None
+        if fields and current["source"] != "manual":
+            raise ImportedTransactionError
+        if fields:
+            await conn.execute(
+                "UPDATE transactions SET account_id = COALESCE($2::uuid, account_id), "
+                "date = COALESCE($3, date), amount = COALESCE($4, amount), "
+                "description = COALESCE($5, description) WHERE id = $1::uuid",
+                tx_id,
+                body.account_id,
+                body.date,
+                body.amount,
+                body.description,
+            )
+            await _mark_months(conn, current["date"], body.date or current["date"])
+        if body.category_id is not None:
+            await categorize(
+                conn,
+                [CategoryChange(tx_id, body.category_id, "manual")],
+                cause="inline_edit",
+                review_status="confirmed",
+            )
+        row = await queries.transaction_row(conn, tx_id)
+    return to_row(row) if row is not None else None
+
+
+async def delete_manual(conn: asyncpg.Connection, tx_id: str) -> bool:
+    async with conn.transaction():
+        current = await queries.tx_source(conn, tx_id)
+        if current is None:
+            return False
+        if current["source"] != "manual":
+            raise ImportedTransactionError
+        await conn.execute("DELETE FROM transactions WHERE id = $1::uuid", tx_id)
+        await _mark_months(conn, current["date"])
+    return True

@@ -270,3 +270,34 @@ export function useSetTransactionCategory() {
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }
+
+// ---- v2: lançamento manual (Story 2.8) ----
+
+export interface ManualTransactionIn {
+  account_id: string;
+  date: string;
+  amount: string; // decimal em string (AD-4)
+  description: string | null;
+  category_id: string;
+}
+
+export function useSaveManualTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: string; body: Partial<ManualTransactionIn> }) =>
+      apiFetch<LedgerTransaction>(`/api/v1/ledger/transactions${id ? `/${id}` : ""}`, {
+        method: id ? "PATCH" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+export function useDeleteManualTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/ledger/transactions/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}

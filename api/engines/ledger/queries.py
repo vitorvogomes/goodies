@@ -169,3 +169,10 @@ async def category_exists(conn: asyncpg.Connection, category_id: str) -> bool:
             "SELECT EXISTS (SELECT 1 FROM categories WHERE id = $1::uuid)", category_id
         )
     )
+
+
+async def tx_source(conn: asyncpg.Connection, tx_id: str) -> asyncpg.Record | None:
+    row: asyncpg.Record | None = await conn.fetchrow(
+        "SELECT id, source, date FROM transactions WHERE id = $1::uuid FOR UPDATE", tx_id
+    )
+    return row

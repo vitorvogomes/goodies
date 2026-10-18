@@ -3,16 +3,34 @@
 // Caixa › Transações (Story 2.7 — FR-12, FR-16, UX-DR14, UX-DR31): transações do período com tipo,
 // "Grupo › Subcategoria", origem da categoria, pagador e conta; a linha expandida mostra fonte,
 // lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual).
-import { Suspense } from "react";
+import { PlusIcon } from "lucide-react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { TransactionForm } from "@/components/caixa/TransactionForm";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/errors";
 import { ApiError } from "@/lib/api";
 import { formatBRL, formatDate, formatMonth } from "@/lib/format";
-import { useCategoryOptions, useLedgerTransactions, useSetTransactionCategory } from "@/lib/ledger";
+import {
+  useCategoryOptions,
+  useDeleteManualTransaction,
+  useLedgerTransactions,
+  useSetTransactionCategory,
+} from "@/lib/ledger";
 import { usePeriodo } from "@/lib/use-periodo";
 import type { CategoryOption, LedgerTransaction } from "@/types/ledger";
 
@@ -43,6 +61,12 @@ function Transacoes() {
   const txs = useLedgerTransactions(periodo);
   const options = useCategoryOptions();
   const setCategory = useSetTransactionCategory();
+  const remove = useDeleteManualTransaction();
+  const [form, setForm] = useState<{ open: boolean; tx: LedgerTransaction | null }>({
+    open: false,
+    tx: null,
+  });
+  const [toDelete, setToDelete] = useState<LedgerTransaction | null>(null);
 
   const change = (tx: LedgerTransaction, option: CategoryOption) =>
     setCategory.mutate(
@@ -101,7 +125,49 @@ function Transacoes() {
     return <p className="type-body text-negative">Não foi possível carregar as transações.</p>;
   }
   return (
-    <DataTable
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="secondary" onClick={() => setForm({ open: true, tx: null })}>
+          <PlusIcon aria-hidden />
+          Nova transação
+        </Button>
+      </div>
+      {form.open && (
+        <TransactionForm
+          key={form.tx?.id ?? "nova"}
+          open
+          transaction={form.tx}
+          options={options.data ?? NO_OPTIONS}
+          onClose={() => setForm({ open: false, tx: null })}
+        />
+      )}
+      <AlertDialog open={toDelete !== null} onOpenChange={(v) => (v ? undefined : setToDelete(null))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar transação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete &&
+                `${formatBRL(toDelete.amount)} em ${formatDate(toDelete.date)} · ${toDelete.description ?? "sem descrição"}. Só lançamentos à mão podem ser apagados.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel autoFocus>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() =>
+                toDelete &&
+                remove.mutate(toDelete.id, {
+                  onSuccess: () => toast("Transação apagada."),
+                  onError: () => toast("Não foi possível apagar. Nada foi perdido."),
+                })
+              }
+            >
+              Apagar transação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <DataTable
       tableId="caixa-transacoes"
       caption={`Transações de ${formatMonth(periodo)}`}
       data={txs.data?.items ?? EMPTY}
@@ -133,9 +199,27 @@ function Transacoes() {
           <dd>{t.payer ?? "—"}</dd>
           <dt className="text-muted-foreground">Conta</dt>
           <dd>{t.account_name}</dd>
+          {t.source === "manual" && (
+            <>
+              <dt className="sr-only">Ações</dt>
+              <dd className="col-start-2 flex gap-4 pt-1">
+                <button
+                  type="button"
+                  className="text-positive underline"
+                  onClick={() => setForm({ open: true, tx: t })}
+                >
+                  Editar
+                </button>
+                <button type="button" className="text-negative underline" onClick={() => setToDelete(t)}>
+                  Apagar
+                </button>
+              </dd>
+            </>
+          )}
         </dl>
       )}
     />
+    </div>
   );
 }
 

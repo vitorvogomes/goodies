@@ -100,3 +100,19 @@ export function parseDecimalInput(raw: string): number {
   const dots = (s.match(/\./g) ?? []).length;
   return dots > 1 ? Number(s.replace(/\./g, "")) : Number(s);
 }
+
+// Valor digitado (pt-BR ou en) → string decimal com 2 casas para a API, sem passar por float (AD-4).
+// "1.234,56" → "1234.56" · "42,9" → "42.90" · "-10" → "-10.00" · inválido/vazio → null.
+export function normalizeMoneyInput(raw: string): string | null {
+  const s = raw.replace(/\s|R\$| /g, "").replace("−", "-");
+  if (!s) return null;
+  let body = s;
+  if (s.includes(",")) body = s.replace(/\./g, "").replace(",", ".");
+  else if ((s.match(/\./g) ?? []).length > 1) body = s.replace(/\./g, "");
+  const m = /^([+-]?)(\d+)(?:\.(\d{1,2}))?$/.exec(body);
+  if (!m) return null;
+  const sign = m[1] === "-" ? "-" : "";
+  const int = m[2].replace(/^0+(?=\d)/, "");
+  const frac = (m[3] ?? "").padEnd(2, "0");
+  return `${sign}${int}.${frac}`;
+}

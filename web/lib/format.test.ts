@@ -83,3 +83,22 @@ describe("datas", () => {
     expect(formatMonth("2024-07")).toBe("jul/2024");
   });
 });
+
+describe("normalizeMoneyInput", () => {
+  it("pt-BR, en e sinal, sem float", async () => {
+    const { normalizeMoneyInput } = await import("./format");
+    expect(normalizeMoneyInput("1.234,56")).toBe("1234.56");
+    expect(normalizeMoneyInput("42,9")).toBe("42.90");
+    expect(normalizeMoneyInput("R$ 10")).toBe("10.00");
+    expect(normalizeMoneyInput("-10")).toBe("-10.00");
+    expect(normalizeMoneyInput("−42,90")).toBe("-42.90");
+    expect(normalizeMoneyInput("0.5")).toBe("0.50");
+    expect(normalizeMoneyInput("1.234.567")).toBe("1234567.00");
+    expect(normalizeMoneyInput("12345678901234.99")).toBe("12345678901234.99");
+  });
+
+  it("recusa o que não é valor", async () => {
+    const { normalizeMoneyInput } = await import("./format");
+    for (const bad of ["", "abc", "1,2,3", "1.234,567", "--1"]) expect(normalizeMoneyInput(bad)).toBeNull();
+  });
+});

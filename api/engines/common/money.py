@@ -20,7 +20,7 @@ def quantize_money(value: Decimal) -> Decimal:
 
 def _to_decimal(value: object) -> Decimal:
     if isinstance(value, bool) or isinstance(value, float):
-        raise TypeError("dinheiro/percentual não aceita float: use Decimal, int ou str")
+        raise ValueError("dinheiro/percentual não aceita float: use Decimal, int ou str")
     if isinstance(value, Decimal):
         return quantize_money(value)
     if isinstance(value, int | str):
@@ -28,7 +28,7 @@ def _to_decimal(value: object) -> Decimal:
             return quantize_money(Decimal(str(value).strip()))
         except InvalidOperation as exc:
             raise ValueError(f"número inválido: {value!r}") from exc
-    raise TypeError(f"tipo não suportado para dinheiro: {type(value).__name__}")
+    raise ValueError(f"tipo não suportado para dinheiro: {type(value).__name__}")
 
 
 # Serializa como number JSON: o valor já está quantizado a 2 casas, então o float de saída é a
