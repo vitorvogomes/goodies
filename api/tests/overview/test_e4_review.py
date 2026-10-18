@@ -110,15 +110,24 @@ async def test_price_worker_quotes_only_open_positions(pool: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_variation_and_broker_cash_come_from_the_api(api, auth_headers, monkeypatch) -> None:
-    from engines.portfolio import transit
+    from engines.portfolio import brokers
 
     periodo = f"{today_brt():%Y-%m}"
     base = (await api.get(f"{URL}?periodo={periodo}", headers=auth_headers)).json()
 
-    async def fake_transit(conn: Any, user_id: str) -> dict[str, Any]:
-        return {"rails": [{"caixa_corretora_brl": 100.0}, {"caixa_corretora_brl": -30.0}]}
+    async def fake_brokers(conn: Any, user_id: str, as_of: Any) -> list[Any]:
+        # Story 7.7: caixa em corretora entra no patrimônio; a caminho, não
+        cash = brokers.BrokerCash(
+            "B3 (corretoras)", "B3", *(Decimal(0),) * 3, Decimal(100), Decimal(50), None
+        )
+        return [cash]
 
-    monkeypatch.setattr(transit, "calculate_transit", fake_transit)
+    async def no_brokers(conn: Any, user_id: str, as_of: Any) -> list[Any]:
+        return []
+
+    monkeypatch.setattr(brokers, "broker_cash_as_of", no_brokers)
+    base = (await api.get(f"{URL}?periodo={periodo}", headers=auth_headers)).json()
+    monkeypatch.setattr(brokers, "broker_cash_as_of", fake_brokers)
     with_cash = (await api.get(f"{URL}?periodo={periodo}", headers=auth_headers)).json()
     assert Decimal(str(with_cash["patrimonio"]["value"])) - Decimal(
         str(base["patrimonio"]["value"])

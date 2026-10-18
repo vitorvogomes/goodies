@@ -33,6 +33,7 @@ from engines.planning import service as planning_service
 from engines.planning.models import MonthBudget
 from engines.portfolio import calc as portfolio_calc
 from engines.portfolio import positions as positions_service
+from engines.portfolio.brokers import broker_cash_as_of
 from engines.portfolio.valuation import valuation_as_of
 
 from .checks import label, run_checks
@@ -44,6 +45,7 @@ from .models import (
     MonthSource,
     MonthState,
     MonthSummary,
+    OnTheWay,
     PeriodSummary,
     PositionsReport,
     Recovery,
@@ -119,6 +121,7 @@ async def build_month_summary(
         asset_ids_value=valuation.by_asset_id,
         flows=valuation.flows,
         caixa_corretora=valuation.broker_cash,
+        a_caminho=valuation.on_the_way,
         portfolio_as_of=valuation.data_as_of,
         portfolio_stale=valuation.stale,
         coverage=valuation.coverage,
@@ -131,7 +134,6 @@ async def build_month_summary(
 
 # Termos da AD-7 sem engine ainda: congelados nulos com o motivo (AD-8).
 _FUTURE_TERMS = (
-    "a_caminho",
     "realizado",
     "pendente",
 )
@@ -204,6 +206,7 @@ _MONEY = (
     "restante",
     "restante_sem_resgates",
     "consumo_financiado",
+    "a_caminho",
 )
 _PCT = ("taxa_poupanca", "rentabilidade", "rentabilidade_mes", "rentabilidade_mes_real")
 _TERMS = (*_MONEY, *_PCT)
@@ -230,6 +233,7 @@ _LABELS = {
     "restante": "Restante",
     "restante_sem_resgates": "Restante sem os resgates",
     "consumo_financiado": "Consumo financiado por resgate",
+    "a_caminho": "A caminho",
 }
 _CENT = Decimal("0.01")
 
@@ -913,7 +917,16 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
     for c in classes:
         if c.key in ret.by_class:
             c.xirr_nominal, c.xirr_real = ret.by_class[c.key]
+    brokers = await broker_cash_as_of(conn, owner, min(month_end(end), today_brt()))
+    cash = sum((b.caixa for b in brokers), Decimal(0))
     return PositionsReport(
+        caixa_corretora=cash,
+        total=sum((c.valor for c in classes), Decimal(0)) + cash,
+        a_caminho=[
+            OnTheWay(broker=b.name, value=b.a_caminho, import_from=b.import_from)
+            for b in brokers
+            if b.a_caminho > 0
+        ],
         periodo=periodo,
         leitura=leitura,
         as_of=min(month_end(end), today_brt()),

@@ -70,6 +70,8 @@ async def test_close_flow(api, auth_headers, pool, no_closes) -> None:
         "valor_investido",
         "rentabilidade_mes",
         "rentabilidade_mes_real",
+        "caixa_corretora",
+        "a_caminho",
     ):
         assert row[term] == getattr(live, term), term
     assert row["unavailable"]  # termos de engines futuras: fora_do_resumo

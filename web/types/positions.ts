@@ -31,6 +31,9 @@ export interface PositionsReport {
   classes: PositionClass[];
   aplicado: number;
   valor: number;
+  caixa_corretora: number; // no patrimônio (Story 7.7)
+  total: number; // posições + caixa em corretora
+  a_caminho: { broker: string; value: number; import_from: string | null }[]; // fora do patrimônio
   xirr_nominal: Valued;
   xirr_real: Valued;
   ipca_ate: string | null;
@@ -55,4 +58,20 @@ export interface DebentureIn {
   monthly_factor?: string; // "1.78" (% a.m.)
   start_date?: string;
   maturity_date?: string | null;
+}
+
+// Investimentos › Conciliação — Cartão de corretora (Story 7.7).
+export interface BrokerCard {
+  rail: string;
+  name: string;
+  saiu: number;
+  proventos: number;
+  aplicado: number;
+  caixa: number;
+  a_caminho: number;
+  covered_until: string | null;
+  import_from: string | null;
+  informed: number | null;
+  informed_at: string | null;
+  divergent: boolean;
 }

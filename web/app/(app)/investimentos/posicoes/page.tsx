@@ -168,11 +168,37 @@ function Posicoes() {
                 </Fragment>
               ))}
             </tbody>
+            <tbody className="border-t border-border">
+              <tr>
+                <th scope="row" className="px-4 py-2 text-left font-normal">
+                  Caixa em corretora <span className="type-caption text-muted-foreground">no patrimônio</span>
+                </th>
+                <td />
+                <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.caixa_corretora)}</td>
+                <td colSpan={3} />
+              </tr>
+              {data.a_caminho.map((w) => (
+                <tr key={w.broker} className="text-muted-foreground">
+                  <th scope="row" className="px-4 py-2 text-left font-normal">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      A caminho da {w.broker}
+                      <StatusBadge tone="warning">a caminho</StatusBadge>
+                      {w.import_from && (
+                        <span className="type-caption">importe o relatório B3 a partir de {formatDate(w.import_from)}</span>
+                      )}
+                    </span>
+                  </th>
+                  <td />
+                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(w.value)}</td>
+                  <td colSpan={3} className="px-4 py-2 type-caption">fora do patrimônio</td>
+                </tr>
+              ))}
+            </tbody>
             <tfoot className="border-t border-foreground font-semibold">
               <tr>
                 <th scope="row" className="px-4 py-2 text-left">Total</th>
                 <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.aplicado)}</td>
-                <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.valor)}</td>
+                <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.total)}</td>
                 <td />
                 <td className="px-4 py-2 text-right type-num-table">
                   <Rate v={data.xirr_nominal} />

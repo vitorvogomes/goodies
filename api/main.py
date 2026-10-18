@@ -32,11 +32,13 @@ from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.overview.router import router as overview_router
 from engines.planning.router import router as planning_router
+from engines.portfolio import brokers as portfolio_brokers
 from engines.portfolio import debentures as portfolio_debentures
 from engines.portfolio import hooks as portfolio_hooks
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.b3_adapter import B3Adapter
+from engines.portfolio.brokers_router import router as portfolio_brokers_router
 from engines.portfolio.debentures_router import router as portfolio_debentures_router
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.router import router as portfolio_router
@@ -87,6 +89,7 @@ for _provider in (
     ledger_service.pending_review_alerts,
     ledger_service.balance_alerts,
     job_alerts,
+    portfolio_brokers.broker_alerts,
     closing_alerts.adjustment_alerts,
     closing_alerts.open_month_alerts,
 ):
@@ -131,6 +134,7 @@ app.include_router(portfolio_analytics_router)
 app.include_router(portfolio_import_b3_router)
 app.include_router(portfolio_transit_router)
 app.include_router(portfolio_debentures_router)
+app.include_router(portfolio_brokers_router)
 app.include_router(market_router)
 if settings.hermes_enabled:  # Story 1.6: Hermes desligado na v2.0 (HERMES_ENABLED=false)
     app.include_router(hermes_router)

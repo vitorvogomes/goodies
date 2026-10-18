@@ -129,3 +129,31 @@ def signed_flow(op: Mapping[str, Any]) -> Decimal:
     if op["tipo"] in OUTFLOW or op["tipo"] in INCOME:
         return total
     return Decimal(0)
+
+
+# --------------------------------------------------------------------------------------------
+# Caixa em corretora × a caminho (Story 7.7 — AD-7)
+# --------------------------------------------------------------------------------------------
+
+RESIDUAL_TOLERANCE = Decimal("1.00")  # abaixo disso o trilho está conciliado
+
+
+def broker_split(
+    residual: Decimal,
+    transfers: Iterable[tuple[date, Decimal]],
+    covered_until: date | None,
+) -> tuple[Decimal, Decimal]:
+    """(caixa em corretora, a caminho) do resíduo da corretora (saiu + proventos − aplicado).
+
+    As transferências para a corretora com data depois do "atualizado até" do relatório dela
+    ainda não viraram posição no que o app vê: são a caminho (fora do patrimônio), até o
+    resíduo. O resto do resíduo é caixa parado na corretora (no patrimônio). Resíduo dentro da
+    tolerância (ou negativo) → nada."""
+    if residual <= RESIDUAL_TOLERANCE:
+        return Decimal(0), Decimal(0)
+    pending = sum(
+        (amount for day, amount in transfers if covered_until is None or day > covered_until),
+        Decimal(0),
+    )
+    on_the_way = min(residual, max(pending, Decimal(0)))
+    return residual - on_the_way, on_the_way

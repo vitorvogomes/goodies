@@ -654,22 +654,39 @@ async def portfolio_snapshot(conn: asyncpg.Connection, user_id: str) -> Portfoli
 
 async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
     """Precondição do fechamento (Story 5.3): sem o consolidado B3 daquele fim de mês, a B3 é
-    valorada pelo histórico de preço — pede "fechar mesmo assim"."""
+    valorada pelo histórico de preço; com dinheiro a caminho (7.7), o patrimônio fecha sem ele —
+    ambos pedem "fechar mesmo assim"."""
+    from engines.common.alerts import brl
     from engines.common.dates import month_end, month_label
+    from engines.common.owner import get_owner_id
+
+    from .brokers import broker_cash_as_of
 
     end = month_end(month)
+    found: list[dict[str, str]] = []
     has = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date = $1)", end
     )
-    if has:
-        return []
-    return [
-        {
-            "code": "consolidado_ausente",
-            "kind": "confirma",
-            "message": f"Consolidado B3 de {month_label(month)} não importado.",
-        }
-    ]
+    if not has:
+        found.append(
+            {
+                "code": "consolidado_ausente",
+                "kind": "confirma",
+                "message": f"Consolidado B3 de {month_label(month)} não importado.",
+            }
+        )
+    # Story 7.7: dinheiro a caminho no fim do mês (o patrimônio fecha sem ele)
+    for b in await broker_cash_as_of(conn, await get_owner_id(conn), end):
+        if b.a_caminho > 0:
+            found.append(
+                {
+                    "code": "dinheiro_a_caminho",
+                    "kind": "confirma",
+                    "message": f"{brl(b.a_caminho)} a caminho da {b.name} no fim de "
+                    f"{month_label(month)}.",
+                }
+            )
+    return found
 
 
 async def consolidado_dates(conn: asyncpg.Connection) -> set[date]:

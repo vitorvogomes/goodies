@@ -43,7 +43,8 @@ class PortfolioValuation:
     by_class: dict[str, Decimal] = field(default_factory=dict)  # classe (AD-11) → valor
     positions_value: Decimal = Decimal(0)  # sem cripto
     crypto_value: Decimal = Decimal(0)
-    broker_cash: Decimal = Decimal(0)
+    broker_cash: Decimal = Decimal(0)  # caixa em corretora (no patrimônio) — Story 7.7
+    on_the_way: Decimal = Decimal(0)  # dinheiro a caminho (fora do patrimônio)
     contributed: Decimal = Decimal(0)  # aportado líquido até a data (operações + bloco cripto)
     income: Decimal = Decimal(0)  # proventos até a data
     xirr: float | None = None  # consolidado, desde o início até a data
@@ -129,8 +130,23 @@ async def _month_flows(
             out.flows[key] = out.flows.get(key, Decimal(0)) + _dec(amount)
 
 
+async def _broker_cash(
+    conn: asyncpg.Connection, user_id: str, as_of: date, out: PortfolioValuation
+) -> None:
+    """Story 7.7: caixa em corretora (no patrimônio) e a caminho (fora), pelo resíduo."""
+    from .brokers import broker_cash_as_of
+
+    brokers = await broker_cash_as_of(conn, user_id, as_of)
+    out.broker_cash = sum((b.caixa for b in brokers), Decimal(0))
+    out.on_the_way = sum((b.a_caminho for b in brokers), Decimal(0))
+    covered = [b.covered_until for b in brokers if b.rail == "B3 (corretoras)" and b.covered_until]
+    out.coverage["caixa"] = "resíduo saiu + proventos − aplicado" + (
+        f" (B3 até {covered[0]:%d/%m/%Y})" if covered else ""
+    )
+
+
 async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> PortfolioValuation:
-    from . import service, transit
+    from . import service
 
     snap = await service.portfolio_snapshot(conn, user_id)
     out = PortfolioValuation(as_of=as_of, data_as_of=snap.as_of, stale=snap.stale)
@@ -145,12 +161,9 @@ async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
     out.crypto_value = snap.crypto_value
     out.contributed = snap.contributed
     out.income = snap.income
-    rails = (await transit.calculate_transit(conn, user_id))["rails"]
-    out.broker_cash = sum(
-        (_dec(r["caixa_corretora_brl"]) for r in rails if r["caixa_corretora_brl"] > 0), Decimal(0)
-    )
+    await _broker_cash(conn, user_id, as_of, out)
     out.xirr = (await service.calculate_portfolio_xirr(conn, user_id)).get("consolidated")
-    out.coverage = {"B3": "preço atual", "RF": "CDI real (job rf_cdi)", "cripto": "carteiras"}
+    out.coverage.update({"B3": "preço atual", "RF": "CDI real (job rf_cdi)", "cripto": "carteiras"})
     return out
 
 
@@ -267,14 +280,19 @@ async def _past(
         flows.append((as_of, terminal))
     rate = xirr(flows) if len(flows) >= 2 else float("nan")
     out.xirr = None if rate != rate else rate  # NaN → sem convergência
-    out.coverage = {
-        "B3": b3_method,
-        "RF": (f"CDI real até {cdi_until:%d/%m/%Y}" if cdi_until else "CDI real sem CDI publicado")
-        + (" · dias sem CDI estimados" if cdi_estimated else "")
-        + (" · debêntures pela taxa cadastrada" if rate_valued else "")
-        + (" + aplicado estimado" if estimated_rf else ""),
-        "cripto": crypto_method,
-    }
+    out.coverage.update(
+        {
+            "B3": b3_method,
+            "RF": (
+                f"CDI real até {cdi_until:%d/%m/%Y}" if cdi_until else "CDI real sem CDI publicado"
+            )
+            + (" · dias sem CDI estimados" if cdi_estimated else "")
+            + (" · debêntures pela taxa cadastrada" if rate_valued else "")
+            + (" + aplicado estimado" if estimated_rf else ""),
+            "cripto": crypto_method,
+        }
+    )
+    await _broker_cash(conn, user_id, as_of, out)  # Story 7.7: o caixa daquela data
     return out
 
 

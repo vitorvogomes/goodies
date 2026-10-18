@@ -36,6 +36,8 @@ TERMS = (
     "rentabilidade",
     "rentabilidade_mes",
     "rentabilidade_mes_real",
+    "caixa_corretora",
+    "a_caminho",
 )
 
 

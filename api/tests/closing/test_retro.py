@@ -99,7 +99,7 @@ async def test_close_retro_block(pool, clean, pf_divergent, tmp_path: Path) -> N
         unavailable = json.loads(r["unavailable"])
         assert unavailable["pendente"] == "nao_definido"
         assert unavailable["aporte_planejado"] == "nao_definido"
-        assert unavailable["a_caminho"] == "fora_do_resumo"
+        assert unavailable["realizado"] == "fora_do_resumo"
         assert json.loads(r["coverage"])["B3"] == "patrimônio não coberto"
     feb = json.loads(rows[1]["confirmations"])
     divergent = next(c for c in feb if c["code"] == "saldo_pf_divergente")
@@ -199,7 +199,7 @@ async def test_retro_month_keeps_origin_and_reasons(pool, clean, tmp_path: Path)
         unavailable = json.loads(r["unavailable"])
         assert unavailable["pendente"] == "nao_definido", r["version"]
         assert unavailable["aporte_planejado"] == "nao_definido", r["version"]
-        assert unavailable["a_caminho"] == "fora_do_resumo", r["version"]
+        assert unavailable["realizado"] == "fora_do_resumo", r["version"]
         assert json.loads(r["coverage"])["B3"] == "patrimônio não coberto", r["version"]
 
 

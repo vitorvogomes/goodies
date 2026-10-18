@@ -52,6 +52,7 @@ class MonthSummary(BaseModel):
     valor_por_classe: dict[str, Money]
     valor_por_ativo: dict[str, Money]
     caixa_corretora: Money
+    a_caminho: Money = Decimal(0)  # Story 7.7: transferido, fora do patrimônio até o relatório
     # Para o snapshot (AD-8): valor por `assets.id` e fluxos líquidos por (classe, data) no mês.
     asset_ids_value: dict[str, Money] = Field(default_factory=dict, exclude=True)
     flows: dict[tuple[str, date], Money] = Field(default_factory=dict, exclude=True)
@@ -173,6 +174,12 @@ class PeriodSummary(BaseModel):
     consumido: Money
 
 
+class OnTheWay(BaseModel):
+    broker: str
+    value: Money
+    import_from: date | None  # "importe o relatório B3 a partir de dd/mm/aaaa"
+
+
 class PositionsReport(BaseModel):
     periodo: str
     leitura: str
@@ -181,6 +188,9 @@ class PositionsReport(BaseModel):
     classes: list[PositionClass]
     aplicado: Money
     valor: Money
+    caixa_corretora: Money = Decimal(0)  # Story 7.7: no patrimônio
+    total: Money = Decimal(0)  # valor das posições + caixa em corretora (sem o a caminho)
+    a_caminho: list[OnTheWay] = Field(default_factory=list)  # fora do patrimônio
     xirr_nominal: Valued[Decimal]  # consolidado do período, % a.a.
     xirr_real: Valued[Decimal]  # descontado o IPCA do período; sem o IPCA do último mês: aguardando
     ipca_ate: date | None  # último mês com IPCA publicado

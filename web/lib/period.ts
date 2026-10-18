@@ -19,6 +19,11 @@ export function currentMonthBRT(now: Date = new Date()): string {
   return `${year}-${month}`;
 }
 
+/** Hoje em Brasília, "AAAA-MM-DD" (valor padrão de campos de data). */
+export function currentDayBRT(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now);
+}
+
 export function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
   const index = y * 12 + (m - 1) + delta;

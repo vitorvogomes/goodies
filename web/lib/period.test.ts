@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  currentDayBRT,
   currentMonthBRT,
   isSelectable,
   MIN_MONTH,
@@ -68,5 +69,11 @@ describe("resolvePeriod", () => {
     expect(all).toHaveLength(7);
     expect(resolvePeriod("2024-09", "ano")).toEqual(["2024-07", "2024-08", "2024-09"]);
     expect(resolvePeriod("2024-08", "tri")).toEqual(["2024-07", "2024-08"]);
+  });
+});
+
+describe("currentDayBRT", () => {
+  it("usa o dia de Brasília (UTC 02:00 ainda é a véspera)", () => {
+    expect(currentDayBRT(new Date("2026-10-19T02:00:00Z"))).toBe("2026-10-18");
   });
 });
