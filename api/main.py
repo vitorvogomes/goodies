@@ -20,7 +20,6 @@ from engines.common.cache import check_redis
 from engines.common.month_status import AllMonthsOpen, register_month_status
 from engines.ingest import service as ingest_service
 from engines.ingest.router import router as ingest_router
-from engines.jobs.router import router as jobs_router
 from engines.ledger import service as ledger_service
 from engines.ledger.adapters import NubankStatementAdapter
 from engines.ledger.router import router as ledger_router
@@ -40,6 +39,8 @@ from engines.wallet.defi_router import router as defi_router
 from engines.wallet.router import router as wallet_router
 from health import collect_component_status, register_component_check
 from hermes.router import router as hermes_router
+from workers.job_alerts import job_alerts
+from workers.router import router as jobs_router
 
 # Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
 register_month_status(AllMonthsOpen())
@@ -64,6 +65,7 @@ for _provider in (
     ingest_service.source_alerts,
     ledger_service.pending_review_alerts,
     ledger_service.balance_alerts,
+    job_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 

@@ -6,12 +6,13 @@ run passou do limiar (= ttl do cache da fonte), grava ok/error/stats, e usa um a
 para que dois refreshes simultâneos não se atropelem (coalescido). Os workers já são
 fail-soft e idempotentes; um job que falha não derruba os outros.
 """
+
 from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
@@ -51,8 +52,7 @@ async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
     deixaria o wallet_scan eternamente vencido num catch-up que nem a atualiza. A idade
     da linha Binance segue visível por posição em /wallets."""
     value: datetime | None = await conn.fetchval(
-        "SELECT MIN(scanned_at) FROM wallet_positions "
-        "WHERE NOT is_manual AND source <> 'binance'"
+        "SELECT MIN(scanned_at) FROM wallet_positions WHERE NOT is_manual AND source <> 'binance'"
     )
     return value
 
@@ -103,6 +103,35 @@ async def _job_benchmark(pool: asyncpg.Pool) -> dict[str, Any]:
     return await run_benchmark_daily(pool)
 
 
+def stats_partial(stats: Any) -> bool:
+    """Run "ok" cujo conteúdo indica falha de fonte: o fail-soft dos workers engole
+    exceções e grava ok=true, então `partial` é derivado dos stats — failed>0, fonte
+    com símbolos pedidos e zero cotações, ou scan inteiro de mãos vazias."""
+    if not isinstance(stats, dict) or not stats:
+        return False
+    leaves = [v for v in stats.values() if isinstance(v, dict)] or [stats]
+    fetch_totals: list[int] = []
+    for leaf in leaves:
+        symbols = leaf.get("symbols")
+        if isinstance(symbols, int) and symbols == 0:
+            continue  # nada a buscar nesta fonte: zeros não são falha
+        failed = leaf.get("failed")
+        fetched = leaf.get("fetched")
+        if isinstance(failed, int) and failed > 0:
+            return True
+        if isinstance(symbols, int) and symbols > 0 and fetched == 0:
+            return True
+        if isinstance(fetched, int) and isinstance(failed, int):
+            fetch_totals.append(fetched)
+    # só leaves com a métrica failed (fetchers de wallet) entram no total; um scan
+    # em que TODAS as fontes voltaram vazias não pode aparecer como "fresh"
+    return bool(fetch_totals) and sum(fetch_totals) == 0
+
+
+# Quando a API subiu: o aviso de job atrasado espera o catch-up (ou 30 min de máquina ligada).
+PROCESS_STARTED = datetime.now(UTC)
+
+
 def default_jobs() -> list[JobSpec]:
     """Jobs reais + limiares = ttl do cache da fonte (B3 26h, cripto 2h, carteira 14h…)."""
     return [
@@ -136,16 +165,21 @@ async def _record(
     error: str | None,
     stats: dict[str, Any],
 ) -> None:
+    # Sucesso = ok e completo: um "ok" parcial (fonte falhando dentro do fail-soft) não renova
+    # `last_success_at`, então o aviso de worker atrasado aparece (Story 4.3).
+    success = now if ok and not stats_partial(stats) else None
     await conn.execute(
-        "INSERT INTO job_runs (job, last_run, ok, error, stats) "
-        "VALUES ($1, $2, $3, $4, $5::jsonb) "
+        "INSERT INTO job_runs (job, last_run, ok, error, stats, last_success_at) "
+        "VALUES ($1, $2, $3, $4, $5::jsonb, $6) "
         "ON CONFLICT (job) DO UPDATE SET "
-        "last_run = $2, ok = $3, error = $4, stats = $5::jsonb",
+        "last_run = $2, ok = $3, error = $4, stats = $5::jsonb, "
+        "last_success_at = COALESCE($6, job_runs.last_success_at)",
         job,
         now,
         ok,
         error,
         json.dumps(stats, default=str),
+        success,
     )
 
 
@@ -208,9 +242,7 @@ async def refresh_stale(
                     due = forced or spec.is_due(lr, now)
                 else:
                     due = (
-                        forced
-                        or lr is None
-                        or (now - lr).total_seconds() >= spec.threshold_seconds
+                        forced or lr is None or (now - lr).total_seconds() >= spec.threshold_seconds
                     )
                 if not due:
                     results[spec.name] = "fresh"
