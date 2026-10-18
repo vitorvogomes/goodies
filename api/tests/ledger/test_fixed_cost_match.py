@@ -82,3 +82,56 @@ def test_undone_blocks_auto_match() -> None:
         [_c("a", "100.00", 10)], [_t("x", "100.00", 10)], [Decision("a", "desfeito", "x")]
     )
     assert m["a"].status == "pendente" and m["a"].candidates == []
+
+
+# ---- P13: a palavra do custo primeiro (a partir de nov/2026) ----
+
+
+def _cn(cid: str, name: str, amount: str, day: int) -> CostDue:
+    return CostDue(cid, D(amount), date(2026, 11, day), name)
+
+
+def _tn(tid: str, description: str, amount: str, day: int) -> TxCandidate:
+    return TxCandidate(tid, D(amount), date(2026, 11, day), description)
+
+
+def test_name_beats_closer_amount() -> None:
+    """A transação com a palavra do custo casa, mesmo com o valor mais longe que outra."""
+    m = match_fixed_costs(
+        [_cn("a", "Academia Smart Fit", "120.00", 10)],
+        [
+            _tn("x", "Pix enviado - Mercado Bom Preço", "120.00", 10),
+            _tn("y", "SMARTFIT BRASIL", "129.90", 18),
+        ],
+        [],
+    )
+    assert (m["a"].status, m["a"].transaction_id) == ("pago", "y")
+
+
+def test_name_match_ignores_accents_and_generic_words() -> None:
+    m = match_fixed_costs(
+        [_cn("a", "Condomínio do prédio", "1500.00", 5)],
+        [_tn("x", "Pagamento de boleto - CONDOMINIO EDIF", "1530.00", 7)],
+        [],
+    )
+    assert m["a"].transaction_id == "x"
+    generic = match_fixed_costs(
+        [_cn("b", "Pagamento de boleto", "50.00", 5)],
+        [_tn("y", "Pagamento de boleto - LOJA", "50.00", 5)],
+        [],
+    )  # só palavra genérica em comum: não é casamento pelo nome
+    assert generic["b"].status == "pendente" and generic["b"].candidates == ["y"]
+
+
+def test_amount_only_is_never_paid_automatically() -> None:
+    """Sem a palavra do custo, o valor aproximado só sugere: fica pendente com a candidata."""
+    m = match_fixed_costs(
+        [_cn("a", "Internet", "100.00", 10)], [_tn("x", "Restaurante", "100.00", 10)], []
+    )
+    assert m["a"].status == "pendente" and m["a"].candidates == ["x"]
+
+
+def test_months_before_cutoff_keep_the_amount_rule() -> None:
+    """Os meses até out/2026 já foram conferidos: seguem a regra do valor (nada muda neles)."""
+    m = match_fixed_costs([_c("a", "100.00", 10)], [_t("x", "100.00", 10)], [])
+    assert m["a"].status == "pago"

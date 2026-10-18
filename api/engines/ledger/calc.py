@@ -7,6 +7,8 @@ Story 2.5 — escolha da regra de categoria (AD-6): "descrição contém", com d
 from __future__ import annotations
 
 import calendar
+import re
+import unicodedata
 from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -190,6 +192,15 @@ def computed_balance(
 MATCH_VALUE_TOLERANCE = Decimal("0.10")  # ±10% do valor cadastrado
 MATCH_DAYS_BEFORE = 5  # até 5 dias antes do vencimento
 MATCH_DAYS_AFTER = 5  # até 5 dias depois
+# P13: a palavra do custo na descrição casa (no mês, valor ±50%); o valor aproximado sozinho só
+# sugere a candidata. Os meses até out/2026 já foram conferidos (e os casamentos deles gravados
+# como decisão): seguem a regra do valor para nada mudar neles.
+MATCH_BY_NAME_FROM = date(2026, 11, 1)
+MATCH_NAME_VALUE_TOLERANCE = Decimal("0.50")
+_GENERIC_WORDS = frozenset(
+    "pagamento pagto pago boleto fatura pix transferencia enviado enviada recebido debito credito "
+    "conta compra mensal mensalidade servico servicos para com dos das".split()
+)
 
 
 @dataclass(frozen=True)
@@ -197,6 +208,7 @@ class CostDue:
     cost_id: str
     amount: Decimal  # valor cadastrado (positivo)
     due: date  # vencimento no mês
+    name: str = ""  # o nome do custo (P13: a palavra que procura na descrição)
 
 
 @dataclass(frozen=True)
@@ -204,6 +216,23 @@ class TxCandidate:
     transaction_id: str
     amount: Decimal  # magnitude da saída (positivo)
     date: date
+    description: str = ""
+
+
+def _words(text: str) -> list[str]:
+    plain = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+    return re.findall(r"[a-z0-9]+", plain)
+
+
+def name_hit(cost: CostDue, tx: TxCandidate) -> bool:
+    """Alguma palavra do nome do custo (≥ 3 letras, não genérica) está na descrição — inteira ou
+    como começo de palavra colada ("smart fit" acha "SMARTFIT")."""
+    keys = [w for w in _words(cost.name) if len(w) >= 3 and w not in _GENERIC_WORDS]
+    if not keys:
+        return False
+    words = _words(tx.description)
+    joined = "".join(words)
+    return any(any(w.startswith(k) for w in words) or k in joined for k in keys)
 
 
 @dataclass(frozen=True)
@@ -237,12 +266,23 @@ def _eligible(cost: CostDue, tx: TxCandidate) -> bool:
     return -MATCH_DAYS_BEFORE <= (tx.date - cost.due).days <= MATCH_DAYS_AFTER
 
 
+def _by_name(cost: CostDue, tx: TxCandidate) -> bool:
+    """Casamento pelo nome (P13): a palavra do custo, no mesmo mês, valor até ±50%."""
+    return (
+        cost.due >= MATCH_BY_NAME_FROM
+        and (tx.date.year, tx.date.month) == (cost.due.year, cost.due.month)
+        and abs(tx.amount - cost.amount) <= cost.amount * MATCH_NAME_VALUE_TOLERANCE
+        and name_hit(cost, tx)
+    )
+
+
 def match_fixed_costs(
     costs: Sequence[CostDue], txs: Sequence[TxCandidate], decisions: Sequence[Decision]
 ) -> dict[str, CostMatch]:
-    """Decisões primeiro; depois o guloso global 1:1 por (|Δvalor|, |Δdata|, custo, transação).
-    Um custo que, depois do guloso, ainda tem outra candidata livre fica pendente com as candidatas
-    (casamento ambíguo: nada pago até a escolha)."""
+    """Decisões primeiro; depois o guloso global 1:1 por (pelo nome antes, |Δvalor|, |Δdata|,
+    custo, transação). Um custo que, depois do guloso, ainda tem outra candidata livre fica pendente
+    com as candidatas (casamento ambíguo: nada pago até a escolha). Desde nov/2026 (P13) só o
+    casamento pelo nome paga sozinho; o do valor aproximado fica como candidata."""
     out: dict[str, CostMatch] = {}
     tx_ids = {t.transaction_id for t in txs}
     taken: set[str] = set()
@@ -259,25 +299,42 @@ def match_fixed_costs(
     free_costs = [c for c in costs if c.cost_id not in out]
     pairs = sorted(
         (
-            (abs(t.amount - c.amount), abs((t.date - c.due).days), c.cost_id, t.transaction_id)
+            (
+                0 if named else 1,
+                abs(t.amount - c.amount),
+                abs((t.date - c.due).days),
+                c.cost_id,
+                t.transaction_id,
+            )
             for c in free_costs
             for t in txs
-            if t.transaction_id not in taken
-            and (c.cost_id, t.transaction_id) not in rejected
-            and _eligible(c, t)
+            if t.transaction_id not in taken and (c.cost_id, t.transaction_id) not in rejected
+            for named in [_by_name(c, t)]
+            if named or _eligible(c, t)
         ),
     )
+    by_name_rule = {c.cost_id: c.due >= MATCH_BY_NAME_FROM for c in free_costs}
     eligible: dict[str, list[str]] = {}
-    for *_, cid, tid in pairs:
+    named_ok: dict[str, list[str]] = {}  # desde nov/2026: as candidatas pelo nome
+    for tier, *_, cid, tid in pairs:
         eligible.setdefault(cid, []).append(tid)
+        if tier == 0:
+            named_ok.setdefault(cid, []).append(tid)
     auto: dict[str, str] = {}
-    for *_, cid, tid in pairs:
+    for tier, *_, cid, tid in pairs:
+        if by_name_rule[cid] and tier != 0:
+            continue  # desde nov/2026: só o nome paga sozinho
         if cid not in auto and tid not in taken:
             auto[cid] = tid
             taken.add(tid)
     for c in free_costs:
         chosen = auto.get(c.cost_id)
-        others = [t for t in eligible.get(c.cost_id, []) if t not in taken]
+        # pago pelo nome só fica ambíguo com outra candidata pelo nome (o valor sozinho não conta)
+        pool = named_ok if by_name_rule[c.cost_id] and chosen is not None else eligible
+        others = [t for t in pool.get(c.cost_id, []) if t not in taken and t != chosen]
+        if chosen is None and others:
+            out[c.cost_id] = CostMatch(c.cost_id, "pendente", candidates=sorted(others))
+            continue
         if chosen is not None and not others:
             out[c.cost_id] = CostMatch(c.cost_id, "pago", chosen, "auto")
         elif chosen is not None:

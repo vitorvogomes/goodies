@@ -28,6 +28,7 @@ from engines.common.month_status import month_status
 
 from . import queries
 from .calc import (
+    MATCH_BY_NAME_FROM,
     MATCH_DAYS_AFTER,
     MATCH_DAYS_BEFORE,
     BalanceInterval,
@@ -1654,21 +1655,24 @@ async def fixed_cost_matches(conn: asyncpg.Connection, month: date) -> list[Cost
     a mesma transação nunca paga custo de outro mês nem conta duas vezes). A transação escolhida
     numa decisão entra mesmo fora da janela."""
     costs = [
-        CostDue(str(r["id"]), r["amount"], due_date(month, r["due_day"]))
+        CostDue(str(r["id"]), r["amount"], due_date(month, r["due_day"]), r["name"])
         for r in await fixed_costs_due(conn, month)
     ]
     if not costs:
         return []
     start = max(min(c.due for c in costs) - timedelta(days=MATCH_DAYS_BEFORE), month)
     end = min(max(c.due for c in costs) + timedelta(days=MATCH_DAYS_AFTER), month_end(month))
+    if month >= MATCH_BY_NAME_FROM:  # P13: pelo nome vale o mês inteiro
+        start, end = month, month_end(month)
     decided = await conn.fetch(
         "SELECT fixed_cost_id, kind, transaction_id FROM fixed_cost_payments WHERE month = $1",
         month,
     )
     txs = [
-        TxCandidate(str(r["id"]), -r["amount"], r["date"])
+        TxCandidate(str(r["id"]), -r["amount"], r["date"], r["description"] or "")
         for r in await conn.fetch(
-            "SELECT id, amount, date FROM transactions WHERE amount < 0 AND ((kind = 'expense' "
+            "SELECT id, amount, date, description FROM transactions WHERE amount < 0 "
+            "AND ((kind = 'expense' "
             "AND date BETWEEN $1 AND $2) OR id = ANY($3::uuid[]))",
             start,
             end,
