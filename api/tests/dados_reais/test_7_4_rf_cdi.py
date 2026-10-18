@@ -39,6 +39,7 @@ async def test_rf_cdi_cadastrado_sem_mudar_valor() -> None:
                 "caixinha:snowtrip": Decimal("100.00"),
                 "caixinha:turbo": Decimal("115.00"),
                 "caixinha:reserva": Decimal("100.00"),
+                "caixinha:anamaria": Decimal("100.00"),  # revisão 0046 (out/2026)
                 "cdb:guanabara": Decimal("117.50"),
             }
             manual = await conn.fetchval(

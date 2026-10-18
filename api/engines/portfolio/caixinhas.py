@@ -81,12 +81,18 @@ async def build_caixinha_ops(
         with_pairs=True,
         ids=transaction_ids,
     )
-    chosen = {
-        str(r["id"]): r
-        for r in await conn.fetch(
-            _CHOSEN, list(transaction_ids) if transaction_ids is not None else None
-        )
-    }
+    # antes da revisão 0046 (os testes de dado real migram por etapas) não há escolha gravada
+    has_choices = await conn.fetchval("SELECT to_regclass('transaction_caixinha') IS NOT NULL")
+    chosen = (
+        {
+            str(r["id"]): r
+            for r in await conn.fetch(
+                _CHOSEN, list(transaction_ids) if transaction_ids is not None else None
+            )
+        }
+        if has_choices
+        else {}
+    )
     rows = [r for r in by_description if str(r["id"]) not in chosen]
     rows += [r for r in chosen.values() if r["symbol"] == spec.symbol]
     ops: list[dict[str, Any]] = []

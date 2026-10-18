@@ -26,7 +26,10 @@ async def test_arquivos_b3_reais() -> None:
     import main  # noqa: F401
 
     base = load_pinned_baseline()
-    files = sorted(B3_DIR.rglob("*.xlsx"))
+    # P20: o relatório de negociação não é mais importado (só movimentação e consolidado)
+    all_files = sorted(B3_DIR.rglob("*.xlsx"))
+    files = [p for p in all_files if not p.name.startswith("negociacao")]
+    refused = [p for p in all_files if p.name.startswith("negociacao")]
     if base is None or not files:
         require_or_skip("baseline fixado ou arquivos B3 ausentes")
         raise AssertionError("inalcançável")
@@ -35,6 +38,11 @@ async def test_arquivos_b3_reais() -> None:
         await asyncio.to_thread(alembic_upgrade, dsn, "head")
         conn = await asyncpg.connect(dsn)
         try:
+            if refused:
+                negociacao = await ingest_service.preview(
+                    conn, [(p.name, p.read_bytes()) for p in refused]
+                )
+                assert all(f.error and "negociação" in f.error for f in negociacao.files)
             preview = await ingest_service.preview(conn, [(p.name, p.read_bytes()) for p in files])
             by_name = {f.file_name: f for f in preview.files}
             assert all(f.error is None and not f.needs for f in preview.files), [

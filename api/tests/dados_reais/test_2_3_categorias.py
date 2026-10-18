@@ -51,6 +51,7 @@ _LEGACY_CAIXINHA = {
     "Nubank-Reserva": ("Caixinha/RDB Nubank",),
     "Nubank-HotCash": ("Caixinha/RDB Nubank",),
     "Guanabara-CDB": ("Renda Fixa Nubank",),
+    "Nubank-AnaMaria": ("Caixinha/RDB Nubank",),  # criada em out/2026: nada na base fixada
 }
 
 
