@@ -12,7 +12,7 @@ from engines.common.models import Valued
 from engines.common.month_status import month_status
 from engines.ledger import service as ledger_service
 
-from . import calc
+from . import calc, goals
 from .models import (
     ConsumedGroup,
     ConsumedSub,
@@ -114,6 +114,15 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         )
     )
     as_of = facts.as_of
+    # Story 8.1: resgate de ativo vinculado a objetivo financia primeiro (por objetivo)
+    linked = await goals.linked_assets(conn)
+    goal_names = {
+        str(r["id"]): r["name"] for r in await conn.fetch("SELECT id, name FROM goals")
+    }
+    por_objetivo, por_carteira = calc.financiado_split(
+        b.consumo_financiado,
+        sum((x for _, _, x, asset in facts.resgates_itens if asset in linked), Decimal(0)),
+    )
 
     def v(value: Decimal) -> Valued[Decimal]:
         return Valued[Decimal](value=value, as_of=as_of, source="ledger")
@@ -132,7 +141,13 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         ],
         resgates=v(b.resgates_considerados),
         resgates_itens=[
-            ResgateItem(date=d, description=desc, value=x) for d, desc, x in facts.resgates_itens
+            ResgateItem(
+                date=d,
+                description=desc,
+                value=x,
+                goal=goal_names.get(linked[asset]) if asset in linked else None,
+            )
+            for d, desc, x, asset in facts.resgates_itens
         ],
         custos_fixos=v(b.custos_fixos),
         custos_fixos_pagos=facts.fixed_paid,
@@ -146,6 +161,8 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         consumido=v(b.consumido),
         restante=v(b.restante),
         consumo_financiado=v(b.consumo_financiado),
+        financiado_objetivo=v(por_objetivo),
+        financiado_carteira=v(por_carteira),
         restante_sem_resgates=v(b.restante_sem_resgates),
         gastos=facts.gastos,
         deducao_fixos=facts.consumed.fixos,

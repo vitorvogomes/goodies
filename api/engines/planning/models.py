@@ -5,10 +5,14 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from engines.common.models import Valued
 from engines.common.money import Money, Pct
+
+
+def _out_of_summary() -> Valued[Decimal]:
+    return Valued[Decimal](unavailable_reason="fora_do_resumo")
 
 
 class PayerAmount(BaseModel):
@@ -20,6 +24,7 @@ class ResgateItem(BaseModel):
     date: date
     description: str
     value: Money
+    goal: str | None = None  # Story 8.1: o objetivo do ativo resgatado (None = carteira)
 
 
 class ConsumedSub(BaseModel):
@@ -58,6 +63,10 @@ class MonthBudget(BaseModel):
     consumido: Valued[Decimal]
     restante: Valued[Decimal]
     consumo_financiado: Valued[Decimal]
+    # Story 8.1: o financiado dividido — por objetivo (tom neutro) e por resgate da carteira
+    # (laranja); snapshot de antes da 8.1 → fora do resumo
+    financiado_objetivo: Valued[Decimal] = Field(default_factory=_out_of_summary)
+    financiado_carteira: Valued[Decimal] = Field(default_factory=_out_of_summary)
     restante_sem_resgates: Valued[Decimal]
     gastos: Money  # gastos brutos do mês
     deducao_fixos: Money  # custos fixos pagos (fora do consumido)

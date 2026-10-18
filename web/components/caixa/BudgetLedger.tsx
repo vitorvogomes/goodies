@@ -4,7 +4,8 @@
 // vertical com o operador em coluna própria; valores da API (AD-4). Receita do trabalho expande por
 // pagador; Dívidas do mês é input inline (Enter grava, Esc reverte, anuncia o disponível novo);
 // disponível ou restante negativo em vermelho com "−" e ▼ e a nota; abaixo, o consumo financiado
-// por resgate e o restante sem os resgates.
+// por resgate (dividido em por objetivo × por resgate da carteira — Story 8.1) e o restante sem os
+// resgates.
 import { type ReactNode, useState } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -172,7 +173,9 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
               ))}
           </Row>
           <Row op="+" label="Resgates" value={money(budget.resgates)}>
-            {budget.resgates_itens.map((r) => `${r.description} · ${formatDate(r.date)}`).join("; ")}
+            {budget.resgates_itens
+              .map((r) => `${r.description} · ${formatDate(r.date)}${r.goal ? ` · objetivo ${r.goal}` : ""}`)
+              .join("; ")}
           </Row>
           <Row op="−" label="Custos fixos" value={money(budget.custos_fixos)}>
             {budget.detalhe &&
@@ -237,6 +240,19 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
           </span>
           <span className="type-num-body">{money(budget.consumo_financiado)}</span>
         </p>
+        {(budget.consumo_financiado.value ?? 0) > 0 && budget.financiado_objetivo.value !== null && (
+          <>
+            {/* Story 8.1: o que o objetivo cobre (neutro) × o que saiu da carteira (laranja) */}
+            <p className="flex justify-between gap-4 pl-4">
+              <span>financiado por objetivo</span>
+              <span className="type-num-body">{money(budget.financiado_objetivo)}</span>
+            </p>
+            <p className="flex justify-between gap-4 pl-4 text-warning">
+              <span>financiado por resgate da carteira</span>
+              <span className="type-num-body">{money(budget.financiado_carteira)}</span>
+            </p>
+          </>
+        )}
         <p className="flex justify-between gap-4 text-muted-foreground">
           <span>Restante sem os resgates</span>
           <span className="type-num-body">{money(budget.restante_sem_resgates)}</span>

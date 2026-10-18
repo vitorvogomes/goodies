@@ -41,6 +41,14 @@ def consumo_financiado(resgates: Decimal, consumido: Decimal, disponivel_: Decim
     return min(resgates, max(Decimal(0), consumido - (disponivel_ - resgates)))
 
 
+def financiado_split(financiado: Decimal, resgates_objetivo: Decimal) -> tuple[Decimal, Decimal]:
+    """Story 8.1: o consumo financiado por resgate, (por objetivo, por resgate da carteira). O
+    resgate de ativo vinculado a objetivo cobre primeiro (é dinheiro guardado para gastar); o resto
+    é a carteira."""
+    por_objetivo = min(financiado, resgates_objetivo)
+    return por_objetivo, financiado - por_objetivo
+
+
 @dataclass(frozen=True)
 class BudgetInput:
     trabalho: Decimal

@@ -24,7 +24,7 @@ export interface MonthBudget {
   trabalho: Valued;
   trabalho_por_pagador: { payer: string; value: number }[];
   resgates: Valued;
-  resgates_itens: { date: string; description: string; value: number }[];
+  resgates_itens: { date: string; description: string; value: number; goal: string | null }[];
   custos_fixos: Valued;
   custos_fixos_pagos: number;
   custos_fixos_a_pagar: number;
@@ -37,6 +37,8 @@ export interface MonthBudget {
   consumido: Valued;
   restante: Valued;
   consumo_financiado: Valued;
+  financiado_objetivo: Valued; // Story 8.1: por objetivo (neutro)
+  financiado_carteira: Valued; // por resgate da carteira (laranja)
   restante_sem_resgates: Valued;
   gastos: number;
   deducao_fixos: number;
@@ -48,4 +50,47 @@ export interface MonthBudget {
   consumido_por_grupo: ConsumedGroup[];
   grupos_total: number;
   detalhe: boolean; // false: fechado antes do orçamento — só os totais congelados
+}
+
+// Ajustes › Objetivos (Story 8.1).
+export interface GoalAsset {
+  asset_id: string;
+  label: string;
+  valor: number | null;
+  aportado: number;
+}
+
+export interface Goal {
+  id: string;
+  kind: "reserva" | "objetivo";
+  name: string;
+  target: number;
+  deadline: string | null;
+  multiplier: number | null;
+  horizon_months: number | null;
+  assets: GoalAsset[];
+  valor: number;
+  aportado: number;
+  progress: number;
+}
+
+export interface GoalSuggestion {
+  asset_id: string;
+  label: string;
+  goal_id: string | null;
+  goal_name: string | null;
+}
+
+export interface GoalsOut {
+  goals: Goal[];
+  suggestions: GoalSuggestion[];
+}
+
+export interface GoalIn {
+  name?: string;
+  target?: string;
+  deadline?: string;
+  asset_ids?: string[];
+  multiplier?: string;
+  horizon_months?: number;
 }

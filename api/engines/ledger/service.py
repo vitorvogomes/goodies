@@ -1890,7 +1890,7 @@ class BudgetFacts:
     trabalho: Decimal
     por_pagador: dict[str, Decimal]
     resgates: Decimal
-    resgates_itens: list[tuple[date, str, Decimal]]  # (data, descrição, valor)
+    resgates_itens: list[tuple[date, str, Decimal, str | None]]  # (data, descrição, valor, ativo)
     gastos: Decimal
     investido: Decimal
     consumed: Consumed
@@ -1907,7 +1907,7 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
     """Transações do mês por papel, o casamento dos custos fixos e o consumido em baldes."""
     rows = await conn.fetch(
         "SELECT t.id, t.date, t.amount, t.kind, c.role, t.payer, t.description, "
-        "g.name AS group_name, c.name AS category_name "
+        "t.asset_id::text AS asset_id, g.name AS group_name, c.name AS category_name "
         "FROM transactions t JOIN categories c ON c.id = t.category_id "
         "JOIN category_groups g ON g.id = c.group_id "
         "WHERE t.date >= $1 AND t.date < $2 ORDER BY t.date",
@@ -1951,7 +1951,9 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
         por_pagador=por_pagador,
         resgates=resgates(moves),
         resgates_itens=[
-            (r["date"], r["description"] or "", r["amount"]) for r in rows if r["role"] == "resgate"
+            (r["date"], r["description"] or "", r["amount"], r["asset_id"])
+            for r in rows
+            if r["role"] == "resgate"
         ],
         gastos=gastos(moves),
         investido=investido(moves),
