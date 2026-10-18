@@ -19,11 +19,14 @@ from db.connection import get_db
 router = APIRouter(prefix="/api/v1/accounts", tags=["ledger:accounts"])
 
 AccountType = Literal["bank", "broker", "crypto", "manual"]
+Holder = Literal["pf", "mei"]
+# Story 10.1: a fonte de import de cada titular (só a PF tem o saldo conferido; a MEI é zerada)
+_FONTE = {"pf": "Nubank PF", "mei": "Nubank MEI"}
 
 AuthUser = Annotated[dict[str, str], Depends(get_current_user)]
 Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
-_COLUMNS = "id, name, type, currency, account_number"
+_COLUMNS = "id, name, type, currency, account_number, holder"
 
 
 class AccountCreate(BaseModel):
@@ -31,6 +34,7 @@ class AccountCreate(BaseModel):
     type: AccountType
     currency: str = "BRL"
     account_number: str | None = None
+    holder: Holder | None = None
 
 
 class AccountUpdate(BaseModel):
@@ -38,6 +42,7 @@ class AccountUpdate(BaseModel):
     type: AccountType | None = None
     currency: str | None = None
     account_number: str | None = None
+    holder: Holder | None = None
 
 
 class AccountResponse(BaseModel):
@@ -46,6 +51,9 @@ class AccountResponse(BaseModel):
     type: str
     currency: str
     account_number: str | None
+    holder: str | None = None  # pf | mei
+    fonte: str | None = None  # "Nubank PF" | "Nubank MEI"
+    conferencia: bool = False  # saldo conferido (só a PF; a MEI é sempre zerada)
 
 
 def _to_response(row: asyncpg.Record) -> AccountResponse:
@@ -55,6 +63,9 @@ def _to_response(row: asyncpg.Record) -> AccountResponse:
         type=row["type"],
         currency=row["currency"],
         account_number=row["account_number"],
+        holder=row["holder"],
+        fonte=_FONTE.get(row["holder"] or ""),
+        conferencia=row["holder"] == "pf",
     )
 
 
@@ -68,12 +79,13 @@ async def list_accounts(user: AuthUser, db: Db) -> list[AccountResponse]:
 async def create_account(body: AccountCreate, user: AuthUser, db: Db) -> AccountResponse:
     try:
         row = await db.fetchrow(
-            "INSERT INTO accounts (name, type, currency, account_number) "
-            f"VALUES ($1, $2, $3, $4) RETURNING {_COLUMNS}",
+            "INSERT INTO accounts (name, type, currency, account_number, holder) "
+            f"VALUES ($1, $2, $3, $4, $5) RETURNING {_COLUMNS}",
             body.name,
             body.type,
             body.currency,
             body.account_number,
+            body.holder,
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "número de conta já cadastrado") from None
@@ -91,7 +103,8 @@ async def update_account(
               name = COALESCE($2, name),
               type = COALESCE($3, type),
               currency = COALESCE($4, currency),
-              account_number = COALESCE($5, account_number)
+              account_number = COALESCE($5, account_number),
+              holder = COALESCE($6, holder)
             WHERE id = $1
             """
             f" RETURNING {_COLUMNS}",
@@ -100,6 +113,7 @@ async def update_account(
             body.type,
             body.currency,
             body.account_number,
+            body.holder,
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "número de conta já cadastrado") from None

@@ -8,6 +8,9 @@ export interface Account {
   type: AccountType;
   currency: string;
   account_number: string | null;
+  holder: "pf" | "mei" | null; // Story 10.1
+  fonte: string | null;
+  conferencia: boolean; // saldo conferido (só a PF)
 }
 
 export interface AccountCreate {
@@ -15,6 +18,7 @@ export interface AccountCreate {
   type: AccountType;
   currency?: string;
   account_number?: string;
+  holder?: "pf" | "mei";
 }
 
 export type CategoryKind = "income" | "expense" | "investment" | "transfer";

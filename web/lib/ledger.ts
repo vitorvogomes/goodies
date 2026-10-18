@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
 import type {
   Account,
+  AccountCreate,
   Alert,
   BalanceCandidates,
   CashflowProjection,
@@ -45,6 +46,22 @@ export function useAccounts() {
   return useQuery({
     queryKey: ["accounts"],
     queryFn: () => apiFetch<Account[]>("/api/v1/accounts"),
+  });
+}
+
+// Ajustes › Contas (Story 10.1): criar e editar.
+export function useSaveAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string | null; body: AccountCreate }) =>
+      apiFetch<Account>(`/api/v1/accounts${id ? `/${id}` : ""}`, {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      return invalidateAfter(queryClient, "ledger");
+    },
   });
 }
 
