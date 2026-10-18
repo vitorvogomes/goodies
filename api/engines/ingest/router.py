@@ -5,13 +5,23 @@ from __future__ import annotations
 import json
 from typing import Annotated
 
+import asyncpg
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from engines.common.dates import today_brt
 from engines.common.deps import AuthUser, Db
+from engines.common.models import Uuid
 
 from . import service
-from .models import ConfirmIn, ConfirmOut, PreviewOut, ReplanIn, SourceRow
+from .models import (
+    ConfirmIn,
+    ConfirmOut,
+    ImportHistory,
+    PreviewOut,
+    ReplanIn,
+    SourceRow,
+    UndoPreview,
+)
 
 router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 
@@ -50,6 +60,35 @@ async def replan(body: ReplanIn, user: AuthUser, db: Db) -> PreviewOut:
         return await service.replan(db, body.batch_id, body.overrides)
     except service.BatchError as exc:
         raise _http(exc) from None
+
+
+@router.get("/batches", response_model=ImportHistory)
+async def list_history(user: AuthUser, db: Db) -> ImportHistory:
+    return await service.history(db)
+
+
+@router.post("/batches/{batch_id}/undo/preview", response_model=UndoPreview)
+async def undo_preview(batch_id: Uuid, user: AuthUser, db: Db) -> UndoPreview:
+    try:
+        return await service.undo_preview(db, batch_id)
+    except service.BatchError as exc:
+        raise _http(exc) from None
+
+
+@router.post("/batches/{batch_id}/undo", response_model=UndoPreview)
+async def undo(batch_id: Uuid, user: AuthUser, db: Db) -> UndoPreview:
+    try:
+        return await service.undo(db, batch_id)
+    except service.BatchError as exc:
+        raise _http(exc) from None
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {
+                "error": "lote_com_curadoria",
+                "message": "O lote tem uma operação protegida (curadoria) e não pode ser desfeito.",
+            },
+        ) from None
 
 
 @router.post("/confirm", response_model=ConfirmOut)

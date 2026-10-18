@@ -112,3 +112,39 @@ class SourceRow(BaseModel):
     balance_status: Literal["conferido", "divergente"] | None = None  # só a conta PF
     balance_as_of: date | None = None
     balance_difference: Money | None = None
+
+
+# ---- Histórico de imports e desfazer (Story 3.14) ----
+
+
+class HistoryFile(BaseModel):
+    source: str
+    file_name: str | None
+    period_start: date | None
+    period_end: date | None
+
+
+class HistoryBatch(BaseModel):
+    id: str
+    status: str
+    created_at: datetime
+    applied_at: datetime | None
+    files: list[HistoryFile]
+    new: int | None  # itens novos gravados (lote aplicado pelo Hub)
+    undoable: bool
+
+
+class ImportHistory(BaseModel):
+    items: list[HistoryBatch]
+    undo_note: str | None  # por que o último lote não tem Desfazer
+
+
+class UndoPreview(BaseModel):
+    batch_id: str
+    applied_at: datetime
+    transactions: int = 0
+    operations: int = 0
+    categorizations: int = 0
+    rules: int = 0
+    balances: int = 0
+    snapshots: int = 0

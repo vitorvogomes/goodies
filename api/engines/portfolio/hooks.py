@@ -41,3 +41,13 @@ async def on_batch_undo(conn: asyncpg.Connection, batch_id: str) -> None:
         batch_id,
     )
     await invalidate_xirr_cache(await get_owner_id(conn))
+
+
+async def count_derived_for_undo(conn: asyncpg.Connection, batch_id: str) -> dict[str, int]:
+    """Prévia do desfazer: operações derivadas (não protegidas) das transações do lote."""
+    n = await conn.fetchval(
+        "SELECT count(*) FROM asset_operations o JOIN transactions t ON t.id = o.transaction_id "
+        "WHERE t.batch_id = $1::uuid AND NOT o.protected",
+        batch_id,
+    )
+    return {"operations": int(n)}

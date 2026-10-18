@@ -44,3 +44,30 @@ export interface SourceRow {
   balance_as_of: string | null;
   balance_difference: number | null;
 }
+
+// ---- Histórico de imports e desfazer (Story 3.14) ----
+export interface HistoryBatch {
+  id: string;
+  status: "applied" | "undone" | "legacy";
+  created_at: string;
+  applied_at: string | null;
+  files: { source: string; file_name: string | null; period_start: string | null; period_end: string | null }[];
+  new: number | null;
+  undoable: boolean;
+}
+
+export interface ImportHistory {
+  items: HistoryBatch[];
+  undo_note: string | null;
+}
+
+export interface UndoPreview {
+  batch_id: string;
+  applied_at: string;
+  transactions: number;
+  operations: number;
+  categorizations: number;
+  rules: number;
+  balances: number;
+  snapshots: number;
+}

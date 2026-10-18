@@ -63,10 +63,7 @@ def _merged(coverage: list[Coverage]) -> list[Coverage]:
 def interval_gaps(coverage: list[Coverage]) -> list[tuple[date, date]]:
     """Dias sem arquivo entre o primeiro e o último import (Nubank)."""
     merged = _merged(coverage)
-    return [
-        (a.end + timedelta(days=1), b.start - timedelta(days=1))
-        for a, b in pairwise(merged)
-    ]
+    return [(a.end + timedelta(days=1), b.start - timedelta(days=1)) for a, b in pairwise(merged)]
 
 
 def consolidado_gaps(coverage: list[Coverage]) -> list[tuple[date, date]]:

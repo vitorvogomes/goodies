@@ -111,3 +111,22 @@ COVERAGE = """
     WHERE b.status IN ('applied', 'legacy') AND f.period_start IS NOT NULL
       AND f.period_end IS NOT NULL
 """
+HISTORY = """
+    SELECT id, status, plan, created_at, applied_at FROM import_batches
+    WHERE status IN ('applied', 'undone', 'legacy')
+    ORDER BY coalesce(applied_at, created_at) DESC, id LIMIT $1
+"""
+LAST_APPLIED = """
+    SELECT id, applied_at, applied_at >= now() - interval '7 days' AS in_window
+    FROM import_batches WHERE status = 'applied'
+    ORDER BY applied_at DESC, id LIMIT 1
+"""
+LAST_ANY = """
+    SELECT id, status, coalesce(applied_at, created_at) AS at FROM import_batches
+    WHERE status IN ('applied', 'legacy') ORDER BY coalesce(applied_at, created_at) DESC LIMIT 1
+"""
+BATCH_SOURCES = "SELECT DISTINCT source FROM import_batch_files WHERE batch_id = $1::uuid"
+MARK_UNDONE = """
+    UPDATE import_batches SET status = 'undone', undone_at = now() WHERE id = $1::uuid
+"""
+DELETE_FILES = "DELETE FROM import_batch_files WHERE batch_id = $1::uuid"

@@ -10,11 +10,14 @@ das entradas (`transactions.payer`).
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 import asyncpg
 
 from config import settings
 from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError
+from engines.ledger import queries as ledger_queries
+from engines.ledger import service as ledger_service
 
 from .importer import (
     StatementEntry,
@@ -155,6 +158,28 @@ class NubankStatementAdapter:
             detail={"by_kind": report.by_kind, "errors": report.errors},
         )
 
-    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> None:
+    async def undo_preview(self, conn: asyncpg.Connection, batch_id: str) -> dict[str, int]:
+        row = await conn.fetchrow(ledger_queries.UNDO_COUNTS, batch_id)
+        return {k: int(row[k]) for k in ("transactions", "categorizations", "rules", "balances")}
+
+    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
+        """Sai do lote: as regras criadas nele (as transações de fora que elas categorizaram voltam
+        por categorize() sem elas, pendentes), os saldos informados (a âncora da PF é recalculada se
+        estava entre eles) e as transações (com as categorizações, FK cascade)."""
+        months = {
+            r["m"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT date_trunc('month', date)::date AS m FROM transactions "
+                "WHERE batch_id = $1::uuid",
+                batch_id,
+            )
+        }
+        outside = await conn.fetch(ledger_queries.RULED_OUTSIDE_BATCH, batch_id)
+        await conn.execute("DELETE FROM category_rules WHERE created_in_batch = $1::uuid", batch_id)
+        await ledger_service.recategorize_without_rules(conn, outside, batch_id)
+        anchored = await conn.fetch(ledger_queries.ANCHORS_IN_BATCH, batch_id)
         await conn.execute("DELETE FROM account_balances WHERE batch_id = $1::uuid", batch_id)
+        for r in anchored:
+            await ledger_service.recompute_anchor(conn, r["account_id"])
         await conn.execute("DELETE FROM transactions WHERE batch_id = $1::uuid", batch_id)
+        return months

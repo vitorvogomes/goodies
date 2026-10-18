@@ -6,7 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { ImportConfirmed, ImportPreview, SourceRow } from "@/types/ingest";
+import type {
+  ImportConfirmed,
+  ImportHistory,
+  ImportPreview,
+  SourceRow,
+  UndoPreview,
+} from "@/types/ingest";
 
 export function useSources() {
   return useQuery({
@@ -50,6 +56,39 @@ export function useConfirmImport() {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       await queryClient.invalidateQueries({ queryKey: ["market"] });
+    },
+  });
+}
+
+// ---- Histórico de imports e desfazer o último lote (Story 3.14) ----
+
+export function useImportHistory() {
+  return useQuery({
+    queryKey: ["ingest", "batches"],
+    queryFn: () => apiFetch<ImportHistory>("/api/v1/ingest/batches"),
+  });
+}
+
+export function useUndoPreview(batchId: string | null) {
+  return useQuery({
+    // Fora de "ingest": desfeito o lote, a invalidação não deve repedir a prévia (daria 409).
+    queryKey: ["undo-preview", batchId],
+    queryFn: () =>
+      apiFetch<UndoPreview>(`/api/v1/ingest/batches/${batchId}/undo/preview`, { method: "POST" }),
+    enabled: batchId !== null,
+  });
+}
+
+export function useUndoBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (batchId: string) =>
+      apiFetch<UndoPreview>(`/api/v1/ingest/batches/${batchId}/undo`, { method: "POST" }),
+    onSuccess: async () => {
+      await invalidateAfter(queryClient, "ingest");
+      await invalidateAfter(queryClient, "ledger");
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
     },
   });
 }

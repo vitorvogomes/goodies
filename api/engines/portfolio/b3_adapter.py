@@ -347,10 +347,36 @@ class B3Adapter:
                 await market_service.invalidate_price_cache(ticker)
         return Applied(inserted=inserted, detail={"prices_upserted": upserted})
 
-    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> None:
+    async def undo_preview(self, conn: asyncpg.Connection, batch_id: str) -> dict[str, int]:
+        return {
+            "operations": int(
+                await conn.fetchval(
+                    "SELECT count(*) FROM asset_operations "
+                    "WHERE batch_id = $1::uuid AND NOT protected",
+                    batch_id,
+                )
+            ),
+            "snapshots": int(
+                await conn.fetchval(
+                    "SELECT count(*) FROM broker_position_snapshots WHERE batch_id = $1::uuid",
+                    batch_id,
+                )
+            ),
+        }
+
+    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
+        months = {
+            r["m"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT date_trunc('month', data_operacao)::date AS m "
+                "FROM asset_operations WHERE batch_id = $1::uuid AND NOT protected",
+                batch_id,
+            )
+        }
         await conn.execute(
             "DELETE FROM broker_position_snapshots WHERE batch_id = $1::uuid", batch_id
         )
         await conn.execute(
             "DELETE FROM asset_operations WHERE batch_id = $1::uuid AND NOT protected", batch_id
         )
+        return months

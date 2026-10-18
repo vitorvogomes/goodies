@@ -28,8 +28,12 @@ from .models import (
     BatchResponse,
     ConfirmOut,
     FilePlanOut,
+    HistoryBatch,
+    HistoryFile,
+    ImportHistory,
     PreviewOut,
     SourceRow,
+    UndoPreview,
 )
 from .protocol import FilePlan, ParsedFile, PlanError, SourceAdapter
 
@@ -107,9 +111,24 @@ def register_on_batch_applied(hook: BatchHook) -> None:
         _on_applied.append(hook)
 
 
-def register_on_batch_undo(hook: BatchHook) -> None:
+_undo_layers: dict[BatchHook, int] = {}
+UndoCounter = Callable[[asyncpg.Connection, str], Awaitable[dict[str, int]]]
+_undo_counters: list[UndoCounter] = []
+
+
+def register_on_batch_undo(hook: BatchHook, *, layer: int) -> None:
+    """Desfazer: os hooks rodam em ordem decrescente de camada (AD-5), antes do `undo` dos
+    adapters."""
     if hook not in _on_undo:
         _on_undo.append(hook)
+    _undo_layers[hook] = layer
+
+
+def register_undo_counter(counter: UndoCounter) -> None:
+    """Quem tem hook de desfazer conta o que ele remove, para a prévia (ex.: operações
+    derivadas)."""
+    if counter not in _undo_counters:
+        _undo_counters.append(counter)
 
 
 class BatchError(Exception):
@@ -433,3 +452,119 @@ async def source_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Ale
                 )
             )
     return alerts
+
+
+# --------------------------------------------------------------------------------------------
+# Histórico de imports e desfazer o último lote (FR-6 — Story 3.14)
+# --------------------------------------------------------------------------------------------
+
+UNDO_WINDOW_DAYS = 7
+
+
+def _plan(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    data: dict[str, Any] = json.loads(raw) if isinstance(raw, str) else raw
+    return data
+
+
+async def history(conn: asyncpg.Connection, limit: int = 20) -> ImportHistory:
+    batches = await conn.fetch(queries.HISTORY, limit)
+    files = await queries.select_files(conn, [str(b["id"]) for b in batches])
+    by_batch: dict[str, list[HistoryFile]] = {}
+    for f in files:
+        by_batch.setdefault(str(f["batch_id"]), []).append(
+            HistoryFile(
+                source=f["source"],
+                file_name=f["file_name"],
+                period_start=f["period_start"],
+                period_end=f["period_end"],
+            )
+        )
+    last = await conn.fetchrow(queries.LAST_APPLIED)
+    undoable = str(last["id"]) if last is not None and last["in_window"] else None
+    items = []
+    for b in batches:
+        summary = _plan(b["plan"]).get("summary")
+        # Lote desfeito perde os arquivos (import_batch_files); o plano guardado ainda tem os nomes.
+        files_of = by_batch.get(str(b["id"])) or [
+            HistoryFile(
+                source=f["source"] or "",
+                file_name=f["file_name"],
+                period_start=f["period_start"],
+                period_end=f["period_end"],
+            )
+            for f in summary or []
+            if f["error"] is None
+        ]
+        items.append(
+            HistoryBatch(
+                id=str(b["id"]),
+                status=b["status"],
+                created_at=b["created_at"],
+                applied_at=b["applied_at"],
+                files=files_of,
+                new=sum(f["new"] for f in summary if f["error"] is None) if summary else None,
+                undoable=str(b["id"]) == undoable,
+            )
+        )
+    note = None
+    if last is not None and not last["in_window"]:
+        note = f"Último lote: {last['applied_at']:%d/%m/%Y}. Prazo de desfazer encerrado."
+    elif last is None and await conn.fetchrow(queries.LAST_ANY) is not None:
+        note = "Só há lotes do histórico legado, e lotes legado não se desfazem."
+    return ImportHistory(items=items, undo_note=note)
+
+
+async def _undoable(conn: asyncpg.Connection, batch_id: str) -> asyncpg.Record:
+    last = await conn.fetchrow(queries.LAST_APPLIED)
+    if last is None or str(last["id"]) != batch_id:
+        raise BatchError("lote_nao_desfazivel", "Só o último lote aplicado pode ser desfeito.")
+    if not last["in_window"]:
+        raise BatchError(
+            "prazo_encerrado",
+            f"Último lote: {last['applied_at']:%d/%m/%Y}. Prazo de desfazer encerrado.",
+        )
+    return last
+
+
+async def _batch_adapters(conn: asyncpg.Connection, batch_id: str) -> list[SourceAdapter]:
+    found: list[SourceAdapter] = []
+    for r in await conn.fetch(queries.BATCH_SOURCES, batch_id):
+        adapter = _adapter_for(r["source"])
+        if adapter not in found:
+            found.append(adapter)
+    return found
+
+
+async def undo_preview(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:
+    last = await _undoable(conn, batch_id)
+    counts: dict[str, int] = {}
+    for adapter in await _batch_adapters(conn, batch_id):
+        for k, v in (await adapter.undo_preview(conn, batch_id)).items():
+            counts[k] = counts.get(k, 0) + v
+    for counter in _undo_counters:
+        for k, v in (await counter(conn, batch_id)).items():
+            counts[k] = counts.get(k, 0) + v
+    return UndoPreview(batch_id=batch_id, applied_at=last["applied_at"], **counts)
+
+
+async def undo(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:
+    """Desfaz o último lote numa transação: hooks (camada decrescente), `undo` dos adapters,
+    arquivos do lote; o lote vira `undone`, meses tocados ficam sujos e o XIRR é invalidado."""
+    async with conn.transaction():
+        await conn.execute("SELECT 1 FROM import_batches WHERE id = $1::uuid FOR UPDATE", batch_id)
+        preview = await undo_preview(conn, batch_id)
+        for hook in sorted(_on_undo, key=lambda h: -_undo_layers.get(h, 0)):
+            await hook(conn, batch_id)
+        months: set[date] = set()
+        for adapter in await _batch_adapters(conn, batch_id):
+            months |= await adapter.undo(conn, batch_id)
+        await conn.execute(queries.DELETE_FILES, batch_id)
+        await conn.execute(queries.MARK_UNDONE, batch_id)
+        port = month_status()
+        for month in sorted(months):
+            await port.mark_dirty(conn, month)
+        owner = await get_owner_id(conn)
+    await invalidate_xirr_cache(owner)
+    return preview

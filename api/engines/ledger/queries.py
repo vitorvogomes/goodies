@@ -318,3 +318,21 @@ INTERVAL_TRANSACTIONS = """
     JOIN category_groups g ON g.id = c.group_id
     WHERE t.account_id = $1 AND t.date > $2 AND t.date <= $3
 """
+UNDO_COUNTS = """
+    SELECT
+      (SELECT count(*) FROM transactions WHERE batch_id = $1::uuid) AS transactions,
+      (SELECT count(*) FROM categorization_events e JOIN transactions t ON t.id = e.transaction_id
+        WHERE t.batch_id = $1::uuid) AS categorizations,
+      (SELECT count(*) FROM category_rules WHERE created_in_batch = $1::uuid) AS rules,
+      (SELECT count(*) FROM account_balances WHERE batch_id = $1::uuid) AS balances
+"""
+RULED_OUTSIDE_BATCH = """
+    SELECT t.id, t.description, t.amount FROM transactions t
+    JOIN category_rules r ON r.id = t.category_rule_id
+    WHERE r.created_in_batch = $1::uuid AND t.batch_id IS DISTINCT FROM $1::uuid
+"""
+ANCHORS_IN_BATCH = """
+    SELECT DISTINCT a.id AS account_id FROM accounts a
+    JOIN account_balances b ON b.account_id = a.id AND b.as_of = a.opening_balance_date
+    WHERE b.batch_id = $1::uuid
+"""

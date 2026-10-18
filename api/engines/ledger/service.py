@@ -34,6 +34,7 @@ from .calc import (
     Rule,
     best_rule,
     chained_check,
+    opening_balance,
     savings_rate,
 )
 from .models import (
@@ -1210,4 +1211,61 @@ async def balance_candidates(
             )
             for r in ordered
         ],
+    )
+
+
+# --------------------------------------------------------------------------------------------
+# Desfazer lote: transações de fora que perderam a regra e a âncora do saldo (Story 3.14)
+# --------------------------------------------------------------------------------------------
+
+
+async def recategorize_without_rules(
+    conn: asyncpg.Connection, rows: Sequence[asyncpg.Record], batch_id: str
+) -> None:
+    """Transações de fora do lote desfeito categorizadas por uma regra que saiu: voltam por
+    categorize() sem ela — outra regra que case, senão a sugestão, senão "a classificar" — sempre
+    pendentes."""
+    if not rows:
+        return
+    from .importer import suggestion_history  # import tardio: o importer depende deste módulo
+    from .suggest import best_suggestion
+
+    rules = await load_rules(conn)
+    history = await suggestion_history(conn)
+    pending = {
+        True: await queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
+        False: await queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
+    }
+    changes: list[CategoryChange] = []
+    for r in rows:
+        rule = best_rule(r["description"] or "", r["amount"], rules)
+        if rule is not None:
+            changes.append(CategoryChange(str(r["id"]), rule.category_id, "rule", rule.rule_id))
+            continue
+        hint = best_suggestion(r["description"] or "", r["amount"], history)
+        target = hint.category_id if hint else pending[r["amount"] > 0]
+        changes.append(CategoryChange(str(r["id"]), target, "suggestion"))
+    await categorize(conn, changes, cause="undo", batch_id=batch_id, review_status="pending")
+
+
+async def recompute_anchor(conn: asyncpg.Connection, account_id: Any) -> None:
+    """Âncora = o saldo informado mais antigo que sobrou; sem nenhum, a conta fica sem âncora."""
+    first = await conn.fetchrow(
+        "SELECT as_of, balance FROM account_balances WHERE account_id = $1 ORDER BY as_of LIMIT 1",
+        account_id,
+    )
+    if first is None:
+        await conn.execute(
+            "UPDATE accounts SET opening_balance = NULL, opening_balance_date = NULL WHERE id = $1",
+            account_id,
+        )
+        return
+    moves = [
+        (r["date"], r["amount"]) for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, account_id)
+    ]
+    await conn.execute(
+        "UPDATE accounts SET opening_balance = $2, opening_balance_date = $3 WHERE id = $1",
+        account_id,
+        opening_balance(first["balance"], first["as_of"], moves),
+        first["as_of"],
     )

@@ -10,6 +10,7 @@ import { type DragEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { ImportHistory } from "@/components/ingest/ImportHistory";
 import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,6 +311,7 @@ export function ImportHub() {
               </Button>
             </div>
           )}
+          <ImportHistory />
         </div>
       </SheetContent>
     </Sheet>
