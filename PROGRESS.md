@@ -14,7 +14,7 @@
 |---|---|---|---|
 | Marco 1 — Ritual confiável | 1, 2, 3, 4, 5 | 44 | — |
 | Marco 2 — Caixa e orçamento | 6 | 8 | — |
-| Marco 3 — Investimentos e aportes | 7, 8 | 17 | — |
+| Marco 3 — Investimentos e aportes | 7, 8 | 17 | ✅ 2026-10-18 |
 | Marco 4 — Histórico e ajustes completos | 9, 10 | 9 | — |
 
 ---
@@ -142,14 +142,14 @@
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 8.1 | Objetivos vinculados às caixinhas | [x] | — |
-| 8.2 | Metas de alocação, bandas e pisos | [x] | — |
-| 8.3 | Alocação × meta e bloco Objetivos em Posições | [x] | — |
-| 8.4 | Aporte planejado do mês | [x] | — |
-| 8.5 | Distribuição do aporte | [x] | — |
-| 8.6 | Ajustar a distribuição com travas | [x] | — |
-| 8.7 | Realizado, a caminho e pendente na distribuição | [x] | — |
-| 8.8 | Resumo do aporte no Painel e aviso de pendente | [x] | — |
+| 8.1 | Objetivos vinculados às caixinhas | [x] | 7565081 |
+| 8.2 | Metas de alocação, bandas e pisos | [x] | 88ee9fd |
+| 8.3 | Alocação × meta e bloco Objetivos em Posições | [x] | 41ca021 |
+| 8.4 | Aporte planejado do mês | [x] | eeb9209 |
+| 8.5 | Distribuição do aporte | [x] | 58b6b1f |
+| 8.6 | Ajustar a distribuição com travas | [x] | fb535ba |
+| 8.7 | Realizado, a caminho e pendente na distribuição | [x] | acce05a |
+| 8.8 | Resumo do aporte no Painel e aviso de pendente | [x] | 6fd63b8 |
 
 **Gate marco 3 (`/gate m3`):**
 - XIRR consolidado igual ao baseline da Story 1.3, salvo correção explicada; conciliação B3 e carteiras dentro das tolerâncias da AD-13.
@@ -249,3 +249,4 @@
 | 2026-10-18 | m3 | Épico 8: 8.6 | planning.set_lock (goal:/class:/asset:, em month_plans.travas; None destrava; chave inválida → 422 trava_invalida; mês fechado → 409) + PUT/DELETE /api/v1/planning/months/{mes}/travas/{key}; a prévia usa as travas do mês (fixas; o resto pela mesma regra, total = planejado; travas acima → locks_over). Web: sugerido editável em objetivos, classes e ativos (Enter trava, Esc reverte; cadeado no slot de anotação, clicar destrava e volta ao sugerido); o hook grava e devolve a prévia nova (setQueryData) e o pai anuncia "Redistribuído: {n} linhas" (aria-live); "Travas somam R$ {x}, acima do planejado."; falha → "Não foi possível salvar. Nada foi perdido. Tentar de novo." mantendo o digitado; mês fechado só leitura. |
 | 2026-10-18 | m3 | Épico 8: 8.7 | planning/calc.aporte_progress (puro; golden dos mockups: realizado 2.800, em ativo 2.300, a caminho 500, pendente 1.700, Σ pendente das linhas 2.200 = 1.700 + 500) e planning/progress.month_progress (realizado total = investido do ledger, o mesmo da 6.7; realizado por linha = operações do mês por ativo via portfolio.positions.month_contributions — ativos de objetivos na linha do objetivo; bloco cripto = saídas do mês para as carteiras). Prévia da distribuição com realizado/pendente por objetivo, classe e ativo e o andamento (totais, % realizado, Σ das linhas, `confere`, % dos trechos da barra). build_month_summary: aporte_planejado, realizado, pendente (sem planejado → nao_definido) e linhas `realizado` por classe e ativo no snapshot (realizado/pendente saem de "fora do resumo"; golden snapshot = ao vivo cobre os campos). Web: Barra de progresso (DESIGN › progress-bar: em ativo sólido, a caminho hachurado, pendente vazio, trilho input, legenda com números), Andamento do mês, colunas Realizado/Pendente e rodapé de conciliação (objetivos + classes · a caminho, ainda sem classe · total do mês). P25 (a caminho do andamento). |
 | 2026-10-18 | m3 | Épico 8: 8.8 | planning/summary: aporte_summary (andamento da prévia, classes fora da banda, a caminho por corretora da 7.7 com "importe a partir de", as_of) + GET /api/v1/planning/months/{mes}/aporte/resumo; aviso "Faltam R$ {valor} do aporte de {mês}." (Ver aportes) nos últimos 7 dias do mês com planejado e pendente (aporte_alerts, registrado em main.py). Web: Painel › Resumo do aporte completo (planejado; "Realizado R$ x · dos quais R$ y a caminho"; Barra de progresso; a caminho por corretora; "{n} classes fora da banda · Ver aportes"; % realizado com Carimbo; cabeçalho → Aportes; sem planejado, o link "Defina…" com foco). |
+| 2026-10-18 | m3 | Épico 8 fechado + gate m3 | Review 46f2baa (2 revisores; aplicados com teste: distribuição parte da posição antes do aporte do mês; realizado por linha só entradas; travas exatas; sem destino ao centavo; classe sem meta fora da banda nunca; cripto estimado só com algo a valorar e no fim também; metas por ativo validadas; web: piso das metas, trava revalida e uma por vez, refetch com erro não desmonta editor, foco do aporte, Painel em mês fechado). Suíte 882 (3 dados_reais de outras stories alinhados e verdes), cov 94,26%, 0 dados_reais pulados; mypy engines/workers limpo; web 44 Vitest + lint + build. **Gate m3 PASS:** banco em head (0043), health ok; XIRR do baseline (dados_reais) = baseline, base real com a correção explicada de +0,02 p.p. (P19: bonificação/leilão de fração); conciliação na base real: consolidado B3 de 30/09/2026 22/22 conferidos, carteiras 9/9 conferidas, scan em dia, "tudo bate"; distribuição fecha ao centavo (golden 2.200 = 1.700 + 500 e round_cents); `refechar --completar` geral feito (jul/2024–mai/2026 na versão 2, poupança de cada mês igual à versão 1, orçamento e realizado preenchidos — P14 resolvido). SM-1: o comando `metricas` só existe no Épico 10 — lembrete mantido no P15. Commits por story 7565081..6fd63b8 + review 46f2baa. |
