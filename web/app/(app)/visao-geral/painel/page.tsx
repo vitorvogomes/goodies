@@ -11,6 +11,7 @@ import { Suspense } from "react";
 
 import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { AlertsStrip } from "@/components/overview/AlertsStrip";
+import { FixedCostsSummary } from "@/components/overview/FixedCostsSummary";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
 import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,11 @@ function Painel() {
             <KpiSkeleton />
           </>
         )}
+      </div>
+      {/* Resumo do aporte (Épico 8) | Resumo de custos fixos, metade cada (DESIGN › Layout) */}
+      <div className="grid gap-card-gap lg:grid-cols-2">
+        <div className="hidden lg:block" aria-hidden />
+        <FixedCostsSummary periodo={periodo} />
       </div>
       <Fontes />
     </div>

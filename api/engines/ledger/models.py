@@ -341,7 +341,7 @@ class FixedCostRow(BaseModel):
     name: str
     amount: Money
     due_day: int
-    category_id: str
+    category_id: str | None  # custo antigo sem categoria da v2
     category_label: str
     valid_from: dt.date
     valid_to: dt.date | None
@@ -378,6 +378,7 @@ class FixedCostMonth(BaseModel):
     total: Money  # Σ valores cadastrados
     paid_total: Money  # Σ pago (transação casada; manual = valor cadastrado)
     pending_total: Money  # Σ cadastrado do que falta pagar
+    as_of: dt.date | None = None  # dados até: último lançamento até o fim do mês
 
 
 class FixedCostDecisionIn(BaseModel):

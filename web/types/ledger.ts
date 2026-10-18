@@ -342,7 +342,7 @@ export interface FixedCostItem {
   name: string;
   amount: number;
   due_day: number;
-  category_id: string;
+  category_id: string | null;
   category_label: string;
   valid_from: string;
   valid_to: string | null;
@@ -386,6 +386,7 @@ export interface FixedCostMonth {
   total: number;
   paid_total: number;
   pending_total: number;
+  as_of: string | null;
 }
 
 export type FixedCostDecisionKind = "confirmado" | "corrigido" | "manual" | "desfeito";

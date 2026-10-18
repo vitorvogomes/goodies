@@ -119,3 +119,32 @@ async def test_closed_month_is_read_only(api, auth_headers, pool, account) -> No
     finally:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM month_closes WHERE month = $1", MONTH)
+
+
+@pytest.mark.asyncio
+async def test_due_and_late_alerts(pool, account) -> None:
+    """Story 6.3: sem pagamento casado, "{Custo} vence em {dd/mm/aaaa}." (faltando ≤ 3 dias) e,
+    vencido, "{Custo} atrasado desde {dd/mm/aaaa}.", com Ver custos fixos; pago não avisa."""
+    import main  # noqa: F401
+    from engines.common.alerts import AlertContext
+    from engines.common.month_status import month_status
+
+    ids = await _seed(pool, account)
+    async with pool.acquire() as conn:
+        names = {
+            str(r["id"]): r["name"]
+            for r in await conn.fetch(
+                "SELECT id, name FROM fixed_costs WHERE id = ANY($1::uuid[])",
+                [ids["luz"], ids["plano"], ids["net"]],
+            )
+        }
+        ctx = AlertContext(
+            today=date(2097, 5, 26), periodo=MONTH, months=month_status(), owner_id="x"
+        )
+        alerts = {a.key: a for a in await ledger.fixed_cost_alerts(conn, ctx)}
+    late = alerts[f"custo_fixo:{ids['plano']}:2097-05"]
+    assert late.message == f"{names[ids['plano']]} atrasado desde 10/05/2097."
+    soon = alerts[f"custo_fixo:{ids['net']}:2097-05"]
+    assert soon.message == f"{names[ids['net']]} vence em 28/05/2097."
+    assert soon.action.label == "Ver custos fixos" and soon.action.route == "/caixa/custos-fixos"
+    assert f"custo_fixo:{ids['luz']}:2097-05" not in alerts  # pago

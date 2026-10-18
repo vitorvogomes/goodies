@@ -5,7 +5,7 @@ quando o fingerprint muda."""
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
@@ -107,34 +107,6 @@ async def test_not_dismissible_is_refused(api, auth_headers, fake_provider) -> N
         headers=auth_headers,
     )
     assert d.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_fixed_cost_due_provider(api, auth_headers, pool) -> None:
-    import main  # noqa: F401 — registra os providers
-
-    due = today_brt() + timedelta(days=2)
-    name = f"Internet {uuid.uuid4().hex[:6]}"
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO fixed_costs (name, amount, due_day, category) "
-            "VALUES ($1, 99.9, $2, 'Casa')",
-            name,
-            due.day,
-        )
-    try:
-        items = (await api.get(URL, headers=auth_headers)).json()["items"]
-    finally:
-        async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM fixed_costs WHERE name = $1", name)
-    mine = [a for a in items if name in a["message"]]
-    assert len(mine) == 1
-    a = mine[0]
-    assert a["severity"] == "aviso"
-    assert a["key"].startswith("custo_fixo_vencendo:")
-    assert a["message"] == f"{name} vence em {due.strftime('%d/%m/%Y')}."
-    assert a["action"]["label"] == "Ver custos fixos"
-    assert a["action"]["route"] == "/ajustes/custos-fixos"
 
 
 @pytest.mark.asyncio

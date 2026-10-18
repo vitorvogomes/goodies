@@ -208,22 +208,38 @@ def category_overspend_alerts(
 
 
 async def fixed_cost_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
-    """Custo fixo vencendo em até 5 dias: "{Custo} vence em {dd/mm/aaaa}." (catálogo da UX)."""
+    """Provider (Story 6.3): custo fixo sem pagamento casado — "{Custo} vence em {dd/mm/aaaa}."
+    faltando 3 dias ou menos; vencido, "{Custo} atrasado desde {dd/mm/aaaa}.". Mês atual e o
+    anterior, se ainda aberto."""
+    current = ctx.today.replace(day=1)
+    months = [current]
+    previous = add_months(current, -1)
+    if not await ctx.months.is_closed(conn, previous):
+        months.insert(0, previous)
     alerts: list[Alert] = []
-    for r in await conn.fetch(queries.ACTIVE_FIXED_COSTS):
-        due = _next_occurrence(r["due_day"], ctx.today)
-        if (due - ctx.today).days > 5:
-            continue
-        alerts.append(
-            Alert(
-                key=f"custo_fixo_vencendo:{r['id']}",
-                fingerprint=fingerprint(due),
-                severity="aviso",
-                message=f"{r['name']} vence em {due:%d/%m/%Y}.",
-                action=AlertAction(label="Ver custos fixos", route="/ajustes/custos-fixos"),
-                as_of=ctx.today,
+    for month in months:
+        view = await fixed_cost_month(conn, month, today=ctx.today)
+        for item in view.items:
+            if item.status == "atrasado":
+                message = f"{item.name} atrasado desde {item.due_date:%d/%m/%Y}."
+            elif item.status == "vencendo":
+                message = f"{item.name} vence em {item.due_date:%d/%m/%Y}."
+            else:
+                continue
+            alerts.append(
+                Alert(
+                    key=f"custo_fixo:{item.id}:{month:%Y-%m}",
+                    fingerprint=fingerprint(item.status, item.due_date),
+                    severity="aviso",
+                    message=message,
+                    action=AlertAction(
+                        label="Ver custos fixos",
+                        route="/caixa/custos-fixos",
+                        params={"periodo": f"{month:%Y-%m}"},
+                    ),
+                    as_of=ctx.today,
+                )
             )
-        )
     return alerts
 
 
@@ -1510,9 +1526,10 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
 
 _FIXED_COST_ROW = """
     SELECT f.id, f.name, f.amount, f.due_day, f.category_id, f.valid_from, f.valid_to,
-           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label
-    FROM fixed_costs f JOIN categories c ON c.id = f.category_id
-    JOIN category_groups g ON g.id = c.group_id
+           CASE WHEN c.id IS NULL THEN f.category WHEN g.is_system THEN c.name
+                ELSE g.name || ' › ' || c.name END AS category_label
+    FROM fixed_costs f LEFT JOIN categories c ON c.id = f.category_id
+    LEFT JOIN category_groups g ON g.id = c.group_id
 """
 
 
@@ -1530,7 +1547,7 @@ def _fixed_cost_row(r: asyncpg.Record) -> FixedCostRow:
         name=r["name"],
         amount=r["amount"],
         due_day=r["due_day"],
-        category_id=str(r["category_id"]),
+        category_id=str(r["category_id"]) if r["category_id"] else None,
         category_label=r["category_label"],
         valid_from=r["valid_from"],
         valid_to=r["valid_to"],
@@ -1739,6 +1756,9 @@ async def fixed_cost_month(
         total=total,
         paid_total=paid_total,
         pending_total=sum((i.amount for i in items if i not in paid), Decimal(0)),
+        as_of=await conn.fetchval(
+            "SELECT max(date) FROM transactions WHERE date <= $1", month_end(month)
+        ),
     )
 
 
