@@ -293,8 +293,8 @@ def parse_b3_movimentacao(
         if quantidade is None or quantidade == 0:
             continue
         evento = is_corporate_event(str(movimentacao))
-        if evento and tipo == "compra" and valor_unitario is None and valor_total is None:
-            valor_unitario = 0.0  # bonificação: ações a custo zero
+        if evento and tipo == "compra":  # bonificação: custo zero, mesmo com o custo atribuído
+            valor_unitario, valor_total = 0.0, 0.0
         if valor_unitario is None:
             if valor_total is None:
                 continue

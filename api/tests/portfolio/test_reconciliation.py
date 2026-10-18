@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from engines.common.owner import get_owner_id
+from engines.portfolio import calc
 from engines.portfolio import reconciliation as recon
 from tests.ledger.conftest import api as api
 from tests.ledger.conftest import auth_headers as auth_headers
@@ -149,3 +150,9 @@ async def test_stale_scan_alert_uses_catalog_text(pool: Any) -> None:
     # 08:00 UTC = 06:00 BRT (horário de verão de 2001, UTC-2)
     assert [a.message for a in scan] == ["Carteiras sem scan desde 01/01/2001 06:00."]
     assert scan[0].action is not None and scan[0].action.label == "Ver conciliação"
+
+
+def test_crypto_float_noise_is_not_divergence() -> None:
+    """Revisão do Épico 7: 0,1 + 0,2 em float (duas carteiras) = 0,3 das operações."""
+    app, origin = recon._crypto(0.3), recon._crypto(0.1 + 0.2)
+    assert app == origin and calc.quantity_status("cripto", app, origin) == "conferido"

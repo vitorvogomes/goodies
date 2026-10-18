@@ -274,6 +274,7 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
         "benchmark_daily",
         "db_backup",
         "restore_check",
+        "rf_cdi",  # Story 7.4: renda fixa pelo CDI real, depois do benchmark das 22h
     }
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)
@@ -282,5 +283,7 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
     assert "hour='*/2'" in str(jobs["price_crypto"].trigger)
     assert "hour='8,14,20'" in str(jobs["wallet_scan"].trigger)  # 3x/dia (m4)
     assert "hour='22'" in str(jobs["benchmark_daily"].trigger)  # 1x/dia (m4)
+    rf = str(jobs["rf_cdi"].trigger)
+    assert "hour='22'" in rf and "minute='20'" in rf
     assert "hour='13'" in str(jobs["db_backup"].trigger)  # Story 1.2: 1x/dia
     assert "day='1'" in str(jobs["restore_check"].trigger)  # Story 1.2: dia 1 de cada mês

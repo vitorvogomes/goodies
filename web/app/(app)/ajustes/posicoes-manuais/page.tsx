@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/format";
+import { fmtQty, formatDate, parseDecimalInput } from "@/lib/format";
 import { currentDayBRT } from "@/lib/period";
 import {
   useCreateDefi,
@@ -25,9 +25,14 @@ import type { ManualItem } from "@/types/wallet";
 
 type Kind = ManualItem["kind"];
 
+// "0.5", "0,5" e "1.234,5" (parseDecimalInput); o valor salvo volta sem milhar nem expoente.
 function qty(raw: string): number | null {
-  const n = Number(raw.trim().replace(/\./g, "").replace(",", "."));
-  return raw.trim() && Number.isFinite(n) && n >= 0 ? n : null;
+  const n = parseDecimalInput(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function qtyText(n: number): string {
+  return n.toLocaleString("pt-BR", { maximumFractionDigits: 8, useGrouping: false });
 }
 
 function ManualForm({ item, onClose }: { item: ManualItem | null; onClose: () => void }) {
@@ -37,7 +42,7 @@ function ManualForm({ item, onClose }: { item: ManualItem | null; onClose: () =>
   const [kind, setKind] = useState<Kind>(item?.kind ?? "carteira");
   const [asset, setAsset] = useState(item?.asset_symbol ?? "");
   const [where, setWhere] = useState(item ? (item.chain ?? item.protocol ?? "") : "");
-  const [amount, setAmount] = useState(item ? String(item.quantity).replace(".", ",") : "");
+  const [amount, setAmount] = useState(item ? qtyText(item.quantity) : "");
   const [day, setDay] = useState(item?.as_of ?? currentDayBRT());
   const [maturity, setMaturity] = useState(item?.maturity_date ?? "");
   const [touched, setTouched] = useState(false);
@@ -47,8 +52,9 @@ function ManualForm({ item, onClose }: { item: ManualItem | null; onClose: () =>
     asset: asset.trim() ? null : "Informe o ativo.",
     where: kind === "carteira" && !where.trim() ? "Informe a rede (ex.: liquid)." : null,
     amount: qty(amount) === null ? "Informe a quantidade (ex.: 0,0123)." : null,
+    day: kind === "carteira" && day > currentDayBRT() ? "A data não pode ser depois de hoje." : null,
   };
-  const dirty = asset !== (item?.asset_symbol ?? "") || amount !== (item ? String(item.quantity).replace(".", ",") : "");
+  const dirty = asset !== (item?.asset_symbol ?? "") || amount !== (item ? qtyText(item.quantity) : "");
 
   function submit() {
     setTouched(true);
@@ -112,8 +118,8 @@ function ManualForm({ item, onClose }: { item: ManualItem | null; onClose: () =>
         <Input id="manual-qtd" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="type-num-body" />
       </FormField>
       {kind === "carteira" ? (
-        <FormField id="manual-data" label="Data em que você viu">
-          <Input id="manual-data" type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-44" />
+        <FormField id="manual-data" label="Data em que você viu" error={shown("day")}>
+          <Input id="manual-data" type="date" max={currentDayBRT()} value={day} onChange={(e) => setDay(e.target.value)} className="w-44" />
         </FormField>
       ) : (
         <FormField id="manual-venc" label="Vencimento">
@@ -156,7 +162,7 @@ export default function PosicoesManuaisPage() {
     },
     { id: "tipo", header: "Tipo", value: (i) => (i.kind === "carteira" ? "Carteira" : "DeFi") },
     { id: "onde", header: "Rede / protocolo", value: (i) => i.chain ?? i.protocol ?? "—" },
-    { id: "qtd", header: "Quantidade", value: (i) => i.quantity, numeric: true, cell: (i) => String(i.quantity).replace(".", ",") },
+    { id: "qtd", header: "Quantidade", value: (i) => i.quantity, numeric: true, cell: (i) => fmtQty(i.quantity) },
     { id: "data", header: "Data", value: (i) => i.as_of, cell: (i) => (i.as_of ? formatDate(i.as_of) : "—") },
     {
       id: "vencimento",

@@ -222,7 +222,7 @@ async def _past(
                 price = prices[symbol]
                 value = price.value * qty if price.value is not None else None
         elif symbol in rate_assets:  # Story 7.6: debênture pela taxa cadastrada
-            value = pre_value(sops, as_of, rate_assets[symbol])
+            value = pre_value(sops, as_of, *rate_assets[symbol])
             rate_valued = True
         elif symbol in cdi_assets:  # Story 7.4: %CDI do ativo sobre o CDI publicado
             if cdi_series is None:

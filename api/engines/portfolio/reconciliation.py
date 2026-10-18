@@ -57,8 +57,15 @@ class Reconciliation(BaseModel):
     all_ok: bool
 
 
+_CRYPTO_QUANTUM = Decimal("1e-8")  # o scan e as operações somam em float: compara a 8 casas
+
+
 def _dec(v: Any) -> Decimal:
     return Decimal(str(v))
+
+
+def _crypto(v: Any) -> Decimal:
+    return _dec(v).quantize(_CRYPTO_QUANTUM)
 
 
 async def b3_reconciliation(
@@ -151,25 +158,20 @@ async def wallet_reconciliation(
     """Cripto não tolera divergência: com operações registradas, a quantidade tem de bater com o
     scan; sem operações, o bloco é o próprio scan (conferido). Scan com mais de 14 h desde a
     última TENTATIVA → desatualizado."""
-    rows = [
-        ReconRow(
-            symbol=r["asset_symbol"],
-            cls="cripto",
-            app=_dec(r["registered_quantity"])
-            if r["has_registered"]
-            else _dec(r["scanned_quantity"]),
-            origin=_dec(r["scanned_quantity"]),
-            diff=_dec(r["delta"]) if r["has_registered"] else Decimal(0),
-            status=calc.quantity_status(
-                "cripto",
-                _dec(r["registered_quantity"])
-                if r["has_registered"]
-                else _dec(r["scanned_quantity"]),
-                _dec(r["scanned_quantity"]),
-            ),
+    rows: list[ReconRow] = []
+    for r in await wallet_rows(conn, owner):
+        origin = _crypto(r["scanned_quantity"])
+        app = _crypto(r["registered_quantity"]) if r["has_registered"] else origin
+        rows.append(
+            ReconRow(
+                symbol=r["asset_symbol"],
+                cls="cripto",
+                app=app,
+                origin=origin,
+                diff=app - origin,
+                status=calc.quantity_status("cripto", app, origin),
+            )
         )
-        for r in await wallet_rows(conn, owner)
-    ]
     attempt = await wallet_service.last_scan_attempt(conn)
     now = now or datetime.now(tz=attempt.tzinfo if attempt else None)
     return WalletReconciliation(

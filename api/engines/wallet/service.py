@@ -19,9 +19,14 @@ import asyncpg
 
 from config import settings
 from engines.common.assets import AssetCategory
+from engines.common.dates import today_brt
 from engines.common.numbers import value_of
 from engines.market import service as market_service
 from engines.market.fetchers.wallets.base import WalletBalance
+
+
+class ManualPositionFutureDate(ValueError):
+    """Data informada depois de hoje."""
 
 
 class ManualPositionConflict(Exception):
@@ -92,6 +97,8 @@ async def upsert_manual_wallet_position(
     )
     if clash:
         raise ManualPositionConflict(f"{chain}/{asset_symbol} já é escaneada")
+    if as_of is not None and as_of > today_brt():
+        raise ManualPositionFutureDate(as_of)
     await conn.execute(
         """
         INSERT INTO wallet_positions
@@ -110,6 +117,17 @@ async def upsert_manual_wallet_position(
         quantity,
         as_of,
     )
+    if as_of is not None:  # informada para trás: o histórico depois da data passa a ser ela
+        await conn.execute(
+            "DELETE FROM wallet_position_history h USING wallet_positions w "
+            "WHERE w.user_id = $1 AND w.chain = $2 AND w.asset_symbol = $3 AND w.is_manual "
+            "AND h.asset_id = w.asset_id AND h.chain = w.chain "
+            "AND h.wallet_address = w.wallet_address AND h.ref_date > $4",
+            user_id,
+            chain,
+            asset_symbol,
+            as_of,
+        )
 
 
 async def delete_manual_wallet_position(

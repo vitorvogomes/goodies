@@ -73,6 +73,7 @@ export interface BrokerCard {
   import_from: string | null;
   informed: number | null;
   informed_at: string | null;
+  caixa_at_check: number | null; // o caixa calculado na data do saldo informado
   divergent: boolean;
 }
 

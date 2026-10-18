@@ -32,6 +32,10 @@ const ORIGIN_LABEL: Record<ReviewOrigin, string> = {
   manual: "manual",
 };
 const CONFIRM_FAILED = "Não foi possível confirmar as transações. Nada foi perdido.";
+// O aporte sugerido só vale enquanto a categoria escolhida segue no trilho de debênture (7.6).
+const isDebentureRail = (choice: CategoryOption | undefined) =>
+  !choice || choice.key.startsWith("invest:debentures");
+const DISMISS_FAILED = "Não foi possível dispensar o aporte. Nada foi perdido. Tentar de novo.";
 
 export function ReviewPanel() {
   const router = useRouter();
@@ -271,19 +275,20 @@ export function ReviewPanel() {
                             {it.description ?? "—"}
                           </span>
                           <span className="type-caption text-muted-foreground">{it.account_name}</span>
-                          {it.debenture && (
+                          {it.debenture && isDebentureRail(choices.get(it.id)) && (
                             <span className="mt-0.5 flex flex-wrap items-center gap-1 type-caption">
                               <span className="font-semibold">Debênture:</span> {it.debenture.label} ·{" "}
                               <span className="type-num-table">{formatBRL(it.debenture.amount)}</span> (sugerido
                               — confirmar a transação registra o aporte)
                               <button
                                 type="button"
-                                className="text-positive underline"
+                                className="text-positive underline disabled:opacity-50"
+                                disabled={dismiss.isPending}
                                 onClick={() =>
                                   it.debenture &&
                                   dismiss.mutate(it.debenture.contribution_id, {
                                     onSuccess: () => toast("Não é aporte em debênture."),
-                                    onError: () => toast(CONFIRM_FAILED),
+                                    onError: () => toast(DISMISS_FAILED),
                                   })
                                 }
                               >

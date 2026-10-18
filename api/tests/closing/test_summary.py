@@ -93,3 +93,36 @@ async def test_summary_route(api, auth_headers) -> None:
     assert (
         await api.get("/api/v1/closing/months/2026-13/summary", headers=auth_headers)
     ).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_frozen_month_gets_real_return_once_ipca_is_out(pool) -> None:
+    """Revisão do Épico 7: fechado antes de o IPCA do mês sair, a real congelou nula; na leitura,
+    com o IPCA publicado, ela sai da nominal congelada (sem reabrir)."""
+    month = date(2097, 1, 1)
+    async with pool.acquire() as conn:
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            await conn.execute(
+                "INSERT INTO month_closes (month, version, status) VALUES ($1, 1, 'closed')", month
+            )
+            await conn.execute(
+                "INSERT INTO month_summary_totals (month, version, as_of, rentabilidade_mes, "
+                "unavailable) VALUES ($1, 1, '2097-01-31', 12, "
+                "'{\"rentabilidade_mes_real\": \"aguardando_ipca\"}')",
+                month,
+            )
+            waiting = await closing.month_summary(conn, month)
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('IPCA', $1, 0.5, 'bcb')",
+                month,
+            )
+            out = await closing.month_summary(conn, month)
+        finally:
+            await tx.rollback()
+    assert waiting.source == "snapshot" and waiting.rentabilidade_mes_real is None
+    assert waiting.unavailable["rentabilidade_mes_real"] == "aguardando_ipca"
+    assert out.rentabilidade_mes_real is not None and out.rentabilidade_mes_real < Decimal(12)
+    assert "rentabilidade_mes_real" not in out.unavailable

@@ -94,3 +94,28 @@ async def test_worker_fetches_from_catchup_start(pool: Any) -> None:
             "SELECT min(d) FROM (SELECT max(ref_date) d FROM benchmark_data GROUP BY series) x"
         )
     assert fake.ranges == [(benchmark_catchup_start(last), date(2026, 10, 18))]
+
+
+@pytest.mark.asyncio
+async def test_empty_series_restarts_catchup(pool: Any) -> None:
+    """Revisão do Épico 7: com uma série sem nenhum ponto (o IPCA falhou no backfill), o catch-up
+    volta ao início em vez de seguir do último CDI e nunca buscar o IPCA antigo."""
+    from engines.market.service import benchmark_last_date
+
+    async with pool.acquire() as conn:
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            await conn.execute("DELETE FROM benchmark_data WHERE series IN ('CDI', 'IPCA')")
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('CDI', '2026-10-01', 0.05, 'bcb')"
+            )
+            assert await benchmark_last_date(conn) is None
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('IPCA', '2026-09-01', 0.4, 'bcb')"
+            )
+            assert await benchmark_last_date(conn) == date(2026, 9, 1)
+        finally:
+            await tx.rollback()

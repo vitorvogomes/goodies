@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  fmtWhen,
   formatBRL,
   formatDate,
   formatMonth,
@@ -100,5 +101,12 @@ describe("normalizeMoneyInput", () => {
   it("recusa o que não é valor", async () => {
     const { normalizeMoneyInput } = await import("./format");
     for (const bad of ["", "abc", "1,2,3", "1.234,567", "--1"]) expect(normalizeMoneyInput(bad)).toBeNull();
+  });
+});
+
+describe("fmtWhen", () => {
+  it("mostra o horário de Brasília, qualquer que seja o fuso do navegador", () => {
+    expect(fmtWhen("2026-10-18T01:30:00+00:00")).toBe("17/10/2026, 22:30");
+    expect(fmtWhen(null)).toBe("—");
   });
 });

@@ -147,3 +147,35 @@ def test_pre_value_matches_flash_formula() -> None:
         1000, 1.78, date(2025, 8, 1), date(2026, 10, 18)
     )
     assert got == D(repr(legacy)).quantize(D("0.01"))
+
+
+def test_holiday_between_published_days_does_not_accrue() -> None:
+    """Revisão do Épico 7: feriado (dia útil sem CDI publicado entre dois publicados, até 2
+    seguidos) não rende nem é estimado; lacuna maior segue estimada."""
+    holiday = [CDI[0], (date(2025, 1, 8), D("0.05"))]  # 07/01 sem CDI: feriado
+    v = cdi_value([_op("aporte", "1000", date(2025, 1, 6))], date(2025, 1, 9), D(100), holiday)
+    assert v.value == (D(1000) * D("1.0005") ** 2).quantize(D("0.01"))
+    assert not v.estimated and v.estimated_share == 0
+
+
+def test_withdrawn_interest_leaves_the_balance() -> None:
+    """Revisão do Épico 7: na caixinha, `juros` é o rendimento resgatado (o resgate foi reduzido
+    dele) — sai do saldo como o resgate."""
+    ops = [
+        _op("aporte", "1000", date(2025, 1, 6)),
+        _op("resgate", "400", date(2025, 1, 8)),
+        _op("juros", "100", date(2025, 1, 8)),
+    ]
+    both = cdi_value(ops, date(2025, 1, 9), D(100), CDI)
+    whole = cdi_value(
+        [ops[0], _op("resgate", "500", date(2025, 1, 8))], date(2025, 1, 9), D(100), CDI
+    )
+    assert both.value == whole.value
+
+
+def test_pre_value_stops_at_maturity() -> None:
+    from engines.portfolio.rf import pre_value
+
+    ops = [_op("aporte", "1000", date(2025, 7, 1))]
+    at_maturity = pre_value(ops, date(2026, 7, 1), D("1.78"))
+    assert pre_value(ops, date(2026, 10, 18), D("1.78"), date(2026, 7, 1)) == at_maturity

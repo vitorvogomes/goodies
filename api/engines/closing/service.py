@@ -125,6 +125,15 @@ async def build_month_summary(
         portfolio_as_of=valuation.data_as_of,
         portfolio_stale=valuation.stale,
         coverage=valuation.coverage,
+        # o motivo de verdade de cada rentabilidade do mês que falta (sem_preco, aguardando_ipca…)
+        unavailable={
+            term: v.unavailable_reason
+            for term, v in (
+                ("rentabilidade_mes", month_ret.nominal),
+                ("rentabilidade_mes_real", month_ret.real),
+            )
+            if v.value is None and v.unavailable_reason
+        },
     )
 
 
@@ -443,6 +452,15 @@ async def _snapshot_summary(conn: asyncpg.Connection, close: asyncpg.Record) -> 
         )
     }
     as_of = t["as_of"]
+    real_mes = t["rentabilidade_mes_real"]
+    if real_mes is None and t["rentabilidade_mes"] is not None:
+        # fechado antes de o IPCA do mês sair: a real sai na leitura, sobre a nominal congelada
+        ipca, _ = await _ipca(conn, [month])
+        if ipca is not None:
+            days = (as_of - (month - timedelta(days=1))).days
+            nominal = float(t["rentabilidade_mes"]) / 100
+            real_mes = _pct(portfolio_calc.real_rate(nominal, ipca, days))
+            unavailable.pop("rentabilidade_mes_real", None)
     return MonthSummary(
         month=month,
         as_of=as_of,
@@ -451,7 +469,7 @@ async def _snapshot_summary(conn: asyncpg.Connection, close: asyncpg.Record) -> 
         taxa_poupanca=t["taxa_poupanca"],
         rentabilidade=t["rentabilidade"],
         rentabilidade_mes=t["rentabilidade_mes"],
-        rentabilidade_mes_real=t["rentabilidade_mes_real"],
+        rentabilidade_mes_real=real_mes,
         receitas_por_pagador=by.get(("receitas", "payer"), {}),
         gastos_por_categoria=by.get(("gastos", "category"), {}),
         ledger_as_of=as_of,
@@ -906,11 +924,12 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
         ret = await period_return(conn, months)  # desde jul/2024: o valor de jun/2024 não existe
         summary = await month_summary(conn, end)
         if summary.rentabilidade is not None:  # consolidado desde o início (o XIRR de sempre)
+            real = await real_since_start(conn, summary.rentabilidade, end)  # o mesmo do Painel
             ret = PeriodReturn(
                 Valued[Decimal](value=summary.rentabilidade, as_of=summary.as_of, source="xirr"),
-                ret.real,
+                real,
                 ret.by_class,
-                ret.ipca_ate,
+                real.as_of,
             )
     else:
         ret = await period_return(conn, months)
@@ -975,17 +994,17 @@ async def _class_values_at(conn: asyncpg.Connection, month: date) -> dict[str, D
 
 
 async def _ipca(conn: asyncpg.Connection, months: list[date]) -> tuple[Decimal | None, date | None]:
-    """IPCA efetivo dos meses (fator) e o último mês publicado; falta o do último → fator None."""
+    """IPCA efetivo dos meses (fator) e o Carimbo: o fim do último mês usado; faltando o do último
+    → fator None e o fim do último mês publicado (o que se espera)."""
     from engines.market import service as market_service
 
     found = await market_service.ipca_monthly(conn, months[0], months[-1])
-    published = await conn.fetchval(
-        "SELECT max(ref_date) FROM benchmark_data WHERE series = 'IPCA'"
-    )
-    last = published.replace(day=1) if published is not None else None
     if any(m not in found for m in months):
-        return None, last
-    return portfolio_calc.ipca_factor(found[m] for m in months), last
+        published = await conn.fetchval(
+            "SELECT max(ref_date) FROM benchmark_data WHERE series = 'IPCA'"
+        )
+        return None, month_end(published) if published is not None else None
+    return portfolio_calc.ipca_factor(found[m] for m in months), month_end(months[-1])
 
 
 def _returns(

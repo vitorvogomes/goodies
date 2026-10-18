@@ -12,12 +12,14 @@ import asyncpg
 from engines.common.cache import invalidate_xirr_cache
 from engines.common.owner import get_owner_id
 from engines.ledger import queries as ledger_queries
+from engines.portfolio import debentures
 from engines.portfolio.caixinhas import derive_caixinha_ops
 
 
 async def on_transactions_changed(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
     owner = await get_owner_id(conn)
     await derive_caixinha_ops(conn, owner, transaction_ids)
+    await debentures.on_category_changed(conn, transaction_ids)
     await invalidate_xirr_cache(owner)
 
 

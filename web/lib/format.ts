@@ -78,13 +78,13 @@ export function fmtQty(n: number): string {
   return n.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
 }
 
-// ISO -> "dd/mm/aaaa hh:mm" (pt-BR). null/inválido -> "—".
+// ISO -> "dd/mm/aaaa hh:mm" (pt-BR, horário de Brasília). null/inválido -> "—".
 export function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? "—"
-    : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 }
 
 // Converte número digitado (pt-BR ou en) em Number, tratando separador de milhar.

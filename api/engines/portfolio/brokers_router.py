@@ -14,6 +14,7 @@ from engines.common.money import Money
 from engines.common.owner import get_owner_id
 
 from . import brokers as service
+from .brokers import FutureCheckError
 
 router = APIRouter(prefix="/api/v1/portfolio/brokers", tags=["portfolio:brokers"])
 
@@ -30,6 +31,7 @@ class BrokerCard(BaseModel):
     import_from: date | None  # importar o relatório B3 a partir de
     informed: Money | None
     informed_at: date | None
+    caixa_at_check: Money | None  # o caixa calculado na data do saldo informado
     divergent: bool
 
 
@@ -52,6 +54,7 @@ def _card(b: service.BrokerCash) -> BrokerCard:
         import_from=b.import_from,
         informed=b.informed,
         informed_at=b.informed_at,
+        caixa_at_check=b.caixa_at_check,
         divergent=b.divergent,
     )
 
@@ -66,6 +69,11 @@ async def brokers(user: AuthUser, db: Db) -> list[BrokerCard]:
 async def save_check(body: BrokerCheckIn, user: AuthUser, db: Db) -> list[BrokerCard]:
     try:
         await service.save_check(db, body.rail, body.as_of, body.balance)
+    except FutureCheckError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "data_futura", "message": "A data do saldo não pode ser depois de hoje."},
+        ) from None
     except ValueError:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

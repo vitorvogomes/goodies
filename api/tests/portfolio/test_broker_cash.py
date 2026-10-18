@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -55,15 +56,23 @@ async def test_cards_check_and_divergence(api, auth_headers, pool) -> None:
     flash = next(c for c in cards if c["name"] == "Flash")
     day = date(2001, 1, 2)  # conferência antiga: vale a mais recente até hoje
     try:
-        informed = Decimal(str(flash["caixa"])) + D("5.00")
-        r = await api.post(
-            "/api/v1/portfolio/brokers/checks",
-            json={"rail": flash["rail"], "as_of": day.isoformat(), "balance": str(informed)},
-            headers=auth_headers,
-        )
-        assert r.status_code == 200, r.text
-        after = next(c for c in r.json() if c["name"] == "Flash")
-        assert after["divergent"] is True and after["informed_at"] == day.isoformat()
+
+        async def check(balance: Decimal) -> dict[str, Any]:
+            r = await api.post(
+                "/api/v1/portfolio/brokers/checks",
+                json={"rail": flash["rail"], "as_of": day.isoformat(), "balance": str(balance)},
+                headers=auth_headers,
+            )
+            assert r.status_code == 200, r.text
+            card: dict[str, Any] = next(c for c in r.json() if c["name"] == "Flash")
+            return card
+
+        # o saldo visto em `day` se compara com o caixa calculado em `day`, não com o de hoje
+        at_day = Decimal(str((await check(D("0.00")))["caixa_at_check"]))
+        same = await check(at_day)
+        assert same["divergent"] is False and same["informed_at"] == day.isoformat()
+        after = await check(at_day + D("5.00"))
+        assert after["divergent"] is True
         async with pool.acquire() as conn:
             ctx = AlertContext(
                 today=today_brt(),
@@ -80,6 +89,12 @@ async def test_cards_check_and_divergence(api, auth_headers, pool) -> None:
             headers=auth_headers,
         )
         assert bad.status_code == 422
+        future = await api.post(
+            "/api/v1/portfolio/brokers/checks",
+            json={"rail": flash["rail"], "as_of": "2999-01-01", "balance": "1.00"},
+            headers=auth_headers,
+        )
+        assert future.status_code == 422 and future.json()["detail"]["error"] == "data_futura"
     finally:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM broker_cash_checks WHERE as_of = $1", day)

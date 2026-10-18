@@ -56,11 +56,11 @@ async def run_rf_cdi(pool: asyncpg.Pool, *, today: date | None = None) -> dict[s
                 conn, symbol, float(value.value / qty), source="cdi", is_manual=False
             )
             updated += 1 if written else 0
-        for symbol, factor in rated.items():
+        for symbol, rate in rated.items():
             qty = calc.quantity(ops[symbol])
             if qty <= 0:
                 continue
-            rated_value = pre_value(ops[symbol], today, factor)
+            rated_value = pre_value(ops[symbol], today, *rate)
             written = await market_service.upsert_price(
                 conn, symbol, float(rated_value / qty), source="taxa", is_manual=False
             )

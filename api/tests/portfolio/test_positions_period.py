@@ -15,6 +15,8 @@ import pytest
 from engines.closing import service as closing
 from engines.common.owner import get_owner_id
 from engines.portfolio import calc
+from tests.ledger.conftest import api as api
+from tests.ledger.conftest import auth_headers as auth_headers
 
 D = Decimal
 
@@ -69,6 +71,11 @@ async def test_positions_by_reading(pool: Any) -> None:
         try:
             mes = await closing.positions(conn, "2025-02", "mes")
             inicio = await closing.positions(conn, "2025-02", "inicio")
+            real = (
+                await closing.real_since_start(conn, inicio.xirr_nominal.value, date(2025, 2, 1))
+                if inicio.xirr_nominal.value is not None
+                else None
+            )
         finally:
             await _drop(conn, t)
 
@@ -86,6 +93,8 @@ async def test_positions_by_reading(pool: Any) -> None:
     assert inicio.months[0].month == date(2024, 7, 1)
     assert inicio.months[-1].month == date(2025, 2, 1)  # nunca depois do período
     assert all(m.source in ("live", "snapshot") for m in inicio.months)
+    if real is not None:  # revisão do Épico 7: a real desde o início é a do Painel
+        assert inicio.xirr_real == real
     order = [c.key for c in mes.classes]
     assert order == ["acoes_br", "etfs", "fiis", "renda_fixa", "aposentadoria", "cripto"]
     crypto = mes.classes[-1]
@@ -227,3 +236,65 @@ async def test_real_since_start_waits_for_ipca(pool: Any) -> None:
         assert waiting.value is None and waiting.unavailable_reason == "aguardando_ipca"
     else:
         assert waiting.value is not None and waiting.value < D("12.00")
+
+
+@pytest.mark.asyncio
+async def test_positions_route_rejects_period_outside_base(api, auth_headers) -> None:
+    """Revisão do Épico 7: antes da base (sem meses → 500) ou no futuro (fluxos do mês atual
+    contados por mês futuro) → 422."""
+    for periodo in ("2024-05", "2999-12"):
+        r = await api.get(
+            f"/api/v1/closing/positions?periodo={periodo}&leitura=tri", headers=auth_headers
+        )
+        assert r.status_code == 422 and r.json()["detail"]["error"] == "periodo_fora", r.text
+
+
+@pytest.mark.asyncio
+async def test_real_since_start_stamps_last_ipca_used(pool: Any) -> None:
+    """Revisão do Épico 7: o Carimbo é o último mês de IPCA usado no cálculo (o fim do mês anterior
+    ao período), não o último publicado."""
+    async with pool.acquire() as conn:
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "SELECT 'IPCA', m::date, 0.4, 'bcb' FROM generate_series('2024-07-01'::date, "
+                "'2025-06-01', '1 month') m ON CONFLICT (series, ref_date) DO NOTHING"
+            )
+            real = await closing.real_since_start(conn, D("12.00"), date(2025, 2, 1))
+        finally:
+            await tx.rollback()
+    assert real.value is not None and real.as_of == date(2025, 1, 31)
+
+
+@pytest.mark.asyncio
+async def test_sold_in_period_keeps_its_result(pool: Any) -> None:
+    """Revisão do Épico 7: posição vendida dentro do período entra com valor 0 e o resultado do
+    período (o XIRR da classe já contava os fluxos dela)."""
+    import main  # noqa: F401
+
+    t = f"ZV{uuid.uuid4().hex[:2].upper()}3"
+    async with pool.acquire() as conn:
+        await _seed(conn, t)
+        await conn.execute(
+            "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, tipo, "
+            "quantidade, valor_unitario, data_operacao) VALUES ($1, 'B3', $2, 'Ações Nacionais', "
+            "'venda', 12, 16, '2025-02-25')",
+            await get_owner_id(conn),
+            t,
+        )
+        try:
+            mes = await closing.positions(conn, "2025-02", "mes")
+            mar = await closing.positions(conn, "2025-03", "mes")
+        finally:
+            await _drop(conn, t)
+
+    def find(report: Any) -> Any:
+        cls = next(c for c in report.classes if c.key == "acoes_br")
+        return next((a for a in cls.assets if a.symbol == t), None)
+
+    sold = find(mes)
+    assert sold is not None and sold.valor.value == D(0) and sold.aplicado == D(0)
+    assert sold.resultado == D("49.00")  # 0 − 120 − (28 − 192) + 5
+    assert find(mar) is None  # vendida antes do período: fora

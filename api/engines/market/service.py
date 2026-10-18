@@ -392,10 +392,12 @@ def benchmark_catchup_start(last: date | None) -> date:
 
 
 async def benchmark_last_date(conn: asyncpg.Connection) -> date | None:
-    """O último dia gravado da série mais atrasada (o IPCA sai depois do mês)."""
+    """O último dia gravado da série mais atrasada (o IPCA sai depois do mês). Série sem nenhum
+    ponto → None (o catch-up volta ao início), senão a série vazia nunca seria buscada."""
     value: date | None = await conn.fetchval(
-        "SELECT min(d) FROM (SELECT max(ref_date) AS d FROM benchmark_data "
-        "WHERE series IN ('CDI', 'IPCA') GROUP BY series) x"
+        "SELECT CASE WHEN count(d) < 2 THEN NULL ELSE min(d) END FROM (SELECT max(b.ref_date) AS d "
+        "FROM (VALUES ('CDI'), ('IPCA')) s(series) LEFT JOIN benchmark_data b "
+        "ON b.series = s.series GROUP BY s.series) x"
     )
     return value
 

@@ -35,6 +35,10 @@ _B3_SOURCES = ("b3_movimentacao", "b3_negociacao")
 DIVERGENCE_TOLERANCE = Decimal("1.00")
 
 
+class FutureCheckError(ValueError):
+    """Saldo informado com data depois de hoje."""
+
+
 @dataclass(frozen=True)
 class BrokerCash:
     rail: str
@@ -47,6 +51,7 @@ class BrokerCash:
     covered_until: date | None  # o relatório da corretora cobre até
     informed: Decimal | None = None  # "Saldo que vejo na corretora" (o mais recente até a data)
     informed_at: date | None = None
+    caixa_at_check: Decimal | None = None  # o caixa calculado na data do saldo informado
 
     @property
     def import_from(self) -> date | None:
@@ -55,7 +60,9 @@ class BrokerCash:
 
     @property
     def divergent(self) -> bool:
-        return self.informed is not None and abs(self.caixa - self.informed) > DIVERGENCE_TOLERANCE
+        if self.informed is None or self.caixa_at_check is None:
+            return False
+        return abs(self.caixa_at_check - self.informed) > DIVERGENCE_TOLERANCE
 
 
 async def _b3_covered(conn: asyncpg.Connection) -> date | None:
@@ -88,28 +95,50 @@ async def _rail_ops(
     return calc.net_contributed(rows), calc.income_received(rows)
 
 
+async def _rail_cash(
+    conn: asyncpg.Connection,
+    owner: str,
+    rail: Rail,
+    rail_rows: list[asyncpg.Record],
+    as_of: date,
+    b3_until: date | None,
+) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, date | None]:
+    """(saiu, proventos, aplicado, caixa, a caminho, coberto até) do trilho numa data."""
+    txs = [r for r in rail_rows if r["date"] <= as_of]
+    saiu = -sum((r["amount"] for r in txs), Decimal(0))
+    aplicado, proventos = await _rail_ops(conn, owner, rail, as_of)
+    residual = saiu + proventos - aplicado
+    covered = (
+        min(b3_until, as_of)
+        if rail.name in _REPORTED_BY_B3 and b3_until
+        else (None if rail.name in _REPORTED_BY_B3 else as_of)
+    )
+    transfers = [(r["date"], -r["amount"]) for r in txs if r["amount"] < 0]
+    caixa, a_caminho = calc.broker_split(residual, transfers, covered)
+    return saiu, proventos, aplicado, caixa, a_caminho, covered
+
+
 async def broker_cash_as_of(conn: asyncpg.Connection, owner: str, as_of: date) -> list[BrokerCash]:
     b3_until = await _b3_covered(conn)
     out: list[BrokerCash] = []
     for rail in RAILS:
         rail_rows = await _rail_transactions(conn, rail)
-        txs = [r for r in rail_rows if r["date"] <= as_of]
-        saiu = -sum((r["amount"] for r in txs), Decimal(0))
-        aplicado, proventos = await _rail_ops(conn, owner, rail, as_of)
-        residual = saiu + proventos - aplicado
-        covered = (
-            min(b3_until, as_of)
-            if rail.name in _REPORTED_BY_B3 and b3_until
-            else (None if rail.name in _REPORTED_BY_B3 else as_of)
+        saiu, proventos, aplicado, caixa, a_caminho, covered = await _rail_cash(
+            conn, owner, rail, rail_rows, as_of, b3_until
         )
-        transfers = [(r["date"], -r["amount"]) for r in txs if r["amount"] < 0]
-        caixa, a_caminho = calc.broker_split(residual, transfers, covered)
         check = await conn.fetchrow(
             "SELECT as_of, balance FROM broker_cash_checks WHERE rail = $1 AND as_of <= $2 "
             "ORDER BY as_of DESC LIMIT 1",
             rail.name,
             as_of,
         )
+        caixa_at_check: Decimal | None = None
+        if check is not None:  # o saldo visto em D se compara com o caixa calculado em D
+            caixa_at_check = (
+                caixa
+                if check["as_of"] == as_of
+                else (await _rail_cash(conn, owner, rail, rail_rows, check["as_of"], b3_until))[3]
+            ).quantize(Decimal("0.01"))
         out.append(
             BrokerCash(
                 rail=rail.name,
@@ -122,6 +151,7 @@ async def broker_cash_as_of(conn: asyncpg.Connection, owner: str, as_of: date) -
                 covered_until=covered,
                 informed=check["balance"] if check else None,
                 informed_at=check["as_of"] if check else None,
+                caixa_at_check=caixa_at_check,
             )
         )
     return out
@@ -130,6 +160,8 @@ async def broker_cash_as_of(conn: asyncpg.Connection, owner: str, as_of: date) -
 async def save_check(conn: asyncpg.Connection, rail: str, as_of: date, balance: Decimal) -> None:
     if rail not in {r.name for r in RAILS}:
         raise ValueError(rail)
+    if as_of > today_brt():
+        raise FutureCheckError(as_of)
     await conn.execute(
         "INSERT INTO broker_cash_checks (rail, as_of, balance) VALUES ($1, $2, $3) "
         "ON CONFLICT (rail, as_of) DO UPDATE SET balance = EXCLUDED.balance, created_at = now()",
@@ -168,10 +200,10 @@ async def broker_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Ale
             out.append(
                 Alert(
                     key=f"caixa_divergente:{b.rail}",
-                    fingerprint=fingerprint(b.caixa, b.informed, b.informed_at),
+                    fingerprint=fingerprint(b.caixa_at_check, b.informed, b.informed_at),
                     severity="divergencia",
-                    message=f"Caixa na {b.name}: calculado {brl(b.caixa)}, informado "
-                    f"{brl(b.informed)}.",
+                    message=f"Caixa na {b.name}: calculado {brl(b.caixa_at_check or b.caixa)}, "
+                    f"informado {brl(b.informed)}.",
                     action=AlertAction(label="Ver conciliação", route="/investimentos/conciliacao"),
                     as_of=b.informed_at,
                 )

@@ -111,7 +111,15 @@ async def positions(
     user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
 ) -> PositionsReport:
     mes = periodo or f"{today_brt():%Y-%m}"
-    _month(mes)
+    month = _month(mes)
+    if not MIN_MONTH <= month <= today_brt().replace(day=1):  # nem antes da base, nem futuro
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {
+                "error": "periodo_fora",
+                "message": f"Período fora da base ({MIN_MONTH:%m/%Y} até o mês atual).",
+            },
+        )
     if leitura not in ("mes", "tri", "ano", "inicio"):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

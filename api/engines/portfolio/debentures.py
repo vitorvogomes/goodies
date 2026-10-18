@@ -84,12 +84,17 @@ async def get_debenture(conn: asyncpg.Connection, debenture_id: str) -> Debentur
 async def create_debenture(conn: asyncpg.Connection, body: DebentureIn) -> DebentureRow:
     """Cria o ativo (renda fixa, valorado pela taxa) e o cadastro da debênture."""
     async with conn.transaction():
-        symbol = f"{body.issuer}-Debênture"
-        taken = await conn.fetchval(
-            "SELECT count(*) FROM asset_aliases WHERE symbol LIKE $1 || '%'", symbol
-        )
-        if taken:
-            symbol = f"{symbol}-{body.start_date:%Y%m}"
+        base, d = f"{body.issuer}-Debênture", body.start_date
+        # o primeiro símbolo livre: emissor, + mês, + dia, + sequência (mesmo emissor e data)
+        candidates = [base, f"{base}-{d:%Y%m}", f"{base}-{d:%Y%m%d}"]
+        candidates += [f"{base}-{d:%Y%m%d}-{n}" for n in range(2, 100)]
+        taken = {
+            r["symbol"]
+            for r in await conn.fetch(
+                "SELECT symbol FROM asset_aliases WHERE symbol = ANY($1::text[])", candidates
+            )
+        }
+        symbol = next(c for c in candidates if c not in taken)
         asset = await conn.fetchval(
             "SELECT goodies_resolve_asset(goodies_op_chain('renda_fixa'), $1, 'renda_fixa')",
             symbol,
@@ -113,17 +118,21 @@ async def create_debenture(conn: asyncpg.Connection, body: DebentureIn) -> Deben
 async def update_debenture(
     conn: asyncpg.Connection, debenture_id: str, body: DebenturePatch
 ) -> DebentureRow:
-    await get_debenture(conn, debenture_id)
+    current = await get_debenture(conn, debenture_id)
+    # Vencimento enviado como null limpa a data; ausente mantém (os demais campos não aceitam null).
+    maturity = (
+        body.maturity_date if "maturity_date" in body.model_fields_set else current.maturity_date
+    )
     await conn.execute(
         "UPDATE debentures SET issuer = coalesce($2, issuer), rate_label = coalesce($3, "
         "rate_label), monthly_factor = coalesce($4, monthly_factor), start_date = coalesce($5, "
-        "start_date), maturity_date = coalesce($6, maturity_date) WHERE id = $1::uuid",
+        "start_date), maturity_date = $6 WHERE id = $1::uuid",
         debenture_id,
         body.issuer,
         body.rate_label,
         body.monthly_factor,
         body.start_date,
-        body.maturity_date,
+        maturity,
     )
     return await get_debenture(conn, debenture_id)
 
@@ -139,29 +148,36 @@ async def review_suggestions(
     if not transaction_ids:
         return {}
     keys = await ledger_queries.transaction_category_keys(conn, transaction_ids)
-    rail = [t for t, k in keys.items() if k.startswith(RAIL_PREFIX)]
+    rail = [t for t, k in keys.items() if (k or "").startswith(RAIL_PREFIX)]
     if not rail:
         return {}
     registered = await conn.fetch(
-        "SELECT d.id, d.issuer, d.rate_label FROM debentures d ORDER BY d.start_date DESC"
+        "SELECT d.id, d.issuer, d.rate_label, d.start_date FROM debentures d "
+        "ORDER BY d.start_date DESC"
     )
     if not registered:
         return {}
 
-    def debenture_for(key: str) -> asyncpg.Record:
-        """O trilho nomeia o emissor (`invest:debentures_flash` → Flash); senão, a mais recente."""
+    def debenture_for(key: str, day: date) -> asyncpg.Record | None:
+        """O trilho nomeia o emissor (`invest:debentures_flash` → Flash): a dele mais recente já
+        iniciada na data (ou a primeira dele). Emissor sem debênture cadastrada → sem sugestão."""
         suffix = key.removeprefix(RAIL_PREFIX).strip("_").lower()
-        return next((d for d in registered if d["issuer"].lower() == suffix), registered[0])
+        own = [d for d in registered if d["issuer"].lower() == suffix]
+        started = [d for d in own if d["start_date"] <= day]
+        return started[0] if started else (own[-1] if own else None)
 
     rows = await conn.fetch(
-        "SELECT t.id, -t.amount AS amount FROM transactions t WHERE t.id = ANY($1::uuid[]) "
+        "SELECT t.id, t.date, -t.amount AS amount FROM transactions t "
+        "WHERE t.id = ANY($1::uuid[]) "
         "AND t.amount < 0 AND NOT EXISTS (SELECT 1 FROM asset_operations o "
         "WHERE o.transaction_id = t.id)",
         rail,
     )
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
-        debenture = debenture_for(keys[str(r["id"])])
+        debenture = debenture_for(keys[str(r["id"])], r["date"])
+        if debenture is None:
+            continue
         contribution = await conn.fetchrow(
             "INSERT INTO debenture_contributions (transaction_id, debenture_id, amount, status) "
             "VALUES ($1, $2, $3, 'suggested') ON CONFLICT (transaction_id) DO UPDATE "
@@ -181,7 +197,20 @@ async def review_suggestions(
 
 
 async def on_review_confirmed(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
-    """Revisão confirmada: aporte sugerido vira a operação ligada (`derived`) e `confirmed`."""
+    """Revisão confirmada (depois do `categorize`): vale a categoria confirmada. A saída que entrou
+    no trilho ganha a sugestão agora; a que saiu dele perde a sugestão pendente; as do trilho com
+    aporte sugerido viram a operação ligada (`derived`) e `confirmed`."""
+    keys = await ledger_queries.transaction_category_keys(conn, transaction_ids)
+    off_rail = [t for t in transaction_ids if not (keys.get(t) or "").startswith(RAIL_PREFIX)]
+    await conn.execute(
+        "DELETE FROM debenture_contributions WHERE status = 'suggested' "
+        "AND transaction_id = ANY($1::uuid[])",
+        off_rail,
+    )
+    on_rail = [t for t in transaction_ids if t not in off_rail]
+    if not on_rail:
+        return
+    await review_suggestions(conn, on_rail)
     rows = await conn.fetch(
         "SELECT c.id, c.transaction_id, c.amount, t.date, a.price_ref, a.id AS asset_id, "
         "d.issuer "
@@ -189,7 +218,7 @@ async def on_review_confirmed(conn: asyncpg.Connection, transaction_ids: list[st
         "JOIN debentures d ON d.id = c.debenture_id JOIN assets a ON a.id = d.asset_id "
         "WHERE c.status = 'suggested' AND c.transaction_id = ANY($1::uuid[]) "
         "AND NOT EXISTS (SELECT 1 FROM asset_operations o WHERE o.transaction_id = t.id)",
-        transaction_ids,
+        on_rail,
     )
     if not rows:
         return
@@ -215,6 +244,29 @@ async def on_review_confirmed(conn: asyncpg.Connection, transaction_ids: list[st
             r["id"],
             operation,
         )
+
+
+async def on_category_changed(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
+    """Transação que saiu do trilho de debênture (recategorizada depois de confirmada) leva junto o
+    aporte derivado dela e a contribuição (se voltar ao trilho, a Revisão sugere de novo). A
+    operação protegida (curadoria da 0040) fica."""
+    if not transaction_ids:
+        return
+    keys = await ledger_queries.transaction_category_keys(conn, transaction_ids)
+    off_rail = [t for t in transaction_ids if not (keys.get(t) or "").startswith(RAIL_PREFIX)]
+    if not off_rail:
+        return
+    await conn.execute(
+        "DELETE FROM asset_operations WHERE transaction_id = ANY($1::uuid[]) "
+        "AND external_id LIKE 'debenture:%' AND NOT protected",
+        off_rail,
+    )
+    # a FK zera `operation_id` da contribuição cuja operação saiu; a da protegida fica
+    await conn.execute(
+        "DELETE FROM debenture_contributions WHERE transaction_id = ANY($1::uuid[]) "
+        "AND status IN ('suggested', 'confirmed') AND operation_id IS NULL",
+        off_rail,
+    )
 
 
 async def dismiss_contribution(conn: asyncpg.Connection, contribution_id: str) -> None:

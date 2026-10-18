@@ -15,7 +15,7 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.cache import invalidate_xirr_cache
 from engines.wallet import service
-from engines.wallet.service import ManualPositionConflict
+from engines.wallet.service import ManualPositionConflict, ManualPositionFutureDate
 
 router = APIRouter(prefix="/api/v1/wallets", tags=["wallet"])
 
@@ -75,6 +75,10 @@ async def create_manual_position(
         )
     except ManualPositionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except ManualPositionFutureDate:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "A data informada não pode ser depois de hoje."
+        ) from None
     # a posição manual alimenta o XIRR consolidado/Cripto via sleeve (m4): invalida o
     # cache (1h) p/ o dashboard não ficar incoerente após a edição. Achado C7.
     await invalidate_xirr_cache(user["id"])

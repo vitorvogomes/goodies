@@ -28,6 +28,10 @@ function CheckForm({ card }: { card: BrokerCard }) {
       setError("Informe o saldo (ex.: 1.234,56) e a data.");
       return;
     }
+    if (day > currentDayBRT()) {
+      setError("A data do saldo não pode ser depois de hoje.");
+      return;
+    }
     setError(null);
     save.mutate(
       { rail: card.rail, as_of: day, balance: money },
@@ -61,7 +65,13 @@ function CheckForm({ card }: { card: BrokerCard }) {
       </label>
       <label className="space-y-1 type-caption text-muted-foreground">
         em
-        <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="h-8 w-40" />
+        <Input
+          type="date"
+          value={day}
+          max={currentDayBRT()}
+          onChange={(e) => setDay(e.target.value)}
+          className="h-8 w-40"
+        />
       </label>
       <Button size="sm" variant="secondary" type="submit" disabled={save.isPending}>
         Informar
@@ -125,7 +135,10 @@ export function BrokerCards() {
                 value={formatBRL(b.informed)}
                 note={
                   b.divergent ? (
-                    <StatusBadge tone="divergence" tooltip="calculado × informado: diferença acima de R$ 1,00">
+                    <StatusBadge
+                      tone="divergence"
+                      tooltip={`calculado em ${formatDate(b.informed_at)}: ${formatBRL(b.caixa_at_check ?? b.caixa)} — diferença acima de R$ 1,00`}
+                    >
                       divergente
                     </StatusBadge>
                   ) : (

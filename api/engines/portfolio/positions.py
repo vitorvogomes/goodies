@@ -166,11 +166,13 @@ async def positions_period(
 
     assets_by_class: dict[str, list[PositionAsset]] = defaultdict(list)
     for symbol, sops in by_symbol.items():
-        if calc.quantity(sops) <= 0:
+        # vendida no período: entra com valor 0 e o resultado do período; antes dele, fora
+        closed = calc.quantity(sops) <= 0
+        if closed and (start is None or all(op["data_operacao"] < start for op in sops)):
             continue
         cls = str(CLASS_BY_CATEGORY.get(sops[0]["asset_category"], AssetClass.ACOES_BR))
-        aplicado = calc.net_contributed(sops).quantize(_CENT)
-        value = end_val.by_asset.get(symbol)
+        aplicado = Decimal(0) if closed else calc.net_contributed(sops).quantize(_CENT)
+        value = Decimal(0) if closed else end_val.by_asset.get(symbol)
         price = prices.get(symbol)
         price_day = today_brt(price["fetched_at"]) if price is not None else None
         manual = bool(price is not None and price["is_manual"])
@@ -205,7 +207,11 @@ async def positions_period(
                         income=calc.income_received(in_period),
                     )
         xirr_mensal: Decimal | None = None
-        if value is not None and cls not in (AssetClass.RENDA_FIXA, AssetClass.CRIPTO):
+        if (
+            value is not None
+            and not closed
+            and cls not in (AssetClass.RENDA_FIXA, AssetClass.CRIPTO)
+        ):
             in_period = [op for op in sops if start is None or op["data_operacao"] >= start]
             held_before = (
                 start is not None
@@ -231,7 +237,9 @@ async def positions_period(
                 manual=manual and symbol not in cdi_assets,
                 xirr_mensal=xirr_mensal,
                 nota=(
-                    f"{_pct_label(cdi_assets[symbol])}% do CDI · CDI até "
+                    "vendida no período"
+                    if closed
+                    else f"{_pct_label(cdi_assets[symbol])}% do CDI · CDI até "
                     + (f"{cdi_until:%d/%m/%Y}" if cdi_until else "—")
                     if symbol in cdi_assets
                     else "valorada pela taxa cadastrada"

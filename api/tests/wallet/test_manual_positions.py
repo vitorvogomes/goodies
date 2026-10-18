@@ -72,3 +72,34 @@ async def test_maturity_alert_within_7_days(pool, wallet_user: dict[str, Any]) -
     assert [a.message for a in alerts] == ["PT-in vence em 25/10/2026."]
     assert alerts[0].action.label == "Ver posições manuais"
     assert alerts[0].action.route == "/ajustes/posicoes-manuais"
+
+
+@pytest.mark.asyncio
+async def test_backdated_manual_position_rewrites_later_history(
+    api, pool, wallet_user: dict[str, Any]
+) -> None:
+    """Revisão do Épico 7: informar para trás vale também para o histórico depois da data (senão o
+    passado lê a quantidade antiga); data futura → 422."""
+    h = wallet_user["headers"]
+    url = "/api/v1/wallets/positions/manual"
+    body = {"chain": "liquid", "asset_symbol": "L-BTC"}
+    r = await api.post(url, json={**body, "quantity": 0.01, "as_of": "2001-10-10"}, headers=h)
+    assert r.status_code == 200, r.text
+    r = await api.post(url, json={**body, "quantity": 0.012, "as_of": "2001-10-01"}, headers=h)
+    assert r.status_code == 200, r.text
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT h.ref_date, h.quantity FROM wallet_position_history h JOIN wallet_positions w "
+            "ON w.asset_id = h.asset_id AND w.chain = h.chain "
+            "AND w.wallet_address = h.wallet_address "
+            "WHERE w.user_id = $1 AND w.is_manual AND w.asset_symbol = 'L-BTC' "
+            "AND h.ref_date BETWEEN '2001-01-01' AND '2001-12-31' ORDER BY h.ref_date",
+            wallet_user["user_id"],
+        )
+        await conn.execute(
+            "DELETE FROM wallet_position_history "
+            "WHERE ref_date BETWEEN '2001-01-01' AND '2001-12-31'"
+        )
+    assert [(str(r["ref_date"]), float(r["quantity"])) for r in rows] == [("2001-10-01", 0.012)]
+    future = await api.post(url, json={**body, "quantity": 1, "as_of": "2999-01-01"}, headers=h)
+    assert future.status_code == 422

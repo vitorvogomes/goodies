@@ -59,6 +59,7 @@ async def test_caixinhas_ligadas_e_protegidas() -> None:
                 ("Nubank-Turbo", "juros"),
                 ("Nubank-Turbo", "resgate"),
                 ("Nubank-Encerradas", "juros"),
+                ("Flash-Debênture", "aporte"),  # 0040 (Story 7.6): integralizações ligadas
             }
             new = {}
             for path in files:

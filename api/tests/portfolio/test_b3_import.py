@@ -236,6 +236,9 @@ class TestParseMovimentacao:
             ("venda", 0.26, 9.5),
         ]
         assert all(o["evento"] for o in ops)  # fora da regra de cobertura
+        # com o custo atribuído informado, a bonificação segue sem dinheiro (não é compra)
+        priced = [("Credito", "22/12/2025", "Bonificação em Ativos", "SOJA3 - X", "I", 1, 7.5, 7.5)]
+        assert parse_b3_movimentacao(priced)[0]["valor_unitario"] == 0.0
 
     def test_filters_and_maps(self) -> None:
         ops = parse_b3_movimentacao(_ROWS)
