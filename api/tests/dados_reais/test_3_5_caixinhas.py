@@ -70,6 +70,21 @@ async def test_caixinhas_ligadas_e_protegidas() -> None:
             assert sum(new.values()) == 0, {k: v for k, v in new.items() if v}
             again = await derive_caixinha_ops(conn, await get_owner_id(conn))
             assert again == {"created": 0, "updated": 0, "deleted": 0}
+            # Story 7.5: toda transação ligada a uma operação tem o ativo dela (0039 + resolver);
+            # sem operação, só a caixinha encerrada aponta para um ativo (o bucket)
+            mismatch = await conn.fetchval(
+                "SELECT count(*) FROM transactions t LEFT JOIN asset_operations o "
+                "ON o.transaction_id = t.id LEFT JOIN assets a ON a.id = t.asset_id "
+                "WHERE (o.id IS NOT NULL AND o.asset_id IS NOT NULL "
+                "AND t.asset_id IS DISTINCT FROM o.asset_id) OR (o.id IS NULL AND t.asset_id "
+                "IS NOT NULL AND a.price_ref <> 'Nubank-Encerradas')"
+            )
+            assert mismatch == 0
+            encerradas = await conn.fetchval(
+                "SELECT count(*) FROM transactions t JOIN assets a ON a.id = t.asset_id "
+                "WHERE a.price_ref = 'Nubank-Encerradas'"
+            )
+            assert encerradas > 0  # as caixinhas encerradas vão para o bucket, como hoje
             got = json.loads(
                 json.dumps(
                     await compute_baseline(conn, date.fromisoformat(base["evaluation_date"]))

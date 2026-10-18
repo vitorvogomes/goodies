@@ -57,6 +57,9 @@ market_service.register_on_price_changed(portfolio_service.invalidate_xirr_for_t
 ingest_service.register_adapter(NubankStatementAdapter())
 ingest_service.register_adapter(B3Adapter())
 ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
+# Story 7.5: depois da derivação, o ativo das transações (resolver do portfolio no ledger).
+ledger_service.register_asset_resolver(portfolio_hooks.transaction_assets)
+ingest_service.register_on_batch_applied(ledger_service.on_batch_applied_assets)
 ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo, layer=3)
 ingest_service.register_undo_counter(portfolio_hooks.count_derived_for_undo)
 ingest_service.register_account_holders(ledger_service.account_holders)

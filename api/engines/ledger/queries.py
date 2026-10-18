@@ -357,3 +357,21 @@ EXPENSES_BY_CATEGORY = """
     WHERE t.kind = 'expense' AND t.date >= $1::date AND t.date < ($1::date + interval '1 month')
     GROUP BY 1
 """
+
+
+async def transaction_category_keys(conn: asyncpg.Connection, ids: Sequence[str]) -> dict[str, str]:
+    """`categories.key` de cada transação (Story 7.5: o resolver de ativo do portfolio)."""
+    rows = await conn.fetch(
+        "SELECT t.id::text AS id, c.key FROM transactions t JOIN categories c "
+        "ON c.id = t.category_id WHERE t.id = ANY($1::uuid[])",
+        list(ids),
+    )
+    return {r["id"]: r["key"] for r in rows}
+
+
+# Story 7.5: o ativo da transação (resolver do portfolio). Só `asset_id` — categoria e kind mudam
+# só por `categorize()` (o teste de guarda permite este módulo).
+SET_TRANSACTION_ASSET = (
+    "UPDATE transactions SET asset_id = $2::uuid WHERE id = $1::uuid "
+    "AND asset_id IS DISTINCT FROM $2::uuid"
+)

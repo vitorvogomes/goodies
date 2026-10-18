@@ -93,3 +93,60 @@ async def test_derivation_follows_the_transaction(pool: Any) -> None:
             )
             await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
             await conn.execute("DELETE FROM accounts WHERE id = $1", acc)
+
+
+@pytest.mark.asyncio
+async def test_transaction_asset_id_follows_resolver(pool: Any) -> None:
+    """Story 7.5: `transactions.asset_id` é preenchido pelo resolver que `portfolio` registra no
+    `ledger` (no import e em cada recategorização) e bate com o ativo da operação derivada;
+    deixou de ser caixinha, volta a nulo."""
+    import main  # noqa: F401
+
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, 'bank') RETURNING id",
+            f"cx-{uuid.uuid4().hex[:6]}",
+        )
+        try:
+            await import_statement(
+                conn,
+                acc,
+                [
+                    StatementEntry(
+                        uuid.uuid4().hex,
+                        datetime.date(2099, 6, 2),
+                        Decimal("-70"),
+                        "Aplicação RDB caixinha Turbo",
+                    )
+                ],
+            )
+            tx = await conn.fetchrow(
+                "SELECT t.id::text AS id, t.asset_id, o.asset_id AS op_asset, a.key "
+                "FROM transactions t JOIN asset_operations o ON o.transaction_id = t.id "
+                "JOIN assets a ON a.id = t.asset_id WHERE t.account_id = $1",
+                acc,
+            )
+            assert tx is not None and tx["asset_id"] == tx["op_asset"]
+            lazer = await conn.fetchval(
+                "SELECT id FROM categories WHERE role = 'consumo' AND is_active "
+                "ORDER BY key LIMIT 1"
+            )
+            await ledger_service.categorize(
+                conn,
+                [ledger_service.CategoryChange(tx["id"], str(lazer), "manual")],
+                cause="review",
+            )
+            assert (
+                await conn.fetchval(
+                    "SELECT asset_id FROM transactions WHERE id = $1::uuid", tx["id"]
+                )
+                is None
+            )
+        finally:
+            await conn.execute(
+                "DELETE FROM asset_operations o USING transactions t "
+                "WHERE o.transaction_id = t.id AND t.account_id = $1",
+                acc,
+            )
+            await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
+            await conn.execute("DELETE FROM accounts WHERE id = $1", acc)

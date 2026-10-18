@@ -11,6 +11,7 @@ import asyncpg
 
 from engines.common.cache import invalidate_xirr_cache
 from engines.common.owner import get_owner_id
+from engines.ledger import queries as ledger_queries
 from engines.portfolio.caixinhas import derive_caixinha_ops
 
 
@@ -61,3 +62,32 @@ async def on_transactions_deleting(conn: asyncpg.Connection, transaction_ids: li
         transaction_ids,
     )
     await invalidate_xirr_cache(await get_owner_id(conn))
+
+
+ENCERRADAS_SYMBOL = "Nubank-Encerradas"
+CAIXINHA_RAIL_KEYS = frozenset({"invest:caixinha_rdb", "resgate:caixinha_rdb"})
+
+
+async def transaction_assets(
+    conn: asyncpg.Connection, transaction_ids: list[str]
+) -> dict[str, str | None]:
+    """Resolver do `ledger` (Story 7.5): o ativo da operação derivada ligada a cada transação
+    (caixinhas/CDB; as encerradas, no bucket `Nubank-Encerradas` pela curadoria)."""
+    rows = await conn.fetch(
+        "SELECT transaction_id::text AS tx, asset_id::text AS asset FROM asset_operations "
+        "WHERE transaction_id = ANY($1::uuid[]) AND asset_id IS NOT NULL",
+        transaction_ids,
+    )
+    found: dict[str, str | None] = {r["tx"]: r["asset"] for r in rows}
+    # No trilho de caixinha sem operação ligada: caixinha encerrada (Extra, Potencial, HotCash, a
+    # Reserva antiga), que vive no bucket `Nubank-Encerradas` (curadoria) — sem criar operação.
+    loose = [t for t in transaction_ids if t not in found]
+    if loose:
+        keys = await ledger_queries.transaction_category_keys(conn, loose)
+        rail = [t for t, k in keys.items() if k in CAIXINHA_RAIL_KEYS]
+        if rail:
+            bucket = await conn.fetchval(
+                "SELECT id::text FROM assets WHERE price_ref = $1", ENCERRADAS_SYMBOL
+            )
+            found.update(dict.fromkeys(rail, bucket))
+    return found

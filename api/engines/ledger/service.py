@@ -320,6 +320,39 @@ def clear_transaction_hooks() -> None:
 async def run_transaction_hooks(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
     for hook in _hooks:
         await hook(conn, transaction_ids)
+    await resolve_transaction_assets(conn, transaction_ids)
+
+
+# Story 7.5 — `transactions.asset_id` pelo resolver que `portfolio` registra (AD-1): o ledger grava,
+# o portfolio diz qual é o ativo (a operação derivada ligada à transação).
+AssetResolver = Callable[[asyncpg.Connection, list[str]], Awaitable[dict[str, str | None]]]
+_asset_resolvers: list[AssetResolver] = []
+
+
+def register_asset_resolver(resolver: AssetResolver) -> None:
+    if resolver not in _asset_resolvers:
+        _asset_resolvers.append(resolver)
+
+
+async def resolve_transaction_assets(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
+    """Grava o ativo de cada transação (ou nulo) pelos resolvers registrados."""
+    if not transaction_ids or not _asset_resolvers:
+        return
+    found: dict[str, str | None] = dict.fromkeys(transaction_ids)
+    for resolver in _asset_resolvers:
+        for tx, asset in (await resolver(conn, transaction_ids)).items():
+            if asset is not None:
+                found[tx] = asset
+    await conn.executemany(queries.SET_TRANSACTION_ASSET, list(found.items()))
+
+
+async def on_batch_applied_assets(conn: asyncpg.Connection, batch_id: str) -> None:
+    """Hook de lote (depois da derivação do portfolio): o ativo das transações do lote."""
+    ids = [
+        str(r["id"])
+        for r in await conn.fetch("SELECT id FROM transactions WHERE batch_id = $1::uuid", batch_id)
+    ]
+    await resolve_transaction_assets(conn, ids)
 
 
 @dataclass(frozen=True)
