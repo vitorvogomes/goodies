@@ -17,7 +17,10 @@ class _FakeBcb:
     def __init__(self, points: list[BenchmarkPoint]) -> None:
         self._points = points
 
-    async def fetch(self) -> list[BenchmarkPoint]:
+        self.ranges: list[tuple[date, date]] = []
+
+    async def fetch_range(self, start: date, end: date) -> list[BenchmarkPoint]:
+        self.ranges.append((start, end))
         return self._points
 
 
@@ -68,3 +71,26 @@ async def test_idempotent_rerun_updates_in_place(pool: Any) -> None:
         assert float(v) == 0.06  # último valor vence
     finally:
         await _cleanup(pool)
+
+
+def test_catchup_start() -> None:
+    """Story 7.2: o catch-up recomeça um pouco antes do último ponto gravado (revisão do BCB e o
+    IPCA mensal); sem nada gravado, o backfill desde jun/2024."""
+    from engines.market.service import BENCHMARK_START, benchmark_catchup_start
+
+    assert benchmark_catchup_start(None) == BENCHMARK_START == date(2024, 6, 1)
+    assert benchmark_catchup_start(date(2026, 10, 16)) == date(2026, 9, 6)
+    assert benchmark_catchup_start(date(2024, 6, 10)) == BENCHMARK_START
+
+
+@pytest.mark.asyncio
+async def test_worker_fetches_from_catchup_start(pool: Any) -> None:
+    from engines.market.service import benchmark_catchup_start
+
+    fake = _FakeBcb([])
+    await run_benchmark_daily(pool, bcb=fake, today=date(2026, 10, 18))  # type: ignore[arg-type]
+    async with pool.acquire() as conn:
+        last = await conn.fetchval(
+            "SELECT min(d) FROM (SELECT max(ref_date) d FROM benchmark_data GROUP BY series) x"
+        )
+    assert fake.ranges == [(benchmark_catchup_start(last), date(2026, 10, 18))]

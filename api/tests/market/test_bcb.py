@@ -62,3 +62,31 @@ async def test_all_down_returns_empty() -> None:
 async def test_empty_payload_is_skipped() -> None:
     respx.get(url__startswith=_BASE).mock(return_value=httpx.Response(200, json=[]))
     assert await _fetcher().fetch() == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_range_uses_sgs_interval() -> None:
+    """Story 7.2: busca por intervalo (`dataInicial`/`dataFinal`) e devolve todos os pontos."""
+    seen: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.url.params))
+        if ".12/" in request.url.path:
+            return httpx.Response(
+                200,
+                json=[
+                    {"data": "03/06/2024", "valor": "0.039"},
+                    {"data": "04/06/2024", "valor": "0.04"},
+                ],
+            )
+        return httpx.Response(200, json=[{"data": "01/06/2024", "valor": "0.21"}])
+
+    respx.get(url__regex=rf"{_BASE}\.\d+/dados(\?|$)").mock(side_effect=handler)
+    out = await _fetcher().fetch_range(date(2024, 6, 1), date(2024, 6, 30))
+    assert {(p.series, p.ref_date) for p in out} == {
+        ("CDI", date(2024, 6, 3)),
+        ("CDI", date(2024, 6, 4)),
+        ("IPCA", date(2024, 6, 1)),
+    }
+    assert all(s["dataInicial"] == "01/06/2024" and s["dataFinal"] == "30/06/2024" for s in seen)

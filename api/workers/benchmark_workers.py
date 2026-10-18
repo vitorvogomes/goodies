@@ -1,36 +1,35 @@
-"""Worker benchmark_daily (m4 04-07) — coleta CDI/IPCA do BCB p/ benchmark_data.
+"""Worker benchmark_daily (m4 04-07; catch-up na Story 7.2) — CDI/IPCA do BCB em benchmark_data.
 
-Cron 1x/dia (22h). Idempotente (ON CONFLICT por série+data). IBOV fica p/ o m5
-(05-03 via yfinance). O uso pleno (acumulado, retorno real, XIRR vs benchmark) é m5;
-aqui nasce só a coleta. Fetcher injetável p/ teste.
+Cron 1x/dia (22h) e catch-up: busca do último ponto gravado (com folga, idempotente) até hoje pelo
+intervalo do SGS, então um dia sem rodar não deixa buraco. O SQL mora em `market.service` (AD-1).
+Fetcher injetável p/ teste.
 """
 from __future__ import annotations
 
+from datetime import date
+
 import asyncpg
 
+from engines.common.dates import today_brt
+from engines.market import service as market_service
 from engines.market.fetchers.bcb import BcbFetcher, BenchmarkPoint
 
 
 async def run_benchmark_daily(
-    pool: asyncpg.Pool, *, bcb: BcbFetcher | None = None
+    pool: asyncpg.Pool,
+    *,
+    bcb: BcbFetcher | None = None,
+    today: date | None = None,
+    start: date | None = None,
 ) -> dict[str, int]:
-    """Coleta CDI/IPCA e faz upsert em benchmark_data. Devolve stats {fetched, updated}."""
+    """Busca CDI/IPCA de `start` (padrão: o catch-up) até hoje e grava. {fetched, updated}."""
     bcb = bcb or BcbFetcher()
-    points: list[BenchmarkPoint] = await bcb.fetch()
-    updated = 0
+    today = today or today_brt()
     async with pool.acquire() as conn:
-        for p in points:
-            await conn.execute(
-                """
-                INSERT INTO benchmark_data (series, ref_date, value, source)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (series, ref_date) DO UPDATE
-                  SET value = EXCLUDED.value, source = EXCLUDED.source, fetched_at = now()
-                """,
-                p.series,
-                p.ref_date,
-                p.value,
-                p.source,
+        if start is None:
+            start = market_service.benchmark_catchup_start(
+                await market_service.benchmark_last_date(conn)
             )
-            updated += 1
+        points: list[BenchmarkPoint] = await bcb.fetch_range(start, today)
+        updated = await market_service.upsert_benchmarks(conn, points)
     return {"fetched": len(points), "updated": updated}

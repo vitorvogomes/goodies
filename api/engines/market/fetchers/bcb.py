@@ -2,13 +2,15 @@
 
 API pública do Banco Central (SGS), sem auth/quota:
 `GET https://api.bcb.gov.br/dados/serie/bcdata.sgs.{code}/dados/ultimos/1?formato=json`
-→ `[{"data": "dd/mm/aaaa", "valor": "0.053"}]`. Séries: **CDI = 12** (taxa diária %),
-**IPCA = 433** (variação mensal %).
+→ `[{"data": "dd/mm/aaaa", "valor": "0.053"}]`; por intervalo (Story 7.2), `.../dados?formato=json
+&dataInicial=dd/mm/aaaa&dataFinal=dd/mm/aaaa` → todos os pontos do período.
+Séries: **CDI = 12** (taxa diária %), **IPCA = 433** (variação mensal %).
 
 Devolve `BenchmarkPoint`s normalizados; a valoração/uso pleno (acumulado, retorno real) é
 do m5. Fail-soft (CLAUDE.md): série fora → omitida; tudo fora → lista vazia, nunca levanta.
 IBOV não entra aqui (deferido ao m5, story 05-03).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,6 +77,38 @@ class BcbFetcher:
                 point = self._parse(name, data)
                 if point is not None:
                     out.append(point)
+        finally:
+            if self._client is None:
+                await client.aclose()
+        return out
+
+    async def fetch_range(self, start: date, end: date) -> list[BenchmarkPoint]:
+        """Todos os pontos de cada série entre `start` e `end` (fail-soft por série)."""
+        out: list[BenchmarkPoint] = []
+        client = self._client or httpx.AsyncClient()
+        params = {
+            "formato": "json",
+            "dataInicial": f"{start:%d/%m/%Y}",
+            "dataFinal": f"{end:%d/%m/%Y}",
+        }
+        try:
+            for name, code in self._series.items():
+
+                async def _req(c: httpx.AsyncClient, code: int = code) -> Any:
+                    resp = await c.get(f"{_BASE_URL}.{code}/dados", params=params, timeout=30.0)
+                    resp.raise_for_status()
+                    return resp.json()
+
+                try:
+                    data = await with_client(_req, client=client, sleep=self._sleep)
+                except Exception:
+                    continue  # fail-soft por série
+                if not isinstance(data, list):
+                    continue
+                for row in data:
+                    point = self._parse(name, [row])
+                    if point is not None:
+                        out.append(point)
         finally:
             if self._client is None:
                 await client.aclose()

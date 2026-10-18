@@ -12,7 +12,7 @@ Renda Fixa & afins não têm fonte de mercado → `tipo=None` (preço sempre is_
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -374,6 +374,66 @@ async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
 # --------------------------------------------------------------------------------------------
 # Fonte automática do Painel (Story 4.2): até quando os índices estão atualizados
 # --------------------------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------------------------
+# Histórico de CDI e IPCA (Story 7.2 — AD-1: o SQL de `benchmark_data` mora aqui)
+# --------------------------------------------------------------------------------------------
+
+BENCHMARK_START = date(2024, 6, 1)  # o backfill cobre desde jun/2024
+_CATCHUP_OVERLAP = timedelta(days=40)  # refaz um pouco antes: revisão do BCB e IPCA mensal
+
+
+def benchmark_catchup_start(last: date | None) -> date:
+    """De onde o catch-up busca: um pouco antes do último ponto (idempotente), ou o início."""
+    if last is None:
+        return BENCHMARK_START
+    return max(BENCHMARK_START, last - _CATCHUP_OVERLAP)
+
+
+async def benchmark_last_date(conn: asyncpg.Connection) -> date | None:
+    """O último dia gravado da série mais atrasada (o IPCA sai depois do mês)."""
+    value: date | None = await conn.fetchval(
+        "SELECT min(d) FROM (SELECT max(ref_date) AS d FROM benchmark_data "
+        "WHERE series IN ('CDI', 'IPCA') GROUP BY series) x"
+    )
+    return value
+
+
+async def upsert_benchmarks(conn: asyncpg.Connection, points: Sequence[Any]) -> int:
+    """Grava pontos de benchmark (idempotente por série e data)."""
+    await conn.executemany(
+        """
+        INSERT INTO benchmark_data (series, ref_date, value, source)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (series, ref_date) DO UPDATE
+          SET value = EXCLUDED.value, source = EXCLUDED.source, fetched_at = now()
+        """,
+        [(p.series, p.ref_date, p.value, p.source) for p in points],
+    )
+    return len(points)
+
+
+async def cdi_daily(conn: asyncpg.Connection, start: date, end: date) -> list[tuple[date, Decimal]]:
+    """CDI diário (% ao dia) de cada dia útil publicado entre as datas."""
+    rows = await conn.fetch(
+        "SELECT ref_date, value FROM benchmark_data WHERE series = 'CDI' "
+        "AND ref_date BETWEEN $1 AND $2 ORDER BY ref_date",
+        start,
+        end,
+    )
+    return [(r["ref_date"], Decimal(str(r["value"]))) for r in rows]
+
+
+async def ipca_monthly(conn: asyncpg.Connection, start: date, end: date) -> dict[date, Decimal]:
+    """IPCA mensal (% no mês), chave = 1º dia do mês."""
+    rows = await conn.fetch(
+        "SELECT ref_date, value FROM benchmark_data WHERE series = 'IPCA' "
+        "AND ref_date BETWEEN $1 AND $2 ORDER BY ref_date",
+        start,
+        end,
+    )
+    return {r["ref_date"].replace(day=1): Decimal(str(r["value"])) for r in rows}
 
 
 async def latest_index_date(conn: asyncpg.Connection) -> Any:
