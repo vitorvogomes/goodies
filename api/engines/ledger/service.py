@@ -1424,12 +1424,12 @@ async def pf_month_checked(conn: asyncpg.Connection, month_end: date) -> bool | 
 # --------------------------------------------------------------------------------------------
 
 
-async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
+async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, Any]]:
     """Pendentes e saldo PF divergente bloqueiam; PF sem saldo conferido e MEI que não cobre o
     mês pedem "fechar mesmo assim"."""
     from engines.ingest import service as ingest_service
 
-    found: list[dict[str, str]] = []
+    found: list[dict[str, Any]] = []
     end = date(month.year + month.month // 12, month.month % 12 + 1, 1) - datetime.timedelta(1)
     pending = await conn.fetchval(
         "SELECT count(*) FROM transactions WHERE review_status = 'pending' "
@@ -1456,6 +1456,7 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
                     "kind": "bloqueia",
                     "message": f"Saldo da conta PF divergente em {brl(abs(i.difference))} "
                     f"({i.start:%d/%m/%Y} a {i.end:%d/%m/%Y}).",
+                    "amount": abs(i.difference),
                 }
             )
     if not any(f["code"] == "saldo_pf_divergente" for f in found) and not month_checked(

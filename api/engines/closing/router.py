@@ -76,7 +76,7 @@ def _conflict(exc: service.CloseError) -> HTTPException:
         {
             "error": exc.code,
             "message": exc.message,
-            "checks": [c.model_dump() for c in exc.checks],
+            "checks": [c.model_dump(mode="json") for c in exc.checks],
         },
     )
 

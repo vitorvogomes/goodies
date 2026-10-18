@@ -15,6 +15,7 @@ from typing import Any
 
 import asyncpg
 
+from engines.common.alerts import brl
 from engines.common.dates import today_brt
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
@@ -243,7 +244,7 @@ async def _store(
         unavailable=unavailable,
         lines=_lines(s),
         coverage=s.coverage,
-        confirmations=[c.model_dump() for c in accepted],
+        confirmations=[c.model_dump(mode="json") for c in accepted],
         origin=origin,
     )
 
@@ -290,6 +291,58 @@ async def _write_version(
         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
         [(month, version, m, kind, dim, d, v) for m, kind, dim, d, v in lines],
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Fechamento retroativo (Story 5.7 — FR-7)
+# --------------------------------------------------------------------------------------------
+
+# Termos de planejamento que não existiam nos meses retroativos (não é "fora do resumo").
+_RETRO_UNDEFINED = ("pendente", "aporte_planejado")
+
+
+async def close_retro(conn: asyncpg.Connection, month: date) -> CloseOut | None:
+    """Fecha um mês passado com origin `retro`, pelo mesmo resumo (`build_month_summary`).
+
+    Mês com qualquer versão fica como está (idempotente). As pendências `confirma` são aceitas
+    com o motivo "retroativo"; o saldo PF divergente vira `confirma` com "retroativo divergente ·
+    R$ x". Os outros bloqueios (pendentes, mês em curso) continuam bloqueando. Sem consolidado B3
+    daquele fim de mês, a cobertura da B3 é "patrimônio não coberto".
+    """
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('close:' || $1))", str(month))
+        if await latest_close(conn, month) is not None:
+            return None
+        accepted: list[CloseCheck] = []
+        for c in await run_checks(conn, month):
+            if c.code == "saldo_pf_divergente":
+                reason = "retroativo divergente" + (
+                    f" · {brl(c.amount)}" if c.amount is not None else ""
+                )
+                accepted.append(c.model_copy(update={"kind": "confirma", "reason": reason}))
+            elif c.kind == "bloqueia":
+                raise CloseError("fechamento_bloqueado", c.message, [c])
+            else:
+                accepted.append(c.model_copy(update={"reason": "retroativo"}))
+        summary = await build_month_summary(conn, month, month_end(month))
+        totals, unavailable = _totals(summary)
+        unavailable.update({t: "nao_definido" for t in _RETRO_UNDEFINED})
+        coverage = dict(summary.coverage)
+        if any(c.code == "consolidado_ausente" for c in accepted):
+            coverage["B3"] = "patrimônio não coberto"
+        await _write_version(
+            conn,
+            month,
+            1,
+            as_of=summary.as_of,
+            totals=totals,
+            unavailable=unavailable,
+            lines=_lines(summary),
+            coverage=coverage,
+            confirmations=[c.model_dump(mode="json") for c in accepted],
+            origin="retro",
+        )
+    return CloseOut(month=month, version=1, confirmations=accepted)
 
 
 # --------------------------------------------------------------------------------------------

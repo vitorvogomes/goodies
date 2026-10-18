@@ -671,3 +671,9 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
             "message": f"Consolidado B3 de {month_label(month)} não importado.",
         }
     ]
+
+
+async def consolidado_dates(conn: asyncpg.Connection) -> set[date]:
+    """Datas de referência dos consolidados B3 já importados (snapshots de posição)."""
+    rows = await conn.fetch("SELECT DISTINCT ref_date FROM broker_position_snapshots")
+    return {r["ref_date"] for r in rows}

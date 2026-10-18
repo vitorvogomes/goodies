@@ -55,6 +55,8 @@ class CloseCheck(BaseModel):
     code: str
     kind: str  # bloqueia | confirma
     message: str
+    amount: Money | None = None  # diferença do saldo PF divergente
+    reason: str | None = None  # "retroativo" na confirmação automática do fechamento retroativo
 
 
 class CloseIn(BaseModel):

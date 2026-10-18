@@ -65,7 +65,14 @@ async def run(
     return done
 
 
+def register_engines() -> None:
+    """Fora da API, os registros (precondições do fechamento, status do mês, resolvers do ingest)
+    só existem depois de importar `main`: sem isso o mês fecharia sem as verificações."""
+    import main  # noqa: F401
+
+
 async def _main(spec: str, mode: str) -> None:
+    register_engines()
     months = parse_months(spec)
     await make_pre_migration_backup(settings.database_url, "pre-refechar")
     conn = await asyncpg.connect(settings.database_url)
