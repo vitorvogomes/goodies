@@ -52,7 +52,7 @@ function Operations() {
           <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
         </label>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
         <table className="w-full type-body-sm">
           <caption className="sr-only">Operações dos ativos</caption>
           <thead className="bg-muted text-muted-foreground">

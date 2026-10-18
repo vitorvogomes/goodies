@@ -119,7 +119,7 @@ function Goals({
 }) {
   if (!data.goals.length) return null;
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+    <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
         <caption className="sr-only">Objetivos</caption>
         <thead className="bg-muted text-muted-foreground">
@@ -191,7 +191,7 @@ function Classes({
       return next;
     });
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+    <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
         <caption className="sr-only">Classes e ativos</caption>
         <thead className="bg-muted text-muted-foreground">
@@ -324,7 +324,7 @@ function Reconciliation({ data }: { data: Distribution }) {
 function Andamento({ data, periodo }: { data: Distribution; periodo: string }) {
   const a = data.andamento;
   return (
-    <section aria-labelledby="andamento" className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="andamento" className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <h3 id="andamento" className="type-label">
         Andamento de {formatMonth(periodo)}
       </h3>
@@ -381,7 +381,7 @@ export function DistributionTable({
     );
   }
   const data = query.data;
-  if (!data) return <div className="h-64 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!data) return <div className="h-64 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const onLock: Lock = (key, valor, onError) =>
     setLock.mutate(
       { key, valor },
@@ -428,7 +428,7 @@ export function DistributionTable({
           )}
         </>
       ) : (
-        <p className="rounded-lg border border-border bg-card p-card-padding type-body text-muted-foreground">
+        <p className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body text-muted-foreground">
           Sem metas, a distribuição do aporte não tem base. Defina as metas em{" "}
           <Link href="/ajustes/metas" className="text-positive underline">
             Ajustes › Metas

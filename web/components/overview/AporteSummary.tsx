@@ -17,7 +17,7 @@ export function AporteSummary({ periodo }: { periodo: string }) {
   const href = `/investimentos/aportes?periodo=${periodo}`;
   if (summary.isError && !summary.data) {
     return (
-      <section className="rounded-lg border border-border bg-card p-card-padding type-body-sm text-negative">
+      <section className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body-sm text-negative">
         Não foi possível carregar o aporte do mês.{" "}
         <button type="button" className="underline" onClick={() => summary.refetch()}>
           Tentar de novo
@@ -26,10 +26,10 @@ export function AporteSummary({ periodo }: { periodo: string }) {
     );
   }
   const data = summary.data;
-  if (!data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const a = data.andamento;
   return (
-    <section aria-labelledby="resumo-aporte" className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="resumo-aporte" className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="resumo-aporte" className="type-section-title">
           <Link href={href} className="hover:underline">

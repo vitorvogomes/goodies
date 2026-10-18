@@ -35,7 +35,7 @@ function Table({
 }) {
   const cell = "px-4 py-2 text-right type-num-table";
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+    <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-muted text-muted-foreground">
@@ -108,7 +108,7 @@ export function HistoryComparison({ periodo, leitura }: { periodo: string; leitu
     );
   }
   const data = history.data;
-  if (!data) return <div className="h-64 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!data) return <div className="h-64 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const compare = data.leitura !== "inicio";
   return (
     <section aria-labelledby="historico-fluxo" className="space-y-3">

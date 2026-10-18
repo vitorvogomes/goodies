@@ -35,7 +35,7 @@ export function AlertRow({
       />
       <span
         className={cn(
-          "type-tag inline-flex w-[12ch] shrink-0 justify-center rounded-full px-2",
+          "type-tag inline-flex w-[12ch] shrink-0 justify-center rounded-sm px-2",
           divergence ? "bg-negative-tint text-negative" : "bg-warning-tint text-warning",
         )}
       >

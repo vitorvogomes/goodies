@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { apiErrorMessage } from "@/lib/errors";
 import { ApiError } from "@/lib/api";
 import { formatBRL, formatDate, formatMonth } from "@/lib/format";
@@ -34,6 +35,7 @@ import {
   useCategoryOptions,
   useDeleteManualTransaction,
   useLedgerTransactions,
+  useSaveManualTransaction,
   useSetCaixinha,
   useSetTransactionCategory,
 } from "@/lib/ledger";
@@ -61,6 +63,34 @@ function categoryLabel(t: LedgerTransaction): string {
   return t.category_key.startsWith("sistema:") ? t.category_name : `${t.group_name} › ${t.category_name}`;
 }
 const NO_OPTIONS: CategoryOption[] = [];
+
+// Descrição editável na linha expandida (importada também: valor, data e conta seguem o extrato).
+// Enter grava, Esc volta ao texto gravado.
+function DescriptionEditor({
+  t,
+  saving,
+  onSave,
+}: {
+  t: LedgerTransaction;
+  saving: boolean;
+  onSave: (description: string) => void;
+}) {
+  const [text, setText] = useState(t.description ?? "");
+  return (
+    <Input
+      aria-label="Descrição"
+      value={text}
+      readOnly={saving}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && text.trim() && text.trim() !== (t.description ?? "")) onSave(text.trim());
+        if (e.key === "Escape") setText(t.description ?? "");
+      }}
+      className="h-8 w-full max-w-xl"
+    />
+  );
+}
 
 function Transacoes() {
   const { periodo } = usePeriodo();
@@ -103,6 +133,20 @@ function Transacoes() {
   // O OFX não traz mais o nome da caixinha (desde 19/06/2026): escolhida na linha expandida.
   const caixinhas = useCaixinhas();
   const setCaixinha = useSetCaixinha();
+  const saveTx = useSaveManualTransaction();
+  const saveDescription = (t: LedgerTransaction, description: string) =>
+    saveTx.mutate(
+      { id: t.id, body: { description } },
+      {
+        onSuccess: () => toast("Descrição salva."),
+        onError: (err) =>
+          toast(
+            err instanceof ApiError
+              ? apiErrorMessage(err.detail, "Não foi possível salvar. Nada foi perdido.")
+              : "Não foi possível salvar. Nada foi perdido.",
+          ),
+      },
+    );
   const caixinhaOf = (t: LedgerTransaction) =>
     t.category_key === "transfer:saldo_separado"
       ? "separado"
@@ -155,14 +199,16 @@ function Transacoes() {
       id: "description",
       header: "Descrição",
       value: (t) => t.description,
-      cell: (t) => <span className="block max-w-80 truncate">{t.description ?? "—"}</span>,
+      cell: (t) => <span className="line-clamp-2 block max-w-96">{t.description ?? "—"}</span>,
+      priority: 1,
     },
-    { id: "amount", header: "Valor", value: (t) => t.amount, cell: (t) => formatBRL(t.amount), numeric: true },
-    { id: "kind", header: "Tipo", value: (t) => t.kind_label },
+    { id: "amount", header: "Valor", value: (t) => t.amount, cell: (t) => formatBRL(t.amount), numeric: true, priority: 1 },
+    { id: "kind", header: "Tipo", value: (t) => t.kind_label, priority: 3 },
     {
       id: "category",
       header: "Categoria",
       value: categoryLabel,
+      priority: 1,
       cell: (t) => (
         <CategoryCombobox
           options={options.data ?? NO_OPTIONS}
@@ -178,6 +224,7 @@ function Transacoes() {
       id: "origin",
       header: "Origem",
       value: (t) => ORIGEM[t.category_source],
+      priority: 3,
       cell: (t) => (
         <span className="inline-flex gap-1">
           <StatusBadge>{ORIGEM[t.category_source]}</StatusBadge>
@@ -266,6 +313,15 @@ function Transacoes() {
       }
       renderExpanded={(t) => (
         <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 type-body-sm">
+          <dt className="text-muted-foreground">Descrição</dt>
+          <dd>
+            <DescriptionEditor
+              key={`${t.id}:${t.description ?? ""}`}
+              t={t}
+              saving={saveTx.isPending}
+              onSave={(d) => saveDescription(t, d)}
+            />
+          </dd>
           <dt className="text-muted-foreground">Fonte</dt>
           <dd>{FONTE[t.source] ?? t.source}</dd>
           <dt className="text-muted-foreground">Lote</dt>

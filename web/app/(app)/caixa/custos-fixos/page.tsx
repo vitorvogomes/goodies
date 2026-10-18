@@ -5,6 +5,7 @@
 // Trocar (transações do mês, com busca) · Marcar pago manualmente · Desfazer casamento. Duas
 // candidatas: "pendente" + "2 candidatas" em opções sob a linha (borda de aviso), nada pago até
 // escolher. Mês fechado: só leitura até reabrir. O casamento vem da API; a tela não calcula.
+import { MoreHorizontalIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +14,12 @@ import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { SAVE_FAILED } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatBRL, formatDate, formatMonth, formatSignedBRL } from "@/lib/format";
@@ -42,9 +49,9 @@ function TrocarPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" className="text-positive underline">
+        <Button type="button" variant="ghost" size="xs">
           Trocar
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 space-y-2" align="end">
         <Input
@@ -180,32 +187,36 @@ export default function CustosFixosMesPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
+      actions: true,
       cell: (i) =>
         readOnly ? (
           <span className="type-caption text-muted-foreground">mês fechado</span>
         ) : (
-          <span className="inline-flex flex-wrap gap-3">
+          <span className="inline-flex items-center justify-end gap-1">
             {i.transaction && i.source === "auto" && (
-              <button type="button" className="text-positive underline" onClick={() => act(i, "confirmado", i.transaction?.id)}>
+              <Button type="button" variant="secondary" size="xs" onClick={() => act(i, "confirmado", i.transaction?.id)}>
                 Confirmar
-              </button>
+              </Button>
             )}
             {i.status !== "manual" && <TrocarPopover periodo={periodo} onPick={(tx) => act(i, "corrigido", tx)} />}
-            {!i.transaction && i.status !== "manual" && (
-              <button type="button" className="text-positive underline" onClick={() => act(i, "manual")}>
-                Marcar pago manualmente
-              </button>
-            )}
-            {i.transaction && (
-              <button type="button" className="text-positive underline" onClick={() => act(i, "desfeito", i.transaction?.id)}>
-                Desfazer casamento
-              </button>
-            )}
-            {i.status === "manual" && (
-              <button type="button" className="text-positive underline" onClick={() => act(i, "limpar")}>
-                Desfazer casamento
-              </button>
-            )}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Mais ações de ${i.name}`}>
+                    <MoreHorizontalIcon aria-hidden className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!i.transaction && i.status !== "manual" && (
+                    <DropdownMenuItem onSelect={() => act(i, "manual")}>Marcar pago manualmente</DropdownMenuItem>
+                  )}
+                  {i.transaction && (
+                    <DropdownMenuItem onSelect={() => act(i, "desfeito", i.transaction?.id)}>Desfazer casamento</DropdownMenuItem>
+                  )}
+                  {i.status === "manual" && (
+                    <DropdownMenuItem onSelect={() => act(i, "limpar")}>Desfazer casamento</DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+            </DropdownMenu>
           </span>
         ),
     },

@@ -99,11 +99,11 @@ function Row({ label, value, note }: { label: string; value: string; note?: Reac
 export function BrokerCards() {
   const brokers = useBrokers();
   if (brokers.isError) return <p className="type-body text-negative">Não foi possível carregar as corretoras.</p>;
-  if (!brokers.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!brokers.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   return (
     <div className="grid gap-card-gap md:grid-cols-2">
       {brokers.data.map((b) => (
-        <section key={b.rail} aria-labelledby={`corretora-${b.rail}`} className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+        <section key={b.rail} aria-labelledby={`corretora-${b.rail}`} className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 id={`corretora-${b.rail}`} className="type-section-title">
               {b.name}

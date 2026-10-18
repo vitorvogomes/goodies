@@ -271,7 +271,7 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
       </Section>
 
       <Section title="Linha de aviso">
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-card shadow-card">
           {DEMO_ALERTS.map((a) => (
             <li key={a.key}>
               <AlertRow alert={a} onDismiss={() => toast("Aviso dispensado.")} />

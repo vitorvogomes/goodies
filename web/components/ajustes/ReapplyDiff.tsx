@@ -18,7 +18,7 @@ export function ReapplyDiff({ preview }: { preview: ReapplyPreview }) {
           ` ${closed_months} ${closed_months === 1 ? "transação em mês fechado" : "transações em meses fechados"}: o resumo congelado não muda.`}
       </p>
       {changes.length > 0 && (
-        <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-card" tabIndex={0} role="region" aria-label="Antes e depois">
+        <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-card shadow-card" tabIndex={0} role="region" aria-label="Antes e depois">
           <table className="w-full type-body-sm">
             <caption className="sr-only">Antes e depois da reaplicação</caption>
             <thead className="sticky top-0 bg-muted">

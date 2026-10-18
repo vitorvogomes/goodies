@@ -26,9 +26,9 @@ export function GrowthBlock({ periodo, leitura }: { periodo: string; leitura: st
     );
   }
   const data = growth.data;
-  if (!data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   return (
-    <section aria-labelledby="crescimento" className="space-y-3 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="crescimento" className="space-y-3 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <h2 id="crescimento" className="type-section-title">
         Crescimento do patrimônio
       </h2>

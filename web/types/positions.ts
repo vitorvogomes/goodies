@@ -7,6 +7,8 @@ export interface PositionAsset {
   valor: Valued;
   resultado: number | null;
   manual: boolean;
+  quantidade: string | null; // P9: decimal em texto (B3, Tesouro, cripto)
+  preco: string | null; // preço unitário em texto, sem arredondar
   xirr_mensal: number | null; // % a.m. do período (RF e cripto não têm)
   nota: string | null; // RF: "{x}% do CDI · CDI até dd/mm/aaaa"
   asset_id: string | null;

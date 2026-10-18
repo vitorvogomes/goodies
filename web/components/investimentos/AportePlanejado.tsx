@@ -44,7 +44,7 @@ export function AportePlanejado({
   }
 
   return (
-    <section aria-labelledby="aporte-titulo" className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="aporte-titulo" className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <h2 id="aporte-titulo" className="type-section-title">
         Aporte planejado de {formatMonth(periodo)}
       </h2>

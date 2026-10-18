@@ -103,7 +103,7 @@ async def list_category_options(
 
 _IMPORTED = {
     "error": "transacao_importada",
-    "message": "Transação importada só muda de categoria.",
+    "message": "Transação importada só muda de categoria e descrição.",
 }
 _NOT_FOUND = {"error": "transacao_inexistente", "message": "Transação não encontrada."}
 _BAD_CATEGORY = {"error": "categoria_inexistente", "message": "Categoria não existe."}

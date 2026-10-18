@@ -9,7 +9,10 @@ import { toast } from "sonner";
 
 import { ReapplyDiff } from "@/components/ajustes/ReapplyDiff";
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { PowerIcon, PowerOffIcon } from "lucide-react";
+
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SAVE_FAILED, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -155,7 +158,7 @@ function ReapplySection() {
     );
 
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-card p-card-padding" aria-labelledby="reaplicar">
+    <section className="space-y-3 rounded-lg border border-border bg-card shadow-card p-card-padding" aria-labelledby="reaplicar">
       <div>
         <h2 id="reaplicar" className="type-section-title">
           Reaplicar regras ao histórico
@@ -237,15 +240,19 @@ export default function RegrasPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
+      actions: true,
       cell: (r) => (
-        <span className="inline-flex gap-3">
-          <button type="button" className="text-positive underline" onClick={() => setEditing(r)}>
-            Editar
-          </button>
-          <button type="button" className="text-positive underline" onClick={() => toggle(r)}>
-            {r.is_active ? "Desativar" : "Reativar"}
-          </button>
-        </span>
+        <RowActions
+          subject={`a regra “${r.pattern}”`}
+          onEdit={() => setEditing(r)}
+          extra={[
+            {
+              label: r.is_active ? `Desativar a regra “${r.pattern}”` : `Reativar a regra “${r.pattern}”`,
+              onClick: () => toggle(r),
+              icon: r.is_active ? PowerOffIcon : PowerIcon,
+            },
+          ]}
+        />
       ),
     },
   ];

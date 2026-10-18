@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { FormField, SAVE_FAILED, SideForm } from "@/components/forms/SideForm";
 import {
   AlertDialog,
@@ -233,16 +234,8 @@ export default function CustosFixosPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
-      cell: (c) => (
-        <span className="inline-flex gap-3">
-          <button type="button" className="text-positive underline" onClick={() => setEditing(c)}>
-            Editar
-          </button>
-          <button type="button" className="text-positive underline" onClick={() => setDeleting(c)}>
-            Excluir
-          </button>
-        </span>
-      ),
+      actions: true,
+      cell: (c) => <RowActions subject={c.name} onEdit={() => setEditing(c)} onDelete={() => setDeleting(c)} />,
     },
   ];
 

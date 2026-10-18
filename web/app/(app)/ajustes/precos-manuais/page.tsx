@@ -104,10 +104,10 @@ export default function PrecosManuaisPage() {
   if (prices.isError && !prices.data) {
     return <p className="type-body text-negative">Não foi possível carregar os preços manuais.</p>;
   }
-  if (!prices.data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!prices.data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   if (prices.data.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-card p-card-padding type-body text-muted-foreground">
+      <p className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body text-muted-foreground">
         Nenhum ativo sem fonte de mercado.
       </p>
     );
@@ -117,7 +117,7 @@ export default function PrecosManuaisPage() {
       <p className="type-caption text-muted-foreground">
         Só ativos sem cotação automática. Enter grava, Esc reverte; o preço informado não expira.
       </p>
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
         <table className="w-full type-body-sm">
           <caption className="sr-only">Preços manuais</caption>
           <thead className="bg-muted text-muted-foreground">

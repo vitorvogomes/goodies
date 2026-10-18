@@ -31,13 +31,13 @@ export default function OrcamentoPage() {
         {data && <DateStamp asOf={data.as_of} source={data.source === "snapshot" ? "fechamento" : "ledger"} />}
       </div>
       {!data ? (
-        <div className="h-96 animate-pulse rounded-lg border border-border bg-card" aria-hidden />
+        <div className="h-96 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />
       ) : (
         <div className="grid gap-card-gap lg:grid-cols-2">
-          <div className="rounded-lg border border-border bg-card p-card-padding">
+          <div className="rounded-lg border border-border bg-card shadow-card p-card-padding">
             <BudgetLedger budget={data} periodo={periodo} />
           </div>
-          <div className="rounded-lg border border-border bg-card p-card-padding">
+          <div className="rounded-lg border border-border bg-card shadow-card p-card-padding">
             <ConsumedByGroup budget={data} />
           </div>
         </div>

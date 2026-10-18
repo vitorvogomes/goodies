@@ -95,7 +95,7 @@ function Editor({ data, onDone }: { data: TargetsOut; onDone: () => void }) {
         });
       }}
     >
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
         <table className="w-full type-body-sm">
           <caption className="sr-only">Metas por classe e por ativo</caption>
           <thead className="bg-muted text-muted-foreground">
@@ -203,13 +203,13 @@ export default function MetasPage() {
   const targets = useTargets();
   const [editing, setEditing] = useState(false);
   if (targets.isError && !targets.data) return <p className="type-body text-negative">Não foi possível carregar as metas.</p>;
-  if (!targets.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!targets.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const data = targets.data;
   // chave fixa: a revalidação depois de salvar não pode remontar o editor (o onSuccess se perderia)
   if (editing) return <Editor key="editor" data={data} onDone={() => setEditing(false)} />;
   if (!data.defined) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-card-padding">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
         <p className="type-body text-muted-foreground">Nenhuma meta. Sem metas, a distribuição do aporte não tem base.</p>
         <Button onClick={() => setEditing(true)}>Definir metas</Button>
       </div>
@@ -223,7 +223,7 @@ export default function MetasPage() {
         </span>
         <Button onClick={() => setEditing(true)}>Editar metas</Button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
         <table className="w-full type-body-sm">
           <caption className="sr-only">Metas de alocação</caption>
           <thead className="bg-muted text-muted-foreground">

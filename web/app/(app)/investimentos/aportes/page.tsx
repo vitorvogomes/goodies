@@ -29,7 +29,7 @@ function Aportes() {
       </div>
     );
   }
-  if (!budget.data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!budget.data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const data = budget.data;
   return (
     <div className="space-y-section-gap">

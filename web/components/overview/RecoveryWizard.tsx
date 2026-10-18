@@ -27,7 +27,7 @@ export function RecoveryWizard() {
   return (
     <section
       aria-labelledby="recuperacao"
-      className="space-y-3 rounded-lg border border-border bg-card p-card-padding"
+      className="space-y-3 rounded-lg border border-border bg-card shadow-card p-card-padding"
     >
       <div className="space-y-0.5">
         <h2 id="recuperacao" className="type-section-title">

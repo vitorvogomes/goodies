@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,27 +115,21 @@ export function ContributionsBlock({ debenture }: { debenture: Debenture }) {
       header: "Ações",
       value: () => null,
       sortable: false,
+      actions: true,
       cell: (c) => (
-        <span className="inline-flex gap-3">
-          <button type="button" className="text-positive underline" onClick={() => setEditing(c)}>
-            Editar
-          </button>
-          {c.transacao === null && (
-            <button
-              type="button"
-              className="text-negative underline"
-              disabled={remove.isPending}
-              onClick={() =>
-                remove.mutate(c.id, {
-                  onSuccess: () => toast("Integralização excluída."),
-                  onError: () => toast("Não foi possível excluir. Nada foi perdido."),
-                })
-              }
-            >
-              Excluir
-            </button>
-          )}
-        </span>
+        <RowActions
+          subject={`a integralização de ${formatDate(c.data)}`}
+          onEdit={() => setEditing(c)}
+          onDelete={
+            c.transacao === null
+              ? () =>
+                  remove.mutate(c.id, {
+                    onSuccess: () => toast("Integralização excluída."),
+                    onError: () => toast("Não foi possível excluir. Nada foi perdido."),
+                  })
+              : undefined
+          }
+        />
       ),
     },
   ];

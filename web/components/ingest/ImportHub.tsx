@@ -46,7 +46,7 @@ function period(p: FilePlan): string {
     : `${formatDate(p.period_start)} a ${formatDate(p.period_end)}`;
 }
 
-export function ImportHub() {
+export function ImportHub({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -219,9 +219,9 @@ export function ImportHub() {
   return (
     <Sheet open={isOpen} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
-        <Button className="w-full lg:w-full">
+        <Button className="w-full lg:w-full" size={compact ? "icon" : "default"} aria-label="Importar" title={compact ? "Importar" : undefined}>
           <UploadIcon aria-hidden />
-          Importar
+          {!compact && "Importar"}
         </Button>
       </SheetTrigger>
       <SheetContent

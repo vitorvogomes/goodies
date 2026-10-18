@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -127,11 +128,8 @@ export default function ContasPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
-      cell: (a) => (
-        <button type="button" className="text-positive underline" onClick={() => setEditing(a)}>
-          Editar
-        </button>
-      ),
+      actions: true,
+      cell: (a) => <RowActions subject={a.name} onEdit={() => setEditing(a)} />,
     },
   ];
 
@@ -145,7 +143,7 @@ export default function ContasPage() {
         <Button onClick={() => setEditing("nova")}>Nova conta</Button>
       </div>
       {!accounts.isLoading && data.length === 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-card-padding">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
           <p className="type-body text-muted-foreground">Nenhuma conta. Cadastre a conta Nubank PF.</p>
           <Button variant="secondary" onClick={() => setEditing("nova")}>
             Nova conta

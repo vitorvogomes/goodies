@@ -58,7 +58,7 @@ export default function HistoricoPage() {
         <h2 id="fechamento-mes" className="type-section-title">
           Fechamento de mês
         </h2>
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-card shadow-card">
           {months.isLoading && <li className="h-24 animate-pulse bg-muted" aria-hidden />}
           {rows.map((m) => {
             const mes = m.month.slice(0, 7);

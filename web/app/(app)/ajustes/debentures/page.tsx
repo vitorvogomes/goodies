@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { ContributionsBlock } from "@/components/investimentos/ContributionsBlock";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -138,11 +139,8 @@ export default function DebenturesPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
-      cell: (d) => (
-        <button type="button" className="text-positive underline" onClick={() => setEditing(d)}>
-          Editar
-        </button>
-      ),
+      actions: true,
+      cell: (d) => <RowActions subject={`a debênture ${d.issuer}`} onEdit={() => setEditing(d)} />,
     },
   ];
 

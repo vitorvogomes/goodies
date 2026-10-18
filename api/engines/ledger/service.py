@@ -574,7 +574,8 @@ async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate)
 async def update_transaction(
     conn: asyncpg.Connection, tx_id: str, body: ManualTransactionUpdate
 ) -> TransactionRow | None:
-    """Manual muda tudo; importada só a categoria (Story 2.8)."""
+    """Manual muda tudo; importada só a categoria e a descrição (Story 2.8; a descrição a pedido
+    do Vitor em 18/10/2026 — valor, data e conta seguem os do extrato)."""
     if body.category_id is not None and not await queries.category_exists(conn, body.category_id):
         raise LookupError("categoria")
     if body.amount is not None and body.amount == 0:
@@ -585,7 +586,7 @@ async def update_transaction(
         current = await queries.tx_source(conn, tx_id)
         if current is None:
             return None
-        if fields and current["source"] != "manual":
+        if set(fields) - {"description"} and current["source"] != "manual":
             raise ImportedTransactionError
         if fields:
             await conn.execute(
@@ -599,6 +600,7 @@ async def update_transaction(
                 body.description,
             )
             await mark_months(conn, current["date"], body.date or current["date"])
+            await run_transaction_hooks(conn, [tx_id])  # a descrição casa caixinha/regra
         if body.category_id is not None:
             await categorize(
                 conn,

@@ -16,7 +16,7 @@ export function VariationBadge({
   const text = Math.abs(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (value === 0) {
     return (
-      <span className="type-tag inline-flex rounded-full bg-secondary px-2 text-secondary-foreground">
+      <span className="type-tag inline-flex min-w-[66px] justify-center rounded-sm bg-secondary px-2 text-secondary-foreground">
         0,00{unit === "%" ? "%" : " p.p."}
       </span>
     );
@@ -26,7 +26,7 @@ export function VariationBadge({
   return (
     <span
       className={cn(
-        "type-tag inline-flex items-center gap-1 rounded-full px-2 whitespace-nowrap",
+        "type-tag inline-flex min-w-[66px] items-center justify-center gap-1 rounded-sm px-2 whitespace-nowrap",
         better ? "bg-positive-tint text-positive" : "bg-negative-tint text-negative",
       )}
     >

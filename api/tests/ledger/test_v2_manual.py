@@ -1,5 +1,5 @@
 """Story 2.8 — lançamento manual: source manual, sem lote, categoria por categorize (manual);
-edição/remoção só de manual; importada só muda de categoria; mês marcado sujo."""
+edição/remoção só de manual; importada só muda de categoria e descrição; mês marcado sujo."""
 
 from __future__ import annotations
 
@@ -67,7 +67,9 @@ async def test_create_edit_delete_manual(api, auth_headers, account, pool) -> No
 
 
 @pytest.mark.asyncio
-async def test_imported_only_changes_category(api, auth_headers, account, pool) -> None:
+async def test_imported_changes_only_category_and_description(
+    api, auth_headers, account, pool
+) -> None:
     async with pool.acquire() as conn:
         batch = await conn.fetchval(
             "INSERT INTO import_batches (status, applied_at) VALUES ('applied', now()) RETURNING id"
@@ -85,6 +87,20 @@ async def test_imported_only_changes_category(api, auth_headers, account, pool) 
         )
         assert edit.status_code == 409
         assert edit.json()["detail"]["error"] == "transacao_importada"
+        # a descrição da importada é editável (pedido de 18/10/2026); valor, data e conta não
+        described = await api.patch(
+            f"/api/v1/ledger/transactions/{tx}",
+            json={"description": "Padaria do bairro"},
+            headers=auth_headers,
+        )
+        assert described.status_code == 200, described.text
+        assert described.json()["description"] == "Padaria do bairro"
+        mixed = await api.patch(
+            f"/api/v1/ledger/transactions/{tx}",
+            json={"description": "x", "date": "2099-08-06"},
+            headers=auth_headers,
+        )
+        assert mixed.status_code == 409
         rm = await api.delete(f"/api/v1/ledger/transactions/{tx}", headers=auth_headers)
         assert rm.status_code == 409
         transporte = await _cat(pool, "gasto:transporte")

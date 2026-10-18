@@ -269,7 +269,7 @@ export default function CategoriasPage() {
       </div>
 
       {!tree.isLoading && groups.length === 0 && (
-        <div className="rounded-lg border border-border bg-card p-card-padding">
+        <div className="rounded-lg border border-border bg-card shadow-card p-card-padding">
           <h2 className="type-section-title">Nenhuma categoria.</h2>
           <p className="type-body text-muted-foreground">Crie o primeiro grupo.</p>
           <Button className="mt-3" onClick={() => setEditing({ type: "group", node: null })}>
@@ -280,7 +280,7 @@ export default function CategoriasPage() {
 
       <ul className="space-y-section-gap">
         {groups.map((g) => (
-          <li key={g.id} className="rounded-lg border border-border bg-card">
+          <li key={g.id} className="rounded-lg border border-border bg-card shadow-card">
             <div
               className={cn(
                 "flex items-center justify-between gap-2 border-b border-border px-4 py-2",

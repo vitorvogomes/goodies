@@ -51,7 +51,7 @@ function ChartCard({
 }) {
   const [asTable, setAsTable] = useState(false);
   return (
-    <section aria-labelledby={id} className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby={id} className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={id} className="type-section-title">
           {title}
@@ -67,7 +67,7 @@ function ChartCard({
 
 function SimpleTable({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full type-body-sm">
         <thead className="text-muted-foreground">
           <tr>
@@ -266,7 +266,7 @@ export function HistoryCharts({ periodo, leitura }: { periodo: string; leitura: 
     return <p className="type-body text-negative">Não foi possível carregar os gráficos.</p>;
   }
   if (!series.data || !history.data) {
-    return <div className="h-72 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+    return <div className="h-72 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   }
   const points = series.data.points;
   return (
@@ -274,7 +274,7 @@ export function HistoryCharts({ periodo, leitura }: { periodo: string; leitura: 
       {points.length > 0 ? (
         <NetWorth points={points} />
       ) : (
-        <p className="rounded-lg border border-border bg-card p-card-padding type-body text-muted-foreground">
+        <p className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body text-muted-foreground">
           Disponível a partir do primeiro mês fechado na v2.
         </p>
       )}

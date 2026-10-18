@@ -24,7 +24,7 @@ function Badge({ status }: { status: ReconRow["status"] }) {
 
 function Table({ label, origin, rows }: { label: string; origin: string; rows: ReconRow[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card" tabIndex={0} role="region" aria-label={label}>
+    <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card" tabIndex={0} role="region" aria-label={label}>
       <table className="w-full type-body-sm">
         <caption className="sr-only">{label}</caption>
         <thead className="bg-muted text-muted-foreground">
@@ -58,7 +58,7 @@ export function ReconciliationTables() {
   const pathname = usePathname();
   const recon = useReconciliation();
   if (recon.isError) return <p className="type-body text-negative">Não foi possível carregar a conciliação.</p>;
-  if (!recon.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!recon.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   const { b3, wallets } = recon.data;
   const summary = reconciliationSummary(recon.data);
   return (
@@ -76,7 +76,7 @@ export function ReconciliationTables() {
         {b3.ref_date ? (
           <Table label="App × consolidado B3" origin="Consolidado B3" rows={b3.rows} />
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-card-padding">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
             <p className="type-body text-muted-foreground">
               Sem consolidado B3. Importe o consolidado (.xlsx) para conciliar.
             </p>

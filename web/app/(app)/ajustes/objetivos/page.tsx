@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { FormField, SAVE_FAILED, SideForm } from "@/components/forms/SideForm";
 import {
   AlertDialog,
@@ -189,7 +190,7 @@ function Suggestions({
   const busy = link.isPending || dismiss.isPending;
   if (!suggestions.length) return null;
   return (
-    <section aria-labelledby="obj-sugestoes" className="space-y-2 rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="obj-sugestoes" className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <h2 id="obj-sugestoes" className="type-section-title">
         Caixinhas sem objetivo
       </h2>
@@ -310,17 +311,13 @@ export default function ObjetivosPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
+      actions: true,
       cell: (g) => (
-        <span className="flex gap-3">
-          <button type="button" className="text-positive underline" onClick={() => setEditing(g)}>
-            Editar
-          </button>
-          {g.kind !== "reserva" && (
-            <button type="button" className="text-positive underline" onClick={() => setDeleting(g)}>
-              Excluir
-            </button>
-          )}
-        </span>
+        <RowActions
+          subject={g.name}
+          onEdit={() => setEditing(g)}
+          onDelete={g.kind !== "reserva" ? () => setDeleting(g) : undefined}
+        />
       ),
     },
   ];

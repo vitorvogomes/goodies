@@ -45,6 +45,11 @@ def _pct_label(pct: Decimal) -> str:
     return f"{pct.normalize():f}".replace(".", ",")
 
 
+def _plain(d: Decimal) -> Decimal:
+    """Sem zeros à direita e sem notação científica (10 → "10", não "1E+1")."""
+    return d.quantize(Decimal(1)) if d == d.to_integral_value() else d.normalize()
+
+
 def _before_first() -> Valued[Decimal]:
     return Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
 
@@ -56,6 +61,9 @@ class PositionAsset(BaseModel):
     valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
     resultado: Money | None
     manual: bool = False
+    # P9: quantidade e preço unitário na data (B3, Tesouro e cripto; caixinha/CDB/debênture não)
+    quantidade: Decimal | None = None
+    preco: Decimal | None = None
     xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); RF e cripto não têm
     nota: str | None = None  # RF pelo CDI: "{x}% do CDI · CDI até dd/mm/aaaa" (Story 7.4)
     # Story 8.3 (preenchidos por `planning`): % do ativo na classe × meta do ativo, desvio em p.p.
@@ -105,11 +113,13 @@ async def _crypto_assets(
     conn: asyncpg.Connection, owner: str, as_of: date, live: bool
 ) -> list[PositionAsset]:
     found: dict[str, Decimal] = defaultdict(Decimal)
+    qty: dict[str, Decimal] = defaultdict(Decimal)  # P9: quantidade somada das carteiras
     manual: dict[str, date] = {}  # Story 7.8: posição manual → a data informada
     if live:
         for w in await wallet_service.list_wallet_positions(conn, owner):
             if w["value_brl"] is not None:
                 found[w["asset_symbol"]] += _dec(w["value_brl"])
+                qty[w["asset_symbol"]] += _dec(w["quantity"])
             if w["is_manual"]:
                 manual[w["asset_symbol"]] = date.fromisoformat(w["scanned_at"][:10])
         for d in await wallet_service.manual_positions(conn, owner):
@@ -118,6 +128,7 @@ async def _crypto_assets(
         for d in await wallet_service.list_defi_valued(conn, owner):
             if d["value_brl"] is not None:
                 found[d["asset_symbol"]] += _dec(d["value_brl"])
+                qty[d["asset_symbol"]] += _dec(d["balance"])
     else:
         wallets = await wallet_service.positions_as_of(conn, as_of)
         prices = await market_service.prices_as_of(
@@ -127,6 +138,7 @@ async def _crypto_assets(
             price = prices[w["asset_symbol"]].value
             if price is not None:
                 found[w["asset_symbol"]] += price * _dec(w["quantity"])
+                qty[w["asset_symbol"]] += _dec(w["quantity"])
     ids = await _asset_ids(conn)
     return [
         PositionAsset(
@@ -139,6 +151,8 @@ async def _crypto_assets(
                 source="manual" if s in manual else "carteiras",
             ),
             resultado=None,
+            quantidade=_plain(qty[s].quantize(Decimal("1e-8"))) if qty.get(s) else None,
+            preco=_plain((v / qty[s]).quantize(Decimal("0.00000001"))) if qty.get(s) else None,
             manual=s in manual,
             nota=f"informado em {manual[s]:%d/%m/%Y}" if s in manual else None,
         )
@@ -254,11 +268,23 @@ async def positions_period(
                 )
                 if rate is not None:
                     xirr_mensal = (Decimal(repr(calc.monthly_rate(rate))) * 100).quantize(_CENT)
+        qty = Decimal(0) if closed else Decimal(str(calc.quantity(sops))).quantize(Decimal("1e-8"))
+        unit = (
+            (value / qty).quantize(Decimal("0.00000001"))
+            if value is not None
+            and qty > 0
+            and symbol not in cdi_assets
+            and symbol not in rate_assets
+            and cls != AssetClass.RENDA_FIXA
+            else None
+        )
         assets_by_class[cls].append(
             PositionAsset(
                 symbol=symbol,
                 asset_id=ids.get((cls, symbol)),
                 aplicado=aplicado,
+                quantidade=None if cls == AssetClass.RENDA_FIXA else _plain(qty),
+                preco=_plain(unit) if unit is not None else None,
                 valor=valor,
                 resultado=resultado.quantize(_CENT) if resultado is not None else None,
                 manual=manual and symbol not in cdi_assets,

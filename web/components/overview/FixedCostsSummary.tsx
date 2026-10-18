@@ -16,7 +16,7 @@ export function FixedCostsSummary({ periodo }: { periodo: string }) {
   const href = `/caixa/custos-fixos?periodo=${periodo}`;
   if (view.isError) {
     return (
-      <section className="rounded-lg border border-border bg-card p-card-padding type-body-sm text-negative">
+      <section className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body-sm text-negative">
         Não foi possível carregar os custos fixos.{" "}
         <button type="button" className="underline" onClick={() => view.refetch()}>
           Tentar de novo
@@ -25,12 +25,12 @@ export function FixedCostsSummary({ periodo }: { periodo: string }) {
     );
   }
   const data = view.data;
-  if (!data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  if (!data) return <div className="h-40 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />;
   if (data.count === 0) return null;
   const open = data.items.filter((i) => i.status !== "pago" && i.status !== "manual");
   const paid = data.count - open.length;
   return (
-    <section aria-labelledby="custos-fixos-resumo" className="space-y-2 self-start rounded-lg border border-border bg-card p-card-padding">
+    <section aria-labelledby="custos-fixos-resumo" className="space-y-2 self-start rounded-lg border border-border bg-card shadow-card p-card-padding">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="custos-fixos-resumo" className="type-section-title">
           Custos fixos

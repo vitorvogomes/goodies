@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { RowActions } from "@/components/data/RowActions";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -181,15 +182,9 @@ export default function PosicoesManuaisPage() {
       header: "Ações",
       value: () => null,
       sortable: false,
+      actions: true,
       cell: (i) => (
-        <span className="inline-flex gap-3">
-          <button type="button" className="text-positive underline" onClick={() => setEditing(i)}>
-            Editar
-          </button>
-          <button type="button" className="text-positive underline" onClick={() => remove(i)}>
-            Excluir
-          </button>
-        </span>
+        <RowActions subject={i.asset_symbol} onEdit={() => setEditing(i)} onDelete={() => remove(i)} />
       ),
     },
   ];

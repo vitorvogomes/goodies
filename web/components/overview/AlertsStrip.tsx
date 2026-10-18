@@ -28,7 +28,7 @@ export function AlertsStrip() {
   const { items, total, data_until } = alerts.data;
   if (total === 0) {
     return (
-      <p className="rounded-lg border border-border bg-card px-4 py-3 type-body-sm text-muted-foreground">
+      <p className="rounded-lg border border-border bg-card shadow-card px-4 py-3 type-body-sm text-muted-foreground">
         Nenhum aviso.{data_until ? ` Dados até ${formatDate(data_until)}.` : ""}
       </p>
     );
@@ -36,7 +36,7 @@ export function AlertsStrip() {
   const all = new URLSearchParams(params);
   all.set("avisos", "1");
   return (
-    <section aria-label="Avisos" className="rounded-lg border border-border bg-card">
+    <section aria-label="Avisos" className="rounded-lg border border-border bg-card shadow-card">
       <ul className="divide-y divide-border">
         {items.slice(0, 3).map((a) => (
           <li key={a.key}>

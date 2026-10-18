@@ -56,7 +56,7 @@ export function KpiCard({
           {UNAVAILABLE[valued.unavailable_reason ?? ""] ?? "Sem dado."}
         </p>
       ) : (
-        <p className={cn("type-num-display", tone)}>
+        <p className={cn("type-num-display whitespace-nowrap", tone)}>
           {arrow}
           {format(v)}
           {suffix && <span className="type-caption text-muted-foreground"> {suffix}</span>}
@@ -68,7 +68,7 @@ export function KpiCard({
       </div>
     </>
   );
-  const box = "block space-y-1.5 rounded-lg border border-border bg-card p-card-padding";
+  const box = "block space-y-1.5 rounded-lg border border-border bg-card shadow-card p-card-padding";
   return href ? (
     <Link href={href} className={cn(box, "hover:bg-row-highlight focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none")}>
       {body}
@@ -80,7 +80,7 @@ export function KpiCard({
 
 export function KpiSkeleton() {
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-card p-card-padding" aria-hidden>
+    <div className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding" aria-hidden>
       <div className="h-3 w-24 animate-pulse rounded bg-muted" />
       <div className="h-8 w-40 animate-pulse rounded bg-muted" />
       <div className="h-3 w-32 animate-pulse rounded bg-muted" />

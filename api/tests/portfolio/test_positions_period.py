@@ -159,6 +159,9 @@ async def test_price_flags_live(pool: Any) -> None:
     assert rows[t_none].valor.value is None
     assert rows[t_none].valor.unavailable_reason == "sem_preco"
     assert rows[t_man].manual is True
+    # P9: a quantidade e o preço de cada ativo aparecem na linha (B3/Tesouro)
+    assert (rows[t_man].quantidade, rows[t_man].preco) == (Decimal("1"), Decimal("12"))
+    assert rows[t_none].preco is None and rows[t_none].quantidade == Decimal("1")
 
 
 def test_period_xirr_and_real() -> None:

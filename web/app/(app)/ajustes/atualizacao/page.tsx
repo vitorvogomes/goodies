@@ -44,7 +44,7 @@ export default function AtualizacaoPage() {
         </Button>
       </div>
       {result && (
-        <div role="status" className="rounded-lg border border-border bg-card p-card-padding type-body-sm">
+        <div role="status" className="rounded-lg border border-border bg-card shadow-card p-card-padding type-body-sm">
           {result.status === "already_running" ? (
             "Já havia uma atualização rodando."
           ) : (
@@ -64,9 +64,9 @@ export default function AtualizacaoPage() {
         </p>
       )}
       {!status.data ? (
-        <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />
+        <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
           <table className="w-full type-body-sm">
             <caption className="sr-only">Atualizações automáticas</caption>
             <thead className="bg-muted text-muted-foreground">

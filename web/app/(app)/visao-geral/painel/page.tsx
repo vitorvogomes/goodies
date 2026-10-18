@@ -44,7 +44,7 @@ function Fontes() {
           </button>
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
           <SourcesBlock sources={fontes.data ?? []} loading={fontes.isLoading} onOpenSource={openHub} />
         </div>
       )}
@@ -59,7 +59,7 @@ function Painel() {
 
   if (painel.isError) {
     return (
-      <div role="alert" className="flex items-center gap-2 rounded-lg border border-border bg-card p-card-padding type-body">
+      <div role="alert" className="flex items-center gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding type-body">
         Não foi possível carregar os números do Painel.
         <Button size="sm" variant="secondary" onClick={() => painel.refetch()}>
           Tentar de novo
