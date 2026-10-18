@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
 import type {
+  AporteSummary,
   Distribution,
   Goal,
   GoalIn,
@@ -160,5 +161,14 @@ export function useSetLock(periodo: string) {
       });
     },
     onSuccess: (next) => queryClient.setQueryData(["planning", "distribution", periodo], next),
+  });
+}
+
+// ---- Resumo do aporte no Painel (Story 8.8) ----
+
+export function useAporteSummary(periodo: string) {
+  return useQuery({
+    queryKey: ["planning", "aporte-resumo", periodo],
+    queryFn: () => apiFetch<AporteSummary>(`/api/v1/planning/months/${periodo}/aporte/resumo`),
   });
 }

@@ -32,6 +32,7 @@ from engines.market import service as market_service
 from engines.market.router import router as market_router
 from engines.overview.router import router as overview_router
 from engines.planning import allocation as planning_allocation
+from engines.planning import summary as planning_summary
 from engines.planning import targets as planning_targets
 from engines.planning.router import router as planning_router
 from engines.portfolio import brokers as portfolio_brokers
@@ -98,6 +99,7 @@ for _provider in (
     portfolio_brokers.broker_alerts,
     portfolio_reconciliation.reconciliation_alerts,
     planning_allocation.allocation_alerts,
+    planning_summary.aporte_alerts,
     closing_alerts.adjustment_alerts,
     closing_alerts.open_month_alerts,
 ):

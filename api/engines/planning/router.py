@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
-from . import distribution_service, goals, service, targets
+from . import distribution_service, goals, service, summary, targets
 from .models import AporteIn, DividasIn, MonthPlanOut
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
@@ -171,3 +171,11 @@ async def distribution_preview(
     body: distribution_service.PreviewIn, user: AuthUser, db: Db
 ) -> distribution_service.DistributionOut:
     return await distribution_service.preview(db, _month(body.mes), body.planejado, body.travas)
+
+
+# ---- Resumo do aporte no Painel (Story 8.8) ----
+
+
+@router.get("/months/{mes}/aporte/resumo", response_model=summary.AporteSummary)
+async def aporte_summary(mes: str, user: AuthUser, db: Db) -> summary.AporteSummary:
+    return await summary.aporte_summary(db, _month(mes))

@@ -203,3 +203,13 @@ export interface Distribution {
   unassigned: number;
   andamento: Andamento;
 }
+
+// Resumo do aporte no Painel (Story 8.8).
+export interface AporteSummary {
+  month: string;
+  as_of: string;
+  aporte_definido: boolean;
+  andamento: Andamento;
+  fora_da_banda: number;
+  a_caminho: { broker: string; value: number; import_from: string | null }[];
+}
