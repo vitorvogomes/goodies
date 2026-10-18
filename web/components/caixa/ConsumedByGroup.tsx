@@ -2,12 +2,37 @@
 
 // Consumido por grupo (Story 6.6 — EXPERIENCE › Caixa › Orçamento): grupo → subcategoria com o % do
 // consumido (sem os custos fixos casados nem as dívidas); rodapé com os gastos brutos e as deduções.
-// Percentuais e totais vêm da API.
+// Percentuais e totais vêm da API; abaixo, o rodapé do orçamento (6.7).
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, useState } from "react";
 
 import { formatBRL, formatPercent } from "@/lib/format";
 import type { MonthBudget } from "@/types/planning";
+
+// Rodapé do orçamento (Story 6.7 — FR-20): custos fixos pagos, gastos do mês, investimento (fora
+// dos gastos), taxa de poupança ((trabalho − (gastos − devoluções)) / trabalho) e investimento do
+// mês ÷ receita do trabalho — o "realizado total" do Épico 8. Sem receita: "sem receita do trabalho".
+function BudgetFooter({ budget }: { budget: MonthBudget }) {
+  const pct = (v: MonthBudget["taxa_poupanca"]) =>
+    v.value === null ? "— sem receita do trabalho" : formatPercent(v.value);
+  const rows: [string, string][] = [
+    ["Custos fixos pagos (fora do consumido)", formatBRL(budget.custos_fixos_pagos)],
+    ["Gastos do mês", formatBRL(budget.gastos)],
+    ["Investimento (realizado total, fora dos gastos)", formatBRL(budget.investido)],
+    ["Taxa de poupança", pct(budget.taxa_poupanca)],
+    ["Aporte ÷ receita do trabalho", pct(budget.aporte_sobre_trabalho)],
+  ];
+  return (
+    <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-border pt-3 type-body-sm">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="text-right type-num-table">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 export function ConsumedByGroup({ budget }: { budget: MonthBudget }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -104,6 +129,7 @@ export function ConsumedByGroup({ budget }: { budget: MonthBudget }) {
           </tr>
         </tfoot>
       </table>
+      <BudgetFooter budget={budget} />
     </section>
   );
 }

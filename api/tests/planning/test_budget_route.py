@@ -107,3 +107,13 @@ async def test_dividas_write(api, auth_headers, pool, seeded) -> None:
         )
     r = await api.put(url, json={"valor": "100.00"}, headers=auth_headers)
     assert r.status_code == 409 and r.json()["detail"]["error"] == "mes_fechado"
+
+
+@pytest.mark.asyncio
+async def test_no_work_income_is_unavailable(api, auth_headers) -> None:
+    """Story 6.7: sem receita do trabalho, taxa de poupança e aporte ÷ trabalho voltam `Valued` nulo
+    com `sem_receita` — nunca 0%."""
+    b = (await api.get("/api/v1/closing/months/2093-03/budget", headers=auth_headers)).json()
+    assert b["taxa_poupanca"]["value"] is None
+    assert b["taxa_poupanca"]["unavailable_reason"] == "sem_receita"
+    assert b["aporte_sobre_trabalho"]["unavailable_reason"] == "sem_receita"
