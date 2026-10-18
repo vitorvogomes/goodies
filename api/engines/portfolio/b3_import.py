@@ -16,6 +16,7 @@ Mapeamento de "Movimentação":
 - "Rendimento" -> dividendo ; "Juros Sobre Capital Próprio" -> juros
 - demais (Atualização, Direitos de Subscrição, Cessão de Direitos, ...) -> None
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -65,9 +66,7 @@ def map_movimentacao(entrada_saida: str, movimentacao: str) -> str | None:
     """Tipo de 'Movimentação' B3 -> tipo de asset_operations (None = ignorar)."""
     m = movimentacao.strip().lower()
     es = entrada_saida.strip().lower()
-    if m.startswith("transferência - liquidação") or m.startswith(
-        "transferencia - liquidacao"
-    ):
+    if m.startswith("transferência - liquidação") or m.startswith("transferencia - liquidacao"):
         return "compra" if es == "credito" else "venda"
     if m == "compra":
         return "compra"
@@ -177,6 +176,54 @@ _SHEET_CATEGORY: dict[str, str] = {
     "Posição - Fundos": AssetCategory.FIIS,
     "Posição - Tesouro Direto": AssetCategory.APOSENTADORIA,
 }
+
+
+# Aba 'Posição' → (coluna do símbolo, coluna da quantidade, coluna do valor) para o snapshot.
+_SNAPSHOT_SHEETS: dict[str, tuple[str, str, str]] = {
+    "Posição - Ações": ("Código de Negociação", "Quantidade", "Valor Atualizado"),
+    "Posição - ETF": ("Código de Negociação", "Quantidade", "Valor Atualizado"),
+    "Posição - Fundos": ("Código de Negociação", "Quantidade", "Valor Atualizado"),
+    "Posição - Tesouro Direto": ("Produto", "Quantidade", "Valor Atualizado"),
+}
+
+
+def parse_b3_positions(
+    sheets: Mapping[str, Sequence[Sequence[Any]]],
+) -> list[dict[str, Any]]:
+    """Posições informadas pelo consolidado (Story 3.8): símbolo (como nas operações), categoria
+    canônica, quantidade e valor atualizado, uma linha por símbolo (somadas se repetem)."""
+    found: dict[str, dict[str, Any]] = {}
+    for sheet, (tcol, qcol, vcol) in _SNAPSHOT_SHEETS.items():
+        rows = sheets.get(sheet)
+        if not rows:
+            continue
+        header = [str(h) for h in rows[0]]
+        if tcol not in header or qcol not in header:
+            continue
+        ti, qi = header.index(tcol), header.index(qcol)
+        vi = header.index(vcol) if vcol in header else None
+        for row in rows[1:]:
+            tick = row[ti] if ti < len(row) else None
+            if not tick or str(tick).strip().lower().startswith("total"):
+                continue
+            qty = _to_float(row[qi]) if qi < len(row) else None
+            if qty is None:
+                continue
+            value = _to_float(row[vi]) if vi is not None and vi < len(row) else None
+            symbol = parse_produto(str(tick))
+            item = found.setdefault(
+                symbol,
+                {
+                    "symbol": symbol,
+                    "category": _SHEET_CATEGORY[sheet],
+                    "quantity": 0.0,
+                    "value": None,
+                },
+            )
+            item["quantity"] += qty
+            if value is not None:
+                item["value"] = (item["value"] or 0.0) + value
+    return list(found.values())
 
 
 def parse_b3_categories(

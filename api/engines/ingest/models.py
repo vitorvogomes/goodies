@@ -73,6 +73,7 @@ class FilePlanOut(BaseModel):
     needs: list[str]
     warnings: list[str] = []
     error: str | None
+    detail: dict[str, Any] = {}
 
 
 class PreviewOut(BaseModel):

@@ -44,6 +44,7 @@ class FilePlan:
     overrides: dict[str, str] = field(default_factory=dict)
     # Entra no hash: o que mudaria o resultado do apply (ex.: os ids externos novos).
     fingerprint: dict[str, Any] = field(default_factory=dict)
+    detail: dict[str, Any] = field(default_factory=dict)  # informativo da linha (fora do hash)
     parsed: ParsedFile | None = None
     rows: list[Any] = field(default_factory=list)  # o que o apply grava
 
@@ -83,6 +84,10 @@ class SourceAdapter(Protocol):
     sources: tuple[str, ...]
 
     def detect(self, file_name: str, content: bytes) -> str | None: ...
+
+    def apply_rank(self, source: str) -> int:
+        """Ordem de aplicação dentro do lote (menor primeiro)."""
+        ...
 
     def parse(self, source: str, file_name: str, content: bytes) -> Any: ...
 

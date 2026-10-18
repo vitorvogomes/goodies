@@ -13,7 +13,7 @@ export function useImportB3() {
     mutationFn: ({ file, dryRun }: { file: File; dryRun: boolean }) =>
       file.arrayBuffer().then((buf) =>
         apiFetch<ImportB3Report>(
-          `/api/v1/portfolio/import-b3?dry_run=${dryRun}`,
+          `/api/v1/portfolio/import-b3?dry_run=${dryRun}&filename=${encodeURIComponent(file.name)}`,
           {
             method: "POST",
             body: buf,

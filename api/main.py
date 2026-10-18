@@ -28,6 +28,7 @@ from engines.ledger.service import register_on_transactions_changed
 from engines.market.router import router as market_router
 from engines.portfolio import hooks as portfolio_hooks
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
+from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
 from engines.portfolio.router import router as portfolio_router
 from engines.portfolio.transit_routes import router as portfolio_transit_router
@@ -42,6 +43,7 @@ register_month_status(AllMonthsOpen())
 register_on_transactions_changed(portfolio_hooks.on_transactions_changed)
 # Ingestão (AD-5): adapters vivem na engine dona; derivações de cima por hook de lote.
 ingest_service.register_adapter(NubankStatementAdapter())
+ingest_service.register_adapter(B3Adapter())
 ingest_service.register_on_batch_applied(portfolio_hooks.on_batch_applied)
 ingest_service.register_on_batch_undo(portfolio_hooks.on_batch_undo)
 # Central de avisos (AD-10): cada engine registra seu provider; nenhuma importa `alerts`.

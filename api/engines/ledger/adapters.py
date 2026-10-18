@@ -51,6 +51,9 @@ class NubankStatementAdapter:
             return "nubank_csv"
         return None
 
+    def apply_rank(self, source: str) -> int:
+        return 0
+
     def parse(self, source: str, file_name: str, content: bytes) -> list[StatementEntry]:
         text = _text(content)
         return parse_ofx(text) if source == "nubank_ofx" else parse_csv(text)

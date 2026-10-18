@@ -181,6 +181,7 @@ def _out(p: FilePlan) -> FilePlanOut:
         needs=p.needs,
         warnings=p.warnings,
         error=p.error,
+        detail=p.detail,
     )
 
 
@@ -253,9 +254,15 @@ async def confirm(conn: asyncpg.Connection, batch_id: str, plan_hash: str) -> Co
         months: set[date] = set()
         imported = 0
         details: list[dict[str, Any]] = []
-        for p in plans:
-            if p.error is not None or p.source is None:
-                continue
+        ready = [p for p in plans if p.error is None and p.source is not None]
+        ready.sort(
+            key=lambda p: (
+                _adapter_for(str(p.source)).apply_rank(str(p.source)),
+                p.period_end or date.min,
+            )
+        )
+        for p in ready:
+            assert p.source is not None
             applied = await _adapter_for(p.source).apply(conn, p, batch_id)
             imported += applied.inserted
             months |= applied.months
