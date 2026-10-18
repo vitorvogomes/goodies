@@ -3,7 +3,7 @@ congelados no fechamento)."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -63,3 +63,27 @@ class CloseOut(BaseModel):
     month: date
     version: int
     confirmations: list[CloseCheck]
+
+
+class MonthState(BaseModel):
+    month: date
+    status: str  # aberto | fechado | ajuste
+    version: int | None
+    closed_at: datetime | None
+    origin: str | None
+
+
+class ChecklistItem(BaseModel):
+    key: str
+    code: str | None = None  # código da verificação (o que vai em `confirmar`)
+    ok: bool
+    kind: str  # bloqueia | confirma | info
+    message: str
+
+
+class Checklist(BaseModel):
+    month: date
+    items: list[ChecklistItem]
+    blocking: int  # pendências que impedem o fechamento
+    pending: int  # pendências que pedem "fechar mesmo assim"
+    summary: MonthSummary  # o que vai ser congelado

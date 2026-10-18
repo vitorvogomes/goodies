@@ -6,12 +6,12 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
 
-from engines.common.dates import parse_periodo
+from engines.common.dates import MIN_MONTH, parse_periodo, today_brt
 from engines.common.deps import AuthUser, Db
 
 from . import service
 from .checks import run_checks
-from .models import CloseCheck, CloseIn, CloseOut, MonthSummary
+from .models import Checklist, CloseCheck, CloseIn, CloseOut, MonthState, MonthSummary
 
 router = APIRouter(prefix="/api/v1/closing", tags=["closing"])
 
@@ -52,3 +52,17 @@ async def close_month(mes: str, body: CloseIn, user: AuthUser, db: Db) -> CloseO
                 "checks": [c.model_dump() for c in exc.checks],
             },
         ) from None
+
+
+@router.get("/months", response_model=list[MonthState])
+async def list_months(
+    user: AuthUser, db: Db, de: str | None = None, ate: str | None = None
+) -> list[MonthState]:
+    start = _month(de) if de else MIN_MONTH
+    end = _month(ate) if ate else today_brt().replace(day=1)
+    return await service.month_states(db, start, end)
+
+
+@router.get("/months/{mes}/checklist", response_model=Checklist)
+async def month_checklist(mes: str, user: AuthUser, db: Db) -> Checklist:
+    return await service.checklist(db, _month(mes))

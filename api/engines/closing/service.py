@@ -16,7 +16,7 @@ from typing import Any
 import asyncpg
 
 from engines.common.dates import today_brt
-from engines.common.month_status import MonthState
+from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
@@ -24,7 +24,14 @@ from engines.portfolio import calc as portfolio_calc
 from engines.portfolio.valuation import valuation_as_of
 
 from .checks import label, run_checks
-from .models import CloseCheck, CloseOut, MonthSummary
+from .models import (
+    Checklist,
+    ChecklistItem,
+    CloseCheck,
+    CloseOut,
+    MonthState,
+    MonthSummary,
+)
 
 
 def month_end(month: date) -> date:
@@ -222,7 +229,7 @@ class ClosingMonthStatus:
     """`MonthStatusPort` real (AD-8): fechado pela versão vigente; ajuste = fechado e tocado
     depois (`dirty`, Story 5.6)."""
 
-    async def status(self, conn: Any, month: date) -> MonthState:
+    async def status(self, conn: Any, month: date) -> PortState:
         row = await latest_close(conn, month)
         if row is None or row["status"] != "closed":
             return "aberto"
@@ -238,3 +245,74 @@ class ClosingMonthStatus:
             "AND version = (SELECT max(version) FROM month_closes WHERE month = $1)",
             month,
         )
+
+
+# --------------------------------------------------------------------------------------------
+# Estado dos meses e checklist do fechamento (Story 5.4)
+# --------------------------------------------------------------------------------------------
+
+
+async def month_states(conn: asyncpg.Connection, start: date, end: date) -> list[MonthState]:
+    rows = {
+        r["month"]: r
+        for r in await conn.fetch(
+            "SELECT DISTINCT ON (month) month, version, status, closed_at, origin, dirty "
+            "FROM month_closes WHERE month BETWEEN $1 AND $2 ORDER BY month, version DESC",
+            start,
+            end,
+        )
+    }
+    out: list[MonthState] = []
+    month = start
+    while month <= end:
+        r = rows.get(month)
+        closed = r is not None and r["status"] == "closed"
+        out.append(
+            MonthState(
+                month=month,
+                status=("ajuste" if r["dirty"] else "fechado") if closed and r else "aberto",
+                version=r["version"] if r is not None else None,
+                closed_at=r["closed_at"] if closed and r else None,
+                origin=r["origin"] if r is not None else None,
+            )
+        )
+        month = date(month.year + month.month // 12, month.month % 12 + 1, 1)
+    return out
+
+
+async def checklist(conn: asyncpg.Connection, month: date) -> Checklist:
+    """Checklist (UX-DR40): saldo PF conferido e transações revisadas sempre aparecem (ok ou
+    pendência); depois as outras pendências do mês; e o resumo que vai ser congelado."""
+    checks = await run_checks(conn, month)
+    codes = {c.code: c for c in checks}
+    pf = codes.get("saldo_pf_divergente") or codes.get("saldo_pf_nao_conferido")
+    reviewed = codes.get("transacoes_pendentes")
+    items = [
+        ChecklistItem(
+            key="saldo_pf",
+            code=pf.code if pf else None,
+            ok=pf is None,
+            kind=pf.kind if pf else "info",
+            message=pf.message if pf else "Saldo da conta PF conferido no fim do mês.",
+        ),
+        ChecklistItem(
+            key="revisadas",
+            code=reviewed.code if reviewed else None,
+            ok=reviewed is None,
+            kind=reviewed.kind if reviewed else "info",
+            message=reviewed.message if reviewed else "Todas as transações do mês revisadas.",
+        ),
+    ]
+    shown = {"saldo_pf_divergente", "saldo_pf_nao_conferido", "transacoes_pendentes"}
+    items += [
+        ChecklistItem(key=c.code, code=c.code, ok=False, kind=c.kind, message=c.message)
+        for c in checks
+        if c.code not in shown
+    ]
+    return Checklist(
+        month=month,
+        items=items,
+        blocking=sum(1 for i in items if not i.ok and i.kind == "bloqueia"),
+        pending=sum(1 for i in items if not i.ok and i.kind == "confirma"),
+        summary=await build_month_summary(conn, month, min(month_end(month), today_brt())),
+    )

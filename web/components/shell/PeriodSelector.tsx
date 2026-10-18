@@ -9,6 +9,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { StatusBadge } from "@/components/data/StatusBadge";
+import { useMonthStates } from "@/lib/closing";
 import { formatMonth } from "@/lib/format";
 import { MIN_MONTH, currentMonthBRT, isSelectable, shiftMonth } from "@/lib/period";
 import { usePeriodo } from "@/lib/use-periodo";
@@ -56,6 +58,7 @@ export function PeriodSelector() {
   };
 
   return (
+    <div className="flex items-center gap-2">
     <div className="flex items-center gap-1 rounded-md border border-input bg-background p-0.5">
       {nav(prev, "Mês anterior", ChevronLeftIcon)}
       <Popover open={open} onOpenChange={setOpen}>
@@ -105,5 +108,28 @@ export function PeriodSelector() {
       </Popover>
       {nav(next, "Próximo mês", ChevronRightIcon)}
     </div>
+      <MonthStatusBadge periodo={periodo} />
+    </div>
+  );
+}
+
+// Selo de estado do mês selecionado (Story 5.4): "fechado", "aberto" ou "ajuste".
+function MonthStatusBadge({ periodo }: { periodo: string }) {
+  const states = useMonthStates(periodo, periodo);
+  const status = states.data?.[0]?.status;
+  if (!status) return null;
+  return (
+    <StatusBadge
+      tone={status === "ajuste" ? "warning" : "neutral"}
+      tooltip={
+        status === "ajuste"
+          ? "Dado novo depois do fechamento: o resumo congelado não mudou."
+          : status === "fechado"
+            ? "Mês fechado: os números vêm do resumo congelado."
+            : "Mês aberto: os números são calculados ao vivo."
+      }
+    >
+      {status}
+    </StatusBadge>
   );
 }
