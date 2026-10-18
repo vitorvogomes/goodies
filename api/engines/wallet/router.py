@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from auth.dependencies import get_current_user
 from db.connection import get_db
-from engines.portfolio.service import invalidate_xirr_cache
+from engines.common.cache import invalidate_xirr_cache
 from engines.wallet import service
 from engines.wallet.service import ManualPositionConflict
 

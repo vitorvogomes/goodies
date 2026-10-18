@@ -2,7 +2,7 @@
 
 Grava, **antes** de qualquer atualização/migração, o retrato do portfólio e do caixa calculado sobre
 `goodies_dados` (restaurado do backup pré-migração fixado), com:
-- `EVALUATION_DATE` fixa (padrão 2026-10-18), nunca `date.today()`;
+- `EVALUATION_DATE` fixa (padrão 2026-10-18), nunca a data do dia;
 - preços só do Postgres (`asset_prices` do backup): o cache Redis é trocado por um cache nulo, então
   nenhum preço vivo entra; nenhum worker roda.
 
@@ -29,7 +29,7 @@ from typing import Any
 import asyncpg
 
 from config import settings
-from engines.market import service as market_service
+from engines.common.cache import use_cache
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.constants import CRYPTO_CATEGORIES
 from engines.portfolio.service import _INFLOW_TIPOS
@@ -61,13 +61,11 @@ class _NullCache:
 
 @contextmanager
 def frozen_prices() -> Any:
-    saved = (market_service._cache, portfolio_service._cache)
-    market_service._cache = _NullCache()  # type: ignore[assignment]
-    portfolio_service._cache = _NullCache()  # type: ignore[assignment]
+    saved = use_cache(_NullCache())  # type: ignore[arg-type]
     try:
         yield
     finally:
-        market_service._cache, portfolio_service._cache = saved
+        use_cache(saved)
 
 
 def _r(value: float | None) -> float | None:

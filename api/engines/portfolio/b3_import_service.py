@@ -20,6 +20,7 @@ from typing import Any
 
 import asyncpg
 
+from engines.common.cache import invalidate_xirr_cache
 from engines.market import service as market_service
 
 from . import service
@@ -173,5 +174,5 @@ async def import_b3_workbook(
     report["imported"] = result["imported"]
     report["skipped_duplicate"] = result["skipped"]
     if result["imported"]:
-        await service.invalidate_xirr_cache(user_id)
+        await invalidate_xirr_cache(user_id)
     return report

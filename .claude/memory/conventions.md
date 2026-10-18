@@ -26,6 +26,12 @@ Invariantes completos no spine: `docs/v2/planning/architecture/architecture-good
 `common` ← `market`/`ingest`/`jobs` ← `ledger`/`wallet` ← `portfolio` ← `planning` ← `closing` ← `alerts` ←
 `overview`. Engine só importa engine de camada **menor**; engine baixa recebe o que precisa de cima por registro
 feito em `main.py`. `api/workers/` e `main.py` são a casca; nenhuma engine os importa.
+Movimentos obrigatórios da AD-1 (enums → `common`, `PriceCache` → `common.cache`...) acontecem na primeira
+story que toca o módulo; **atribuição explícita de um movimento a uma story vence essa regra**.
+Base comum (Story 2.1): `common.money` (`Money`/`Pct`), `common.models.Valued[T]`, `common.deps` (`Db`,
+`AuthUser`), `common.owner.get_owner_id`, `common.cache` (`cache()`, `invalidate_xirr_cache`),
+`common.month_status` (`MonthStatusPort`), `common.dates` (`today_brt`, `resolve_period`). "Hoje" nunca
+por `date.today()`/`datetime.now()` sem fuso/`CURRENT_DATE` — um teste barra.
 
 ### Layout de engine (AD-2)
 

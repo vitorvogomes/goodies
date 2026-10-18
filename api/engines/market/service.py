@@ -17,15 +17,13 @@ from typing import Any
 import asyncpg
 
 from config import settings
-from engines.market.cache import PriceCache
+from engines.common.cache import cache
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.constants import (
     B3_CATEGORIES,
     CRYPTO_CATEGORIES,
     TREASURY_CATEGORIES,
 )
-
-_cache = PriceCache()
 
 _TTL_BY_TYPE = {
     "b3": settings.ttl_b3,
@@ -75,7 +73,7 @@ async def invalidate_price_cache(ticker: str) -> None:
     (só uma existe); fail-soft.
     """
     for cache_type in ("b3", "crypto", "tesouro"):
-        await _cache.delete(price_cache_key(cache_type, ticker))
+        await cache().delete(price_cache_key(cache_type, ticker))
 
 
 def _is_stale(is_manual: bool, source: str, fetched_at: datetime, now: datetime) -> bool:
@@ -136,7 +134,7 @@ async def get_price(
     now = now or datetime.now(tz=UTC)
     cache_type = cache_type_for_category(category)
     if cache_type is not None:
-        hit = await _cache.get(price_cache_key(cache_type, ticker))
+        hit = await cache().get(price_cache_key(cache_type, ticker))
         if hit is not None:
             return _from_cache_hit(ticker, hit)
 
@@ -181,7 +179,7 @@ async def list_user_prices(
     typed = [
         (t, ct) for t in tickers if (ct := cache_type_for_category(category_of[t])) is not None
     ]
-    hits = await _cache.mget([price_cache_key(ct, t) for t, ct in typed])
+    hits = await cache().mget([price_cache_key(ct, t) for t, ct in typed])
     cached = {t: v for (t, _ct), v in zip(typed, hits, strict=True) if v is not None}
 
     out: list[dict[str, Any]] = []
@@ -225,7 +223,7 @@ async def prices_for_tickers(
     }
     cached: dict[str, Any] = {}
     if cache_type is not None:
-        hits = await _cache.mget([price_cache_key(cache_type, t) for t in keys])
+        hits = await cache().mget([price_cache_key(cache_type, t) for t in keys])
         cached = {t: v for t, v in zip(keys, hits, strict=True) if v is not None}
 
     out: dict[str, tuple[float | None, float | None]] = {}
@@ -262,7 +260,7 @@ async def cache_aside_write(
     )
     if not written:
         return False
-    await _cache.set(
+    await cache().set(
         price_cache_key(cache_type, ticker),
         {
             "price_brl": price_brl,

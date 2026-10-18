@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 import pytest
 
-from engines.market.cache import PriceCache
+from engines.common.cache import PriceCache
 from engines.market.service import price_cache_key
 
 _NEW = {

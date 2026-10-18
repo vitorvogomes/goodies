@@ -5,6 +5,8 @@ from typing import Any
 
 import pytest
 
+from engines.common.cache import cache
+
 
 @pytest.mark.asyncio
 async def test_requires_auth(api: Any) -> None:
@@ -69,7 +71,7 @@ async def test_manual_overrides_cached_auto_price(
         assert body["price_brl"] == 40.0  # manual, não os 30.0 cacheados
         assert body["is_manual"] is True
     finally:
-        await service._cache.delete(service.price_cache_key("b3", "MKT_OVR"))
+        await cache().delete(service.price_cache_key("b3", "MKT_OVR"))
 
 
 @pytest.mark.asyncio

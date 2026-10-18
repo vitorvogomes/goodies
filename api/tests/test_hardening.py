@@ -54,7 +54,7 @@ def test_hermes_router_not_mounted_when_disabled(monkeypatch: pytest.MonkeyPatch
 
 
 def test_redis_url_comes_from_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    from engines.market.cache import _resolve_url
+    from engines.common.cache import _resolve_url
 
     monkeypatch.setattr(config.settings, "redis_url", "redis://:segredo@localhost:6379/3")
     assert _resolve_url(None) == "redis://:segredo@localhost:6379/3"

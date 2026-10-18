@@ -14,7 +14,7 @@ from typing import Any
 import asyncpg
 import pytest
 
-from engines.market.cache import PriceCache
+from engines.common.cache import PriceCache
 from engines.portfolio import service
 
 

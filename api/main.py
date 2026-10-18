@@ -14,9 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.router import router as auth_router
 from config import assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
+from engines.common.cache import check_redis
+from engines.common.month_status import AllMonthsOpen, register_month_status
 from engines.jobs.router import router as jobs_router
 from engines.ledger.router import router as ledger_router
-from engines.market.cache import check_redis
 from engines.market.router import router as market_router
 from engines.portfolio.analytics_router import router as portfolio_analytics_router
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
@@ -26,6 +27,9 @@ from engines.wallet.defi_router import router as defi_router
 from engines.wallet.router import router as wallet_router
 from health import collect_component_status, register_component_check
 from hermes.router import router as hermes_router
+
+# Status do mês (AD-8): "todos abertos" até o fechamento (Épico 5) registrar o real.
+register_month_status(AllMonthsOpen())
 
 # Checks incluídos no /api/v1/health (registrados no import do módulo).
 register_component_check(check_postgres)

@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from engines.market.cache import PriceCache
+from engines.common.cache import PriceCache
 from engines.market.fetchers.base import PriceQuote
 from engines.market.service import price_cache_key
 from workers.price_workers import run_price_b3, run_price_crypto

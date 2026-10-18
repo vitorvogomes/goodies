@@ -1,6 +1,6 @@
 """STORY-00-04 — testes do cache Redis (PriceCache + check_redis).
 
-TDD RED-first: estes testes falham enquanto `engines.market.cache` não existe.
+TDD RED-first: estes testes falham enquanto `engines.common.cache` não existe.
 
 Rodam contra o Redis real do compose (`settings.redis_url`, com senha). Usam o prefixo
 `test:cache:` e limpam tudo que criam (fixture `cleanup_keys`). O caso de
@@ -13,7 +13,7 @@ import uuid
 import pytest
 
 from config import settings
-from engines.market.cache import PriceCache, check_redis
+from engines.common.cache import PriceCache, check_redis
 
 LOCAL_URL = settings.redis_url  # Redis do compose, com a senha do .env (Story 1.6)
 UNREACHABLE_URL = "redis://localhost:6399/0"  # nenhum servidor escutando aqui

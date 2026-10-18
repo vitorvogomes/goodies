@@ -1,4 +1,4 @@
-"""Cache Redis para preços e métricas de mercado — STORY-00-04.
+"""Cache Redis único do app (`common.cache` — AD-1/AD-2, Story 2.1; nasceu no market, STORY-00-04).
 
 Decisão de transporte (ADR-001 / CLAUDE.md): usamos `redis.asyncio` (cliente TCP)
 sobre uma única variável `REDIS_URL` (Redis 7 do compose, com senha — Story 1.6;
@@ -117,3 +117,32 @@ async def check_redis(redis_url: str | None = None) -> tuple[str, str]:
             await client.aclose()
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------- instância única (Story 2.1)
+
+_instance: PriceCache | None = None
+
+
+def cache() -> PriceCache:
+    """A instância única do cache (criada sob demanda; sem conexão até o 1º comando)."""
+    global _instance
+    if _instance is None:
+        _instance = PriceCache()
+    return _instance
+
+
+def use_cache(new: PriceCache | None) -> PriceCache | None:
+    """Troca a instância (testes, baseline com preço congelado) e devolve a anterior."""
+    global _instance
+    previous, _instance = _instance, new
+    return previous
+
+
+def xirr_key(user_id: str) -> str:
+    return f"xirr:consolidated:{user_id}"
+
+
+async def invalidate_xirr_cache(user_id: str) -> None:
+    """Toda escrita que muda fluxo ou valor de investimento invalida o XIRR do dono (ADR-008)."""
+    await cache().delete(xirr_key(user_id))

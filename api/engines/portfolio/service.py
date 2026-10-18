@@ -23,7 +23,8 @@ from typing import Any
 import asyncpg
 
 from config import settings
-from engines.market.cache import PriceCache
+from engines.common.cache import cache, invalidate_xirr_cache, xirr_key
+from engines.common.dates import today_brt
 
 from .constants import CRYPTO_CATEGORIES, AssetCategory
 from .xirr import xirr
@@ -41,7 +42,6 @@ _INCOME_TIPOS = ("dividendo", "juros")
 
 _XIRR_TTL_SECONDS = settings.ttl_xirr  # 1h (ADR-008), configurável
 
-_cache = PriceCache()
 
 
 # --------------------------------------------------------------------------- #
@@ -100,10 +100,10 @@ def _sum_or_none(values: Sequence[float | None]) -> float | None:
 def eval_date(override: date | None = None) -> date:
     """Data única de avaliação (terminal do XIRR/valoração) — §3.1.
 
-    Precedência: argumento explícito > `settings.evaluation_date` (env
-    EVALUATION_DATE, p/ reproduzir o gate / relatórios 'as-of') > `date.today()`.
+    Precedência: argumento explícito > `settings.evaluation_date` (env EVALUATION_DATE, p/
+    reproduzir o gate / relatórios 'as-of') > hoje em BRT (`common.dates.today_brt`).
     """
-    return override or settings.evaluation_date or date.today()
+    return override or settings.evaluation_date or today_brt()
 
 
 async def fetch_prices(conn: asyncpg.Connection) -> dict[str, float]:
@@ -564,13 +564,6 @@ async def clear_manual_price(conn: asyncpg.Connection, ticker: str) -> bool:
     return True
 
 
-def _xirr_key(user_id: str) -> str:
-    return f"xirr:consolidated:{user_id}"
-
-
-async def invalidate_xirr_cache(user_id: str) -> None:
-    """Invalida o cache de XIRR do usuário (chamado nos mutadores de operação)."""
-    await _cache.delete(_xirr_key(user_id))
 
 
 async def _invalidate_xirr_for_ticker(conn: asyncpg.Connection, ticker: str) -> None:
@@ -594,7 +587,7 @@ async def calculate_portfolio_xirr(
     conn: asyncpg.Connection, user_id: str, today: date | None = None
 ) -> dict[str, Any]:
     """XIRR por ativo, por categoria e consolidado. Cacheado 1h (ADR-008)."""
-    cached = await _cache.get(_xirr_key(user_id))
+    cached = await cache().get(xirr_key(user_id))
     if cached is not None:
         return dict(cached)
 
@@ -677,5 +670,5 @@ async def calculate_portfolio_xirr(
         "by_asset": by_asset,
         "calculated_at": datetime.now(tz=UTC).isoformat(),
     }
-    await _cache.set(_xirr_key(user_id), result, _XIRR_TTL_SECONDS)
+    await cache().set(xirr_key(user_id), result, _XIRR_TTL_SECONDS)
     return result

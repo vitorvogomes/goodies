@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncpg
 import structlog
 
+from engines.common.cache import invalidate_xirr_cache
 from engines.market.fetchers.wallets.base import BalanceFetcher
 from engines.market.fetchers.wallets.binance import BinanceFetcher
 from engines.market.fetchers.wallets.bitcoin import BitcoinFetcher
@@ -17,7 +18,6 @@ from engines.market.fetchers.wallets.etherscan import EtherscanFetcher
 from engines.market.fetchers.wallets.hyperliquid import HyperliquidFetcher
 from engines.market.fetchers.wallets.liquid import LiquidFetcher
 from engines.market.fetchers.wallets.solana import SolanaFetcher
-from engines.portfolio.service import invalidate_xirr_cache
 from engines.wallet import service
 
 logger = structlog.get_logger()

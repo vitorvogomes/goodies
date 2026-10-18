@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
+from engines.common.cache import PriceCache, use_cache
 from engines.market import service
-from engines.market.cache import PriceCache
 
 _NOW = datetime(2026, 6, 6, 12, 0, tzinfo=UTC)
 
@@ -141,7 +141,7 @@ async def test_missing_price_returns_null_stale(pool: Any) -> None:
 @pytest.mark.asyncio
 async def test_redis_down_falls_back_to_postgres(pool: Any, monkeypatch: Any) -> None:
     # cache apontado p/ porta morta → get falha soft (None) → cai p/ Postgres
-    monkeypatch.setattr(service, "_cache", PriceCache(redis_url="redis://localhost:6399/0"))
+    use_cache(PriceCache(redis_url="redis://localhost:6399/0"))  # conftest recria a cada teste
     await _insert_price(
         pool, "MKT_DOWN", source="brapi", is_manual=False, fetched_at=_NOW - timedelta(hours=1)
     )
