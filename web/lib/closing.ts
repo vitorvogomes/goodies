@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Checklist, ChecklistItem, MonthState } from "@/types/closing";
+import type { Checklist, ChecklistItem, MonthState, ReopenPreview } from "@/types/closing";
 
 export function useMonthStates(de?: string, ate?: string) {
   const qs = new URLSearchParams();
@@ -34,5 +34,27 @@ export function useCloseMonth() {
         { method: "POST", body: JSON.stringify({ confirmar }) },
       ),
     onSuccess: () => invalidateAfter(queryClient, "closing"),
+  });
+}
+
+export function useReopenPreview(periodo: string | null) {
+  return useQuery({
+    queryKey: ["closing", "reopen-preview", periodo],
+    queryFn: () => apiFetch<ReopenPreview>(`/api/v1/closing/months/${periodo}/reopen/preview`),
+    enabled: periodo !== null,
+    retry: false, // 409 = o mês já não está fechado
+  });
+}
+
+export function useReopenMonth() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (periodo: string) =>
+      apiFetch<{ version: number }>(`/api/v1/closing/months/${periodo}/reopen`, { method: "POST" }),
+    onSuccess: () => {
+      // a prévia é do mês fechado: refazê-la com o mês aberto daria 409
+      queryClient.removeQueries({ queryKey: ["closing", "reopen-preview"] });
+      return invalidateAfter(queryClient, "closing");
+    },
   });
 }

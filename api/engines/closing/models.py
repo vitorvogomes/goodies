@@ -45,6 +45,8 @@ class MonthSummary(BaseModel):
     portfolio_as_of: date | None
     portfolio_stale: bool
     coverage: dict[str, str]  # fonte → método de valoração ("B3: consolidado de 30/09/2026")
+    # Termo sem valor no snapshot → motivo (`fora_do_resumo`: não existia quando o mês fechou).
+    unavailable: dict[str, str] = Field(default_factory=dict)
 
 
 class CloseCheck(BaseModel):
@@ -87,3 +89,24 @@ class Checklist(BaseModel):
     blocking: int  # pendências que impedem o fechamento
     pending: int  # pendências que pedem "fechar mesmo assim"
     summary: MonthSummary  # o que vai ser congelado
+
+
+class ReopenRow(BaseModel):
+    metric: str
+    label: str
+    frozen: Money | None
+    live: Money | None
+
+
+class ReopenPreview(BaseModel):
+    """Congelado × recalculado (Story 5.5): só as métricas que mudam, arredondadas a 2 casas."""
+
+    month: date
+    version: int
+    rows: list[ReopenRow]
+
+
+class ReopenOut(BaseModel):
+    month: date
+    version: int
+    status: str

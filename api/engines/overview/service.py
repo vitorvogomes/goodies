@@ -29,8 +29,9 @@ def _previous(month: date) -> date:
 async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     """KPIs do mês pelo resumo de `closing` (AD-8): o mesmo cálculo do fechamento."""
     pending = await ledger_service.pending_review_count(conn)
-    summary = await closing.build_month_summary(conn, month)
-    previous = await ledger_service.ledger_month(conn, _previous(month))
+    summary = await closing.month_summary(conn, month)  # fechado → snapshot (5.5)
+    previous = await closing.month_summary(conn, _previous(month))
+    previous_has_data = previous.ledger_as_of is not None
     if summary.ledger_as_of is not None:
         resultado = Valued[Decimal](
             value=summary.resultado_mes, as_of=summary.ledger_as_of, source="ledger"
@@ -38,23 +39,25 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
     else:
         resultado = Valued[Decimal](unavailable_reason="nao_definido")
     anterior = (
-        Valued[Decimal](value=previous.resultado, as_of=previous.data_as_of, source="ledger")
-        if previous.has_data
+        Valued[Decimal](value=previous.resultado_mes, as_of=previous.ledger_as_of, source="ledger")
+        if previous_has_data
         else Valued[Decimal](unavailable_reason="nao_definido")
     )
     variacao = (
         Valued[Decimal](
-            value=summary.resultado_mes - previous.resultado,
+            value=summary.resultado_mes - previous.resultado_mes,
             as_of=summary.ledger_as_of,
             source="ledger",
         )
-        if resultado.value is not None and previous.has_data
+        if resultado.value is not None and previous_has_data
         else Valued[Decimal](unavailable_reason="nao_definido")
     )
     dates = [d for d in (summary.portfolio_as_of, summary.ledger_as_of) if d is not None]
     as_of = min(dates) if dates else None
 
-    def portfolio_value(value: Decimal, when: date | None) -> Valued[Decimal]:
+    def portfolio_value(value: Decimal, when: date | None, term: str) -> Valued[Decimal]:
+        if term in summary.unavailable:  # snapshot sem o termo: "—" com o tooltip (5.5)
+            return Valued[Decimal](unavailable_reason="fora_do_resumo", source="snapshot")
         return Valued[Decimal](
             value=value, as_of=when, source="portfolio", stale=summary.portfolio_stale
         )
@@ -64,12 +67,12 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
         resultado_mes=resultado,
         resultado_mes_anterior=anterior,
         variacao_resultado_mes=variacao,
-        patrimonio=portfolio_value(summary.patrimonio, as_of),
+        patrimonio=portfolio_value(summary.patrimonio, as_of, "patrimonio"),
         resultado_investimentos=portfolio_value(
-            summary.resultado_investimentos, summary.portfolio_as_of
+            summary.resultado_investimentos, summary.portfolio_as_of, "resultado_investimentos"
         ),
         rentabilidade_nominal=(
-            portfolio_value(summary.rentabilidade, summary.portfolio_as_of)
+            portfolio_value(summary.rentabilidade, summary.portfolio_as_of, "rentabilidade")
             if summary.rentabilidade is not None
             else Valued[Decimal](
                 unavailable_reason="sem_preco", as_of=summary.portfolio_as_of, source="portfolio"

@@ -1,8 +1,8 @@
 """Engine `closing` (camada 5 — AD-8): a única forma de calcular o resumo de um mês.
 
 `build_month_summary(conn, month, as_of)` chama os construtores por mês de `ledger` e `portfolio`
-(termos da AD-7) com `as_of` = fim do mês, ou hoje no mês corrente. Mês aberto: ao vivo; o
-congelado do fechamento chega na Story 5.3.
+(termos da AD-7) com `as_of` = fim do mês, ou hoje no mês corrente. `month_summary` é a leitura das
+telas: mês aberto, ao vivo; mês fechado, a versão vigente do snapshot, nunca recalculada (5.5).
 """
 
 from __future__ import annotations
@@ -31,6 +31,9 @@ from .models import (
     CloseOut,
     MonthState,
     MonthSummary,
+    ReopenOut,
+    ReopenPreview,
+    ReopenRow,
 )
 
 
@@ -160,6 +163,69 @@ async def close_month(
     return CloseOut(month=month, version=version, confirmations=accepted)
 
 
+# Colunas de `month_summary_totals` que o resumo de hoje preenche (as de `_FUTURE_TERMS` não).
+_MONEY = (
+    "receitas",
+    "trabalho",
+    "resgates",
+    "devolucoes",
+    "gastos",
+    "investido",
+    "resultado_mes",
+    "saldo_contas",
+    "caixa_corretora",
+    "valor_investido",
+    "patrimonio",
+    "aplicado",
+    "resultado_investimentos",
+)
+_PCT = ("taxa_poupanca", "rentabilidade")
+_TERMS = (*_MONEY, *_PCT)
+_LABELS = {
+    "receitas": "Receitas",
+    "trabalho": "Receita do trabalho",
+    "resgates": "Resgates",
+    "devolucoes": "Devoluções",
+    "gastos": "Gastos",
+    "investido": "Investido no mês",
+    "resultado_mes": "Resultado do mês",
+    "saldo_contas": "Saldo em conta",
+    "caixa_corretora": "Caixa na corretora",
+    "valor_investido": "Valor investido",
+    "patrimonio": "Patrimônio",
+    "aplicado": "Aplicado",
+    "resultado_investimentos": "Resultado dos investimentos",
+    "taxa_poupanca": "Taxa de poupança (%)",
+    "rentabilidade": "Rentabilidade (% a.a.)",
+}
+_CENT = Decimal("0.01")
+
+Line = tuple[str, str, str, date | None, Decimal]
+
+
+def _totals(s: MonthSummary) -> tuple[dict[str, Any], dict[str, str]]:
+    totals: dict[str, Any] = {t: getattr(s, t) for t in _MONEY}
+    totals["taxa_poupanca"] = s.taxa_poupanca
+    totals["rentabilidade"] = s.rentabilidade
+    totals["saldo_conferido"] = s.saldo_conferido_pf
+    unavailable = {t: "fora_do_resumo" for t in _FUTURE_TERMS}
+    if s.taxa_poupanca is None:
+        unavailable["taxa_poupanca"] = "sem_receita"
+    if s.rentabilidade is None:
+        unavailable["rentabilidade"] = "sem_preco"
+    return totals, unavailable
+
+
+def _lines(s: MonthSummary) -> list[Line]:
+    lines: list[Line] = []
+    lines += [("receitas", "payer", k, None, v) for k, v in s.receitas_por_pagador.items()]
+    lines += [("gastos", "category", k, None, v) for k, v in s.gastos_por_categoria.items()]
+    lines += [("valor", "class", k, None, v) for k, v in s.valor_por_classe.items()]
+    lines += [("valor", "asset", k, None, v) for k, v in s.asset_ids_value.items()]
+    lines += [("fluxo", "class", k, d, v) for (k, d), v in s.flows.items()]
+    return lines
+
+
 async def _store(
     conn: asyncpg.Connection,
     s: MonthSummary,
@@ -167,62 +233,244 @@ async def _store(
     accepted: list[CloseCheck],
     origin: str,
 ) -> None:
-    await conn.execute(
-        "INSERT INTO month_closes (month, version, status, coverage, confirmations, origin) "
-        "VALUES ($1, $2, 'closed', $3::jsonb, $4::jsonb, $5)",
+    totals, unavailable = _totals(s)
+    await _write_version(
+        conn,
         s.month,
         version,
-        json.dumps(s.coverage),
-        json.dumps([c.model_dump() for c in accepted]),
-        origin,
+        as_of=s.as_of,
+        totals=totals,
+        unavailable=unavailable,
+        lines=_lines(s),
+        coverage=s.coverage,
+        confirmations=[c.model_dump() for c in accepted],
+        origin=origin,
     )
-    unavailable = {t: "fora_do_resumo" for t in _FUTURE_TERMS}
-    if s.taxa_poupanca is None:
-        unavailable["taxa_poupanca"] = "sem_receita"
-    if s.rentabilidade is None:
-        unavailable["rentabilidade"] = "sem_preco"
+
+
+async def _write_version(
+    conn: asyncpg.Connection,
+    month: date,
+    version: int,
+    *,
+    as_of: date,
+    totals: dict[str, Any],
+    unavailable: dict[str, str],
+    lines: list[Line],
+    coverage: dict[str, str],
+    confirmations: list[dict[str, Any]],
+    origin: str,
+    dirty: bool = False,
+) -> None:
     await conn.execute(
-        """
-        INSERT INTO month_summary_totals (month, version, as_of, receitas, trabalho, resgates,
-          devolucoes, gastos, investido, resultado_mes, saldo_contas, caixa_corretora,
-          valor_investido, patrimonio, aplicado, resultado_investimentos, taxa_poupanca,
-          rentabilidade, saldo_conferido, unavailable)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-          $19, $20::jsonb)
-        """,
-        s.month,
+        "INSERT INTO month_closes (month, version, status, coverage, confirmations, origin, dirty) "
+        "VALUES ($1, $2, 'closed', $3::jsonb, $4::jsonb, $5, $6)",
+        month,
         version,
-        s.as_of,
-        s.receitas,
-        s.trabalho,
-        s.resgates,
-        s.devolucoes,
-        s.gastos,
-        s.investido,
-        s.resultado_mes,
-        s.saldo_contas,
-        s.caixa_corretora,
-        s.valor_investido,
-        s.patrimonio,
-        s.aplicado,
-        s.resultado_investimentos,
-        s.taxa_poupanca,
-        s.rentabilidade,
-        s.saldo_conferido_pf,
+        json.dumps(coverage),
+        json.dumps(confirmations),
+        origin,
+        dirty,
+    )
+    columns = [*_TERMS, "saldo_conferido"]
+    await conn.execute(
+        f"INSERT INTO month_summary_totals (month, version, as_of, {', '.join(columns)}, "
+        f"unavailable) VALUES ($1, $2, $3, "
+        + ", ".join(f"${i}" for i in range(4, 4 + len(columns)))
+        + f", ${4 + len(columns)}::jsonb)",
+        month,
+        version,
+        as_of,
+        *[totals.get(c) for c in columns],
         json.dumps(unavailable),
     )
-    lines: list[tuple[str, str, str, date | None, Decimal]] = []
-    lines += [("receitas", "payer", k, None, v) for k, v in s.receitas_por_pagador.items()]
-    lines += [("gastos", "category", k, None, v) for k, v in s.gastos_por_categoria.items()]
-    lines += [("valor", "class", k, None, v) for k, v in s.valor_por_classe.items()]
-    lines += [("valor", "asset", k, None, v) for k, v in s.asset_ids_value.items()]
-    lines += [("fluxo", "class", k, d, v) for (k, d), v in s.flows.items()]
     await conn.executemany(
         "INSERT INTO month_summary_lines "
         "(month, version, metric, dimension_kind, dimension_id, flow_date, value) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [(s.month, version, m, kind, dim, d, v) for m, kind, dim, d, v in lines],
+        [(month, version, m, kind, dim, d, v) for m, kind, dim, d, v in lines],
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Ler o snapshot, reabrir e fechar de novo (Story 5.5 — FR-33)
+# --------------------------------------------------------------------------------------------
+
+
+async def _frozen(
+    conn: asyncpg.Connection, month: date, version: int
+) -> tuple[asyncpg.Record, list[asyncpg.Record]]:
+    totals = await conn.fetchrow(
+        "SELECT * FROM month_summary_totals WHERE month = $1 AND version = $2", month, version
+    )
+    lines = await conn.fetch(
+        "SELECT metric, dimension_kind, dimension_id, flow_date, value FROM month_summary_lines "
+        "WHERE month = $1 AND version = $2",
+        month,
+        version,
+    )
+    return totals, lines
+
+
+async def _snapshot_summary(conn: asyncpg.Connection, close: asyncpg.Record) -> MonthSummary:
+    """O snapshot vigente como `MonthSummary` (`source="snapshot"`): só os campos congelados; o
+    termo nulo sai 0 com o motivo em `unavailable` (a tela mostra "—")."""
+    month, version = close["month"], close["version"]
+    t, lines = await _frozen(conn, month, version)
+    unavailable: dict[str, str] = dict(json.loads(t["unavailable"]))
+    money: dict[str, Decimal] = {}
+    for term in _MONEY:
+        if t[term] is None:
+            unavailable.setdefault(term, "fora_do_resumo")
+        money[term] = t[term] if t[term] is not None else Decimal("0")
+    by: dict[tuple[str, str], dict[str, Decimal]] = {}
+    flows: dict[tuple[str, date], Decimal] = {}
+    for line in lines:
+        if line["metric"] == "fluxo":
+            flows[(line["dimension_id"], line["flow_date"])] = line["value"]
+        else:
+            key = (line["metric"], line["dimension_kind"])
+            by.setdefault(key, {})[line["dimension_id"]] = line["value"]
+    by_asset_id = by.get(("valor", "asset"), {})
+    tickers = {
+        str(r["id"]): r["key"]
+        for r in await conn.fetch(
+            "SELECT id, key FROM assets WHERE id = ANY($1::uuid[])", list(by_asset_id)
+        )
+    }
+    as_of = t["as_of"]
+    return MonthSummary(
+        month=month,
+        as_of=as_of,
+        source="snapshot",
+        **money,
+        taxa_poupanca=t["taxa_poupanca"],
+        rentabilidade=t["rentabilidade"],
+        receitas_por_pagador=by.get(("receitas", "payer"), {}),
+        gastos_por_categoria=by.get(("gastos", "category"), {}),
+        ledger_as_of=as_of,
+        income_as_of=as_of,
+        income_stale=False,
+        saldo_conferido_pf=t["saldo_conferido"],
+        valor_por_classe=by.get(("valor", "class"), {}),
+        valor_por_ativo={tickers.get(k, k): v for k, v in by_asset_id.items()},
+        asset_ids_value=by_asset_id,
+        flows=flows,
+        portfolio_as_of=as_of,
+        portfolio_stale=False,
+        coverage=dict(json.loads(close["coverage"])),
+        unavailable=unavailable,
+    )
+
+
+async def month_summary(conn: asyncpg.Connection, month: date) -> MonthSummary:
+    """Leitura das telas (AD-8): mês fechado → versão vigente do snapshot; aberto → ao vivo."""
+    close = await latest_close(conn, month)
+    if close is not None and close["status"] == "closed":
+        return await _snapshot_summary(conn, close)
+    return await build_month_summary(conn, month)
+
+
+def _cents(v: Decimal | None) -> Decimal | None:
+    return v.quantize(_CENT) if v is not None else None
+
+
+async def _closed(conn: asyncpg.Connection, month: date) -> asyncpg.Record:
+    close = await latest_close(conn, month)
+    if close is None or close["status"] != "closed":
+        raise CloseError("mes_aberto", f"{label(month)} não está fechado.")
+    return close
+
+
+async def reopen_preview(conn: asyncpg.Connection, month: date) -> ReopenPreview:
+    """Congelado × recalculado só nas métricas que mudam, com o mesmo arredondamento (2 casas)."""
+    close = await _closed(conn, month)
+    frozen, _ = await _frozen(conn, month, close["version"])
+    live = await build_month_summary(conn, month, month_end(month))
+    rows = []
+    for term in _TERMS:
+        before, after = _cents(frozen[term]), _cents(getattr(live, term))
+        if before != after:
+            rows.append(ReopenRow(metric=term, label=_LABELS[term], frozen=before, live=after))
+    return ReopenPreview(month=month, version=close["version"], rows=rows)
+
+
+async def reopen_month(conn: asyncpg.Connection, month: date) -> ReopenOut:
+    """Reabre a versão vigente; fechar de novo cria a `version + 1` (nada é apagado)."""
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('close:' || $1))", str(month))
+        close = await _closed(conn, month)
+        await conn.execute(
+            "UPDATE month_closes SET status = 'reopened', reopened_at = now() "
+            "WHERE month = $1 AND version = $2",
+            month,
+            close["version"],
+        )
+    return ReopenOut(month=month, version=close["version"], status="reopened")
+
+
+async def refechar(conn: asyncpg.Connection, month: date, *, mode: str = "completar") -> CloseOut:
+    """Grava a `version + 1` de um mês fechado, com o mesmo `origin` (Story 5.5).
+
+    `completar`: copia o congelado e preenche só as colunas nulas ou `fora_do_resumo` com o resumo
+    de agora (o caminho para um termo novo chegar aos meses fechados); `recalcular`: tudo de novo.
+    """
+    if mode not in ("completar", "recalcular"):
+        raise ValueError(mode)
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('close:' || $1))", str(month))
+        close = await _closed(conn, month)
+        version = close["version"]
+        live = await build_month_summary(conn, month, month_end(month))
+        live_totals, live_unavailable = _totals(live)
+        confirmations = list(json.loads(close["confirmations"]))
+        if mode == "recalcular":
+            totals, unavailable, lines = live_totals, live_unavailable, _lines(live)
+            coverage, dirty = live.coverage, False
+        else:
+            frozen, frozen_lines = await _frozen(conn, month, version)
+            was = dict(json.loads(frozen["unavailable"]))
+            missing = {
+                c
+                for c in (*_TERMS, "saldo_conferido")
+                if frozen[c] is None or was.get(c) == "fora_do_resumo"
+            }
+            totals = {
+                c: live_totals[c] if c in missing else frozen[c]
+                for c in (*_TERMS, "saldo_conferido")
+            }
+            unavailable = {
+                t: r for t, r in live_unavailable.items() if t in _FUTURE_TERMS or t in missing
+            }
+            lines = [
+                (r["metric"], r["dimension_kind"], r["dimension_id"], r["flow_date"], r["value"])
+                for r in frozen_lines
+            ]
+            have = {(m, kind) for m, kind, *_ in lines}
+            lines += [ln for ln in _lines(live) if (ln[0], ln[1]) not in have]
+            coverage = {**live.coverage, **dict(json.loads(close["coverage"]))}
+            dirty = close["dirty"]
+        await conn.execute(
+            "UPDATE month_closes SET status = 'reopened', reopened_at = now() "
+            "WHERE month = $1 AND version = $2",
+            month,
+            version,
+        )
+        await _write_version(
+            conn,
+            month,
+            version + 1,
+            as_of=month_end(month),
+            totals=totals,
+            unavailable=unavailable,
+            lines=lines,
+            coverage=coverage,
+            confirmations=confirmations,
+            origin=close["origin"],
+            dirty=dirty,
+        )
+    accepted = [CloseCheck(**c) for c in confirmations]
+    return CloseOut(month=month, version=version + 1, confirmations=accepted)
 
 
 class ClosingMonthStatus:

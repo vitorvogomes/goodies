@@ -40,3 +40,16 @@ export interface Checklist {
   pending: number;
   summary: MonthSummary;
 }
+
+export interface ReopenRow {
+  metric: string;
+  label: string;
+  frozen: number | null;
+  live: number | null;
+}
+
+export interface ReopenPreview {
+  month: string;
+  version: number;
+  rows: ReopenRow[];
+}

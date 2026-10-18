@@ -2,10 +2,11 @@
 
 // Visão geral › Histórico (Story 5.4, mínimo; a comparação entre meses chega na 9.1): os meses de
 // jul/2024 até hoje com o Selo de estado (fechado / aberto / ajuste) e "Fechar {mês}" nos meses
-// abertos que já terminaram, pelo Checklist de fechamento.
+// abertos que já terminaram, pelo Checklist de fechamento; "Reabrir {mês}" nos fechados (5.5).
 import { useState } from "react";
 
 import { CloseDialog } from "@/components/closing/CloseDialog";
+import { ReopenDialog } from "@/components/closing/ReopenDialog";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { useMonthStates } from "@/lib/closing";
@@ -15,6 +16,7 @@ import { currentMonthBRT } from "@/lib/period";
 export default function HistoricoPage() {
   const months = useMonthStates();
   const [closing, setClosing] = useState<string | null>(null);
+  const [reopening, setReopening] = useState<string | null>(null);
   const current = currentMonthBRT();
 
   if (months.isError) {
@@ -49,11 +51,17 @@ export default function HistoricoPage() {
                   Fechar {formatMonth(periodo)}
                 </Button>
               )}
+              {m.status !== "aberto" && (
+                <Button size="sm" variant="ghost" onClick={() => setReopening(periodo)}>
+                  Reabrir {formatMonth(periodo)}
+                </Button>
+              )}
             </li>
           );
         })}
       </ul>
       <CloseDialog periodo={closing} onClose={() => setClosing(null)} />
+      <ReopenDialog periodo={reopening} onClose={() => setReopening(null)} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 """Story 5.3 — fechar na base real: fev/2025 é bloqueado pelo saldo PF divergente (P8); mar/2025
 fecha com "fechar mesmo assim" das pendências `confirma`, e o snapshot é igual ao resumo ao vivo
-no instante do fechamento (golden)."""
+no instante do fechamento (golden). Story 5.5: a leitura do mês fechado vem do snapshot com os
+mesmos números, a prévia de reabrir sai vazia e `refechar --completar` grava a versão 2 igual."""
 
 from __future__ import annotations
 
@@ -60,6 +61,17 @@ async def test_fechamento_golden() -> None:
             )
             for term in TERMS:
                 assert row[term] == getattr(live, term), term
+            frozen = await closing.month_summary(conn, march)
+            assert frozen.source == "snapshot"
+            assert frozen.receitas_por_pagador == live.receitas_por_pagador
+            assert frozen.gastos_por_categoria == live.gastos_por_categoria
+            assert (await closing.reopen_preview(conn, march)).rows == []
+            again = await closing.refechar(conn, march, mode="completar")
+            assert again.version == 2
+            for term in TERMS:
+                assert getattr(await closing.month_summary(conn, march), term) == getattr(
+                    frozen, term
+                ), term
         finally:
             await conn.close()
     finally:

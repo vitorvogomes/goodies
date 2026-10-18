@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { DateStamp } from "@/components/data/DateStamp";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Valued } from "@/types/overview";
 
@@ -38,7 +39,18 @@ export function KpiCard({
   const body = (
     <>
       <p className="type-label text-muted-foreground">{label}</p>
-      {v === null ? (
+      {v === null && valued.unavailable_reason === "fora_do_resumo" ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p tabIndex={0} className="type-num-display w-fit text-muted-foreground">
+              —
+            </p>
+          </TooltipTrigger>
+          <TooltipContent>
+            este número não existia quando o mês foi fechado · reabra para incluir
+          </TooltipContent>
+        </Tooltip>
+      ) : v === null ? (
         <p className="type-body text-muted-foreground">
           {UNAVAILABLE[valued.unavailable_reason ?? ""] ?? "Sem dado."}
         </p>
