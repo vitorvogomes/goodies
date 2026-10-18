@@ -212,3 +212,31 @@ export interface CategoryOption {
   role: string;
   is_active: boolean;
 }
+
+// ---- v2: Ajustes › Categorias (Story 2.9) ----
+export type GroupKind = "income" | "expense" | "investment" | "transfer";
+
+export interface CategoryNode {
+  id: string;
+  key: string;
+  name: string;
+  group_id: string;
+  kind: GroupKind;
+  role: string;
+  role_label: string;
+  is_active: boolean;
+  is_system: boolean;
+  transaction_count: number;
+}
+
+export interface CategoryGroupNode {
+  id: string;
+  key: string;
+  name: string;
+  kind: GroupKind;
+  kind_label: string;
+  is_active: boolean;
+  is_system: boolean;
+  transaction_count: number;
+  categories: CategoryNode[];
+}

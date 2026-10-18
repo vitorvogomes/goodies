@@ -20,10 +20,19 @@ from engines.common.month_status import month_status
 from . import queries
 from .calc import Movement, Rule, savings_rate
 from .models import (
+    DEFAULT_ROLE,
+    GROUP_KIND_LABEL,
     KIND_LABEL,
+    ROLE_LABEL,
+    CategoryGroupNode,
+    CategoryNode,
     CategoryOption,
+    GroupCreate,
+    GroupUpdate,
     ManualTransactionCreate,
     ManualTransactionUpdate,
+    SubcategoryCreate,
+    SubcategoryUpdate,
     TransactionList,
     TransactionRow,
 )
@@ -126,8 +135,7 @@ def category_overspend_alerts(
                     severity="warning",
                     title="Categoria acima da média",
                     message=(
-                        f"Categoria '{category}' está {pct}% acima da "
-                        "média dos últimos 3 meses"
+                        f"Categoria '{category}' está {pct}% acima da média dos últimos 3 meses"
                     ),
                     data={
                         "category": category,
@@ -229,7 +237,8 @@ async def categorize(
         before = str(current["category_id"]) if current["category_id"] else None
         rule_id = ch.rule_id if ch.source == "rule" else None
         if (
-            before == ch.category_id
+            cause != "move"
+            and before == ch.category_id
             and current["category_source"] == ch.source
             and (review_status is None or review_status == current["review_status"])
         ):
@@ -444,4 +453,228 @@ async def delete_manual(conn: asyncpg.Connection, tx_id: str) -> bool:
             raise ImportedTransactionError
         await conn.execute("DELETE FROM transactions WHERE id = $1::uuid", tx_id)
         await _mark_months(conn, current["date"])
+    return True
+
+
+# --------------------------------------------------------------------------------------------
+# Ajustes › Categorias (Story 2.9)
+# --------------------------------------------------------------------------------------------
+
+
+class CategoryRuleError(Exception):
+    """Regra de produto violada; `code` vira o `error` do contrato HTTP."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _node(r: asyncpg.Record) -> CategoryNode:
+    return CategoryNode(
+        id=str(r["id"]),
+        key=r["key"],
+        name=r["name"],
+        group_id=str(r["group_id"]),
+        kind=r["kind"],
+        role=r["role"],
+        role_label=ROLE_LABEL.get(r["role"], r["role"]),
+        is_active=r["is_active"],
+        is_system=r["is_system"],
+        transaction_count=int(r["transaction_count"]),
+    )
+
+
+async def category_tree(
+    conn: asyncpg.Connection, include_archived: bool = False
+) -> list[CategoryGroupNode]:
+    groups = await conn.fetch(queries.TREE_GROUPS, include_archived)
+    cats = [_node(r) for r in await conn.fetch(queries.TREE_CATEGORIES, include_archived)]
+    out = []
+    for g in groups:
+        children = [c for c in cats if c.group_id == str(g["id"])]
+        out.append(
+            CategoryGroupNode(
+                id=str(g["id"]),
+                key=g["key"],
+                name=g["name"],
+                kind=g["kind"],
+                kind_label=GROUP_KIND_LABEL[g["kind"]],
+                is_active=g["is_active"],
+                is_system=g["is_system"],
+                transaction_count=sum(c.transaction_count for c in children),
+                categories=children,
+            )
+        )
+    return out
+
+
+async def create_group(conn: asyncpg.Connection, body: GroupCreate) -> str:
+    if await conn.fetchval(
+        "SELECT 1 FROM category_groups WHERE lower(name) = lower($1)", body.name
+    ):
+        raise CategoryRuleError("grupo_existente", "Já existe um grupo com esse nome.")
+    gid = await conn.fetchval(
+        "INSERT INTO category_groups (key, name, kind) "
+        "VALUES ('grupo:' || left(md5(gen_random_uuid()::text), 12), $1, $2) RETURNING id",
+        body.name.strip(),
+        body.kind,
+    )
+    return str(gid)
+
+
+async def update_group(conn: asyncpg.Connection, group_id: str, body: GroupUpdate) -> bool:
+    async with conn.transaction():
+        g = await conn.fetchrow(
+            "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid FOR UPDATE",
+            group_id,
+        )
+        if g is None:
+            return False
+        if g["is_system"]:
+            raise CategoryRuleError("grupo_de_sistema", "Grupo de sistema não se edita.")
+        if body.kind is not None and body.kind != g["kind"]:
+            used = await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM transactions t JOIN categories c "
+                "ON c.id = t.category_id WHERE c.group_id = $1::uuid)",
+                group_id,
+            )
+            if used:
+                raise CategoryRuleError(
+                    "tipo_com_transacoes",
+                    "O tipo de um grupo com transações não muda. Mova as subcategorias.",
+                )
+            await conn.execute(
+                "UPDATE categories SET kind = $2, role = $3 WHERE group_id = $1::uuid",
+                group_id,
+                body.kind,
+                DEFAULT_ROLE[body.kind],
+            )
+        await conn.execute(
+            "UPDATE category_groups SET name = COALESCE($2, name), kind = COALESCE($3, kind), "
+            "is_active = COALESCE($4, is_active) WHERE id = $1::uuid",
+            group_id,
+            body.name.strip() if body.name else None,
+            body.kind,
+            body.is_active,
+        )
+    return True
+
+
+async def _category_row(conn: asyncpg.Connection, category_id: str) -> CategoryNode | None:
+    row = await conn.fetchrow(queries.CATEGORY_ROW, category_id)
+    return _node(row) if row is not None else None
+
+
+async def create_category(conn: asyncpg.Connection, body: SubcategoryCreate) -> CategoryNode:
+    g = await conn.fetchrow(
+        "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid", body.group_id
+    )
+    if g is None or g["is_system"]:
+        raise CategoryRuleError("grupo_inexistente", "Escolha um grupo existente.")
+    try:
+        cid = await conn.fetchval(
+            "INSERT INTO categories (name, kind, group_id, role, key) VALUES ($1, $2, $3, $4, "
+            "'custom:' || left(md5(gen_random_uuid()::text), 12)) RETURNING id",
+            body.name.strip(),
+            g["kind"],
+            g["id"],
+            body.role or DEFAULT_ROLE[g["kind"]],
+        )
+    except asyncpg.UniqueViolationError:
+        raise CategoryRuleError(
+            "categoria_existente", "Já existe uma categoria com esse nome."
+        ) from None
+    node = await _category_row(conn, str(cid))
+    assert node is not None
+    return node
+
+
+async def update_category(
+    conn: asyncpg.Connection, category_id: str, body: SubcategoryUpdate
+) -> CategoryNode | None:
+    async with conn.transaction():
+        current = await _category_row(conn, category_id)
+        if current is None:
+            return None
+        if current.is_system:
+            raise CategoryRuleError("categoria_de_sistema", "Categoria de sistema não se edita.")
+        if body.name is not None and body.name.strip() != current.name:
+            try:
+                await conn.execute(
+                    "UPDATE categories SET name = $2 WHERE id = $1::uuid",
+                    category_id,
+                    body.name.strip(),
+                )
+            except asyncpg.UniqueViolationError:
+                raise CategoryRuleError(
+                    "categoria_existente", "Já existe uma categoria com esse nome."
+                ) from None
+            for sql in queries.RENAME_TEXT_COLUMNS:
+                await conn.execute(sql, category_id, body.name.strip())
+        if body.role is not None or body.is_active is not None:
+            await conn.execute(
+                "UPDATE categories SET role = COALESCE($2, role), "
+                "is_active = COALESCE($3, is_active) WHERE id = $1::uuid",
+                category_id,
+                body.role,
+                body.is_active,
+            )
+        if body.group_id is not None and body.group_id != current.group_id:
+            g = await conn.fetchrow(
+                "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid",
+                body.group_id,
+            )
+            if g is None or g["is_system"]:
+                raise CategoryRuleError("grupo_inexistente", "Escolha um grupo existente.")
+            await conn.execute(
+                "UPDATE categories SET group_id = $2, kind = $3, "
+                "role = CASE WHEN $3 = $4 THEN role ELSE $5 END WHERE id = $1::uuid",
+                category_id,
+                g["id"],
+                g["kind"],
+                current.kind,
+                DEFAULT_ROLE[g["kind"]],
+            )
+            if g["kind"] != current.kind:
+                txs = await conn.fetch(
+                    "SELECT id, category_source, category_rule_id FROM transactions "
+                    "WHERE category_id = $1::uuid",
+                    category_id,
+                )
+                await categorize(
+                    conn,
+                    [
+                        CategoryChange(
+                            str(t["id"]),
+                            category_id,
+                            t["category_source"],
+                            str(t["category_rule_id"]) if t["category_rule_id"] else None,
+                        )
+                        for t in txs
+                    ],
+                    cause="move",
+                )
+        return await _category_row(conn, category_id)
+
+
+async def delete_category(conn: asyncpg.Connection, category_id: str) -> bool:
+    async with conn.transaction():
+        current = await _category_row(conn, category_id)
+        if current is None:
+            return False
+        if current.is_system:
+            raise CategoryRuleError("categoria_de_sistema", "Categoria de sistema não se apaga.")
+        if current.transaction_count:
+            raise CategoryRuleError(
+                "categoria_com_transacoes", "Categoria com transações só pode ser arquivada."
+            )
+        if await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM fixed_costs WHERE category_id = $1::uuid)", category_id
+        ):
+            raise CategoryRuleError(
+                "categoria_em_uso", "Categoria usada por um custo fixo só pode ser arquivada."
+            )
+        await conn.execute("DELETE FROM category_rules WHERE category_id = $1::uuid", category_id)
+        await conn.execute("DELETE FROM categories WHERE id = $1::uuid", category_id)
     return True

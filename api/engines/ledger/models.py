@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from engines.common.money import Money
 
@@ -75,3 +76,80 @@ class ManualTransactionUpdate(BaseModel):
     amount: Money | None = None
     description: str | None = None
     category_id: str | None = None
+
+
+GROUP_KIND_LABEL = {
+    "income": "Receita",
+    "expense": "Gasto",
+    "investment": "Investimento",
+    "transfer": "Transferência",
+}
+ROLE_LABEL = {
+    "work_income": "Receita do trabalho",
+    "resgate": "Resgate",
+    "devolucao": "Devolução",
+    "divida": "Dívida",
+    "consumo": "Consumo",
+    "investimento": "Investimento",
+    "transferencia": "Transferência",
+    "a_classificar": "A classificar",
+}
+DEFAULT_ROLE = {
+    "income": "work_income",
+    "expense": "consumo",
+    "investment": "investimento",
+    "transfer": "transferencia",
+}
+Kind = Literal["income", "expense", "investment", "transfer"]
+Role = Literal[
+    "work_income", "resgate", "devolucao", "divida", "consumo", "investimento", "transferencia"
+]
+
+
+class CategoryNode(BaseModel):
+    id: str
+    key: str
+    name: str
+    group_id: str
+    kind: str
+    role: str
+    role_label: str
+    is_active: bool
+    is_system: bool
+    transaction_count: int
+
+
+class CategoryGroupNode(BaseModel):
+    id: str
+    key: str
+    name: str
+    kind: str
+    kind_label: str
+    is_active: bool
+    is_system: bool
+    transaction_count: int
+    categories: list[CategoryNode]
+
+
+class GroupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    kind: Kind
+
+
+class GroupUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    kind: Kind | None = None
+    is_active: bool | None = None
+
+
+class SubcategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    group_id: str
+    role: Role | None = None
+
+
+class SubcategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    group_id: str | None = None
+    role: Role | None = None
+    is_active: bool | None = None

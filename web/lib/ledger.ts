@@ -12,11 +12,13 @@ import type {
   Category,
   CategoryBreakdown,
   CategoryCreate,
+  CategoryGroupNode,
   CategoryKind,
   CategoryOption,
   CategoryUpdate,
   FixedCost,
   FixedCostCreate,
+  GroupKind,
   ImportReport,
   LedgerTransaction,
   MonthlySummary,
@@ -298,6 +300,47 @@ export function useDeleteManualTransaction() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<void>(`/api/v1/ledger/transactions/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- v2: Ajustes › Categorias (Story 2.9) ----
+
+export function useCategoryTree(includeArchived: boolean) {
+  return useQuery({
+    queryKey: ["ledger", "category-tree", includeArchived],
+    queryFn: () =>
+      apiFetch<CategoryGroupNode[]>(
+        `/api/v1/ledger/category-tree${includeArchived ? "?incluir_arquivadas=true" : ""}`,
+      ),
+  });
+}
+
+type CategoryMutation =
+  | { op: "create-group"; body: { name: string; kind: GroupKind } }
+  | { op: "update-group"; id: string; body: Partial<{ name: string; kind: GroupKind; is_active: boolean }> }
+  | { op: "create"; body: { name: string; group_id: string; role?: string } }
+  | { op: "update"; id: string; body: Partial<{ name: string; group_id: string; role: string; is_active: boolean }> }
+  | { op: "delete"; id: string };
+
+export function useCategoryMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (m: CategoryMutation) => {
+      const base = "/api/v1/ledger";
+      switch (m.op) {
+        case "create-group":
+          return apiFetch(`${base}/category-groups`, { method: "POST", body: JSON.stringify(m.body) });
+        case "update-group":
+          return apiFetch(`${base}/category-groups/${m.id}`, { method: "PATCH", body: JSON.stringify(m.body) });
+        case "create":
+          return apiFetch(`${base}/categories`, { method: "POST", body: JSON.stringify(m.body) });
+        case "update":
+          return apiFetch(`${base}/categories/${m.id}`, { method: "PATCH", body: JSON.stringify(m.body) });
+        case "delete":
+          return apiFetch(`${base}/categories/${m.id}`, { method: "DELETE" });
+      }
+    },
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }

@@ -22,9 +22,15 @@ from engines.ledger.transactions import router as transactions_router
 from . import service
 from .models import (
     CategoryChangeIn,
+    CategoryGroupNode,
+    CategoryNode,
     CategoryOption,
+    GroupCreate,
+    GroupUpdate,
     ManualTransactionCreate,
     ManualTransactionUpdate,
+    SubcategoryCreate,
+    SubcategoryUpdate,
     TransactionList,
     TransactionRow,
 )
@@ -132,6 +138,72 @@ async def delete_manual_transaction(transaction_id: str, user: AuthUser, db: Db)
         raise HTTPException(status.HTTP_409_CONFLICT, _IMPORTED) from None
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+
+
+# ---- Ajustes › Categorias (Story 2.9) ----
+
+
+def _rule_error(exc: service.CategoryRuleError) -> HTTPException:
+    return HTTPException(status.HTTP_409_CONFLICT, {"error": exc.code, "message": exc.message})
+
+
+@v2.get("/category-tree", response_model=list[CategoryGroupNode])
+async def category_tree(
+    user: AuthUser, db: Db, incluir_arquivadas: bool = False
+) -> list[CategoryGroupNode]:
+    return await service.category_tree(db, incluir_arquivadas)
+
+
+@v2.post("/category-groups", status_code=status.HTTP_201_CREATED)
+async def create_group(body: GroupCreate, user: AuthUser, db: Db) -> dict[str, str]:
+    try:
+        return {"id": await service.create_group(db, body)}
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+
+
+@v2.patch("/category-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def update_group(group_id: str, body: GroupUpdate, user: AuthUser, db: Db) -> None:
+    try:
+        found = await service.update_group(db, group_id, body)
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+    if not found:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            {"error": "grupo_inexistente", "message": "Grupo não existe."},
+        )
+
+
+@v2.post("/categories", response_model=CategoryNode, status_code=status.HTTP_201_CREATED)
+async def create_category(body: SubcategoryCreate, user: AuthUser, db: Db) -> CategoryNode:
+    try:
+        return await service.create_category(db, body)
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+
+
+@v2.patch("/categories/{category_id}", response_model=CategoryNode)
+async def update_category(
+    category_id: str, body: SubcategoryUpdate, user: AuthUser, db: Db
+) -> CategoryNode:
+    try:
+        node = await service.update_category(db, category_id, body)
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+    if node is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _BAD_CATEGORY)
+    return node
+
+
+@v2.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(category_id: str, user: AuthUser, db: Db) -> None:
+    try:
+        found = await service.delete_category(db, category_id)
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+    if not found:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _BAD_CATEGORY)
 
 
 router.include_router(v2)

@@ -176,3 +176,29 @@ async def tx_source(conn: asyncpg.Connection, tx_id: str) -> asyncpg.Record | No
         "SELECT id, source, date FROM transactions WHERE id = $1::uuid FOR UPDATE", tx_id
     )
     return row
+
+
+TREE_GROUPS = """
+    SELECT g.id, g.key, g.name, g.kind, g.is_active, g.is_system FROM category_groups g
+    WHERE NOT g.is_system AND ($1 OR g.is_active) ORDER BY g.kind, g.name
+"""
+TREE_CATEGORIES = """
+    SELECT c.id, c.key, c.name, c.group_id, g.kind, c.role, c.is_active,
+           c.key LIKE 'sistema:%' AS is_system,
+           (SELECT count(*) FROM transactions t WHERE t.category_id = c.id) AS transaction_count
+    FROM categories c JOIN category_groups g ON g.id = c.group_id
+    WHERE NOT g.is_system AND ($1 OR (c.is_active AND g.is_active))
+    ORDER BY c.name
+"""
+CATEGORY_ROW = """
+    SELECT c.id, c.key, c.name, c.group_id, g.kind, c.role, c.is_active,
+           c.key LIKE 'sistema:%' AS is_system,
+           (SELECT count(*) FROM transactions t WHERE t.category_id = c.id) AS transaction_count
+    FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.id = $1::uuid
+"""
+# Renome (Story 2.9): o texto legado acompanha o nome — exceção documentada a "só categorize()
+# escreve categoria": não muda a subcategoria de nenhuma transação, só o rótulo (sem evento).
+RENAME_TEXT_COLUMNS = (
+    "UPDATE transactions SET category = $2 WHERE category_id = $1::uuid",
+    "UPDATE fixed_costs SET category = $2 WHERE category_id = $1::uuid",
+)
