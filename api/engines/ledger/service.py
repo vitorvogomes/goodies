@@ -25,6 +25,7 @@ from .models import (
     GROUP_KIND_LABEL,
     KIND_LABEL,
     ROLE_LABEL,
+    ROLES_BY_KIND,
     CategoryGroupNode,
     CategoryNode,
     CategoryOption,
@@ -176,8 +177,18 @@ def register_on_transactions_changed(hook: TransactionsChangedHook) -> None:
     _hooks.append(hook)
 
 
+def unregister_on_transactions_changed(hook: TransactionsChangedHook) -> None:
+    if hook in _hooks:
+        _hooks.remove(hook)
+
+
 def clear_transaction_hooks() -> None:
     _hooks.clear()
+
+
+async def run_transaction_hooks(conn: asyncpg.Connection, transaction_ids: list[str]) -> None:
+    for hook in _hooks:
+        await hook(conn, transaction_ids)
 
 
 @dataclass(frozen=True)
@@ -279,8 +290,7 @@ async def categorize(
     for month in sorted(months):
         await port.mark_dirty(conn, month)
     if fire_hooks and result.changed:
-        for hook in _hooks:
-            await hook(conn, list(result.changed))
+        await run_transaction_hooks(conn, list(result.changed))
     return result
 
 
@@ -379,15 +389,27 @@ class ImportedTransactionError(Exception):
     """Transação importada: só a categoria muda."""
 
 
-async def _mark_months(conn: asyncpg.Connection, *days: date) -> None:
+async def mark_months(conn: asyncpg.Connection, *days: date) -> None:
     port = month_status()
     for month in sorted({d.replace(day=1) for d in days}):
         await port.mark_dirty(conn, month)
 
 
+class UnknownAccountError(LookupError):
+    """Conta inexistente no lançamento manual."""
+
+
+async def _check_account(conn: asyncpg.Connection, account_id: str | None) -> None:
+    if account_id is not None and not await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1::uuid)", account_id
+    ):
+        raise UnknownAccountError("conta")
+
+
 async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate) -> TransactionRow:
     if body.amount == 0:
         raise ValueError("valor")
+    await _check_account(conn, body.account_id)
     if not await queries.category_exists(conn, body.category_id):
         raise LookupError("categoria")
     positive = body.amount > 0
@@ -410,7 +432,7 @@ async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate)
             cause="inline_edit",
             review_status="confirmed",
         )
-        await _mark_months(conn, body.date)
+        await mark_months(conn, body.date)
         row = await queries.transaction_row(conn, str(tx_id))
     assert row is not None
     return to_row(row)
@@ -424,6 +446,7 @@ async def update_transaction(
         raise LookupError("categoria")
     if body.amount is not None and body.amount == 0:
         raise ValueError("valor")
+    await _check_account(conn, body.account_id)
     fields = body.model_dump(exclude_none=True, exclude={"category_id"})
     async with conn.transaction():
         current = await queries.tx_source(conn, tx_id)
@@ -442,7 +465,7 @@ async def update_transaction(
                 body.amount,
                 body.description,
             )
-            await _mark_months(conn, current["date"], body.date or current["date"])
+            await mark_months(conn, current["date"], body.date or current["date"])
         if body.category_id is not None:
             await categorize(
                 conn,
@@ -462,7 +485,7 @@ async def delete_manual(conn: asyncpg.Connection, tx_id: str) -> bool:
         if current["source"] != "manual":
             raise ImportedTransactionError
         await conn.execute("DELETE FROM transactions WHERE id = $1::uuid", tx_id)
-        await _mark_months(conn, current["date"])
+        await mark_months(conn, current["date"])
     return True
 
 
@@ -576,12 +599,19 @@ async def _category_row(conn: asyncpg.Connection, category_id: str) -> CategoryN
     return _node(row) if row is not None else None
 
 
+def _check_role(role: str, kind: str) -> None:
+    if role not in ROLES_BY_KIND[kind]:
+        raise CategoryRuleError("papel_invalido", "Esse papel não vale para o tipo do grupo.")
+
+
 async def create_category(conn: asyncpg.Connection, body: SubcategoryCreate) -> CategoryNode:
     g = await conn.fetchrow(
         "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid", body.group_id
     )
     if g is None or g["is_system"]:
         raise CategoryRuleError("grupo_inexistente", "Escolha um grupo existente.")
+    role = body.role or DEFAULT_ROLE[g["kind"]]
+    _check_role(role, g["kind"])
     try:
         cid = await conn.fetchval(
             "INSERT INTO categories (name, kind, group_id, role, key) VALUES ($1, $2, $3, $4, "
@@ -589,7 +619,7 @@ async def create_category(conn: asyncpg.Connection, body: SubcategoryCreate) -> 
             body.name.strip(),
             g["kind"],
             g["id"],
-            body.role or DEFAULT_ROLE[g["kind"]],
+            role,
         )
     except asyncpg.UniqueViolationError:
         raise CategoryRuleError(
@@ -609,6 +639,18 @@ async def update_category(
             return None
         if current.is_system:
             raise CategoryRuleError("categoria_de_sistema", "Categoria de sistema não se edita.")
+        target = None
+        if body.group_id is not None and body.group_id != current.group_id:
+            target = await conn.fetchrow(
+                "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid",
+                body.group_id,
+            )
+            if target is None or target["is_system"]:
+                raise CategoryRuleError("grupo_inexistente", "Escolha um grupo existente.")
+        kind = target["kind"] if target is not None else current.kind
+        # O papel escolhido vale; sem escolha, mudar de tipo leva ao papel padrão do novo tipo.
+        role = body.role or (current.role if kind == current.kind else DEFAULT_ROLE[kind])
+        _check_role(role, kind)
         if body.name is not None and body.name.strip() != current.name:
             try:
                 await conn.execute(
@@ -622,31 +664,21 @@ async def update_category(
                 ) from None
             for sql in queries.RENAME_TEXT_COLUMNS:
                 await conn.execute(sql, category_id, body.name.strip())
-        if body.role is not None or body.is_active is not None:
+        await conn.execute(
+            "UPDATE categories SET role = $2, is_active = COALESCE($3, is_active) "
+            "WHERE id = $1::uuid",
+            category_id,
+            role,
+            body.is_active,
+        )
+        if target is not None:
             await conn.execute(
-                "UPDATE categories SET role = COALESCE($2, role), "
-                "is_active = COALESCE($3, is_active) WHERE id = $1::uuid",
+                "UPDATE categories SET group_id = $2, kind = $3 WHERE id = $1::uuid",
                 category_id,
-                body.role,
-                body.is_active,
+                target["id"],
+                kind,
             )
-        if body.group_id is not None and body.group_id != current.group_id:
-            g = await conn.fetchrow(
-                "SELECT id, kind, is_system FROM category_groups WHERE id = $1::uuid",
-                body.group_id,
-            )
-            if g is None or g["is_system"]:
-                raise CategoryRuleError("grupo_inexistente", "Escolha um grupo existente.")
-            await conn.execute(
-                "UPDATE categories SET group_id = $2, kind = $3, "
-                "role = CASE WHEN $3 = $4 THEN role ELSE $5 END WHERE id = $1::uuid",
-                category_id,
-                g["id"],
-                g["kind"],
-                current.kind,
-                DEFAULT_ROLE[g["kind"]],
-            )
-            if g["kind"] != current.kind:
+            if kind != current.kind:
                 txs = await conn.fetch(
                     "SELECT id, category_source, category_rule_id FROM transactions "
                     "WHERE category_id = $1::uuid",
@@ -678,6 +710,10 @@ async def delete_category(conn: asyncpg.Connection, category_id: str) -> bool:
         if current.transaction_count:
             raise CategoryRuleError(
                 "categoria_com_transacoes", "Categoria com transações só pode ser arquivada."
+            )
+        if await conn.fetchval(queries.CATEGORY_HAS_HISTORY, category_id):
+            raise CategoryRuleError(
+                "categoria_com_historico", "Categoria com histórico só pode ser arquivada."
             )
         if await conn.fetchval(
             "SELECT EXISTS (SELECT 1 FROM fixed_costs WHERE category_id = $1::uuid)", category_id
@@ -753,11 +789,15 @@ async def preview_rule(conn: asyncpg.Connection, body: RulePreviewIn) -> RulePre
     )
 
 
+class ReversedPeriodError(ValueError):
+    """Fim do período antes do início."""
+
+
 def _month_range(de: str, ate: str) -> tuple[date, date]:
     start = parse_periodo(de)
     last = parse_periodo(ate)
     if last < start:
-        raise ValueError("período")
+        raise ReversedPeriodError("período")
     end = date(last.year + last.month // 12, last.month % 12 + 1, 1)
     return start, end
 
@@ -772,7 +812,7 @@ async def _reapply_plan(
     plan: list[CategoryChange] = []
     manual = 0
     port = month_status()
-    closed: set[date] = set()
+    closed_by_month: dict[date, bool] = {}
     for t in await conn.fetch(queries.TX_IN_RANGE, start, end):
         rule = best_rule(t["description"] or "", t["amount"], rules)
         if rule is None or rule.category_id == str(t["category_id"]):
@@ -781,8 +821,8 @@ async def _reapply_plan(
             manual += 1
             continue
         month = t["date"].replace(day=1)
-        if await port.is_closed(conn, month):
-            closed.add(month)
+        if month not in closed_by_month:
+            closed_by_month[month] = await port.is_closed(conn, month)
         changes.append(
             ReapplyChange(
                 transaction_id=str(t["id"]),
@@ -795,7 +835,7 @@ async def _reapply_plan(
             )
         )
         plan.append(CategoryChange(str(t["id"]), rule.category_id, "rule", rule.rule_id))
-    closed_count = sum(1 for c in changes if c.date.replace(day=1) in closed)
+    closed_count = sum(1 for c in changes if closed_by_month[c.date.replace(day=1)])
     preview = ReapplyPreview(changes=changes, manual_unchanged=manual, closed_months=closed_count)
     return preview, plan
 

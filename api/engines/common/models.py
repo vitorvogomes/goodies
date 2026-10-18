@@ -1,10 +1,23 @@
 """Modelos compartilhados do contrato HTTP (AD-15 — Story 2.1)."""
+
 from __future__ import annotations
 
+import uuid
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
+
+
+def _canonical_uuid(value: object) -> str:
+    try:
+        return str(uuid.UUID(str(value)))
+    except ValueError:
+        raise ValueError("identificador inválido") from None
+
+
+# Id de entrada (corpo ou caminho): malformado vira 422 na validação, não DataError → 500.
+Uuid = Annotated[str, BeforeValidator(_canonical_uuid)]
 
 # Motivos canônicos de "sem valor" (AD-15); novos motivos entram aqui, nunca texto livre.
 UnavailableReason = Literal[

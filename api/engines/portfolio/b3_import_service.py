@@ -177,6 +177,10 @@ async def import_b3_workbook(
         report["skipped_duplicate"] = would_dup
         return report
 
+    if not kept:  # tudo coberto por outra proveniência: nada a gravar, nenhum lote
+        report["imported"] = 0
+        report["skipped_duplicate"] = 0
+        return report
     # Story 2.2: as operações do arquivo entram num lote `applied` (fonte + corretora + período).
     source = _SOURCE_BY_TYPE[ftype]
     ds = [op["data_operacao"] for op in kept]

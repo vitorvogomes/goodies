@@ -159,3 +159,6 @@ Decidido 2026-10-18, a pedido do Vitor ("importar os arquivos de `files/` e faze
   transações a classificar). O invariante das revisões de dado passa a ser a taxa de poupança **de cada mês igual à
   do baseline fixado** (`tests/dados_reais/pinned_baseline.txt`), salvo os deltas esperados listados no teste da
   revisão. Onde os docs de planejamento dizem "55,48%", leia-se "taxa de jun/2026 do baseline".
+- **Desde a Story 2.6** a taxa de referência é a da fórmula v2 (`ledger/calc`, AD-7), fixada em
+  `tests/dados_reais/pinned_savings_v2.txt` (jun/2026 = 56,87%); XIRR, aplicado e contagens seguem iguais ao
+  `pinned_baseline.txt`.

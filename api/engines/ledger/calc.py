@@ -39,7 +39,10 @@ def best_rule(description: str, amount: Decimal, rules: Sequence[Rule]) -> Rule 
     ]
     if not candidates:
         return None
-    return max(candidates, key=lambda r: (len(r.pattern), r.created_at or _EPOCH, r.rule_id or ""))
+    # Mais longa; empate → a mais recente; empate total → o menor id (ORDER BY da revisão 0019).
+    top = max((len(r.pattern), r.created_at or _EPOCH) for r in candidates)
+    tied = [r for r in candidates if (len(r.pattern), r.created_at or _EPOCH) == top]
+    return min(tied, key=lambda r: r.rule_id or "")
 
 
 # --------------------------------------------------------------------------------------------

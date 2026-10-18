@@ -97,6 +97,22 @@ class TestCoverage:
         assert await _count_ops(pool, uid) == 2  # legada + junho
 
     @pytest.mark.asyncio
+    async def test_all_covered_confirms_zero_instead_of_crashing(
+        self, pool: Any, portfolio_user: dict
+    ) -> None:
+        """Achado do review do Épico 2: arquivo todo coberto → imported 0, sem lote, sem 500."""
+        uid = portfolio_user["user_id"]
+        await _seed_op(
+            pool, uid, "Toro/B3", "BBAS3", "Ações Nacionais", date(2026, 5, 20), "legacy-cov"
+        )
+        sheets = _neg_sheet(
+            [("15/05/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 2, 19.0, 38.0)]
+        )
+        async with pool.acquire() as conn:
+            rep = await import_b3_workbook(conn, uid, sheets, dry_run=False)
+        assert (rep["imported"], rep["skipped_overlap"]) == (0, 1)
+
+    @pytest.mark.asyncio
     async def test_new_ticker_flagged(self, pool: Any, portfolio_user: dict) -> None:
         uid = portfolio_user["user_id"]
         sheets = _neg_sheet(

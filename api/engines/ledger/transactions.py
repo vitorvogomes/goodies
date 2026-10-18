@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.numbers import as_decimal
+from engines.ledger import queries as ledger_queries
 from engines.ledger import service as ledger_service
 from engines.ledger.categories import CategoryKind
 from engines.ledger.suggest import suggest_category
@@ -272,7 +273,16 @@ async def update_transaction(
 ) -> TransactionResponse:
     # Story 2.5: os demais campos mudam aqui; categoria (e o kind do grupo) só por categorize().
     category_id = await _category_id(db, body.category) if body.category is not None else None
+    money_fields = (body.account_id, body.date, body.amount, body.description)
     async with db.transaction():
+        current = await ledger_queries.tx_source(db, str(transaction_id))
+        if current is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")
+        # Story 2.8: importada só muda de categoria (a conferência de saldo depende do extrato).
+        if current["source"] != "manual" and any(f is not None for f in money_fields):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "transação importada só muda de categoria"
+            )
         try:
             row = await db.fetchrow(
                 """
@@ -298,6 +308,8 @@ async def update_transaction(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
         if row is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")
+        if any(f is not None for f in money_fields):
+            await ledger_service.mark_months(db, current["date"], body.date or current["date"])
         if category_id is not None:
             await ledger_service.categorize(
                 db,

@@ -62,8 +62,13 @@ export function TransactionForm({
     description !== (transaction?.description ?? "") ||
     (category?.id ?? null) !== (transaction?.category_id ?? null);
 
-  const sign = (opt: CategoryOption) =>
-    opt.kind === "income" || (opt.kind === "transfer" && incoming) ? "" : "-";
+  // Editando sem trocar a categoria, o sinal original fica (um estorno em gasto continua +).
+  const sign = (opt: CategoryOption) => {
+    if (transaction && opt.id === transaction.category_id && opt.kind !== "transfer") {
+      return transaction.amount > 0 ? "" : "-";
+    }
+    return opt.kind === "income" || (opt.kind === "transfer" && incoming) ? "" : "-";
+  };
 
   function submit() {
     setTouched(new Set<Field>(["account", "date", "amount", "category"]));

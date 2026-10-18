@@ -120,8 +120,9 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 
 Todos os marcos exigem: suíte verde com cobertura ≥ 80%, `pnpm test/lint/build`, `GET /api/v1/health` → 200 com
 postgres+redis, banco em `head` e **nenhum teste `dados_reais` pulado**. Gate de dados permanente:
-**taxa de poupança de cada mês = a do baseline fixado** (jun/2026 = 57,46% com a base completa; os 55,48% da
-planilha não são reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015).
+**taxa de poupança de cada mês = a do baseline fixado** (desde a Story 2.6, a fórmula v2 de `ledger/calc` fixada em
+`api/tests/dados_reais/pinned_savings_v2.txt`: jun/2026 = 56,87%, era 57,46% na v1; os 55,48% da planilha não são
+reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015).
 
 | Marco | Épicos | Gate (`/gate mK`) |
 |---|---|---|

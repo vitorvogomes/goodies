@@ -170,83 +170,93 @@ async def import_statement(
     identifiers = [r["account_number"] for r in own] + list(self_identifiers)
     rules = await _load_rules(conn)
     report = ImportReport()
-    # Story 2.2: toda linha vinda de arquivo tem lote. Até o SourceAdapter (Story 3.3), o import v1
-    # registra um lote `applied` com o período do arquivo; sem nenhuma linha nova, o lote é apagado.
-    batch_id = None
-    if entries:
-        batch_id = await ingest_service.record_applied_batch(
-            conn,
-            [
-                BatchFileIn(
-                    source=source,
-                    account_id=str(account_id),
-                    file_name=file_name,
-                    period_start=min(e.date for e in entries),
-                    period_end=max(e.date for e in entries),
+    new_ids: list[str] = []
+    # Tudo ou nada: lote, linhas e categorização numa transação só (falha no meio não deixa linha
+    # presa "a classificar" que o reimport, deduplicado por external_id, nunca consertaria).
+    async with conn.transaction():
+        # Story 2.2: toda linha vinda de arquivo tem lote. Até o SourceAdapter (Story 3.3), o import
+        # v1 registra um lote `applied` com o período do arquivo; sem linha nova, o lote é apagado.
+        batch_id = None
+        if entries:
+            batch_id = await ingest_service.record_applied_batch(
+                conn,
+                [
+                    BatchFileIn(
+                        source=source,
+                        account_id=str(account_id),
+                        file_name=file_name,
+                        period_start=min(e.date for e in entries),
+                        period_end=max(e.date for e in entries),
+                    )
+                ],
+            )
+        pending_by_sign = {
+            True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
+            False: await ledger_queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
+        }
+        key_ids: dict[str, str] = {}
+        changes: list[ledger_service.CategoryChange] = []
+        for entry in entries:
+            result = classify(entry, rules, identifiers)
+            positive = entry.amount > 0
+            try:
+                # Entra "a classificar" (sugestão, pendente); a categoria final vem por
+                # categorize(). Savepoint por linha: linha ruim conta como erro sem abortar o lote.
+                async with conn.transaction():
+                    inserted = await conn.fetchval(
+                        "INSERT INTO transactions "
+                        "(account_id, date, amount, category, category_id, kind, description, "
+                        "external_id, batch_id, source, category_source, review_status) "
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
+                        "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
+                        "RETURNING id",
+                        account_id,
+                        entry.date,
+                        entry.amount,
+                        "Entrada a classificar" if positive else "Saída a classificar",
+                        pending_by_sign[positive],
+                        "income" if positive else "expense",
+                        entry.description,
+                        entry.external_id,
+                        batch_id,
+                        source,
+                    )
+            except (asyncpg.PostgresError, InvalidOperation):
+                report.errors += 1
+                continue
+            if inserted is None:
+                report.duplicates += 1
+                continue
+            report.imported += 1
+            new_ids.append(str(inserted))
+            report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
+            target = result.category_id
+            if target is None and result.category_key is not None:
+                if result.category_key not in key_ids:
+                    key_ids[result.category_key] = await ledger_queries.category_id_by_key(
+                        conn, result.category_key
+                    )
+                target = key_ids[result.category_key]
+            if target is not None and target != pending_by_sign[positive]:
+                changes.append(
+                    ledger_service.CategoryChange(
+                        transaction_id=str(inserted),
+                        category_id=target,
+                        source="rule",
+                        rule_id=result.rule_id,
+                    )
                 )
-            ],
+        # AD-5: dentro do import a derivação roda uma vez pelo lote (todas as linhas novas), não por
+        # categorize().
+        await ledger_service.categorize(
+            conn, changes, cause="import", batch_id=batch_id, fire_hooks=False
         )
-    pending_by_sign = {
-        True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
-        False: await ledger_queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
-    }
-    key_ids: dict[str, str] = {}
-    changes: list[ledger_service.CategoryChange] = []
-    for entry in entries:
-        result = classify(entry, rules, identifiers)
-        positive = entry.amount > 0
-        try:
-            # Entra "a classificar" (sugestão, pendente); a categoria final vem por categorize().
-            inserted = await conn.fetchval(
-                "INSERT INTO transactions "
-                "(account_id, date, amount, category, category_id, kind, description, "
-                "external_id, batch_id, source, category_source, review_status) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
-                "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
-                "RETURNING id",
-                account_id,
-                entry.date,
-                entry.amount,
-                "Entrada a classificar" if positive else "Saída a classificar",
-                pending_by_sign[positive],
-                "income" if positive else "expense",
-                entry.description,
-                entry.external_id,
+        if new_ids:
+            await ledger_service.run_transaction_hooks(conn, new_ids)
+        if batch_id is not None and report.imported == 0:
+            await conn.execute(
+                "DELETE FROM import_batches WHERE id = $1 AND NOT EXISTS "
+                "(SELECT 1 FROM transactions WHERE batch_id = $1)",
                 batch_id,
-                source,
             )
-        except (asyncpg.PostgresError, InvalidOperation):
-            report.errors += 1
-            continue
-        if inserted is None:
-            report.duplicates += 1
-            continue
-        report.imported += 1
-        report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
-        target = result.category_id
-        if target is None and result.category_key is not None:
-            if result.category_key not in key_ids:
-                key_ids[result.category_key] = await ledger_queries.category_id_by_key(
-                    conn, result.category_key
-                )
-            target = key_ids[result.category_key]
-        if target is not None and target != pending_by_sign[positive]:
-            changes.append(
-                ledger_service.CategoryChange(
-                    transaction_id=str(inserted),
-                    category_id=target,
-                    source="rule",
-                    rule_id=result.rule_id,
-                )
-            )
-    # AD-5: dentro do import a derivação roda pelo hook do lote, não por on_transactions_changed.
-    await ledger_service.categorize(
-        conn, changes, cause="import", batch_id=batch_id, fire_hooks=False
-    )
-    if batch_id is not None and report.imported == 0:
-        await conn.execute(
-            "DELETE FROM import_batches WHERE id = $1 AND NOT EXISTS "
-            "(SELECT 1 FROM transactions WHERE batch_id = $1)",
-            batch_id,
-        )
     return report

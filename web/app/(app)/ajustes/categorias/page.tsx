@@ -75,7 +75,10 @@ function CategoryForm({
   const nameError = name.trim() ? conflict : "Informe o nome.";
   const groupError = group ? null : "Escolha o grupo.";
   const renamed = node !== null && name.trim() !== node.name;
-  const dirty = name !== (node?.name ?? "") || group !== (node?.group_id ?? groupId ?? "");
+  const dirty =
+    name !== (node?.name ?? "") ||
+    group !== (node?.group_id ?? groupId ?? "") ||
+    (node !== null && role !== node.role);
 
   function submit() {
     setTouched(true);

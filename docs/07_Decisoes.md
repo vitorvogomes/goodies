@@ -358,7 +358,8 @@ desde 2026-10-18T06:07Z ficam pendentes de revisão (categoria sugerida pelo his
 
 ### Consequências
 Os 55,48% da planilha não são reproduzíveis pela base; o invariante das revisões de dado é a taxa de poupança de
-cada mês igual à do baseline fixado (jun/2026 = 57,46%), salvo deltas esperados listados. Ver
+cada mês igual à do baseline fixado (jun/2026 = 57,46% na v1; desde a Story 2.6, 56,87% na fórmula v2 fixada em
+`pinned_savings_v2.txt`), salvo deltas esperados listados. Ver
 `.claude/memory/decisions.md`.
 
 ---

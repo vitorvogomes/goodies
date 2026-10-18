@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from engines.common.models import Uuid
 from engines.common.money import Money
 
 KIND_LABEL = {
@@ -47,7 +48,7 @@ class TransactionList(BaseModel):
 
 
 class CategoryChangeIn(BaseModel):
-    category_id: str
+    category_id: Uuid
 
 
 class CategoryOption(BaseModel):
@@ -63,19 +64,19 @@ class CategoryOption(BaseModel):
 
 
 class ManualTransactionCreate(BaseModel):
-    account_id: str
+    account_id: Uuid
     date: dt.date
     amount: Money
     description: str | None = None
-    category_id: str
+    category_id: Uuid
 
 
 class ManualTransactionUpdate(BaseModel):
-    account_id: str | None = None
+    account_id: Uuid | None = None
     date: dt.date | None = None
     amount: Money | None = None
     description: str | None = None
-    category_id: str | None = None
+    category_id: Uuid | None = None
 
 
 GROUP_KIND_LABEL = {
@@ -99,6 +100,12 @@ DEFAULT_ROLE = {
     "expense": "consumo",
     "investment": "investimento",
     "transfer": "transferencia",
+}
+ROLES_BY_KIND = {
+    "income": ("work_income", "resgate", "devolucao"),
+    "expense": ("consumo", "divida"),
+    "investment": ("investimento",),
+    "transfer": ("transferencia",),
 }
 Kind = Literal["income", "expense", "investment", "transfer"]
 Role = Literal[
@@ -144,13 +151,13 @@ class GroupUpdate(BaseModel):
 
 class SubcategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
-    group_id: str
+    group_id: Uuid
     role: Role | None = None
 
 
 class SubcategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=60)
-    group_id: str | None = None
+    group_id: Uuid | None = None
     role: Role | None = None
     is_active: bool | None = None
 
@@ -172,7 +179,7 @@ class RuleRow(BaseModel):
 class RuleUpdate(BaseModel):
     pattern: str | None = Field(default=None, max_length=120)
     direction: Direction | None = None
-    category_id: str | None = None
+    category_id: Uuid | None = None
     is_active: bool | None = None
 
 

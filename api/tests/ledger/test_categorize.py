@@ -74,7 +74,7 @@ async def test_writes_category_kind_text_source_and_event(pool: Any) -> None:
     except _Rollback:
         pass
     finally:
-        service.clear_transaction_hooks()
+        service.unregister_on_transactions_changed(hook)
         register_month_status(previous)
     assert res.changed == [tx]
     assert (row["category"], row["kind"], row["category_source"]) == (
@@ -138,7 +138,7 @@ async def test_no_change_no_event_and_hooks_can_be_suppressed(pool: Any) -> None
     except _Rollback:
         pass
     finally:
-        service.clear_transaction_hooks()
+        service.unregister_on_transactions_changed(hook)
     assert again.changed == [] and events == 1 and calls == []
 
 

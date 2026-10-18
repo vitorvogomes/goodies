@@ -47,7 +47,7 @@ ACTIVE_RULES = """
     FROM category_rules r
     JOIN categories c ON c.id = r.category_id
     JOIN category_groups g ON g.id = c.group_id
-    WHERE r.is_active AND c.is_active
+    WHERE r.is_active AND c.is_active AND g.is_active
 """
 
 CATEGORY_INFO = """
@@ -232,4 +232,8 @@ TX_IN_RANGE = """
 CATEGORY_LABELS = """
     SELECT c.id, CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS label
     FROM categories c JOIN category_groups g ON g.id = c.group_id
+"""
+CATEGORY_HAS_HISTORY = """
+    SELECT EXISTS (SELECT 1 FROM categorization_events
+                   WHERE before_category_id = $1::uuid OR after_category_id = $1::uuid)
 """

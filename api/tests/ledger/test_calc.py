@@ -94,3 +94,29 @@ def test_savings_rate_without_work_income_is_none_not_zero() -> None:
 def test_month_result() -> None:
     # receitas 12545.20 - gastos 4040.92 - investimento 1000
     assert month_result(MES) == Decimal("7504.28")
+
+
+def test_full_tie_goes_to_lowest_id_like_the_0019_backfill() -> None:
+    """Mesmo tamanho e mesmo created_at: vence o menor id (ORDER BY ... r.id da revisão 0019)."""
+    ts = T0
+    rules = [
+        Rule(
+            "pix",
+            "saida",
+            "b",
+            "b",
+            "expense",
+            rule_id="b0000000-0000-0000-0000-000000000000",
+            created_at=ts,
+        ),
+        Rule(
+            "pix",
+            "saida",
+            "a",
+            "a",
+            "expense",
+            rule_id="a0000000-0000-0000-0000-000000000000",
+            created_at=ts,
+        ),
+    ]
+    assert best_rule("PIX enviado", Decimal("-1"), rules).category_id == "a"
