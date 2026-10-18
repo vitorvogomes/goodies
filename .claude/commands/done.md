@@ -1,31 +1,36 @@
 ---
-description: Encerra a story atual, atualiza PROGRESS.md e commita. Uso: /done STORY-XX-YY "descrição"
+description: Encerra a story atual, atualiza PROGRESS.md e commita (local). Uso: /done 1.1 "descrição"
 ---
 
-Execute esta sequência para encerrar a story $ARGUMENTS:
+Encerre a story $ARGUMENTS nesta ordem. Pare no primeiro passo que falhar e corrija antes de seguir.
 
-1. **Rodar os testes da área implementada:**
+1. **Testes da API:**
    ```
-   cd api && pytest tests/ -q --cov=api --cov-fail-under=80 --tb=short
+   cd api && uv run pytest tests/ -q --cov --tb=short
    ```
-   Se falhar: NÃO continue. Corrija os testes primeiro.
+   `--cov` usa o `[tool.coverage]` do pyproject (`fail_under = 80`). Testes `dados_reais` pulados contam como falha se a
+   story tocou dado real (eles precisam de `goodies_dados`: `python -m scripts.ops.restore_dados_db --backup <pré-migração>`).
 
-2. **Atualizar PROGRESS.md:**
-   - Encontre a linha da story $ARGUMENTS
-   - Mude `[ ]` para `[x]`
-   - Adicione o hash do commit na coluna Commit (use o próximo commit)
+2. **Web, se a story tocou `web/`:** `cd web && pnpm test && pnpm lint && pnpm build`.
 
-3. **Adicionar linha no Registro de sessões** (tabela no final do PROGRESS.md):
-   - Data: hoje
-   - Milestone: milestone atual
-   - Stories: a story que acabou
-   - Notas: qualquer observação relevante
+3. **Critérios de aceite:** releia a seção da story em `docs/v2/planning/epics.md` e confirme cada Given/When/Then com a
+   evidência (teste, comando ou tela). Item sem evidência = não concluída.
 
-4. **Commitar:**
+4. **Code review:** `/code-review` deve ter rodado nesta story, com os achados aplicados ou registrados. Se não rodou, rode
+   agora.
+
+5. **PROGRESS.md:** na linha da story $ARGUMENTS, troque `[~]`/`[ ]` por `[x]` e preencha o Commit com o hash curto do
+   commit do passo 7 (atualize depois do commit, num amend, ou registre na próxima sessão). Adicione uma linha no
+   **Registro de sessões** (data, marco, story, notas relevantes).
+
+6. **Migração no banco real:** se a story tem revisão Alembic, ela NÃO é aplicada aqui. Diga ao Vitor que o banco real
+   só migra por `python -m scripts.ops.migrar` (main limpa, testes `dados_reais` verdes, backup na hora).
+
+7. **Commit local (nunca `git push` — o Vitor faz o push manual):**
    ```
    git add -A
-   git commit -m "feat(MILESTONE): STORY-XX-YY — descrição concisa"
+   git commit -m "feat(e<N>): <N.M> — descrição concisa"
    ```
-   Use o milestone no escopo (ex: `feat(m0)`, `feat(m1)`, etc.)
+   O gitleaks do pre-commit precisa passar.
 
-5. **Mostrar próxima story pendente** do PROGRESS.md.
+8. **Mostre a próxima story pendente** do `PROGRESS.md`.

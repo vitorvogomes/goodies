@@ -1,7 +1,7 @@
 # Goodies — CLAUDE.md
 
 Plataforma pessoal de controle financeiro. Usuário único: Vitor.
-Referências completas: `docs/project-context.md` | `docs/` (épicos + stories)
+Referências completas: `docs/project-context.md` | backlog v2: `docs/v2/planning/epics.md` (v1 em `docs/v1/`)
 
 ---
 
@@ -18,7 +18,7 @@ Referências completas: `docs/project-context.md` | `docs/` (épicos + stories)
 
 ### Iniciar
 1. `/status` → identificar próxima story pendente no `PROGRESS.md`
-2. `/story XX-YY` → carregar story + confirmar o que será implementado
+2. `/story N.M` → carregar a story de `docs/v2/planning/epics.md` + confirmar o que será implementado
 
 ### Implementar (TDD obrigatório)
 3. **RED** — escrever teste que falha: `pytest tests/... -v -k "test_novo"`
@@ -28,10 +28,10 @@ Referências completas: `docs/project-context.md` | `docs/` (épicos + stories)
 
 ### Encerrar story
 7. `/test` → cobertura ≥ 80% nas engines críticas
-8. `/done XX-YY` → atualiza `PROGRESS.md` + commit
+8. `/code-review` → `/done N.M` → atualiza `PROGRESS.md` + commit local (push é manual)
 
 ### Verificar milestone
-9. `/gate mX` → antes de avançar para o próximo milestone
+9. `/gate m1..m4` → antes de avançar para o próximo marco da v2
 
 ---
 

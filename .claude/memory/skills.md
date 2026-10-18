@@ -47,16 +47,22 @@
 
 ¹ `supabase` em m0 **só** para contexto de conexão Postgres — **nunca** auth (ver guardrails).
 
-### B2) Goodies v2 — épico → skills (substitui m5–m7 quando o BMAD fechar o backlog v2)
+### B2) Goodies v2 — épico → skills (usado pelo `/story`)
 
-| Épico v2 | Skills |
+| Épico v2 (`docs/v2/planning/epics.md`) | Skills |
 |---|---|
-| A. Fundação UI (shadcn, tokens, DataTable, AppShell 4 áreas) | shadcn, tailwind-design-system, tanstack-table, better-layout, better-ui, next-best-practices, vitest-testing, interface-review |
-| B. Categorização dinâmica (grupo+sub, inbox, regras) | tdd, supabase-postgres-best-practices, api-design-principles, fastapi, tanstack-table, better-writing |
-| C. Ingestão unificada (hub Nubank+B3, lotes, proveniência) | tdd, systematic-debugging, supabase-postgres-best-practices, fastapi, better-layout |
-| D. Conciliação e atualização (jobs, CDI real, RF) | tdd, systematic-debugging, python-observability |
-| E. Visão geral integrada | ui-ux-pro-max, better-interface, emil-design-eng, nextjs-app-router-patterns |
-| F. Observabilidade / deploy / alertas | python-observability, tdd, api-design-principles |
+| 1. App novo de pé (docs, backup, versões, visual, 4 áreas, período, login, endurecimento) | tdd, shadcn, tailwind-design-system, next-best-practices, nextjs-app-router-patterns, vitest-testing, better-layout, python-observability (backup/structlog), systematic-debugging |
+| 2. Categorias, regras e histórico (common, migrações, `categorize()`, Ajustes) | tdd, supabase-postgres-best-practices, api-design-principles, fastapi, tanstack-table, better-writing |
+| 3. Hub de import, revisão e avisos (ingest, adapters, revisão, conferência, desfazer) | tdd, systematic-debugging, supabase-postgres-best-practices, fastapi, tanstack-table, better-interface, better-accessibility |
+| 4. Painel principal | ui-ux-pro-max, better-interface, emil-design-eng, nextjs-app-router-patterns, tdd |
+| 5. Fechamento e recuperação (closing, snapshot, retroativo, assistente) | tdd, systematic-debugging, supabase-postgres-best-practices, api-design-principles, better-interface |
+| 6. Orçamento e custos fixos | tdd, api-design-principles, tanstack-table, better-interface, better-writing |
+| 7. Investimentos (posições, XIRR, CDI/IPCA, caixinhas, debêntures, corretora, conciliação) | tdd, systematic-debugging, supabase-postgres-best-practices, python-observability (fetcher BCB), tanstack-table |
+| 8. Aporte, objetivos e distribuição | tdd, api-design-principles, tanstack-table, better-interface |
+| 9. Histórico e gráficos | dataviz, ui-ux-pro-max, better-interface, tanstack-table, tdd |
+| 10. Ajustes completos e fim da v1 | tdd, better-accessibility, interface-review, next-best-practices, systematic-debugging |
+
+Lacunas sem skill (Redis, APScheduler, fetcher httpx, scipy/XIRR): seguir `decisions.md` + `conventions.md` + TDD.
 
 ## C) Frontmatter `skills:` nas stories
 

@@ -1,313 +1,192 @@
-# Goodies — Progress Tracker
+# Goodies — Progress Tracker (v2.0)
 
-> Substituição do GSD-Pi para rastreamento de estado entre sessões do Claude Code.
-> Claude Code atualiza este arquivo ao concluir cada story.
-> Para iniciar uma sessão: "Read CLAUDE.md and PROGRESS.md, then continue from the next pending story."
+> Backlog: `docs/v2/planning/epics.md` (78 stories, final). Prontidão: `docs/v2/planning/implementation-readiness.md` (PASS).
+> Revisão adversarial: `docs/v2/planning/adversarial-review.md`. O tracker da v1 (m0–m7) está em `docs/v1/PROGRESS-v1.md`.
+> Iniciar sessão: `/status` → `/story N.M`. Encerrar: `/test` → `/code-review` → `/done N.M "descrição"`.
 
----
+**Status:** `[ ]` pendente · `[~]` em andamento · `[x]` concluída e commitada · `[!]` bloqueada
 
-## Como usar
+**Regras de todo o backlog:** desenvolver contra `goodies_dev`; o banco real só migra por `scripts.ops.migrar`; commits locais (push é manual).
 
-**Iniciar sessão no Claude Code:**
-```
-Read CLAUDE.md and PROGRESS.md. Continue from the next IN_PROGRESS or PENDING story.
-Implement following TDD. Update PROGRESS.md when done.
-```
+**Datas-alvo:** em aberto — preencher depois de medir o ritmo real nas primeiras stories.
 
-**Status:**
-- `[ ]` PENDING — ainda não iniciada
-- `[~]` IN_PROGRESS — em andamento (sessão atual)
-- `[x]` DONE — concluída e commitada
-- `[!]` BLOCKED — bloqueada por dependência
+| Marco | Épicos | Stories | Data-alvo |
+|---|---|---|---|
+| Marco 1 — Ritual confiável | 1, 2, 3, 4, 5 | 44 | — |
+| Marco 2 — Caixa e orçamento | 6 | 8 | — |
+| Marco 3 — Investimentos e aportes | 7, 8 | 17 | — |
+| Marco 4 — Histórico e ajustes completos | 9, 10 | 9 | — |
 
 ---
 
-## Milestone m0 — Foundation
+## Marco 1 — Ritual confiável
+
+### Épico 1 — App novo de pé — 4 áreas, tema e operação local
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 00-01 | Criar monorepo e estrutura de pastas | [x] | ac75de3 |
-| 00-02 | Setup FastAPI com health check | [x] | 2010eae |
-| 00-03 | Conectar Supabase (Postgres pool + schema users) | [x] | d54e849 |
-| 00-04 | Conectar Redis (Upstash) | [x] | 0cb36ca |
-| 00-05 | Implementar auth JWT (login, refresh, middleware) | [x] | a8da1c9 |
-| 00-06 | Setup Next.js com TypeScript e Tailwind | [x] | ff397a2 |
-| 00-07 | Tela de login no frontend | [x] | b58050e |
-| 00-08-09 | GitHub Actions + Deploy Fly.io e Vercel | cancelada 2026-10-17 (deploy removido; v2.1) | — |
+| 1.1 | Arrumação dos docs vivos para a v2 | [ ] | — |
+| 1.2 | Backup diário do banco local | [ ] | — |
+| 1.3 | Versões da stack atualizadas | [ ] | — |
+| 1.4 | Fundação visual — shadcn, tokens e tema | [ ] | — |
+| 1.5 | Guarda-corpos do visual — teste "no raw color" e theme-showcase | [ ] | — |
+| 1.6 | Endurecimento local — portas, segredos e Hermes | [ ] | — |
+| 1.7 | Navegação em 4 áreas | [ ] | — |
+| 1.8 | Período na URL e formatação financeira | [ ] | — |
+| 1.9 | Login no visual novo e sessão que volta ao lugar | [ ] | — |
 
-**Gate m0:** `GET /api/v1/health` → 200 com Postgres + Redis. Login funciona.
-
----
-
-## Milestone m1 — Ledger Engine
+### Épico 2 — Categorias em dois níveis, regras e histórico corrigido
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 01-01 | Schema de banco (accounts, transactions, fixed_costs, monthly_summary view) | [x] | 81a1a51 |
-| 01-02 | CRUD de contas e categorias | [x] | 9d588d8 |
-| 01-03 | CRUD de transações com validação | [x] | c8bfdd5 |
-| 01-04 | Cálculo de saldo running e resumo mensal | [x] | 97aed78 |
-| 01-05 | Cálculo de taxa de poupança | [x] | 97aed78 |
-| 01-06 | Projeção de caixa 30/60/90 dias | [x] | afb2a9f |
-| 01-07 | CRUD de custos fixos | [x] | da7da3f |
-| 01-08 | Alertas de vencimento e categoria acima de 120% | [x] | eb78d02 |
-| 01-09 | Endpoints Hermes (POST /expenses, POST /income) | [x] | 4f4a161 |
-| 01-10 | Frontend — lista de transações + filtros | [x] | 870a2ae |
-| 01-11 | Frontend — formulário de nova transação | [x] | 442e81e |
-| 01-12 | Frontend — dashboard de caixa | [x] | eecc831 |
-| 01-13-14 | Migração + validação extrato Nubank (OFX/CSV) | [x] | e27ba29 |
-| 01-15 | Frontend — análise por categoria + gestão de categorias + custos recorrentes | [x] | d757eaf |
+| 2.1 | Base comum do backend | [ ] | — |
+| 2.2 | Proveniência do histórico em lotes legado | [ ] | — |
+| 2.3 | Categorias em dois níveis com o histórico migrado | [ ] | — |
+| 2.4 | Regras e origem da categoria no histórico | [ ] | — |
+| 2.5 | Categorização por um caminho só | [ ] | — |
+| 2.6 | Resgates como receita e reclassificações do histórico | [ ] | — |
+| 2.7 | Caixa › Transações com origem e correção de categoria | [ ] | — |
+| 2.8 | Lançar transação manual | [ ] | — |
+| 2.9 | Ajustes › Categorias | [ ] | — |
+| 2.10 | Ajustes › Regras e reaplicar regras ao histórico | [ ] | — |
 
-**Gate m1:** **✅ CONSOLIDADO**. Engine **kind-aware** (refator): o import grava TODO movimento com `kind` (income/expense/investment/transfer) — investimento conserta o saldo (não some) mas fica fora do consumo; `savings_rate=(receita−consumo)/receita` (B, canônica) + `investment_rate=investido/receita` (A, KPI bônus). Destinos configuráveis via `categories.match_patterns`. Decisão final em 2026-06-04: `LEDGER_SELF_IDENTIFIERS` = **só o CNPJ do MEI** (`47.272.354/0001-59`) — nome/CPF são amplos demais (casavam Santander pessoal no mesmo nome, marcando-a como interna); Santander pessoal agora conta como receita/despesa externa (usuário: "é externa mesmo"). Nº de conta Nubank (CPF `4288917-8`, CNPJ `58022571-6`) já automático. Reimpor exige `DELETE FROM transactions` + `scripts/reset_ledger.py --yes`. Mecanismo validado com dados reais jan–jun/2026 (320 tx): 5 destinos classificados, investimentos fora do saldo fantasma, Santander externo, saldo R$ 3.386,75, poupança(B) estabilizada 22–40%/mês. Dados e engine coerentes; prontos p/ bridge m1↔m2.
-
----
-
-## Milestone m2 — Portfolio Engine
+### Épico 3 — Hub de import, revisão em lote e central de avisos
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 02-01 | Schema de banco (asset_operations, portfolio_targets, positions view) | [x] | d7ccf5b |
-| 02-02 | Seed portfolio_targets (alvos do Vitor) | [x] | f71bfc2 |
-| 02-03 | CRUD de operações com validação de tipos | [x] | 67cf200 |
-| 02-04 | Cálculo de preço médio ponderado (DCA) | [x] | 1893c7f |
-| 02-05 | **XIRR — implementação e testes (gate crítico)** | [x] | f71bfc2 |
-| 02-06 | Endpoint XIRR por ativo e consolidado | [x] | b8c8c0e |
-| 02-07 | Posição atual por ativo (valor com preço manual) | [x] | b8c8c0e |
-| 02-08 | Cálculo de alocação atual vs. meta + desvio | [x] | 642110d |
-| 02-09 | Motor de rebalanceamento | [x] | ee6e30e |
-| 02-10 | Rastreamento de rendimentos separado (FII, JCP) | [x] | 3d8886c |
-| 02-11 | Estimativa de IR por categoria | [x] | 75367c4 |
-| 02-12 | IR cripto: consolidação mensal + alerta 80% | [x] | e4a1c59 |
-| 02-13 | Frontend — tabela de posições | [x] | 2bba8e1 |
-| 02-14 | Frontend — histórico de operações | [x] | 2bba8e1 |
-| 02-15 | Frontend — alocação vs. meta (pizza chart) | [x] | 2bba8e1 |
-| 02-16 | Frontend — tela de rebalanceamento | [x] | 2bba8e1 |
-| 02-17-18 | **Migração + validação XIRR (gate crítico)** | [x] validado vs planilha: custo 99,95%, qtd exata, valores exatos; XIRR 15,25% | (gate) |
+| 3.1 | Central de avisos e Sino | [ ] | — |
+| 3.2 | Ativos com chave única | [ ] | — |
+| 3.3 | Import com prévia e lote — protocolo e OFX do Nubank | [ ] | — |
+| 3.4 | OFX completo — titular, pagador e saldo informado | [ ] | — |
+| 3.5 | Operações de caixinha ligadas à transação | [ ] | — |
+| 3.6 | Sugestão de categoria para toda transação nova | [ ] | — |
+| 3.7 | CSV do Nubank | [ ] | — |
+| 3.8 | Adapters da B3 — movimentação, negociação e consolidado | [ ] | — |
+| 3.9 | Hub de import | [ ] | — |
+| 3.10 | Revisão de transações | [ ] | — |
+| 3.11 | Proposta de regra a partir da correção | [ ] | — |
+| 3.12 | Saldo ancorado e conferência encadeada | [ ] | — |
+| 3.13 | Conferência na tela e aviso de saldo divergente | [ ] | — |
+| 3.14 | Desfazer o último lote e Histórico de imports | [ ] | — |
 
-**Gate m2:** XIRR Python == Excel XIRR nos dados históricos (±0,1 pp).
-**Status m2: 17/17 ✅** — gate validado por reconciliação contra a planilha DESEMPENHO CARTEIRA (a planilha não tem célula única de XIRR; tem %Variação por ativo). Custo total 99,95% (meu R$22.440,64 vs planilha R$22.451,21), quantidades exatas (ex.: NASD11 29=29 cotas — onde o custo difere, o sistema é MAIS preciso, usa o preço real da B3 vs médio defasado da planilha), valores atuais alinhados. **XIRR consolidado = 15,25% a.a.** (B3+Tesouro+Flash). Follow-ups menores: aporte do CDB Guanabara (precisa da data + fórmula CDI), refino fracionário do Tesouro, cripto (m4).
-
----
-
-## Milestone m3 — Market Data
-
-> **B0 (fundação / pré-requisitos do code-review m2) — 2026-06-06, commit 70c456b.** SSOT de
-> categorias (`engines/portfolio/constants.py`), `upsert_price` chokepoint (precedência is_manual
-> + invalidação de cache XIRR), XIRR com preço parcial, data de avaliação única
-> (`settings.evaluation_date`), categoria B3 das abas Posição, docs reconciliadas. +20 testes.
+### Épico 4 — Painel principal
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 03-01 | Schema asset_prices + interface de cache Redis | [x] (já existia; verificado) | 70c456b |
-| 03-02 | Fetcher BRAPI.dev (B3) com retry | [x] | 43dae7b |
-| 03-03 | Fetcher CoinGecko (cripto) | [x] | 43dae7b |
-| 03-04 | Fetcher Tesouro Direto com matching flexível | [x] | 43dae7b |
-| 03-05 | Worker price_b3 (cron dias úteis 4h) | [x] | 3ed7d7d |
-| 03-06 | Worker price_crypto (cron 2h) | [x] | 3ed7d7d |
-| 03-07 | Lógica de fallback (Redis → Postgres → manual) | [x] | 3ed7d7d |
-| 03-08 | Endpoint de update manual de preço | [x] | 3ed7d7d |
-| 03-09 | Endpoints de leitura de preços | [x] | 3ed7d7d |
-| 03-10 | Portfolio Engine usando preços do Market Engine | [x] | 3ed7d7d |
-| 03-11 | Frontend — tela de preços com staleness indicator | [x] | (B5) |
-| 03-12 | Testes de integração dos fetchers (mocks) | [x] | (B5) |
+| 4.1 | Painel principal com KPIs datados | [ ] | — |
+| 4.2 | Avisos, transações a revisar e Bloco Fontes no Painel | [ ] | — |
+| 4.3 | Aviso de worker com falha ou atrasado | [ ] | — |
 
-**Gate m3:** preços atualizando sem erro por 48h.
-**Status m3: 12/12 ✅ FECHADO** (gate 48h **dispensado** a pedido — worker validado ao vivo, zero
-exceção). Suite 243→**308 verde**; ruff + mypy strict; `npm build` 16 rotas. `/code-review` (4
-ângulos) → 6 ajustes aplicados (override manual mascarado por cache, `price_usd` preservado, refetch
-`/market`, etc.; débitos em `docs/13_Debito_Tecnico_m3.md`). **Preços 100% automáticos: 23/23** (16 B3
-BRAPI + 7 Tesouro via **Tesouro Transparente** open-data — a API oficial é Cloudflare-walled, brapi
-v2/treasury é Pro). Só **4 manuais**: Flash-Debênture + caixinhas/CDB Nubank. Endpoints em
-**`/api/v1/market/*`** (Pydantic). Cron **free-tier**: B3 1×/dia útil 19h BRT (BRAPI 1k req/mês),
-cripto */2h. Coleta executada no banco curado (`enable_market_pricing.py` + worker ao vivo).
-Procedimento + débito: `docs/12_Gate_M3_Market.md`, `docs/13_Debito_Tecnico_m3.md` (ADR-012).
-
-> **Faxina pré-m3 (2026-06-06) — feita antes de iniciar as stories.** Coerência Nubank↔Portfólio
-> (`docs/11_...`): resgates de caixinha = `investment` net (não receita) → taxa de poupança real;
-> caixinhas (Snow Trip, Turbo) + CDB Guanabara viraram ativos Renda Fixa (`rf_cdi` + `CDI_ANUAL`
-> provisório). Resolve o débito §3.12. **Guardrail:** não rodar `reset_ledger` no banco curado.
-> 241 testes verdes. (ADR-011). m3 ainda começa pelo B0 do `SESSION_M3.md`.
-> Depois (2026-06-06) um polimento de UI (Histórico no menu + total filtrado; totais
-> de investimento/transferência nas Transações; Posições agrupadas por categoria) levou a
-> **suite a 243 verde** — ver Registro de sessões.
-
----
-
-## Milestone m4 — Broker Integration
-
-> **B0 (fundação / débito m3 — `docs/13`) — feito antes dos fetchers de wallet.** (1) `with_client`
-> em `engines/market/fetchers/base.py` (scaffold client próprio-ou-injetado + `with_retry`,
-> re-raise; fail-soft fica no call site) — brapi/coingecko/treasury religados, comportamento
-> preservado. (2) `market.service.list_user_prices` deixou de ser N+1: 1 `SELECT ticker = ANY($1)`
-> + 1 Redis `MGET` (novo `PriceCache.mget`); builders `_from_cache_hit`/`_from_pg_row` partilhados
-> com `get_price`. (3) `portfolio.service.upsert_price` só invalida o cache de XIRR quando
-> `price_brl`/`price_usd` realmente muda (CTE `prev`, comparação Decimal). Config front-load:
-> Settings ganhou etherscan/solscan/binance + endereços de wallet + `liquid_base_url`/`lbtc_asset_id`
-> + `ttl_wallet`/`ttl_benchmark`; `coingecko_ids += L-BTC→bitcoin` (ADR-005 1:1). **Suite 308→317
-> verde**; ruff + mypy strict ok. (Os fetchers de wallet não tocam mais `config.py`/`.env.example`.)
+### Épico 5 — Fechamento de mês e recuperação da base
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 04-01 | Schema wallet_positions + worker scaffold | [x] | (B1) |
-| 04-02 | Fetcher Etherscan (ETH/ARB) + Hyperliquid (HYPE) | [x] | (B2) |
-| 04-03 | Fetcher Solana (SOL + SPL) via JSON-RPC | [x] | (B2) |
-| 04-04 | **Fetcher Liquid Network (client dedicado — ADR-005)** | [x] | (B2) |
-| 04-05 | Fetcher Binance API (spot + earn) com HMAC | [x] | (B2) |
-| 04-06 | Worker wallet_scan cron 3×/dia + fallback | [x] | (B3) |
-| 04-07 | Worker benchmark_daily (BCB CDI/IPCA; IBOV→m5) | [x] | (B4) |
-| 04-08 | Entrada manual DeFi (Phantom) — defi_positions + CRUD | [x] | (B4) |
-| 04-09 | Alertas de vencimento DeFi (30d e 7d) | [x] | (B4) |
-| 04-10 | Frontend — tela de wallets | [x] | 28bcf4b (B5) · 4fc5b4c (USD+rede) |
-| 04-11 | Frontend — reconciliação posição escaneada | [x] | 28bcf4b (B5) · 4fc5b4c (só-cripto) |
-| 04-12 | Testes de integração (mocks chain explorers) | [x] | (B5) |
+| 5.1 | Histórico de preço e preço num lugar só | [ ] | — |
+| 5.2 | Resumo do mês ao vivo | [ ] | — |
+| 5.3 | Fechar o mês — serviço e snapshot | [ ] | — |
+| 5.4 | Checklist de fechamento na tela | [ ] | — |
+| 5.5 | Ler mês fechado do snapshot, reabrir e fechar de novo | [ ] | — |
+| 5.6 | Ajuste em mês fechado | [ ] | — |
+| 5.7 | Fechamento retroativo em bloco | [ ] | — |
+| 5.8 | Assistente de recuperação | [ ] | — |
 
-**Gate m4:** posições cripto escaneadas automaticamente.
-**Status m4: 12/12 ✅** — scan automático de 4 carteiras + Binance (6 fetchers fail-soft); HYPE
-somado em 2 fontes (L1 spot + HyperEVM); manual/DeFi/Liquid valorados via aliases CoinGecko (m3),
-com USD ao lado do BRL e visão por rede; reconciliação só-cripto. `/code-review` (9 ângulos) → 3
-correções + débito em `docs/15`. Suite **410 verde**; ruff + mypy strict; front tsc/eslint/build ok.
+**Ponto de uso:** fim do Épico 3 — o ritual semanal (importar, revisar, saldo PF conferido) passa a rodar na v2.
+
+**Gate marco 1 (`/gate m1`):**
+- `GET /api/v1/health` → 200 com postgres e redis; `scripts.ops.migrar` em `head`.
+- Testes `dados_reais` verdes e **nenhum pulado**: poupança jun/2026 = 55,48%, contagens, zero órfãs, deltas esperados, invariantes de caixinhas/debêntures/XIRR contra o baseline da Story 1.3.
+- UJ-1 de ponta a ponta (importar → revisar → saldo PF conferido) e UJ-5 (jun/2026 → mês anterior fechados pelo Assistente).
+- Jul/2024–mai/2026 fechados em bloco (`close_retro`).
 
 ---
 
-## Milestone m5 — Analytics
+## Marco 2 — Caixa e orçamento
+
+### Épico 6 — Orçamento do mês e custos fixos
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 05-01 | Schema benchmark_data + goals + active_alerts | [ ] | — |
-| 05-02 | Importação histórica BCB (CDI/IPCA jul/2024→hoje) | [ ] | — |
-| 05-03 | Importação histórica IBOV (yfinance) | [ ] | — |
-| 05-04 | Cálculo de benchmarks acumulados no período | [ ] | — |
-| 05-05 | Retorno real (nominal − inflação) | [ ] | — |
-| 05-06 | Drawdown máximo histórico | [ ] | — |
-| 05-07 | Projeção em 3 cenários (fórmula de anuidade) | [ ] | — |
-| 05-08 | Seed de metas (Reserva R$50.872, LF R$1.271.802) | [ ] | — |
-| 05-09 | Prazo estimado para metas | [ ] | — |
-| 05-10 | **Engine de alertas (6 tipos)** | [ ] | — |
-| 05-11 | Alerta de rebalanceamento (≥ 2pp) | [ ] | — |
-| 05-12 | Alerta concentração Flash | [ ] | — |
-| 05-13 | Worker alert_eval (cron diário 8h) | [ ] | — |
-| 05-14 | Endpoints analytics (summary, benchmarks, projection, goals) | [ ] | — |
-| 05-15 | Endpoints Hermes (resumo-geral, alertas) | [ ] | — |
-| 05-16 | Endpoint GET /alertas + PUT /read | [ ] | — |
-| 05-17 | Frontend — XIRR vs benchmarks (gráfico linha) | [ ] | — |
-| 05-18 | Frontend — projeções 3 cenários (gráfico área) | [ ] | — |
-| 05-19 | Frontend — metas com progress bar | [ ] | — |
-| 05-20 | Frontend — card de alertas no dashboard | [ ] | — |
+| 6.1 | Custos fixos com vigência e casamento automático | [ ] | — |
+| 6.2 | Caixa › Custos fixos com casamento | [ ] | — |
+| 6.3 | Custos fixos vencendo e atrasados no Painel | [ ] | — |
+| 6.4 | Aviso de gasto acima da média | [ ] | — |
+| 6.5 | Termos do orçamento | [ ] | — |
+| 6.6 | Caixa › Orçamento | [ ] | — |
+| 6.7 | Taxa de poupança e rodapé do orçamento | [ ] | — |
+| 6.8 | Completar os meses já fechados com o orçamento | [ ] | — |
 
-**Gate m5:** CDI/IPCA/IBOV no dashboard. Alerta concentração Flash ativo.
+**Gate marco 2 (`/gate m2`):**
+- Golden tests do orçamento verdes a partir de `tests/fixtures/mockup_out2026.json` (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77).
+- Poupança jun/2026 = 55,48% e deltas dos meses com Repasse conferidos.
+- **SM-1 parcial começa:** `metricas --sm1-inicio <data>` registrado (tarefas de caixa sem a planilha).
 
 ---
 
-## Milestone m6 — Observability
+## Marco 3 — Investimentos e aportes
+
+### Épico 7 — Investimentos sem digitação — posições, rentabilidade e conciliação
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 06-01 | Configurar structlog (JSON produção, colorido dev) | [ ] | — |
-| 06-02 | Instrumentar fetchers de API com logs de duração | [ ] | — |
-| 06-03 | Instrumentar workers (início, fim, duração) | [ ] | — |
-| 06-04 | Integrar Sentry SDK | [ ] | — |
-| 06-05 | Alertas de sistema para Discord via webhook | [ ] | — |
-| 06-06 | Rate limiting com slowapi | [ ] | — |
-| 06-07 | Health check detalhado | [ ] | — |
-| 06-08 | Testes de falha (Redis down, API down) | [ ] | — |
+| 7.1 | Investimentos › Posições em dois níveis | [ ] | — |
+| 7.2 | Histórico de CDI e IPCA | [ ] | — |
+| 7.3 | Rentabilidade nominal × real por período | [ ] | — |
+| 7.4 | Renda fixa pelo CDI real | [ ] | — |
+| 7.5 | Caixinhas e CDBs derivados das transações | [ ] | — |
+| 7.6 | Debêntures cadastradas no app | [ ] | — |
+| 7.7 | Caixa em corretora e dinheiro a caminho | [ ] | — |
+| 7.8 | Ajustes › Posições manuais e vencimento DeFi | [ ] | — |
+| 7.9 | Conciliação com o consolidado B3 e com as carteiras | [ ] | — |
 
-**Gate m6:** falha de worker notifica Discord < 5min.
+### Épico 8 — Aporte do mês, objetivos e distribuição
+
+| # | Story | Status | Commit |
+|---|---|---|---|
+| 8.1 | Objetivos vinculados às caixinhas | [ ] | — |
+| 8.2 | Metas de alocação, bandas e pisos | [ ] | — |
+| 8.3 | Alocação × meta e bloco Objetivos em Posições | [ ] | — |
+| 8.4 | Aporte planejado do mês | [ ] | — |
+| 8.5 | Distribuição do aporte | [ ] | — |
+| 8.6 | Ajustar a distribuição com travas | [ ] | — |
+| 8.7 | Realizado, a caminho e pendente na distribuição | [ ] | — |
+| 8.8 | Resumo do aporte no Painel e aviso de pendente | [ ] | — |
+
+**Gate marco 3 (`/gate m3`):**
+- XIRR consolidado igual ao baseline da Story 1.3, salvo correção explicada; conciliação B3 e carteiras dentro das tolerâncias da AD-13.
+- Distribuição do aporte fecha ao centavo (golden 2.200 = 1.700 + 500).
+- **SM-1 começa:** `metricas --sm1-inicio <data>`; recomendado `refechar --completar` geral.
 
 ---
 
-## Milestone m7 — Frontend
+## Marco 4 — Histórico e ajustes completos
+
+### Épico 9 — Histórico e comparação de períodos
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 07-01 | Layout global (sidebar, header, sistema de rotas) | [ ] | — |
-| 07-02 | Dashboard principal | [ ] | — |
-| 07-03 | Ledger UI — lista de transações com filtros | [ ] | — |
-| 07-04 | Ledger UI — formulário de transação | [ ] | — |
-| 07-05 | Ledger UI — resumo mensal e projeção | [ ] | — |
-| 07-06 | Portfolio UI — tabela de posições | [ ] | — |
-| 07-07 | Portfolio UI — alocação e rebalanceamento | [ ] | — |
-| 07-08 | Portfolio UI — histórico de operações | [ ] | — |
-| 07-09 | Market UI — preços com staleness | [ ] | — |
-| 07-10 | Analytics UI — XIRR vs benchmarks | [ ] | — |
-| 07-11 | Analytics UI — projeções e metas | [ ] | — |
-| 07-12 | Loading states e error states globais | [ ] | — |
-| 07-13 | Revisão de acessibilidade | [ ] | — |
-| 07-14 | Validação final: 30 dias sem planilha | [ ] | — |
+| 9.1 | Histórico do fluxo — período × anterior × média 12m | [ ] | — |
+| 9.2 | Crescimento do patrimônio e melhor desempenho | [ ] | — |
+| 9.3 | Os três gráficos com "Ver como tabela" | [ ] | — |
 
-**Gate m7:** Vitor usa o Goodies como única fonte de verdade por 30 dias.
+### Épico 10 — Ajustes completos e fim das telas antigas
+
+| # | Story | Status | Commit |
+|---|---|---|---|
+| 10.1 | Ajustes › Contas | [ ] | — |
+| 10.2 | Ajustes › Preços manuais | [ ] | — |
+| 10.3 | Ajustes › Atualização | [ ] | — |
+| 10.4 | Revisão final das abas de Ajustes e checagem de teclado | [ ] | — |
+| 10.5 | Métricas de sucesso num comando | [ ] | — |
+| 10.6 | Fim das telas da v1 | [ ] | — |
+
+**Gate marco 4 (`/gate m4`):**
+- `metricas` mostra SM-1 ≥ 30 dias seguidos sem abrir a planilha; SM-2, SM-3 e SM-5 dentro da meta.
+- Nenhuma rota v1 sem substituto; teste "no raw color" sem exceções.
 
 ---
 
 ## Registro de sessões
 
-| Data | Milestone | Stories completadas | Notas |
+| Data | Marco | Stories | Notas |
 |---|---|---|---|
-| — | — | — | Início do desenvolvimento |
-| 2026-06-03 | m0 | STORY-00-01 | Scaffolding monorepo (api/, web/, .github/, fly.toml, pyproject, pre-commit ruff+eslint). |
-| 2026-06-03 | m0 | STORY-00-02 | FastAPI + GET /api/v1/health (200), config via pydantic-settings, health check plugável (registro p/ 00-03/00-04), Dockerfile + docker-compose (Postgres+Redis), requirements pinados, teste httpx. Verificado: pytest/ruff/mypy + container 200. |
-| 2026-06-03 | m0 | STORY-00-06 | Next.js 16 + React 19 + Tailwind v4 (ADR-009, atualiza ADR-001). lib/api (fetch+Bearer+cookie), lib/auth (token em memória), types/{health,auth}, React Query v5 + next-themes (dark), tema com tokens gain/loss/warning, page→/login. Verificado: pnpm lint + build OK. |
-| 2026-06-03 | m0 | STORY-00-03/00-04 | Postgres: pool asyncpg (2–10), Alembic async + migration users (RLS), seed_admin (env, sem segredo), check_postgres. Redis: PriceCache fail-soft + check_redis (agente paralelo). Health agrega postgres+redis. 12 testes (Docker-local) + ruff + mypy. |
-| 2026-06-03 | m0 | STORY-00-05 | Auth JWT (ADR-006): bcrypt+JWT HS256, /login /refresh /me, get_current_user, migration refresh_token_hash, gen_hermes_token. Pin bcrypt<5 (incompat passlib). 21 testes + ruff + mypy. |
-| 2026-06-03 | m0 | STORY-00-07 | Login: backend seta refresh em cookie httpOnly; front app/(auth)/login (form, loading, erro), access em memória, proxy.ts (Next 16) gating de rota, dashboard placeholder. pnpm lint+build OK; 22 testes backend. |
-| 2026-06-03 | m0 | STORY-00-08-09 | [~] CI/CD: .github/workflows/deploy.yml (test→deploy-api→deploy-web), api/fly.toml (release alembic, vm 256, gru). Deploy real + gate de produção PENDENTE de provisionamento cloud manual — ver docs/DEPLOY.md. |
-| 2026-06-03 | m0 | — (consolidação) | uv (ADR-010): pyproject = fonte única + uv.lock, removidos requirements*.txt; Dockerfile/CI/pre-commit/docs migrados. Runbook local docker-na-8000 (docs/LOCAL_DEV.md) após liberar a 8000 (processo hermes órfão). Fix login web: NEXT_PUBLIC_API_URL 8001→8000. Refs Next16/uv em project-context/EPIC-00/.claude. Verificado: `uv run` 22 testes/91% + ruff + mypy; Docker /health pg+redis connected, login E2E. |
-| 2026-06-03 | m1 | STORY-01-01 | Schema ledger: migration `0003_ledger` (accounts, transactions [+`external_id` c/ índice único parcial p/ dedup Nubank/FITID], fixed_costs, view `monthly_summary`, RLS). Pivô: fonte = extrato Nubank (OFX/CSV) via frontend; gate jun/2026 = 55,48%; alertas compute-on-read (ver plano + memória). 3 testes de schema; suite 25/25; cobertura engines 91% + ruff. Branch `m1-ledger`. |
-| 2026-06-03 | m1 | STORY-01-02 | CRUD de contas e categorias. Engine multi-arquivo: `engines/ledger/{accounts,categories,router}.py` (montado no main.py). Migration `0004_categories` (tabela configurável + seed: receitas Flash/Betuel/Salário/Extra, despesas BR, investment/transfer p/ classificação Nubank). DELETE de conta com transações → 409; categoria duplicada → 409; filtro `?kind=`. +11 testes (14 ledger); suite 36/36; cobertura engines 91%; ruff+mypy ok (ledger incluído no mypy do CI). |
-| 2026-06-04 | m1 | STORY-01-03 | CRUD de transações (`engines/ledger/transactions.py`): GET paginado c/ filtros `from/to/category/account_id` (envelope items+total), POST/PUT/DELETE. Validação: amount≠0 (422), conta inexistente → 422 (FK), 404 em update/delete inexistente. NUMERIC(15,2) via Decimal(str()). +6 testes; suite 42/42; cobertura engines 92%; ruff+mypy ok. |
-| 2026-06-04 | m1 | STORY-01-04/05 | Cashflow (`engines/ledger/cashflow.py`): GET /cashflow (saldo running via window SUM, filtros account/from/to) + GET /cashflow/summary (view monthly_summary; `?month=YYYY-MM` → mês único, 404 sem dados, 422 receita zero). Taxa de poupança validada (10000/-4500 → 55%). +6 testes; suite 48/48; cobertura engines 93%; ruff+mypy ok. Nota: import (01-13-14) NÃO grava investment/transfer como transação p/ a taxa não distorcer. |
-| 2026-06-04 | m1 | STORY-01-07 | CRUD custos fixos (`engines/ledger/fixed_costs.py`): GET (filtro `?active=`)/POST/PUT/DELETE em `/api/v1/fixed-costs`. Validação: amount>0, due_day 1-31 (422), 404 em update/delete inexistente. +6 testes; suite 54/54; ruff+mypy ok. |
-| 2026-06-04 | m1 | STORY-01-06 | Projeção de caixa (`/cashflow/projection` em cashflow.py): saldo atual + receita recorrente (is_recurring & amount>0) − custos fixos ativos, escalado p/ 30/60/90d; `?account_id` opcional. Fixture autouse `_clean_fixed_costs` blinda a tabela global entre testes. +2 testes; suite 56/56; cobertura engines 94%; ruff+mypy ok. |
-| 2026-06-04 | m1 | STORY-01-08 | Alertas compute-on-read. Lógica pura em `engines/ledger/service.py` (today injetado): vencimento ≤5 dias (próxima ocorrência do due_day, clamp fim de mês) + categoria >120% da média dos 3 meses anteriores. Endpoint `GET /cashflow/alerts` (`engines/ledger/alerts.py`). Sem persistir (active_alerts fica p/ m5). +7 testes; suite 63/63; cobertura engines 94.75%; ruff+mypy ok. |
-| 2026-06-04 | m1 | STORY-01-09 | Endpoints Hermes (`hermes/router.py`): POST /hermes/expenses e /income. Auth service token scope=hermes (secret próprio; `decode_hermes_token` no security.py) — 401 sem/ inválido, 403 escopo errado, token de usuário rejeitado. amount positivo no request, sinal aplicado pelo endpoint (despesa negativa). conta inexistente → 422. +6 testes; suite 69/69; cobertura engines 94.75%; ruff+mypy ok. |
-| 2026-06-04 | m1 | FE-0 (fundação) | Frontend: `types/ledger.ts`, `lib/format.ts` (BRL/%/data/mês pt-BR), `lib/ledger.ts` (hooks React Query: accounts/categories/transactions/summary/projection/alerts + mutation), `components/ui.tsx` (Button/Input/Select/Field/Card), `components/AppShell.tsx` (sidebar + gate de auth). Route group `(app)` com layout; dashboard movido p/ `(app)/dashboard`. Sem deps novas. Verificado: npm lint + build OK. Limitação: reload duro perde token em memória → cai p/ /login (refresh-on-load via cookie é melhoria de auth futura). |
-| 2026-06-04 | m1 | STORY-01-10 | Frontend lista de transações `(app)/ledger`: filtros (conta/categoria/intervalo) + paginação (limit 50), tabela com valor colorido gain/loss, estados loading/erro/vazio. Reusa hooks `useTransactions/useAccounts/useCategories`. Verificado: npm lint + build OK (rota /ledger). |
-| 2026-06-04 | m1 | STORY-01-11 | Frontend formulário `(app)/ledger/new`: tipo (receita/despesa) + valor positivo (sinal aplicado no envio), conta, data (default hoje), categoria filtrada por kind, descrição, recorrente. Validação client + 422 do backend; sucesso → /ledger via `useCreateTransaction`. Verificado: npm lint + build OK (rota /ledger/new). |
-| 2026-06-04 | m1 | STORY-01-12 | Frontend dashboard `(app)/dashboard`: cards de resumo do mês (receita/despesa/saldo/taxa de poupança), projeção 30/60/90 + saldo atual, alertas, e tendência de poupança (barras CSS, sem libs). Reusa `useMonthlySummaries/useProjection/useAlerts`. Verificado: npm lint + build OK (6 rotas). Frontend do m1 completo. |
-| 2026-06-04 | m1 | STORY-01-13-14 [~] | Import Nubank: `engines/ledger/importer.py` (parse OFX 1.0.2 SGML + CSV, classificação configurável, dedup por external_id/FITID — investimento/transferência NÃO viram caixa), endpoint `POST /api/v1/ledger/import` (corpo cru, sem python-multipart), `scripts/migrate_ledger.py` (dry-run/--apply), front `(app)/ledger/import`. Setting `ledger_self_identifiers` (PII no .env) p/ transferência interna. +9 testes (unit parsers/classify + endpoint idempotente); suite 78/78; cobertura engines 94.51%; ruff+mypy(22) ok. Validado no extrato real de jan/2026: 63 entradas, income 6/investment 16/expense 41. **Gate jun/2026 PENDENTE do arquivo de junho.** |
-| 2026-06-04 | m1 | fix(testes+dados) | Contas fantasma (~30 `Nubank-<hex>`/`acc-<hex>`): causa = testes rodavam no banco real `goodies` e 2 testes de conta não limpavam. Fix de raiz: testes agora rodam em banco dedicado `goodies_test` (conftest força DATABASE_URL + cria/migra o DB on-the-fly), nunca no real; + cleanup nos 2 testes + autouse `_clean_accounts`. Banco real resetado p/ 1 conta 'Nubank' (`fa867c2c…`) e janeiro reimportado (47 tx; 16 investimentos excluídos; dedup idempotente OK). Suíte 78/78 em goodies_test; goodies permaneceu 30→reset (prova de isolamento). |
-| 2026-06-04 | m1 | feat(UX transações) | (1) Edição inline de Descrição (clique→input, Enter/blur salva, Esc cancela) e Categoria (select discreto) na `/ledger` via `useUpdateTransaction` (PUT já existente). (2) KPI **Saldo Acumulado** no topo do dashboard (= `projection.current_balance` = SUM(amount)); removida a duplicata "Saldo atual" do card de projeção. (3) `GET /transactions` agora retorna `total_income`/`total_expense` do conjunto filtrado (query agregada sobre o mesmo WHERE) — exibidos em linha discreta na tabela, reativos aos filtros. +1 teste; suite 88/88; cobertura 94%; ruff+mypy ok; npm lint+build ok. |
-| 2026-06-04 | m1 | feat(multi-conta + notes) | Migration `0005` (`transactions.notes` + `accounts.account_number` único parcial). CRUD expõe ambos (409 nº duplicado). Importer: `parse_account_number` (ACCTID) + auto-rota (OFX→conta pelo nº; CSV→account_id; 409 conflito); `import_statement` une os nº de conta do DB aos `self_identifiers` → transferência interna Nubank↔Nubank (nº na descrição) vira `transfer` e é excluída (não dupla-conta repasses PJ↔CPF). CLI auto-rota; endpoint conta opcional. Frontend: campo Nota no form + exibição na lista; import com conta auto-detectada. +9 testes; suite 87/87; cobertura engines 94%; ruff+mypy(22) ok. Dados reais: 2 contas (Nubank_CPF `4288917-8`, Nubank_CNPJ `58022571-6`), reimport jan–jun (CPF 226 tx, CNPJ 17). Externos (Santander `1095178-6`) fora da dedup por ora (decisão do usuário) — afeta a taxa de poupança até serem listados. |
-| 2026-06-04 | m1 | STORY-01-15 | Tab **Análise** (`/analise-ledger`). Backend: novo `GET /api/v1/cashflow/by-category?month=YYYY-MM` (opcional→acumulado) — agrega `transactions` por categoria+lado com `SUM(ABS)` + `%` por seção via window `OVER (PARTITION BY side)` (NULLIF evita /0); vazio → 200 (não 404). Frontend: hooks `useCategoryBreakdown` + CRUD de categorias (`useCreate/Update/DeleteCategory`) e custos fixos (`useCreate/Update/DeleteFixedCost`); página única com 3 cards — breakdown receitas/gastos (barras CSS, seletor de mês + "Tudo"), gestão de categorias inline (nome/kind/ativa/excluir, add), custos recorrentes CRUD inline (nome/valor/dia/categoria + total mensal); NAV. Caveat na UI: investimentos/transferências internas não entram no caixa (não batem com a planilha onde "INVESTIMENTOS" é ~55% dos gastos — alocação é m2). +4 testes; suite 92/92; cobertura engines 94% (cashflow.py 100%); ruff+mypy(22) ok; npm lint+build ok. |
-| 2026-06-04 | m1 | refator(ledger kind-aware) | **Conserto da modelagem** (saldo fantasma + taxa distorcida): o import deixa de PULAR investimento/transferência e passa a **gravar tudo** com coluna `kind`. Migration `0006` (`transactions.kind` CHECK+índice, backfill por sinal/categoria; `categories.match_patterns text[]` + seed dos 6 destinos; **DROP/CREATE view `monthly_summary` kind-aware**: `total_expense`=só consumo, `savings_rate`=(receita−consumo)/receita **(B)**, +`total_invested`+`investment_rate` **(A)**; `net_cashflow`=receita−consumo, ≠ saldo). Classificação **configurável** via `categories.match_patterns` (substitui `_INVESTMENT_KW`): `importer.classify(entry, rules, self_ids)` por substring (maior pattern vence); `_load_rules`. Endpoints kind-aware: transactions (+`kind`, deriva da categoria, agg `total_invested`), cashflow (`/summary`+A, `/by-category` 3 seções por kind), categories (CRUD `match_patterns`), hermes (insere `kind`). Frontend: tipos +kind/A; dashboard cards Investido+Taxa de investimento; Análise 3ª seção Investimentos + edição de patterns; lista colore por kind (investimento ≠ vermelho); form ganha 3º tipo Investimento. **Decisões travadas**: poupança canônica=(B) p/ o gate, (A) como KPI bônus; achados OFX: Flash mão-dupla (`securitizadora`=income vs `flash capital`=invest; "debênture" não existe no memo), "Resgate RDB" positivo=investment, Toro/Santander mesmo CNPJ (pattern `corretora de titulos`). +9 testes (suite 97/97); cobertura engines 94% (cashflow 100%); ruff+mypy(22) ok; npm lint+build ok. Reset+reimport jan–jun (320 tx): mecanismo validado (jan: 5 destinos, saldo real, corretora fora do consumo). **Gate aberto** até `.env LEDGER_SELF_IDENTIFIERS` + junho completo (ver nota do Gate m1). |
-| 2026-06-04 | m1 | infra(.env raiz + reset) | `config.py` agora lê o `.env` do **raiz** do repo por caminho absoluto (`_ROOT_ENV`) — antes lia relativo a `api/` e ignorava o `.env` que o usuário pôs no raiz (alinhado ao `.env.example` raiz). Novo `scripts/reset_ledger.py --yes` (apaga + reimporta todos os OFX de `files/nubank/`, com banner do alvo + resumo B/A). `.env.example`: doc do formato de `LEDGER_SELF_IDENTIFIERS` (substring case-insensitive; nº de conta já automático). `LEDGER_SELF_IDENTIFIERS` setado (3 itens: nome 22 matches, CNPJ 9, CPF 1=mascarado). Reset rodado: transferências internas detectadas sobem (jan 1→4), mas savings_rate ainda 3–34%/mês — causa = receita subcontada (Santander fora) + junho parcial, NÃO o engine. `DATABASE_URL` do `.env` usa host `postgres` (docker); scripts no host precisam de override `localhost`. Suite 99/99; ruff+mypy(23) ok. |
-| 2026-06-04 | m2 | STORY-02-01 | Migration `0007_portfolio`: `asset_operations` (id, user_id, broker, asset_symbol, asset_category, tipo CHECK, quantidade>0, valor_unitario>=0, data_operacao, notes, external_id, created_at); `portfolio_targets` (id, user_id, category, target_pct 0<x<=100, UNIQUE user_id+category, created_at). Índices: user_id (RLS), user_id+asset_symbol (XIRR per-asset), data_operacao, external_id UNIQUE PARTIAL. RLS habilitado ambas. Testes (6): exists, columns, tipo/quantidade constraints, unique category. Scaffold `api/engines/portfolio/__init__.py`. Suite 105/105 verde; ruff/mypy ok. Bridge m1↔m2 pronta para seed (02-02). |
-| 2026-06-04 | m2 | **B1: STORY-02-02 + STORY-02-05** | **STORY-02-02 (seed portfolio_targets):** `engines/portfolio/targets.py` (PORTFOLIO_TARGETS const, seed_targets + get_targets async funcs); `scripts/seed_portfolio_targets.py` (idempotent CLI); 6 targets (Ações 10%, Aposentadoria 12.5%, Cripto 5%, ETFs 12.5%, FIIs 10%, Renda Fixa 50%); ON CONFLICT upsert. Tests: create, idempotent, sum=100%, empty list (suite 5/5). **STORY-02-05 (XIRR — gate crítico):** `engines/portfolio/xirr.py` — scipy.optimize.brentq implementation, exact CLAUDE.md formula (NPV solver for annualized rate). Edge cases: <2 flows→nan, non-convergent→nan, auto-ordering, DCA scenarios. Tests: 13 cases (1-year, Tesouro IPCA, cripto volatile, loss, zero net, high gain, precision) vs Excel reference (±0.1pp tolerance). +18 testes portfolio; **suite 123/123 verde**, portfolio coverage 100%, global 95%; ruff+mypy strict. Commit f71bfc2. |
-| 2026-06-04 | m2 | **STORY-02-03** | **CRUD de operações com validação de tipos:** `engines/portfolio/operations.py` — 6 async funcs (create, get, list, update, delete); validação tipo CHECK {compra, venda, dividendo, juros, aporte, resgate}, quantidade>0, valor_unitario>=0, external_id UNIQUE PARTIAL. `engines/portfolio/router.py` — 5 endpoints (POST 201, GET list+filters, GET {id} 404, PUT 200/404, DELETE 204/404); Pydantic @field_validator tipo; asyncpg error handling CheckViolation→422, UniqueViolation→422. `tests/portfolio/test_operations.py` — 16 testes TDD (create valid, invalid tipo/qty/price, list filters, CRUD lifecycle, 404s); `tests/portfolio/conftest.py` — fixtures api + auth_headers + cleanup (DELETE FROM asset_operations before user). +16 testes; **suite 139/139 verde**, portfolio 93%/84%, global 94%; ruff (E501 quebrada, B008 noqa FastAPI)+mypy strict. Commit 67cf200. Bridge pronta para 02-04 (DCA). |
-| 2026-06-04 | m2 | **STORY-02-04** | **DCA: Cálculo de preço médio ponderado:** `engines/portfolio/operations.py` — 2 async funcs (calculate_dca_by_asset + calculate_dca_all); formula SUM(qty × price) / SUM(qty) where tipo IN ('compra','aporte'), exclui venda/resgate/dividendo/juros (rendimentos). `engines/portfolio/router.py` — 2 GET endpoints (/dca todos ativos, /dca/{asset_symbol} um ativo); rota /dca **antes** de /{operation_id} (evita colisão FastAPI path). `tests/portfolio/test_dca.py` — 10 testes TDD (single compra, múltiplas compras weighted avg, ignore venda/dividendo/juros, aporte incluído, ignore resgate, 404 not found, all list, all empty). +10 testes; **suite 149/149 verde**, portfolio 93%, global 92%+; ruff+mypy strict. Commit 1893c7f. B1-B2 cascade: 02-02/02-05/02-03/02-04 completos; próximo B3 inicia 02-06 (XIRR endpoints). |
-| 2026-06-05 | m2 | **Fechamento m2 — /test /done /gate /code-review** | `/test`: **222 verde**, cov 93%, mypy strict. `/gate m2`: **PASS** (`scripts/validate_xirr.py` — custo reconcilia 0,047%, XIRR 15,25%); m0 health ok; m1 savings jun/2026 = 71% no banco local (doc 55,48% — revalidar, dados re-importados). `/code-review` (3 revisores): 4 bugs triviais **corrigidos** (IR cripto isenção `<=35k`, `PUT /prices` invalida cache XIRR, guarda de campo vazio em preço/aporte no front +1 teste); demais débitos **documentados em `docs/10_Debito_Tecnico_m2.md`** (críticos p/ m3: chokepoint `upsert_price` cache+is_manual, fonte única de categorias, categoria B3 robusta, XIRR com preço parcial, data de avaliação única, drift de arquitetura). Dev roda via docker compose (dados em volume). |
-| 2026-06-05 | m2 | **Pós-gate: auth refresh + UI + rotina B3 + cleanup** | **Auth (bug crítico):** ligado o fluxo de refresh token (antes deslogava a cada 15min). `api/auth/router.py` `/refresh` lê cookie httpOnly (fallback body) + rotação (novo cookie + hash no DB); `create_refresh_token` ganhou `jti` único; frontend `lib/api.ts` com `refreshAccessToken()` deduplicado + interceptor 401 (renova+repete), `AppShell` refresh-on-load, React Query não re-tenta 401. +3 testes auth; smoke test ao vivo (uvicorn+curl) OK. **UI:** `globals.css` `color-scheme: dark` (corrige popup branco dos `<select>` nativos) + select inline de categoria alinhado ao tema. **Rotina B3:** `scripts/update_b3_portfolio.sh` (wrapper idempotente: targets+import B3+Flash; seleciona relatório mensal mais recente). **Cleanup de dados:** m2 movido de `demo`→`vitor@goodies.local` (demo deletado); transactions de 2024 removidas a pedido. Suite 221/221, cov 93%, mypy strict ok. |
-| 2026-06-05 | m2 | **Gate 02-17-18 FECHADO — reconciliação vs planilha** | Vitor enviou a planilha DESEMPENHO CARTEIRA (valor atual por ativo). Reconciliação: **custo total bate 99,95%** (meu R$22.440,64 vs R$22.451,21); **quantidades exatas** (NASD11 29=29). Divergências de custo pequenas e explicadas: NASD11 +R$39,64 = sistema MAIS preciso (preço real B3 vs médio defasado da planilha, confirmado pelo Vitor); Tesouro ~−R$41 = fracionários/cobertura Movimentação. Preços atuais alinhados aos da planilha e persistidos no banco local. **XIRR CONSOLIDADO = 15,25% a.a.** (B3+Tesouro+Flash; Guanabara R$258 fora — sem data de aporte; cripto m4). Gate validado por reconciliação (a planilha não tem XIRR único). **m2 = 17/17.** |
-| 2026-06-05 | m2 | **Gate 02-17-18 — debêntures Flash (RF pré) + XIRR consolidado** | Fonte RF real: `files/debentures-flash/integralizacoes.json` (12 aportes R$1.000, pré 24% a.a. = fator mensal 1,78%; gitignored). `engines/portfolio/rf_pre.py` (valor_atual_pre, 4 testes); `scripts/seed_debentures_flash.py`. Decisão: **dev usa Postgres LOCAL** (`goodies@localhost`); Supabase só no deploy. Pipeline completo rodado no banco local (`demo@goodies.local`): seed targets (6) + import B3 (288 ops + 20 preços) + Flash (12 aportes). **XIRR CONSOLIDADO = 16,53% a.a.** (B3+Tesouro+Flash); patrimônio R$24.212,17. Por categoria: **Renda Fixa 23,94% (≈ pré 24% — valida a fórmula Flash)**, FIIs 19,60%, ETFs 17,05%, Aposentadoria 8,91%, Ações 2,75%. Pendente p/ fechar ±0,1pp: `=XIRR` do Excel na mesma base (B3+TD+Flash). Cripto = m4; Guanabara CDB (R$200) + Caixinha = menores, opcionais. Suite 218/218. Commit (Flash). |
-| 2026-06-04 | m2 | **Gate 02-17-18 — fonte real B3/Toro + Tesouro Direto** | Dados reais chegaram (relatórios B3 XLSX em `files/b3/`, gitignored): Movimentação completa 2024/2025/2026 + consolidados. `engines/portfolio/b3_import.py` (parser Movimentação + preços de posição, 16 testes); `scripts/import_b3.py` (CLI, dry-run/--commit/--snapshot). **Descoberta:** Movimentação cobre só Toro/B3 + Tesouro (NU) — **não** cobre RF (Flash/Guanabara) nem cripto (virão de wallet scan/Binance no m4). Futuros de mini-índice (WIN, qty=0) corretamente excluídos. **Resultado do gate (subset B3+TD, 288 ops set/24→mai/26):** comprado R\$ 10.626,83, valor atual R\$ 10.929,26, **XIRR Python = 10,85% a.a.** (Tesouro R\$ 3.215,11 = posicao.json, validação cruzada). **Pendências do gate:** (1) persistir no banco de produção — `import_b3 --commit` precisa rodar no ambiente do Vitor (Supabase inacessível do sandbox); (2) comparar com `=XIRR` do Excel na mesma base B3+TD p/ fechar ±0,1 pp. Commit 10f797a. |
-| 2026-06-04 | m2 | **Fase C — frontend 02-13→02-16 + código do gate 02-17-18** | **Frontend do Portfolio (Next.js 16 + Recharts 3.8.1).** `web/types/portfolio.ts`, `web/lib/portfolio.ts` (hooks React Query: usePositions/useAllocation/useXIRR/useRebalancing/useAssetOperations/useSetManualPrice), `web/lib/format.ts` (formatRate, formatPP). Páginas em `app/(app)/portfolio/`: **02-13** posições (preço atual editável inline, badge stale), **02-14** histórico + filtros, **02-15** alocação (pizza Recharts + barras atual vs meta + desvio), **02-16** rebalanceamento (aporte→sugestões), + visão geral (XIRR headline). Nav no AppShell. `pnpm lint` limpo, `pnpm build` OK (15 rotas). Commit 2bba8e1. **Código do gate 02-17-18 pronto e testado** (`engines/portfolio/migration.py` + `scripts/migrate_portfolio.py`, 8 testes); falta rodar com CSV real + XIRR Excel (precisa de input do Vitor). |
-| 2026-06-04 | m2 | **Fase A — backend 02-06→02-12** | **Batch de 7 stories de cálculo do Portfolio Engine.** Migração `0008_asset_prices` (preço manual p/ valoração m2, upsert por ticker; compatível c/ Market Engine m3). Novo `engines/portfolio/service.py` (orquestração + funções puras) e `analytics_router.py` (prefix `/api/v1/portfolio`). **02-06** XIRR por ativo/categoria/consolidado (cashflows ADR-002, posição atual = qtd_net × preço; cache Redis `xirr:consolidated:{user_id}` TTL 1h + invalidação ADR-008). **02-07** posições valoradas (qtd_net, DCA, custo, valor atual, resultado, stale ADR-004) + `scripts/seed_asset_prices.py` (10 preços do posicao.json). **02-08** alocação atual vs meta + desvio_pp (fixture `portfolio_user` com targets). **02-09** rebalanceamento (`suggest_rebalancing` Arquitetura §7, nunca vende). **02-10** rendimentos dividendo/juros separados do capital (filtro período). **02-11** IR RV (Ações/ETF 0.15, FIIs 0.20; prejuízo→0). **02-12** IR cripto mensal (isenção 35k, alerta 28k=80%, ganho via DCA). +33 testes (test_xirr_endpoint, test_positions, test_allocation, test_rebalancing, test_income, test_ir_estimate, test_ir_crypto); **suite 190/190 verde**, portfolio cov 97%; ruff+mypy strict. Commits b8c8c0e→e4a1c59. **Próximo: Fase B (gate 02-17-18) — precisa do CSV real da aba OPERAÇÕES + XIRR do Excel.** |
-| 2026-06-06 | pré-m3 | **Faxina de coerência Nubank↔Portfólio (ADR-011)** | Antes de iniciar o m3. **WI-1:** resgates de caixinha deixam de ser `income/Resgate` e viram `investment` net (`api/scripts/reclassify_caixinhas.py`, in-place idempotente, 50 movidos) — tira ~R$32k de receita fantasma; taxa de poupança real (jan 51,8%→28,8%, abr 32,8%→17,9%); saldo invariante R$3.427,97. Migration `0009` (regras de import futuro; categoria `Resgate` aposentada). **WI-2:** `engines/portfolio/rf_cdi.py` (valoração % CDI) + `engines/portfolio/caixinhas.py` (registro config-driven; Reserva já listada `enabled=False`) + `scripts/seed_caixinhas.py`/`seed_cdb_guanabara.py` — Snow Trip (100% CDI, R$10,8k), Turbo (115%, R$776, cap 5k), CDB Guanabara (117,5%, R$200) viram ativos Renda Fixa (ops derivadas das `transactions`, preço `is_manual`). Patrimônio **R$24,2k→R$37,2k**; Renda Fixa **+20,6pp** sobre meta; XIRR consolidado **13,8%**. `CDI_ANUAL` no `.env`/config (provisório até m5/BCB). **WI-3:** só os anchors de caixinha (patterns conservadores descartados a pedido). **Santander = externo** (reafirmado; ~R$32k `income/Extra` ficam receita). Resolve débito §3.12. Doc `docs/11_Coerencia_Nubank_Portfolio_pre_m3.md`. **Guardrail: NÃO rodar `reset_ledger` no banco curado.** +20 testes (suite **241 verde**); ruff + mypy ok. |
-| 2026-06-06 | pré-m3 | **Ajustes de UI (usabilidade pré-m3)** | Polimento antes do m3. **Histórico:** nova aba no menu (`web/components/AppShell.tsx`, entre Posições e Alocação) — antes só acessível pelo card; + total discreto que segue os filtros (Σ qtd×preço, `useMemo` client-side) em `portfolio/history`. **Transações:** `GET /api/v1/transactions` passa a agregar `total_transfer` (net, com sinal) + `transfer_count` sobre o mesmo WHERE (`engines/ledger/transactions.py`; `TransactionList` +2 campos, espelhados em `web/types/ledger.ts`); barra de totais em `/ledger` virou **adaptativa** — mostra **Investido** ao filtrar investimento e **Transferências ≈ R$0,00** (confirma que internas se cancelam; net≠0 = perna órfã / filtro de conta pegando um lado só). **Posições:** tabela agrupada por categoria com **subtotais** (valor atual + resultado/%) em `portfolio/positions` (`useMemo` + `Fragment`, grupos por maior posição). Item "juntar Rebalanceamento na Alocação" **descartado a pedido** (abas mantidas separadas; `targets.py`/`portfolio_targets` intactos). +1 teste (transferências); **suite 243 verde**; ruff + mypy(transactions) ok; `npm run build` (TS ok, 15 rotas) + lint limpos. |
-| 2026-06-06 | m3 | **Market Engine — B0..B5 (12/12 código)** | **B0 (commit 70c456b):** 6 pré-requisitos do code-review m2 — SSOT de categorias (`engines/portfolio/constants.py`, `AssetCategory` StrEnum + frozensets B3/Cripto/Tesouro; religados targets/migration/service/caixinhas/b3_import); `upsert_price` chokepoint (precedência `is_manual`: worker nunca sobrescreve manual; invalidação de cache XIRR por-holder movida p/ dentro); XIRR com preço parcial (exclui posição aberta sem preço; fechada permanece); data de avaliação única (`settings.evaluation_date`+`service.eval_date`, threadada em XIRR/validate_xirr/seeds); categoria B3 das abas "Posição -" (`parse_b3_categories`, ETF-em-11 não vira FII); docs/02 reconciliada + casing docs/09. **B1 (43dae7b):** fetchers `engines/market/fetchers/` (base: `PriceFetcher`/`PriceQuote`/`with_retry` 1s/2s/4s; BRAPI 1-ticker/req [plano grátis], strip F; CoinGecko BRL+USD, mapa em config; Tesouro matching flexível + headers). respx dev-dep. Smoke ao vivo: **BRAPI+CoinGecko OK; Tesouro 403 no sandbox**. **B2-B4 (3ed7d7d):** fallback `engines/market/service.py` (Redis→Postgres→null/stale; `cache_aside_write`), router `/api/v1/market/*` + Pydantic (`PriceOut`); **migração total** `PUT /portfolio/prices`→`POST /market/prices` (testes + front); workers `workers/price_workers.py` (`run_price_b3`=B3+Tesouro, `run_price_crypto`) + `scheduler.py` (cron dias úteis 9-18/4h e */2h) ligado no lifespan (guard `environment!=test`+`enable_scheduler`). **B5:** front `web/app/(app)/market` (tela de Preços + staleness, nav "Preços"); testes de integração (worker→endpoints, API-down→stale, nunca 5xx). CI mypy expandido p/ market+workers. **Suite 243→303 verde; ruff+mypy ok; `npm run build` 16 rotas.** **Gate 48h operacional pendente** (ver `docs/12_Gate_M3_Market.md`; pré-condição: re-import B3 p/ `is_manual=false`). |
-| 2026-06-06 | m3 | **Coleta de preços + Tesouro Transparente + fechamento (/code-review)** | **Coleta ao vivo (banco curado):** `scripts/enable_market_pricing.py` (flip is_manual=false das categorias de mercado; **import_b3 sozinho não destrava** — chokepoint §3.4 bloqueia) + worker → **23/23 cotados via API** (16 B3 + 7 Tesouro). Restam 4 manuais (Flash-Debênture + caixinhas/CDB) = só caixinhas+debêntures, como pedido. **Backend:** `calculate_positions` expõe `is_manual`. **UI:** `/market` distingue via-API/manual/não-encontrado (badges+legenda); `/positions` bloqueia edição de preço auto (🔒). **Cron free-tier:** BRAPI grátis = 1.000 req/mês, 1 ativo/req → `price_b3` 1×/dia útil 19h BRT (~350/mês); `ttl_b3/tesouro`=26h. **Tesouro via Tesouro Transparente** (CSV open-data CKAN, sem auth/WAF/quota) — API oficial é Cloudflare-walled, brapi v2/treasury é Pro-only; `TreasuryFetcher` casa (Tipo, ano) na data-base mais recente, cobre NTN-B "com Juros Semestrais". **/code-review (4 ângulos):** 6 ajustes aplicados — 🔴 override manual mascarado por cache Redis (`invalidate_price_cache`), 🟠 `price_usd` preservado (COALESCE), 🟠 refetch `["market"]`, +polimentos; débitos médios/menores em `docs/13`. Coerência: CLAUDE.md (TTL/cadência), `docs/02` (worker table), `decisions.md` (**ADR-012**), `docs/10` (banner resolvido). **SESSION_M3.md removido** (conteúdo migrado). **SESSION_M4.md** criado com B0 embutido. Suite **308 verde**; ruff+mypy strict; npm lint+build ok. |
-| 2026-06-06 | m4 | **B0 (fundação — débito m3)** | (1) `with_client` em `engines/market/fetchers/base.py` — scaffold único "client próprio-ou-injetado + `with_retry`" (re-raise; fail-soft no call site, pois wallet fetchers devolvem saldos); brapi/coingecko/treasury religados sem mudar asserções. (2) `market.service.list_user_prices` deixou de ser N+1 → 1 `SELECT ticker=ANY($1)` + 1 Redis `MGET` (novo `PriceCache.mget`); builders `_from_cache_hit`/`_from_pg_row` partilhados com `get_price`. (3) `portfolio.service.upsert_price` só invalida XIRR quando `price_brl`/`price_usd` muda (CTE `prev`, comparação Decimal). Config front-load: Settings + etherscan/solscan/binance + endereços + `liquid_base_url`/`lbtc_asset_id` + `ttl_wallet`/`ttl_benchmark`; `coingecko_ids += L-BTC→bitcoin`. Suite **308→317 verde**; ruff+mypy strict. Commit 98d177f. |
-| 2026-06-06 | m4 | **B1 — STORY-04-01 schema wallet_positions + scaffold** | Migration `0010_wallet_positions` (snapshot por `(user,chain,wallet,asset)`, `numeric(36,18)`, UNIQUE + RLS; **não** histórico). Contrato `engines/market/fetchers/wallets/base.py` (`WalletBalance` + `BalanceFetcher` Protocol — `fetch()` sem `symbols`, descobre on-chain, fail-soft→[]). Engine novo `engines/wallet/service.py` (`upsert_wallet_position` idempotente). Worker scaffold `workers/wallet_workers.py` (`run_wallet_scan(pool, user_id, *, fetchers=None)` — agregação fail-soft por fetcher; 04-06 liga os reais + scheduler + união de símbolos). DeFi/Phantom **não** entra aqui (entrada manual, 04-08). +11 testes (schema/idempotência/scaffold); **suite 328 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B2 — STORY-04-02 Etherscan (ETH/ARB) + Hyperliquid (HYPE)** | `EtherscanFetcher` (Etherscan **V2 multichain**, uma key + `chainid`): ETH nativo (chainid 1, `action=balance`) + ARB ERC-20 (chainid 42161, `tokenbalance`); wei→unidade por `decimals`; **status "0" (HTTP 200) → levanta → fail-soft por spec** (uma chain fora não derruba as outras); saldo 0 omitido. **HYPE fica na Hyperliquid L1** (decisão do Vitor — [[m4-hype-on-hyperliquid]]): `HyperliquidFetcher` via Info API (`POST /info {type:"spotClearinghouseState", user}`, lê `balances[].coin=="HYPE"`→`total`), mesmo endereço EVM. Ambos reusam `with_client` (B0); preço via `coingecko_ids` do m3. +11 testes respx; **suite 339 verde**; ruff+mypy strict. Smoke ao vivo deferido ao ambiente do Vitor. |
-| 2026-06-06 | m4 | **B2 — STORY-04-03 Solana (SOL + SPL)** | `SolanaFetcher` via **JSON-RPC público** (`api.mainnet-beta.solana.com`), **não** Solscan Pro — RPC é keyless/estável/documentado; plano Solscan v2 é incerto. `rpc_url` injetável (trocar p/ Helius/QuickNode = só config). SOL nativo (`getBalance` lamports→/1e9) + SPL (`getTokenAccountsByOwner` jsonParsed, mapa `mint→símbolo` USDC/USDT, mint desconhecido = dust omitido, usa `uiAmount`). Fail-soft independente (SOL fora não impede SPL e vice-versa). +5 testes respx; **suite 344 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B2 — STORY-04-04 Liquid L-BTC (client dedicado, ADR-005)** | `LiquidFetcher` **dedicado** (ADR-005 — proibido reusar fetcher Bitcoin mainchain): `GET {liquid_base_url}/address/{addr}/utxo`, soma `value` (sats) **só** dos UTXOs com `asset == LBTC_ASSET_ID` (Liquid é multi-asset; outros ignorados), sats→/1e8, símbolo `L-BTC`; valoração 1:1 BTC via `coingecko_ids` (m3). Base `…/liquid/api` (NÃO `/btc/api`). Testes respx incl. **guardrail ADR-005** (caminho `/liquid/api/address/.../utxo`; UTXO shape Bitcoin sem `asset` → soma 0 → []). Risco a validar no ambiente: endereço confidencial/blinded sem chave de visão. +5 testes; **suite 349 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B2 — STORY-04-05 Binance (spot + earn), HMAC cron-only** | `BinanceFetcher` **assinado** (HMAC-SHA256 sobre `timestamp&recvWindow`, header `X-MBX-APIKEY`) — **cron-only** estrutural (só `run_wallet_scan` o referencia). Agrega `/api/v3/account` (free+locked) + Simple Earn `flexible/position` (`totalAmount`) + `locked/position` (`amount`) por ativo; mantém só símbolos conhecidos (default `coingecko_ids` = os com preço no m3) → descarta dust. **Fail-soft por endpoint** (spot fora não derruba o earn). `clock` injetável → assinatura determinística no teste (recomputa o HMAC e confere). +5 testes respx; **suite 354 verde**; ruff+mypy strict. **B2 completo (5 fetchers).** |
-| 2026-06-06 | m4 | **B3 — STORY-04-06 worker wallet_scan + scheduler + precificação (+ fixes)** | `run_wallet_scan` liga os 5 fetchers reais (`_default_fetchers()` lê credenciais de `settings`; sem credencial = no-op). Scheduler ganha job `wallet_scan` **3x/dia 8/14/20h** (`_job_wallet_scan` resolve o dono via `resolve_owner_id`). **Precificação só-de-wallet:** `run_price_crypto` une `DISTINCT asset_symbol FROM wallet_positions` aos símbolos das ops (`_run_for(extra_symbols=…)`) → cripto só escaneada recebe preço. **Fixes de risco folados (aprovados):** (1) Binance puxa `/api/v3/time` e aplica offset no timestamp (mata clock-skew do WSL; fail-soft → relógio local); (2) `SOLANA_RPC_URL` virou setting (default público; apontar p/ Helius/QuickNode = só env). `.env.example`: SOLSCAN não usado, HYPE=Hyperliquid, +SOLANA_RPC_URL. +6 testes; **suite 360 verde**; ruff+mypy strict. Smoke ao vivo deferido. |
-| 2026-06-06 | m4 | **B4 — STORY-04-07 benchmark_daily (BCB CDI/IPCA)** | Migration `0011_benchmark_data` (`series, ref_date, value, source` + `UNIQUE(series, ref_date)`, global como `asset_prices`; **só** esta tabela — `goals`/`active_alerts` ficam p/ 05-01). `engines/market/fetchers/bcb.py` (`BcbFetcher` via SGS público: CDI=12, IPCA=433; `ultimos/1`; fail-soft por série). `workers/benchmark_workers.py:run_benchmark_daily` upsert ON CONFLICT; job scheduler **22h**. **Sem yfinance/IBOV** (deferido ao m5 05-03 — só a coleta/tabela nascem aqui). +6 testes respx; **suite 366 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B4 — STORY-04-08 DeFi manual (defi_positions + CRUD)** | Migration `0012_defi_positions` (`user_id, protocol, asset_symbol, balance numeric(36,18), maturity_date, is_active, notes` + RLS) — tabela **dedicada** (não reusa `asset_operations`; entrada manual ADR-004). `engines/wallet/defi_router.py` CRUD `/api/v1/defi/positions` (POST 201 / GET filtro `active` / PUT 404 / DELETE 204·404), escopo por `user_id`; montado no `main.py`. +6 testes ASGI (create/list/update/filter/delete/auth/422). **suite 372 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B4 — STORY-04-09 alertas de vencimento DeFi (30d/7d)** | `engines/wallet/defi.py`: função pura `defi_maturity_alerts(positions, today, windows=(30,7))` (compute-on-read, padrão `ledger/service.py`; reusa o `Alert` Pydantic) — ≤7d=`critical`, ≤30d=`warning`, vencida/sem data ignorada. Endpoint **dedicado** `GET /api/v1/defi/alerts` (lê `defi_positions` ativas com `maturity_date`). `today` injetado nos testes (06-06→09-29 = 115d, nada dispara hoje). +7 testes (pure fn + endpoint). **suite 379 verde**; ruff+mypy strict. **B4 completo.** |
-| 2026-06-06 | m4 | **B5-backend — endpoints de leitura de wallet** | `engines/wallet/service.py`: `list_wallet_positions` (saldos valorados pelo preço m3 — 1 SELECT de `asset_prices`, `value_brl = qtd x preço`, `stale` por `ttl_wallet`) + `reconcile` (`delta = Σ escaneado - net_quantity(asset_operations)`, reusa `portfolio.service.net_quantity`). `engines/wallet/router.py` (`/api/v1/wallets/positions`, `/reconciliation`, Pydantic) montado no `main.py`. Backend pré-req do frontend 04-10/04-11. +4 testes ASGI (valorado/sem-preço/delta/auth). **suite 383 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **B5 — STORY-04-12 testes de integração** | `tests/wallet/test_wallet_integration.py` dirige as **classes reais** dos 5 fetchers via `run_wallet_scan` com respx mockando TODOS os explorers/exchange (Etherscan/Hyperliquid/Solana/Liquid/Binance, incl. `/api/v3/time`): grava as **6 posições** em `wallet_positions`; catch-all 503 → **sem linhas, nunca levanta** (fail-soft ponta-a-ponta); posições + reconciliação via ASGI. (Renomeado de `test_integration.py` p/ evitar colisão de basename com `tests/market/`.) +3 testes; **suite 386 verde**; ruff+mypy strict. **Backend do m4 completo (10/12 stories); falta só o frontend 04-10/04-11.** |
-| 2026-06-06 | m4 | **`/code-review` (high, 7 ângulos) — 4 fixes + débito** | Review do backend m4. **4 fixes aplicados (com teste):** (1) 🔴 **posição fantasma** → `wallet.service.sweep_wallet_positions` (snapshot-replace por source; source fora=[] preserva); (2) 🟡 **`ttl_wallet` 4h→14h** (gap noturno do scan é 12h; saldo saudável aparecia stale; CLAUDE.md atualizado); (3) 🟡 **`_wallet_symbols` fail-soft** (`try/except→[]` — tabela ausente não derruba o cron de preço cripto do m3); (4) 🟡 **`failed` counter** = `core - quotes` (símbolo só-de-wallet fora do mapa não conta como falha de fonte → evita falso alarme do m6). Demais achados (paginação Binance, PUT clear-null, timezone `today()`, observabilidade dos fetchers, gather, dedup, multi-user, XIRR/USD) → **`docs/14_Debito_Tecnico_m4.md`**. +4 testes; **suite 390 verde**; ruff+mypy strict. |
-| 2026-06-06 | m4 | **Reestruturação de envs de wallet + L-USDT + BTC nativo (Trust)** | Pós-inventário das wallets reais (RABBY/PHANTOM/TRUST/SIDESWAP + Binance). **Commit A (rename puro, sem mudar comportamento):** `WALLET_EVM_ADDRESS`→`WALLET_RABBY_ADDRESS`, `WALLET_SOL_ADDRESS`→`WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_LIQUID_ADDRESS`→`WALLET_SIDESWAP_ADDRESS` (campo+4 consumidores+`.env.example`+docstring Hyperliquid+mapa em `decisions.md`). **Commit B:** (1) **L-USDT na Liquid** — `LiquidFetcher` generalizado p/ `dict[asset_id→símbolo]` (L-BTC + L-USDT, ambos `source=liquid`, /1e8 precisão 8), `lusdt_asset_id` + `coingecko_ids["L-USDT"]="tether"`; (2) **BTC nativo (Trust)** — novo `BitcoinFetcher` **dedicado** (ADR-005, blockstream `/api`, saldo confirmado `funded-spent`/1e8, `source=bitcoin`), settings `wallet_trust_btc_address`+`btc_base_url`, ligado em `_default_fetchers()` (**6 fetchers**). Integração dirige BTC+L-USDT ponta-a-ponta (8 posições). **HyperEVM fora de escopo** (só HYPE no spot L1). +6 testes; **suite 395 verde**; ruff+mypy strict. **`.env` real do Vitor:** renomear as 3 chaves + setar `LUSDT_ASSET_ID`/`WALLET_TRUST_BTC_ADDRESS` (smoke ao vivo). |
-| 2026-06-06 | m4 | **Smoke ao vivo + posições manuais (Liquid) + frontend B5** | **Smoke (banco local `goodies`; migrations 0010–0013 aplicadas):** `scripts/smoke_wallet_scan.py` rodou 1 scan dos 6 fetchers reais → **8 posições auto-escaneadas e valoradas em BRL** (~R$ 1.633): **BTC nativo (Trust) OK**, ETH(Etherscan), HYPE(Hyperliquid), SOL(Solana), Binance(BTC/ETH/SOL/USDT). **Liquid retornou 0 UTXOs** — endereço SideSwap **confidencial** (esplora público não revela saldos blinded sem a blinding key; limitação da rede, não bug). **Decisão do Vitor: entrada manual** p/ L-BTC + L-USDT. **Backend manual:** migration `0013_wallet_is_manual` (flag `is_manual`; o sweep do worker nunca varre manual); `upsert_manual`/`delete_manual` no service; `list_wallet_positions` devolve `is_manual`; endpoints `POST /wallets/positions/manual` + `DELETE .../{chain}/{asset_symbol}`. +6 testes; **suite 401 verde**; ruff+mypy strict. **Frontend B5:** `web/types/wallet.ts` + `web/lib/wallet.ts` (hooks React Query + mutations invalidando `["wallets"]`/`["defi"]`); `/wallets` (posições valoradas + staleness + badge manual + form manual L-BTC/L-USDT + seção DeFi CRUD); `/wallets/reconciliation` (escaneado vs registrado + delta colorido); nav "Carteiras"/"Reconciliação". `tsc --noEmit` + eslint limpos; **next build 18 rotas**. **Gate m4 atingido** (posições cripto escaneadas sem entrada manual). |
-| 2026-06-07 | m4 | **RABBY ETH+PENDLE (Arbitrum) · valorar manual/DeFi · USD · UI por rede** | Lote de melhorias pós-uso. **A — RABBY:** `EtherscanFetcher._DEFAULT_SPECS` += ETH nativo na Arbitrum + **PENDLE ERC-20** (contrato `0x0c88…a8c9e8`, verificado no Arbiscan, 18 casas); `coingecko_ids["PENDLE"]="pendle"`. Smoke confirma **PENDLE 4,99 + ETH(arb)** no mesmo endereço. **B — valorar DeFi/manual:** `coingecko_ids` += aliases DeFi (chave UPPER: `XSOL`→hylo-leveraged-sol, `PT SUSDAI`→**`susdai`** [id da API ≠ slug `staked-usdai` do site — descoberto no smoke], `HYUSD-2609`/`SHYUSD-2609`→hylo-usd; **YT-xSOL-2609 sem fonte** por decisão — yield token); novo `_defi_symbols` une os símbolos de `defi_positions` ao `run_price_crypto`. L-BTC/L-USDT já mapeados (só faltava rodar o preço). **C — USD:** `list_wallet_positions` + `WalletPositionOut` ganham `price_usd`/`value_usd`; helper compartilhado `prices_by_ticker` (BRL+USD, 1 varredura). **D — DeFi valorado:** `defi_router.list_positions` valora via `prices_by_ticker`; `DefiPositionResponse` += price/value BRL+USD. **E — reconciliação só cripto:** `reconcile` filtra `asset_operations` por `CRYPTO_CATEGORIES` (B3/Nubank vêm por outra via). **F/G/H — front:** nav "Preços"→**"Ativos B3"**, "Carteiras"→**"Carteiras Cripto"** (+ `<h1>`s); `formatUSD`; `/wallets` **agrupado por rede** com subtotais BRL/USD + **USD empilhado** sob BRL nas colunas Preço/Valor; tabela DeFi com Preço/Valor + subtotal. **Smoke ao vivo (banco local):** scan→preço→valor — carteira valorada BRL+USD; **DeFi valorado** (PT sUSDai R$254 · xSOL · hyUSD · sHYUSD; YT-xSOL "—"). +5 testes; **suite 406 verde**; ruff+mypy strict; `tsc`/eslint/`next build` 18 rotas limpos. |
-| 2026-06-07 | m4 | **Editar quantidade (manual Liquid) e saldo (DeFi) inline** | Frontend-only (endpoints já existiam): componente `EditableNumber` (clique no valor → input; Enter salva, Esc cancela, ✎ discreto) em `/wallets`. **Quantidade manual** (linhas `is_manual`) edita via `useCreateManualPosition` (POST `/positions/manual` = upsert). **Saldo DeFi** edita via novo hook `useUpdateDefi` (PUT `/defi/positions/{id}`). Posições escaneadas seguem read-only. `tsc`/eslint/`next build` limpos (endpoints cobertos por `test_wallet_manual`/`test_defi_crud::test_update`). |
-| 2026-06-07 | m4 | **HYPE completo — soma HyperEVM nativo ao spot L1** | Conferência das carteiras: tudo batia, **menos HYPE** (scan pegava só 0,00979 = spot L1). Diagnóstico ao vivo (sem imprimir endereço): **não** é staking (`delegatorSummary`=0) — os 0,3108 faltantes estão na **HyperEVM** (HYPE é o **gas token nativo** da chain EVM da Hyperliquid, mesmo endereço Rabby; o spot não o enxerga). `HyperliquidFetcher` agora soma **2 fontes** (fail-soft por fonte): spot (Info API, chain `hyperliquid`) + **HyperEVM** (`eth_getBalance` no `hyperevm_rpc_url`, wei/1e18, chain `hyperevm`). Config `HYPEREVM_RPC_URL` (default `rpc.hyperliquid.xyz/evm`) + `.env.example`. HyperEVM entra em escopo **só p/ o HYPE nativo**. **Smoke:** HYPE = 0,00979 (spot) + **0,31081 (HyperEVM)** = 0,32060 ✓, valorado BRL+USD. +3 testes (incl. integração 11 posições); **suite 409 verde**; ruff+mypy strict. |
-| 2026-06-07 | m4 | **`/code-review` da sessão + faxina de docs/contexto** | **Review (9 ângulos × finders + verify) da sessão m4** (RABBY/PENDLE, DeFi/manual+USD, reconciliação, UI por rede + edição inline, HyperEVM). **3 correções aplicadas** (commit `9f14d04`): (1) 🔴 **HyperEVM sumia em outage parcial** — sweep é por source e as 2 fontes de HYPE compartilhavam `source=hyperliquid`; HyperEVM agora usa `source=hyperevm` (sweep independente) +regressão; (2) 🟡 posição manual marcada `stale` após `ttl_wallet` (nunca re-escaneada) → `stale=false` p/ `is_manual`; (3) 🟡 edição inline zerava saldo (`Number("")===0`) → rejeita vazio + chave React inclui `wallet_address`. **suite 410 verde**. Demais achados → débito. **Docs consolidados:** débito m2/m3/m4 (`docs/10/13/14`) → **um arquivo vivo `docs/15_Debito_Tecnico.md`** (só itens abertos; antigos removidos). **Coerência:** `docs/07_Decisoes.md` ganhou **ADR-011/012/013** (backfill caixinha/m3 + wallet m4) e corrigiu o env Liquid; `.claude/memory/decisions.md` (TTLs reais 26h/26h/14h, tabela de envs de wallet, ADR-013); `CLAUDE.md` (LUSDT); `project-context.md` (5 engines + Wallet Engine + envs); `02_Arquitetura.md` (fetchers/`wallet_positions`/`defi_positions`); `security.md`; tags histórico em `docs/11`/`docs/12`. m4 fechado **12/12** (04-10/04-11 marcadas, commit `3460ae9`). |
-| 2026-06-07 | m4 | **Pass de débito técnico (8 fases — tudo que não depende de marco)** | Após o review, sanados ~30 itens do `docs/15` em 8 commits TDD (`dc2cf06..890b4ba`). **Auth (m2):** refresh só no cookie httpOnly (fora do body do `/login`) + valida `payload["type"]` em `get_current_user`/`/refresh`. **Wallet/reconcile (m4):** guard de contagem dupla manual+escaneada (409 + dedup preferindo escaneada); reconcile categoria case-insensível; `engines/common/dates.today_brt()` nos alertas DeFi/ledger (UTC→BRT off-by-one). **Valoração (m4):** `market.service.prices_for_tickers` (cadeia Redis→PG do m3) — wallet/DeFi deixam de bater SELECT cru e usam o cache cripto; `upsert_price` só invalida XIRR em mudança de BRL; `xirr()` captura Zero/OverflowError. **Fetchers/DeFi:** Binance Earn paginado (size=100), Tesouro CSV em stream, PUT DeFi nullable via `model_fields_set`. **Frontend:** `parseDecimalInput` (milhar pt-BR não vira NaN), EditableNumber sem double-fire + erro inline, EPS reconciliação 5e-9, USD parcial marcado "*", dedup `fmtQty`/`fmtWhen`/`Badge`. **Dedup backend:** `as_decimal`/`value_of`/`_distinct_symbols`/`with_owned_client`; aliases DeFi sem sufixo (`-NNNN` normalizado → rolagem de vencimento casa); specs EVM em `settings.evm_token_specs`; custo-médio com fonte única `_dca_price` (golden `validate_xirr` GATE m2 PASS, custo R$ 22.440,64). **Scripts:** `_common.resolve_owner`/`--user` em 7 scripts, import_b3 source=tesouro, idempotência por rowcount, `enable_market_pricing` via constants; front de import sob o interceptor 401. **Suite 410→427 verde**; ruff+mypy strict; `tsc`/eslint/`next build` 16 rotas. Restam só itens de **m5/m6/deploy** + deferidos por design (`docs/15`). |
-| 2026-06-07 | m4 | **Integração do _sleeve_ cripto no portfólio + spike de histórico (6 fases)** | Cripto estava invisível no portfólio (`asset_operations` tem 0 linhas de cripto). **Análise (dados reais):** investido líq. via Nubank→cripto **R$ 6.204,45** (94 tx em 4 categorias; fluxo ~unidirecional, só R$ 152,27 voltaram) vs valor atual escaneado **R$ 3.424** → resultado **−R$ 2.780 / XIRR −58,7%**. **Decisão (sem poluir `asset_operations` com linhas sintéticas):** novo `engines/portfolio/crypto_sleeve.py` cruza custo do ledger (`settings.crypto_ledger_categories`) com valor das carteiras (`wallet_positions`+`defi_positions` valorados pelo cache m3). **F1** núcleo + config; **F2** `GET /portfolio/crypto-sleeve` (= reconciliação de valor) + TS `useCryptoSleeve`; **F3** fold por ativo em Posições (qtd+preço+valor fiéis; preço médio/resultado "—") → Alocação (Cripto % real vs meta 5%) e Rebalanceamento herdam; **F4** fold no XIRR (`by_category["Cripto"]`+consolidado) + invalidação (preço cripto cobre holders de wallet/defi; pós-scan); **F5** frontend (subtotal Cripto com XIRR do sleeve; painel de reconciliação de valor por rail); **F6** `scripts/crypto_history_spike.py` read-only (redige segredos). **Spike (ao vivo):** Binance myTrades **23** + fiat **2** → custo recuperável (**yes**); on-chain ETH/ARB/SOL/BTC/Hyperliquid (37–70 eventos) → **partial** (precisa preço histórico+swaps); HyperEVM/Liquid/KuCoin → **no**. Tier 2 (preço médio por ativo) **gated** nesse resultado. **Suite 427→463 verde**; ruff+mypy strict; `tsc`/eslint/`next build` 16 rotas. Commits `d1141c4..1efd6e8`. |
-| 2026-06-07 | m4 | **Coerência Neobankless — 2ª wallet Solana + saldo custodial USD** | A tx Nubank→Neobankless R$ 100 (24/01) já estava no custo (Cripto Diversos), mas o **valor** faltava. **Scan:** `SolanaFetcher` passa a varrer uma LISTA de endereços (Phantom + `WALLET_NEOBANKLESS_ADDRESS`), todos `source=solana` → 1 sweep (commit `c49f985`, +2 testes). **Diagnóstico ao vivo (sem imprimir endereço):** o endereço Neobankless tem conta USDC mas saldo on-chain **0** — é **porta de depósito custodial** (varrida); o saldo que rende (~US$ 85,03) vive nos livros da Neobankless. **Decisão:** entrada **manual** (igual Liquid) — `defi_positions` protocol=`neobankless`, `USDC` = 85,03 (valorado pela cotação CoinGecko ~R$ 5,18, coerente com USDT/L-USDT; app usa ~R$ 5,40 → R$ 459 vs R$ 440 nosso, só fonte de câmbio). **Sleeve:** valor **R$ 3.411→3.850**, resultado **−R$ 2.793→−2.355**, XIRR **−59,0%→−50,0%**. Rail do sleeve agora por **protocolo DeFi** (Neobankless/Hylo/Pendle distintos na reconciliação; commit `81398af`). |
-| 2026-06-07 | m4 | **Tier 2 Binance — preço médio por ativo (pragmático)** | **Análise primeiro (discovery read-only):** `myTrades` dá custo real em USDT (BTC 23 trades/154 USDT · ETH 21/79 net · SOL 12/74), mas o **saldo detido > net negociado** (depósitos cripto + Simple Earn + provável Convert); câmbio histórico via par Binance **`USDTBRL`** (CoinGecko free não tem). **Decisão (Vitor): pragmático** — só trades, custo BRL via klines, o gap a **custo zero**. **Build:** `crypto_cost_basis` (migration 0014, tabela dedicada — não polui `asset_operations`/sleeve) + `reconstruct_binance_cost.py --commit`; `crypto_positions` casa o custo por **(símbolo, fonte)**. **Honestidade (Vitor): por custódia** — Posições deixa de agregar por símbolo (1 linha por ativo+custódia): **BTC/ETH/SOL @binance** com preço médio/resultado reais (ETH −R$ 82), demais custódias "—" até reconstruir on-chain (evita inflar com saldo de outra carteira a custo zero). Persistido ao vivo: BTC R$ 850 / ETH R$ 451 / SOL R$ 396 (aporte ledger R$ 2.042 → diferença R$ 346 = perdas realizadas + USDT parado). **Sleeve intacto** (money-weighted). **Suite 463→467 verde**; ruff+mypy; `tsc`/build 18 rotas. Commits `b12d23c..a81a092`. On-chain/IR-cripto pendentes (`docs/15`). |
-| 2026-06-07 | m4 | **On-chain inviável → cripto vira BLOCO em Posições (simplificação)** | **Discovery on-chain EVM (Rabby, read-only):** quase tudo entra via **transfer/bridge/airdrop** (só 2 swaps em ~78 transfers); fluxo Nubank→SideSwap/Liquid→bridge→carteira deixa o custo BRL **do lado da Liquid**, fora do `tokentx` → **custo on-chain irrecuperável** (a parte "partial" do spike). **Decisão do Vitor (repensar):** cripto não tem a granularidade fiel de B3/RF; o que importa é "quanto saiu vs quanto tem". **Re-arquitetura:** em Posições cripto deixa de ser per-ativo e vira **UM bloco** (`crypto_positions` → linha `is_bucket`; card "Cripto (bloco)" com investido/atual/resultado/XIRR + link p/ Carteiras). B3/RF seguem per-ativo; o detalhe por moeda fica nas Carteiras Cripto; Alocação/Rebal./XIRR herdam o bloco. `crypto_cost_basis` (Binance) **preservado, não exibido**. Bug do React (key duplicada nas linhas per-custódia) corrigido antes. **Suite 464 verde**; ruff+mypy; `tsc`/eslint/build 18 rotas. Memórias `crypto-as-bucket`/`m4-crypto-sleeve`. Commits `3bebbf1..3d92b21`. |
-| 2026-06-08 | m4 | **Dar vida ao app: ingestão B3 robusta + catch-up local + trânsito (plano A→D)** | App é **local-on-demand** (cron não dispara → dados congelados em 03/06). Validado antes o **mapa de categorias** (coração da reconciliação): achado **R$36,2k de "Extra" = auto-transferência Santander PF** (decisão: receita externa, não `transfer` — conta não-importável; memória `ledger-reconciliation-map`/`pre-m3-coerencia`). **Phase A** (`e0e1809`): ingestão B3 lê **3 tipos** (`POST /portfolio/import-b3` octet-stream + dry-run; `b3_workbook` `data_only` sem read-only; `parse_b3_negociacao` data do negócio; `import_b3_workbook` com **regra de cobertura por proveniência** — o `operation_hash` não dedup trade-vs-liquidação D+2; broker=`B3-negociacao/movimentacao/consolidado`). **Junho importado** (8 trades, WEGE3 novo). **Phase B** (`075ec4c`): `ImportReport.by_kind`; sugestão híbrida de despesa (`suggest.py` + `/transactions/suggestions` + card no analise-ledger); idade de saldo cripto manual. **Phase C** (`fe11f1c`): catch-up local — migration `0015 job_runs`, `workers/refresh.py:refresh_stale` (só vencidos, `pg_try_advisory_lock`), `GET/POST /jobs/*`, página `/refresh` + catch-up no AppShell ao abrir. **Phase D** (`24f3526`): reconciliação de **trânsito** (`/portfolio/transit`: saiu ledger vs aplicado asset_operations por trilho; cripto via sleeve à parte) — ao vivo B3 ~156, Flash 0, Tesouro 146, RF Nubank 1.148. **Suite 464→504 verde**; ruff+mypy (69); `tsc`/eslint/`next build` 21 rotas. Coletor Hermes (e-mail/B3/Discord) **diferido** (pede nuvem 24/7). Memória `m4-ingestao-atualizacao`. |
-| 2026-06-10 | m4 | **Review + conferências de cálculo (ajustes gerais)** | `/code-review` (high, 7 ângulos × verify) → **8 achados corrigidos**: sweep apagava sub-unidade de fetcher que falhou (C5: `ScanBalances.complete`); import B3 `_to_date` datetime→date (C1, era 500) + hash de fills idênticos (C3); consolidado nunca persistia via UI + cache Redis stale + contador inflado (C4); dupla contagem cripto no fold per-ativo (C6); CRUD wallet/DeFi não invalidava XIRR (C7); worker cripto não reportava apagão (C8). **Conferências do Vitor:** frescor honesto (`/refresh` "fresco" × `/wallets` "desatualizado" → status `partial` + idade real de `scanned_at`); trânsito coerente (proventos→**caixa corretora**, status `reconciled|pending|rendimento_realizado` no backend; RF Nubank −R$352 = caixinhas encerradas que renderam, **display honesto** por decisão do Vitor — não seedar, descrições sobrepostas); **revert** de preço manual (DELETE .../manual); **USD em todo valor cripto** (sleeve+reconciliação backend, componente `Money` no front); `/cashflow` running_balance **ancorado** no saldo antes de `from` (diff dos 9,04); **edição inline** preço OU valor em Posições (valor→preço=valor/qtd; ↺ volta ao automático); **busca por trecho** (ILIKE) no histórico; alocação com **R$ atual/alvo/desvio**; botão "Atualizar tudo" robusto (mutationKey compartilhada, already_running, badge parcial). Suite **504→524**; ruff+mypy; `tsc`/eslint/`next build` 21 rotas. Débito C2 (cobertura B3 cruza datas D+2) + limpezas em `docs/15`. Scan-zero de 06-10 = runtime (não config: `.env` raiz ok via pydantic), agora visível como "parcial".
+| 2026-10-18 | — | planejamento | Backlog v2 final (78 stories), prontidão PASS, revisão adversarial aplicada; tracker v1 arquivado em `docs/v1/PROGRESS-v1.md`. |
