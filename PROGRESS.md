@@ -106,14 +106,14 @@
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 6.1 | Custos fixos com vigência e casamento automático | [x] | — |
-| 6.2 | Caixa › Custos fixos com casamento | [x] | — |
-| 6.3 | Custos fixos vencendo e atrasados no Painel | [x] | — |
-| 6.4 | Aviso de gasto acima da média | [x] | — |
-| 6.5 | Termos do orçamento | [x] | — |
-| 6.6 | Caixa › Orçamento | [x] | — |
-| 6.7 | Taxa de poupança e rodapé do orçamento | [x] | — |
-| 6.8 | Completar os meses já fechados com o orçamento | [x] | — |
+| 6.1 | Custos fixos com vigência e casamento automático | [x] | 7e1dce9 |
+| 6.2 | Caixa › Custos fixos com casamento | [x] | f82b1ad |
+| 6.3 | Custos fixos vencendo e atrasados no Painel | [x] | b77d572 |
+| 6.4 | Aviso de gasto acima da média | [x] | dd6fb85 |
+| 6.5 | Termos do orçamento | [x] | afe8e46 |
+| 6.6 | Caixa › Orçamento | [x] | 873f0cc |
+| 6.7 | Taxa de poupança e rodapé do orçamento | [x] | 62950e7 |
+| 6.8 | Completar os meses já fechados com o orçamento | [x] | 48c3dcf |
 
 **Gate marco 2 (`/gate m2`):**
 - Golden tests do orçamento verdes a partir de `tests/fixtures/mockup_out2026.json` (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77).
@@ -230,3 +230,4 @@
 | 2026-10-18 | m2 | Épico 6: 6.6 | Caixa › Orçamento: Conta do orçamento (DESIGN › budget-ledger — operador em coluna, "=" com régua e num-lg; + Receita do trabalho expande por pagador · + Resgates com os itens · − Custos fixos com pago × a pagar · − Aporte planejado "não definido" · − Dívidas do mês inline · = Disponível · − Consumido com as deduções · = Restante), negativo em vermelho com ▼ e a nota do catálogo, e abaixo consumo financiado por resgate + restante sem os resgates; ao lado, Consumido por grupo → subcategoria (% do consumido, transações) com gastos brutos e − Devoluções no rodapé. Dívidas: Enter grava (PUT planning), a conta recalcula pela API e anuncia "Disponível: R$ x"; Esc reverte; vazio volta ao pré-preenchido ("calculado das transações em Dívidas" / "sem dívidas informadas"); mês fechado só leitura; falha "Não foi possível salvar as dívidas. Nada foi perdido. Tentar de novo." mantendo o digitado (a mutação fica no pai: o campo remontado perdia o retorno). Painel: Cartão KPI Disponível para consumo ao lado de Resultado do mês, leva a Caixa › Orçamento. Navegador (cópia dev): set/2026 aberto, Esc/Enter/vazio/falha, mar/2025 fechado sem input e termos "—" (o snapshot é anterior ao orçamento — 6.8). |
 | 2026-10-18 | m2 | Épico 6: 6.7 | Rodapé do orçamento (sob o Consumido por grupo): custos fixos pagos (fora do consumido), gastos do mês, investimento (realizado total, fora dos gastos), taxa de poupança ((trabalho − (gastos − devoluções)) / trabalho) e investimento ÷ receita do trabalho — todos da rota de orçamento (planning.month_budget, Pct com 2 casas). Sem receita do trabalho → Valued nulo `sem_receita` (teste da rota), nunca 0%. "jun/2026 = 55,48%" segue o ADR-016: a taxa de cada mês = a lista v2 fixada (dados_reais da 6.5 cobre jul/2024–set/2026; jun/2026 = 56,87% na tela). |
 | 2026-10-18 | m2 | Épico 6: 6.8 | planning.ensure_month_plan(month, mode='retro'): dívidas = Σ role `divida` não casada a custo fixo, aporte planejado nulo (`nao_definido`), gravado pelo serviço. closing.refechar chama-o nos meses `retro` antes de recalcular e o close_retro também; `--completar` preenche os termos do orçamento (nulos/fora_do_resumo) e mantém o resto congelado. Corrigido no caminho: refechar relia a confirmação "retroativo divergente" com o valor em float (Money recusa) — teste no mês divergente. dados_reais: na base fixada, retro + snapshot sem orçamento → refechar 2024-07..2026-05 = 23 versões 2 com o orçamento, conta fechando, taxa igual, aporte nao_definido. Banco local não refechado: escolha do Vitor (P14). |
+| 2026-10-18 | m2 | Épico 6: review + gate m2 | Review 415687f (10 achados aplicados com teste): Trocar honra a saída escolhida do mês mesmo fora da janela; decisão de outro mês/inexistente → 422 e transação já usada → 409 (antes 500); a janela do casamento não cruza o mês (sem contagem dupla); excluir custo encerra a vigência no mês anterior (o de agora some; meses passados preservados) e só apaga custo que nasceu neste mês; ensure_month_plan só cria (não sobrescreve dívidas/aporte informados); mês fechado mostra a Conta inteira congelada (0035: month_summary_totals.budget, backup pre-0035; snapshot anterior ao orçamento mostra só os totais com nota); aviso "vence em" olha o mês seguinte; % dos grupos sobre o total dos grupos (− devoluções = consumido); v1 desativar/reativar acompanha a vigência e cria com categoria v2. Suíte: 821 testes, 0 pulados, cobertura 93,84%; mypy limpo; web 39 + lint + build ok. **Gate m2:** golden do orçamento verde a partir de tests/fixtures/mockup_out2026.json (consumido 6.912,37; disponível 8.405,59; financiado 2.994,77; casos zero, resgate cobre tudo, devolução, dívida não informada) e pela rota com a fixture gravada; poupança por mês = lista v2 fixada (dados_reais 2.6/5.2/5.7/6.5 — deltas dos meses com Repasse conferidos na 2.6); health 200, banco em head (0035), 8/8 stories [x], nenhum dados_reais pulado. **Pendente:** SM-1 parcial — o comando `metricas` só nasce no Épico 10 (P15). |
