@@ -7,6 +7,8 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
+from tests.portfolio.conftest import set_price
+
 
 def _days_ago(n: int) -> str:
     return (date.today() - timedelta(days=n)).isoformat()
@@ -50,11 +52,7 @@ class TestXIRREndpoint:
             headers=auth_headers,
         )
         # Manual current price 11.00 → current value 1100 → XIRR ~10%
-        await api.post(
-            "/api/v1/market/prices/PETR4",
-            json={"price_brl": 11.00},
-            headers=auth_headers,
-        )
+        await set_price("PETR4", 11.00)
 
         resp = await api.get("/api/v1/portfolio/xirr", headers=auth_headers)
         assert resp.status_code == 200
@@ -122,11 +120,7 @@ class TestXIRREndpoint:
                 },
                 headers=auth_headers,
             )
-            await api.post(
-                f"/api/v1/market/prices/{sym}",
-                json={"price_brl": 11.00},
-                headers=auth_headers,
-            )
+            await set_price(sym, 11.00)
 
         resp = await api.get("/api/v1/portfolio/xirr", headers=auth_headers)
         assert resp.status_code == 200

@@ -45,6 +45,7 @@ from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.brokers_router import router as portfolio_brokers_router
 from engines.portfolio.debentures_router import router as portfolio_debentures_router
 from engines.portfolio.import_b3_routes import router as portfolio_import_b3_router
+from engines.portfolio.manual_prices import router as portfolio_manual_prices_router
 from engines.portfolio.reconciliation_router import router as portfolio_reconciliation_router
 from engines.portfolio.router import router as portfolio_router
 from engines.portfolio.transit_routes import router as portfolio_transit_router
@@ -145,6 +146,7 @@ app.include_router(portfolio_import_b3_router)
 app.include_router(portfolio_transit_router)
 app.include_router(portfolio_debentures_router)
 app.include_router(portfolio_brokers_router)
+app.include_router(portfolio_manual_prices_router)
 app.include_router(portfolio_reconciliation_router)
 app.include_router(market_router)
 if settings.hermes_enabled:  # Story 1.6: Hermes desligado na v2.0 (HERMES_ENABLED=false)

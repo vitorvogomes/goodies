@@ -11,6 +11,7 @@ import pytest
 from httpx import AsyncClient
 
 from engines.portfolio.service import suggest_rebalancing
+from tests.portfolio.conftest import set_price
 
 
 class TestSuggestRebalancingPure:
@@ -63,11 +64,7 @@ async def _buy_with_price(
         },
         headers=headers,
     )
-    await api.post(
-        f"/api/v1/market/prices/{sym}",
-        json={"price_brl": price},
-        headers=headers,
-    )
+    await set_price(sym, price)
 
 
 class TestRebalancingEndpoint:

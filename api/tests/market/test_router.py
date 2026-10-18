@@ -44,7 +44,8 @@ async def test_post_manual_then_get(api: Any, portfolio_user: dict) -> None:
 async def test_manual_overrides_cached_auto_price(
     api: Any, pool: Any, portfolio_user: dict
 ) -> None:
-    """Manual sempre vence: o POST invalida o cache Redis do preço de mercado."""
+    """Story 10.2: ativo com fonte de mercado não aceita preço digitado (409) — o preço de mercado
+    em cache segue valendo (antes da v2, o manual sobrescrevia)."""
     from engines.market import service
 
     uid, headers = portfolio_user["user_id"], portfolio_user["headers"]
@@ -66,12 +67,13 @@ async def test_manual_overrides_cached_auto_price(
             ttl=300,
         )
     try:
-        # override manual
-        await api.post("/api/v1/market/prices/MKT_OVR", json={"price_brl": 40.0}, headers=headers)
+        refused = await api.post(
+            "/api/v1/market/prices/MKT_OVR", json={"price_brl": 40.0}, headers=headers
+        )
+        assert refused.status_code == 409
         got = await api.get("/api/v1/market/prices/MKT_OVR", headers=headers)
         body = got.json()
-        assert body["price_brl"] == 40.0  # manual, não os 30.0 cacheados
-        assert body["is_manual"] is True
+        assert body["price_brl"] == 30.0 and body["is_manual"] is False
     finally:
         await cache().delete(service.price_cache_key("b3", "MKT_OVR"))
 

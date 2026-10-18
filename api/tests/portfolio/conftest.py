@@ -85,3 +85,19 @@ async def portfolio_user(pool: Any) -> AsyncIterator[dict[str, Any]]:
         )
     yield {"headers": headers, "user_id": uid}
     await _cleanup_user(pool, uid)
+
+
+async def set_price(symbol: str, price: float) -> None:
+    """Preço de teste pelo chokepoint do market (a rota manual só aceita ativo sem fonte de
+    mercado desde a Story 10.2)."""
+    import asyncpg
+
+    from engines.market import service as market_service
+    from tests.conftest import TEST_DSN
+
+    conn = await asyncpg.connect(TEST_DSN)
+    try:
+        await market_service.upsert_price(conn, symbol, price)
+        await market_service.invalidate_price_cache(symbol)
+    finally:
+        await conn.close()

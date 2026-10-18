@@ -9,6 +9,9 @@ para cá (decisão do m3).
 from __future__ import annotations
 
 # ruff: noqa: B008
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -53,8 +56,19 @@ async def set_manual_price(
     user: dict[str, str] = Depends(get_current_user),
     db: asyncpg.Connection = Depends(get_db),
 ) -> PriceOut:
-    """Define/atualiza o preço manual de um ticker (is_manual=True; sempre vence)."""
-    await service.upsert_price(db, ticker, body.price_brl)
+    """Define/atualiza o preço manual de um ticker sem fonte de mercado (is_manual=True; nunca
+    expira, o worker não sobrescreve). Com fonte de mercado → 409 (Story 10.2)."""
+    if await service.has_market_source(db, ticker):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {"error": "preco_de_mercado", "message": f"{ticker} tem preço de mercado automático."},
+        )
+    as_of = (
+        datetime.combine(body.as_of, time(12), tzinfo=ZoneInfo("America/Sao_Paulo"))
+        if body.as_of
+        else None
+    )
+    await service.upsert_price(db, ticker, body.price_brl, as_of=as_of)
     # Invalida o cache Redis para o override manual não ficar mascarado por um preço
     # de mercado cacheado (manual sempre vence; ver invalidate_price_cache).
     await service.invalidate_price_cache(ticker)

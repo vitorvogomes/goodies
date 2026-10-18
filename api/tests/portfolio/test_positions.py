@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+from tests.portfolio.conftest import set_price
+
 
 async def _buy(
     api: AsyncClient,
@@ -47,11 +49,7 @@ class TestPositions:
     async def test_position_with_price(self, api: AsyncClient, auth_headers: dict) -> None:
         """Buy 100 @ 10, current price 12 → result +200 (20%)."""
         await _buy(api, auth_headers, "PETR4", 100.0, 10.0)
-        await api.post(
-            "/api/v1/market/prices/PETR4",
-            json={"price_brl": 12.0},
-            headers=auth_headers,
-        )
+        await set_price("PETR4", 12.0)
         resp = await api.get("/api/v1/portfolio/positions", headers=auth_headers)
         assert resp.status_code == 200
         pos = next(p for p in resp.json() if p["asset_symbol"] == "PETR4")
@@ -104,11 +102,7 @@ class TestPositions:
         """Buy 100 @ 10, sell 40 @ 15 → net 60, DCA still 10."""
         await _buy(api, auth_headers, "ITSA4", 100.0, 10.0)
         await _buy(api, auth_headers, "ITSA4", 40.0, 15.0, tipo="venda")
-        await api.post(
-            "/api/v1/market/prices/ITSA4",
-            json={"price_brl": 12.0},
-            headers=auth_headers,
-        )
+        await set_price("ITSA4", 12.0)
         resp = await api.get("/api/v1/portfolio/positions", headers=auth_headers)
         pos = next(p for p in resp.json() if p["asset_symbol"] == "ITSA4")
         assert float(pos["quantidade_net"]) == 60.0
@@ -137,11 +131,7 @@ class TestPositions:
             tipo="aporte",
             category="Renda Fixa",
         )
-        await api.post(
-            "/api/v1/market/prices/Flash_CDB",
-            json={"price_brl": 13207.62},
-            headers=auth_headers,
-        )
+        await set_price("Flash_CDB", 13207.62)
         resp = await api.get("/api/v1/portfolio/positions", headers=auth_headers)
         pos = next(p for p in resp.json() if p["asset_symbol"] == "Flash_CDB")
         assert float(pos["quantidade_net"]) == 1.0

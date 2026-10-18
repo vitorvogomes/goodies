@@ -1,6 +1,8 @@
 """Contrato tipado dos endpoints /api/v1/market/* (§3.5: Pydantic na superfície nova)."""
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -26,3 +28,4 @@ class SetPriceRequest(BaseModel):
     """Corpo do POST manual de preço (BRL)."""
 
     price_brl: float
+    as_of: date | None = None  # Story 10.2: a data do preço informado (padrão: hoje)

@@ -13,6 +13,8 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
+from tests.portfolio.conftest import set_price
+
 
 async def _price(conn: Any, ticker: str, brl: float) -> None:
     await conn.execute(
@@ -60,7 +62,7 @@ async def _b3_buy(api: AsyncClient, headers: dict, sym: str, qty: float, price: 
         },
         headers=headers,
     )
-    await api.post(f"/api/v1/market/prices/{sym}", json={"price_brl": price}, headers=headers)
+    await set_price(sym, price)
 
 
 class TestCryptoBucket:

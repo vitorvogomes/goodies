@@ -7,6 +7,8 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
+from tests.portfolio.conftest import set_price
+
 
 async def _buy_with_price(
     api: AsyncClient,
@@ -29,11 +31,7 @@ async def _buy_with_price(
         },
         headers=headers,
     )
-    await api.post(
-        f"/api/v1/market/prices/{sym}",
-        json={"price_brl": price},
-        headers=headers,
-    )
+    await set_price(sym, price)
 
 
 def _cat(data: dict, name: str) -> dict:
