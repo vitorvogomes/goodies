@@ -178,3 +178,31 @@ async def test_refresh_rejects_token_with_wrong_type(test_user):
     async with _client() as client:
         resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": forged})
     assert resp.status_code == 401
+
+
+async def test_refresh_cookie_is_lax_and_not_secure_in_localhost(test_user):
+    # Story 1.9 (AD-18): httpOnly, samesite=lax e sem `secure` (localhost não tem HTTPS).
+    async with _client() as client:
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": test_user["email"], "password": _PASSWORD},
+        )
+    attrs = [a.strip().lower() for a in resp.headers["set-cookie"].split(";")]
+    assert "httponly" in attrs and "samesite=lax" in attrs
+    assert "secure" not in attrs
+
+
+async def test_cors_only_allows_localhost_3000():
+    async with _client() as client:
+        ok = await client.options(
+            "/api/v1/health",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
+        )
+        bad = await client.options(
+            "/api/v1/health",
+            headers={"Origin": "http://192.168.0.10:3000", "Access-Control-Request-Method": "GET"},
+        )
+    assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert ok.headers.get("access-control-allow-credentials") == "true"
+    assert "access-control-allow-origin" not in bad.headers
+    assert settings.cors_origins == ["http://localhost:3000"]

@@ -2,10 +2,10 @@
 
 **Docker-local-first:** a stack inteira de dev (Postgres + Redis + **API**) sobe via
 `docker compose` na porta **8000**. O front (Next.js) roda no host. Para desenvolver e validar
-o app você **não precisa** de Supabase nem Upstash. Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1.
+o app não há serviço de nuvem (ADR-014). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1.
 
-> As variáveis `UPSTASH_*`, `REDIS_URL`, `DISCORD_WEBHOOK_URL` são de produção/m6 — deixe os
-> placeholders. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front
+> `DISCORD_WEBHOOK_URL` é da v2.1 — deixe o placeholder. `BACKUP_DIR` aponta para um diretório fora do
+> repositório e fora de pasta sincronizada com a nuvem. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front
 > aponta para `http://localhost:8000`.
 
 ---
@@ -48,12 +48,14 @@ cd ~/projects/goodies
 docker compose build && docker compose up -d   # use --build sempre que mudar deps/Dockerfile
 docker compose ps                              # postgres, redis e api "healthy"
 ```
-A API tem bind mount + `--reload`: mudanças no código `api/` recarregam sozinhas, sem rebuild
-(o rebuild só é necessário ao mudar `pyproject.toml`/`uv.lock`/`Dockerfile`).
+O serviço `api` aponta para o **banco real**: roda a imagem construída, **sem** bind mount e **sem**
+`--reload`. Para pegar código novo: `docker compose up -d --build api`. Na subida
+(`scripts.ops.startup`) ele confere `BACKUP_DIR` e o Alembic: com `AUTO_MIGRATE=false` (padrão), banco
+fora do `head` não sobe e a mensagem manda rodar `python -m scripts.ops.migrar`.
 
 ### 2. Migrations + admin (primeira vez / quando o schema mudar)
 ```bash
-docker compose exec api alembic upgrade head        # cria/atualiza o schema (users, refresh_token_hash)
+cd api && uv run python -m scripts.ops.migrar        # main limpa + dados_reais verdes + backup → upgrade
 
 # admin (só na primeira vez; não exponha a senha no chat/repo):
 docker compose exec -e ADMIN_EMAIL='vitor@goodies.local' -e ADMIN_PASSWORD='change-me' \
@@ -112,7 +114,7 @@ cd ~/projects/goodies/web && pnpm lint && pnpm build
 
 **No VS Code (você):** SQLTools já conectado (`localhost:5432`, db `goodies`) — veja as tabelas no
 painel lateral e rode SQL no scratch `*.session.sql` (`Ctrl+E` na seleção). O schema **só** muda
-via Alembic (`docker compose exec api alembic upgrade head`), nunca criando tabela à mão.
+via Alembic (`python -m scripts.ops.migrar`), nunca criando tabela à mão.
 
 **Por linha de comando (psql no container)** — usado p/ validar migrations/dados nos gates:
 ```bash
@@ -128,7 +130,83 @@ alterações de schema sempre via migration.
 ## Encerrar
 ```bash
 docker compose down        # para os containers (mantém os dados em volume)
-docker compose down -v     # zera também o Postgres (volume pgdata)
+```
+> ⚠ **Nunca** `docker compose down -v`: o `-v` apaga o volume `pgdata` — o banco real, a única cópia
+> dos seus dados fora dos backups.
+
+---
+
+## Segurança local (Story 1.6 — spine AD-18)
+
+- Portas publicadas só em `127.0.0.1` (8000, 5432, 6379): ninguém na rede alcança api, banco ou Redis.
+- Postgres e Redis com senha: `POSTGRES_PASSWORD` e `REDIS_PASSWORD` no `.env` (gere com
+  `openssl rand -hex 24`, sem colar no chat); `DATABASE_URL`/`REDIS_URL` do `.env` levam as mesmas senhas.
+  O `POSTGRES_PASSWORD` só vale na criação do volume; para trocar a senha num volume existente:
+  ```bash
+  PG=$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)
+  echo "ALTER USER goodies PASSWORD :'pw';" | \
+    docker compose exec -T -e NEWPW="$PG" postgres sh -c 'psql -q -U goodies -d postgres -v pw="$NEWPW" -f /dev/stdin'
+  unset PG && docker compose up -d
+  ```
+- A api lê o `.env` pelo `env_file` do compose (no host, pelo `config.py`) e **não sobe** com segredo
+  `dev-insecure-*` fora de `ENVIRONMENT=test`. Trocar os segredos JWT derruba as sessões: faça login de novo.
+- Login: 5 tentativas erradas em 15 minutos bloqueiam o e-mail por 15 minutos.
+- Hermes desligado na v2.0 (`HERMES_ENABLED=false`): o router não é montado.
+
+---
+
+## Backup e restauração (Story 1.2 — ADR-014, spine AD-18)
+
+**Onde:** `BACKUP_DIR` do `.env` — caminho absoluto **fora do repositório** e **fora de pasta
+sincronizada com a nuvem** (OneDrive, Dropbox, Google Drive, iCloud): a api recusa subir nesses casos.
+O compose monta esse diretório em `/backups` no container.
+
+| Backup | Quando | Onde | Retenção |
+|---|---|---|---|
+| diário (`db_backup`) | 13:00 BRT, ou no catch-up ao abrir o app se passou de 24 h | `BACKUP_DIR/` | 30 dias por idade + o mais novo de cada um dos 12 meses anteriores |
+| pré-migração | antes de toda migração/escrita de dado (`migrar`, `AUTO_MIGRATE`, Alembic manual, `close_retro`, `refechar`) | `BACKUP_DIR/pre-migracao/` | nunca apagado pela rotina |
+| conferência (`restore_check`) | dia 1 de cada mês | banco descartável `goodies_restore_check` | — |
+
+Arquivos: `<banco>_<AAAAMMDD_HHMMSS UTC>[_<motivo>].dump` (`pg_dump -Fc`, cliente 15). Os jobs ficam em
+`job_runs` como os demais; falha vira aviso de worker. Backup manual:
+`cd api && uv run python -m scripts.ops.backup --tag <motivo>`.
+
+**Guarda do Alembic:** `alembic upgrade` contra um banco que não é de teste (`goodies_test`,
+`goodies_dados`, `goodies_dev`, `goodies_tmp_*`) exige um backup com menos de 1 h ou faz um antes; se o
+backup falhar, não migra.
+
+### Bancos de apoio
+- `goodies_dev` — cópia para desenvolver: `uv run python -m scripts.ops.restore_dev_db [--backup <arquivo>]`.
+- `goodies_dados` — base dos testes `@pytest.mark.dados_reais`, restaurada do backup pré-migração fixado em
+  `api/tests/dados_reais/pinned_backup.txt` (`uv run python -m scripts.ops.restore_dados_db [--backup <arquivo>]`).
+  Sem a base os testes são pulados com aviso; o `/gate` e o `migrar` (`DADOS_REAIS_REQUIRED=1`) falham.
+- `goodies_test` — suíte unitária (criado e migrado pelo pytest).
+
+### Restaurar o banco real a partir de um backup (recuperação)
+```bash
+cd ~/projects/goodies
+docker compose stop api                                     # nada escrevendo no banco
+docker compose exec -T postgres psql -U goodies -d postgres \
+  -c 'DROP DATABASE IF EXISTS goodies' -c 'CREATE DATABASE goodies'
+docker compose exec -T postgres pg_restore -U goodies -d goodies --no-owner --no-privileges \
+  < "$BACKUP_DIR/<arquivo>.dump"                            # (BACKUP_DIR do seu .env)
+docker compose exec -T postgres psql -U goodies -d goodies -Atc 'SELECT version_num FROM alembic_version'
+# Se o backup veio sem a tabela alembic_version (ex.: dump parcial), marque a revisão dele:
+#   cd api && DATABASE_URL=postgresql://goodies:<senha>@localhost:5432/goodies uv run alembic stamp <revisão>
+docker compose up -d api                                    # AUTO_MIGRATE=false: só sobe se estiver no head
+docker compose exec -T postgres psql -U goodies -d goodies \
+  -Atc 'SELECT count(*) FROM transactions' -Atc 'SELECT count(*) FROM asset_operations'
+```
+Se o backup é de uma revisão anterior ao código, a api não sobe: rode `python -m scripts.ops.migrar`.
+O mesmo caminho (restaura → confere contagens) é testado em `api/tests/ops/test_backup_db.py` num banco
+descartável e todo dia 1 pelo job `restore_check`.
+
+### Opcional: criptografia e cópia externa
+```bash
+age-keygen -o ~/.config/goodies/backup.key                  # chave FORA do repo (guarde uma cópia offline)
+age -r "$(age-keygen -y ~/.config/goodies/backup.key)" \
+  -o /mnt/e/goodies/<arquivo>.dump.age "$BACKUP_DIR/<arquivo>.dump"   # disco externo
+age -d -i ~/.config/goodies/backup.key -o /tmp/<arquivo>.dump /mnt/e/goodies/<arquivo>.dump.age
 ```
 
 ---
@@ -140,7 +218,7 @@ Docker e rode o uvicorn no host (a 8000 está livre):
 cd ~/projects/goodies
 docker compose up -d postgres redis
 cd api
-uv run alembic upgrade head
+uv run python -m scripts.ops.migrar   # (ou alembic upgrade head: a guarda faz o backup antes)
 ADMIN_EMAIL='vitor@goodies.local' ADMIN_PASSWORD='change-me' uv run python -m scripts.ops.seed_admin
 uv run uvicorn main:app --reload --port 8000
 ```

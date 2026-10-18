@@ -18,4 +18,4 @@ async def test_health_check_returns_200_and_expected_body():
     data = resp.json()
     assert data["status"] == "ok"
     assert data["version"] == "0.1.0"
-    assert data["environment"] == "development"
+    assert data["environment"] == "test"  # Story 1.6: a suíte roda com ENVIRONMENT=test

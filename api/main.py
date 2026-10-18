@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth.router import router as auth_router
-from config import settings
+from config import assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.jobs.router import router as jobs_router
 from engines.ledger.router import router as ledger_router
@@ -34,6 +34,7 @@ register_component_check(check_redis)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    assert_secure(settings)  # Story 1.6: nunca sobe com segredo público fora de teste
     await init_pool()
     scheduler = None
     # Workers de preço (m3): só fora de testes e quando habilitado (ADR-003).
@@ -65,7 +66,8 @@ app.include_router(portfolio_analytics_router)
 app.include_router(portfolio_import_b3_router)
 app.include_router(portfolio_transit_router)
 app.include_router(market_router)
-app.include_router(hermes_router)
+if settings.hermes_enabled:  # Story 1.6: Hermes desligado na v2.0 (HERMES_ENABLED=false)
+    app.include_router(hermes_router)
 app.include_router(defi_router)
 app.include_router(wallet_router)
 app.include_router(jobs_router)

@@ -17,6 +17,8 @@ from typing import Any
 import asyncpg
 
 from config import settings
+from engines.common.dates import today_brt
+from workers.backup import run_db_backup, run_restore_check
 from workers.benchmark_workers import run_benchmark_daily
 from workers.price_workers import run_price_b3, run_price_crypto
 from workers.wallet_workers import _default_fetchers, resolve_owner_id, run_wallet_scan
@@ -35,6 +37,11 @@ class JobSpec:
     # variante do cron (mesmo heartbeat): o catch-up roda `run`; o scheduler roda
     # `cron_run` quando existir (ex.: wallet_scan COM Binance — cron only).
     cron_run: Callable[[asyncpg.Pool], Awaitable[dict[str, Any]]] | None = None
+    # vencimento próprio (last_run, now) -> bool; substitui o limiar (ex.: mensal).
+    is_due: Callable[[datetime | None, datetime], bool] | None = None
+    # "Atualizar tudo" (force) roda o job mesmo fresco? Backup e conferência de restauração não:
+    # rodam só no vencimento (cron ou catch-up), nunca a cada clique.
+    forceable: bool = True
 
 
 async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
@@ -48,6 +55,22 @@ async def oldest_wallet_scan(conn: asyncpg.Connection) -> datetime | None:
         "WHERE NOT is_manual AND source <> 'binance'"
     )
     return value
+
+
+def monthly_due(last_run: datetime | None, now: datetime) -> bool:
+    """Vence uma vez por mês civil (BRT): nunca rodou ou rodou antes do dia 1 deste mês."""
+    if last_run is None:
+        return True
+    today = today_brt(now)
+    return today_brt(last_run) < today.replace(day=1)
+
+
+async def _job_db_backup(_pool: asyncpg.Pool) -> dict[str, Any]:
+    return await run_db_backup()
+
+
+async def _job_restore_check(_pool: asyncpg.Pool) -> dict[str, Any]:
+    return await run_restore_check()
 
 
 async def _job_b3(pool: asyncpg.Pool) -> dict[str, Any]:
@@ -93,6 +116,15 @@ def default_jobs() -> list[JobSpec]:
             cron_run=_job_wallet_cron,
         ),
         JobSpec("benchmark", _job_benchmark, settings.ttl_benchmark),
+        # Story 1.2 — backup diário do banco local e conferência mensal da restauração.
+        JobSpec("db_backup", _job_db_backup, 24 * 3600, forceable=False),
+        JobSpec(
+            "restore_check",
+            _job_restore_check,
+            31 * 24 * 3600,
+            is_due=monthly_due,
+            forceable=False,
+        ),
     ]
 
 
@@ -171,11 +203,15 @@ async def refresh_stale(
                     since = await spec.data_since(lock_conn)
                     if since is not None and since < lr:
                         lr = since  # dado mais velho que o heartbeat (fonte falhando)
-                due = (
-                    force
-                    or lr is None
-                    or (now - lr).total_seconds() >= spec.threshold_seconds
-                )
+                forced = force and spec.forceable
+                if spec.is_due is not None:
+                    due = forced or spec.is_due(lr, now)
+                else:
+                    due = (
+                        forced
+                        or lr is None
+                        or (now - lr).total_seconds() >= spec.threshold_seconds
+                    )
                 if not due:
                     results[spec.name] = "fresh"
                     continue

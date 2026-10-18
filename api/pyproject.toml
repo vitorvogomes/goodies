@@ -5,22 +5,22 @@ description = "Goodies — backend FastAPI (ledger, portfolio, market, analytics
 requires-python = ">=3.12"
 readme = "../README.md"
 
-# Stack travada por ADR-001 / docs/v1/03_Stack.md. Versões em piso (>=) — fixar no lock.
+# Stack travada pelo spine v2 (Story 1.3). Piso (>=) = versão travada; o uv.lock fixa a exata.
 dependencies = [
-    "fastapi>=0.111",
+    "fastapi>=0.136.3",
     "uvicorn[standard]>=0.30",
-    "pydantic>=2.7",
+    "pydantic>=2.13.4",
     "pydantic-settings>=2.3",
-    "asyncpg>=0.29",          # Postgres direto, sem ORM (conventions.md)
-    "redis>=5.0",             # redis[asyncio] — cache Upstash
+    "asyncpg>=0.31.0",          # Postgres direto, sem ORM (conventions.md)
+    "redis>=8.0.0",           # redis[asyncio] — cache local (compose)
     "httpx>=0.27",            # fetchers de mercado / wallets
-    "apscheduler>=3.10",      # workers no processo FastAPI (ADR-003, não Celery)
-    "scipy>=1.13",            # XIRR via brentq (ADR-002)
+    "apscheduler>=3.11.2,<4",      # workers no processo FastAPI (ADR-003, não Celery)
+    "scipy>=1.17.1",            # XIRR via brentq (ADR-002)
     "python-jose[cryptography]>=3.3",  # JWT custom (ADR-006)
     "passlib[bcrypt]>=1.7",            # hash de senha (ADR-006)
     "bcrypt>=4,<5",                    # passlib 1.7.4 quebra com bcrypt 5 (00-05)
-    "structlog>=24.1",        # logs estruturados (m6)
-    "alembic>=1.13",          # migrations Postgres (00-03)
+    "structlog>=25.5.0",      # logs estruturados (AD-18/AR22)
+    "alembic>=1.18.4",          # migrations Postgres (00-03)
     "openpyxl>=3.1",
 ]
 
@@ -50,7 +50,7 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 
 [tool.ruff.lint.isort]
 # stdlib -> third-party -> local, com linha em branco (conventions.md)
-known-first-party = ["engines", "workers", "hermes", "auth", "db"]
+known-first-party = ["engines", "workers", "hermes", "auth", "db", "scripts", "config"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -73,6 +73,9 @@ asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "dados_reais: testes contra goodies_dados, restaurado do backup real (nunca pulados no /gate)",
+]
 
 # ---- Cobertura: >=80% nas engines críticas (Portfolio, Analytics) ----
 [tool.coverage.run]

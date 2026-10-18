@@ -8,12 +8,11 @@ import httpx
 
 from db.connection import close_pool, init_pool
 from main import app
-
-DEV_DSN = "postgresql://goodies:goodies@localhost:5432/goodies"
+from tests.conftest import TEST_DSN
 
 
 async def test_health_reports_postgres_and_redis_connected():
-    await init_pool(DEV_DSN)
+    await init_pool(TEST_DSN)
     try:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

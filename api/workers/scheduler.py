@@ -1,6 +1,6 @@
 """APScheduler do Market Engine (ADR-003: no processo FastAPI, não Celery).
 
-`build_scheduler()` registra dois jobs cron:
+`build_scheduler()` registra os jobs cron (db_backup e restore_check desde a Story 1.2):
 - price_b3: **1x/dia útil, 19:00 America/Sao_Paulo** (após o fechamento da B3) — B3+Tesouro.
 - price_crypto: a cada 2h, todo dia.
 
@@ -17,16 +17,16 @@ do catch-up, `run_named_job`) — o /jobs/status e o catch-up enxergam os runs d
 """
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 
+import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from db.connection import get_pool
 from workers.refresh import run_named_job
 
-logger = logging.getLogger("goodies.workers")
+logger = structlog.get_logger()
 
 _JOB_DEFAULTS = {"coalesce": True, "max_instances": 1, "misfire_grace_time": 300}
 
@@ -38,12 +38,14 @@ CRON_JOB_SPEC = {
     "price_crypto": "price_crypto",
     "wallet_scan": "wallet_scan",
     "benchmark_daily": "benchmark",
+    "db_backup": "db_backup",
+    "restore_check": "restore_check",
 }
 
 
 async def _run(job_id: str) -> None:
     ok = await run_named_job(get_pool(), CRON_JOB_SPEC[job_id], datetime.now(UTC))
-    logger.info("worker %s %s", job_id, "ok" if ok else "error")
+    logger.info("worker_run", job=job_id, ok=ok)
 
 
 async def _job_price_b3() -> None:
@@ -60,6 +62,14 @@ async def _job_wallet_scan() -> None:
 
 async def _job_benchmark_daily() -> None:
     await _run("benchmark_daily")
+
+
+async def _job_db_backup() -> None:
+    await _run("db_backup")
+
+
+async def _job_restore_check() -> None:
+    await _run("restore_check")
 
 
 def build_scheduler() -> AsyncIOScheduler:
@@ -93,5 +103,19 @@ def build_scheduler() -> AsyncIOScheduler:
         CronTrigger(hour=22, minute=0, timezone="America/Sao_Paulo"),
         id="benchmark_daily",
         name="benchmark_daily",
+    )
+    scheduler.add_job(
+        _job_db_backup,
+        # Story 1.2: 1x/dia; se o notebook estiver desligado, o catch-up roda ao abrir o app.
+        CronTrigger(hour=13, minute=0, timezone="America/Sao_Paulo"),
+        id="db_backup",
+        name="db_backup",
+    )
+    scheduler.add_job(
+        _job_restore_check,
+        # Story 1.2: dia 1 de cada mês — restaura o backup num banco descartável e confere.
+        CronTrigger(day=1, hour=13, minute=30, timezone="America/Sao_Paulo"),
+        id="restore_check",
+        name="restore_check",
     )
     return scheduler

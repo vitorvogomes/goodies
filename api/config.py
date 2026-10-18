@@ -6,14 +6,18 @@ abaixo. Sem `.env` (ex.: dentro do container), valem as env vars do ambiente.
 
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # O `.env` (e o `.env.example`) ficam no raiz do repo, não em api/. Resolvemos o
-# caminho absoluto p/ que `uv run` a partir de api/ leia o arquivo certo. Em
-# Docker o arquivo pode não existir → cai p/ env vars + defaults.
+# caminho absoluto p/ que `uv run` a partir de api/ leia o arquivo certo. No container
+# (código em /app, sem o raiz do repo) o compose injeta o `.env` como variáveis de
+# ambiente (`env_file: .env`, Story 1.6); /app/.env fica como segunda opção.
 _ROOT_ENV = Path(__file__).resolve().parent.parent / ".env"
+_API_ENV = Path(__file__).resolve().parent / ".env"
+_DEV_REDIS_URL = "redis://localhost:6379/0"
 
 _DEV_DATABASE_URL = "postgresql://goodies:goodies@localhost:5432/goodies"
 _DEV_SECRETS = {
@@ -24,12 +28,15 @@ _DEV_SECRETS = {
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=str(_ROOT_ENV), extra="ignore")
+    model_config = SettingsConfigDict(env_file=(str(_ROOT_ENV), str(_API_ENV)), extra="ignore")
 
     environment: str = "development"
     version: str = "0.1.0"
     cors_origins: list[str] = ["http://localhost:3000"]
     database_url: str = _DEV_DATABASE_URL
+    redis_url: str = _DEV_REDIS_URL
+    # Story 1.6: o Hermes fica desligado na v2.0 (router não montado); código intocado até a v2.1.
+    hermes_enabled: bool = False
 
     # Auth JWT (ADR-006). Secrets vazios no .env caem p/ defaults de dev.
     jwt_secret_key: str = _DEV_SECRETS["jwt_secret_key"]
@@ -99,6 +106,17 @@ class Settings(BaseSettings):
     ttl_tesouro: int = 93600
     ttl_xirr: int = 3600
 
+    # ---- Operação local (Story 1.2 — AD-18) ----
+    # Diretório dos backups (fora do repo e de pasta sincronizada com a nuvem). No container é o
+    # ponto de montagem (/backups); `backup_dir_host` é o caminho real no host, conferido na subida.
+    backup_dir: str = ""
+    backup_dir_host: str = ""
+    # "local" = pg_dump/pg_restore do PATH (imagem da api, cliente 15); "docker" = via
+    # `docker compose exec postgres` (no host, usa o cliente do próprio servidor).
+    pg_tools: Literal["local", "docker"] = "docker"
+    # false (padrão): o container não migra; se o banco não estiver no head, não sobe.
+    auto_migrate: bool = False
+
     # Workers de preço (APScheduler no processo FastAPI). Desligar via env em ambientes
     # onde o cron não deve rodar (ex.: scripts pontuais). Não inicia sob testes.
     enable_scheduler: bool = True
@@ -152,12 +170,12 @@ class Settings(BaseSettings):
             return None
         return v
 
-    @field_validator("database_url", mode="before")
+    @field_validator("database_url", "redis_url", mode="before")
     @classmethod
-    def _fallback_database_url(cls, v: object) -> object:
-        # .env de dev pode trazer DATABASE_URL= (vazio) → usa o Postgres local do compose.
+    def _fallback_urls(cls, v: object, info: ValidationInfo) -> object:
+        # .env de dev pode trazer DATABASE_URL=/REDIS_URL= (vazio) → serviços locais do compose.
         if v is None or (isinstance(v, str) and not v.strip()):
-            return _DEV_DATABASE_URL
+            return _DEV_DATABASE_URL if info.field_name == "database_url" else _DEV_REDIS_URL
         return v
 
     @field_validator(
@@ -172,6 +190,30 @@ class Settings(BaseSettings):
         if info.field_name and (v is None or (isinstance(v, str) and not v.strip())):
             return _DEV_SECRETS[info.field_name]
         return v
+
+
+_MIN_SECRET_LEN = 32
+_PUBLIC_PREFIXES = ("dev-insecure", "change_me")  # defaults do repo e placeholders do .env.example
+
+
+def insecure_secrets(s: Settings) -> list[str]:
+    """Segredos públicos (default do repo ou placeholder do `.env.example`) ou curtos demais."""
+    return [
+        name
+        for name in _DEV_SECRETS
+        if str(getattr(s, name)).startswith(_PUBLIC_PREFIXES)
+        or len(str(getattr(s, name))) < _MIN_SECRET_LEN
+    ]
+
+
+def assert_secure(s: Settings) -> None:
+    """Story 1.6: fora de `environment=test`, a api não sobe com segredo `dev-insecure-*`."""
+    bad = insecure_secrets(s)
+    if s.environment != "test" and bad:
+        raise RuntimeError(
+            f"segredos públicos (dev-insecure-*/change_me*) ou com menos de {_MIN_SECRET_LEN} "
+            f"caracteres ({', '.join(sorted(bad))}): gere-os com `openssl rand -hex 32` no .env"
+        )
 
 
 settings = Settings()

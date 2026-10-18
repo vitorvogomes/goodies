@@ -44,6 +44,13 @@ def _do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
+    # Story 1.2 (AD-18): banco que não é de teste só migra com backup de menos de 1 h (ou feito
+    # agora).
+    # Falha no backup levanta aqui — o Alembic não chega a conectar para migrar.
+    from workers.backup import alembic_command_writes, ensure_recent_backup
+
+    if alembic_command_writes(config.cmd_opts):
+        await ensure_recent_backup(settings.database_url, reason="alembic")
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

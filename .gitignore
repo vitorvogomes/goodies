@@ -65,3 +65,9 @@ Thumbs.db
 
 # ---- Arquivos ----
 files/
+
+# Backups do banco (Story 1.2): nunca no repositório
+*.dump
+*.dump.tmp
+*.dump.age
+backups/

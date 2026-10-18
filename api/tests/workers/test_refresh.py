@@ -1,6 +1,7 @@
 """E2 — refresh_stale: roda só os vencidos, grava heartbeat, coalesce concorrente."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -200,3 +201,63 @@ async def test_oldest_wallet_scan_ignores_binance(pool: Any) -> None:
         finally:
             await conn.execute("DELETE FROM wallet_positions WHERE user_id = $1", uid)
             await conn.execute("DELETE FROM users WHERE id = $1", uid)
+
+
+def test_backup_jobs_are_registered() -> None:
+    # Story 1.2: db_backup diário e restore_check mensal, no catch-up e no cron
+    from workers.refresh import default_jobs
+    from workers.scheduler import CRON_JOB_SPEC
+
+    specs = {s.name: s for s in default_jobs()}
+    assert specs["db_backup"].threshold_seconds == 24 * 3600
+    assert specs["restore_check"].is_due is not None
+    assert CRON_JOB_SPEC["db_backup"] == "db_backup"
+    assert CRON_JOB_SPEC["restore_check"] == "restore_check"
+
+
+def test_restore_check_is_due_once_per_month() -> None:
+    from workers.refresh import monthly_due
+
+    first = datetime(2026, 11, 1, 6, tzinfo=UTC)  # 03:00 BRT do dia 1
+    assert monthly_due(None, first) is True
+    assert monthly_due(datetime(2026, 10, 31, 23, tzinfo=UTC), first) is True
+    assert monthly_due(datetime(2026, 11, 1, 4, tzinfo=UTC), first) is False  # 01:00 BRT dia 1
+    # 31/10 22:00 BRT = 01/11 01:00 UTC ainda é outubro em BRT
+    assert monthly_due(datetime(2026, 11, 1, 1, tzinfo=UTC), first) is True
+
+
+@pytest.mark.asyncio
+async def test_custom_due_overrides_threshold(pool: Any) -> None:
+    await _clear(pool)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO job_runs (job, last_run, ok) VALUES ('job_m', $1, true)",
+            _NOW - timedelta(days=40),
+        )
+    calls: list[str] = []
+    never = replace(_spec("job_m", calls, threshold=1), is_due=lambda _last, _now: False)
+    res = await refresh_stale(pool, now=_NOW, jobs=[never])
+    assert res["jobs"]["job_m"] == "fresh" and calls == []
+
+
+@pytest.mark.asyncio
+async def test_force_does_not_run_non_forceable_jobs(pool: Any) -> None:
+    # review e1: "Atualizar tudo" (force) não pode disparar backup + restauração a cada clique
+    await _clear(pool)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO job_runs (job, last_run, ok) VALUES ('job_bkp', $1, true)", _NOW
+        )
+    calls: list[str] = []
+    backup_like = replace(_spec("job_bkp", calls), forceable=False)
+    res = await refresh_stale(pool, now=_NOW, force=True, jobs=[backup_like, _spec("job_p", calls)])
+    assert res["jobs"] == {"job_bkp": "fresh", "job_p": "ok"}
+    assert calls == ["job_p"]
+
+
+def test_backup_jobs_are_not_forceable() -> None:
+    from workers.refresh import default_jobs
+
+    specs = {s.name: s for s in default_jobs()}
+    assert specs["db_backup"].forceable is False
+    assert specs["restore_check"].forceable is False

@@ -10,10 +10,31 @@ import asyncio
 import os
 from pathlib import Path
 
-TEST_DSN = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql://goodies:goodies@localhost:5432/goodies_test"
-)
+
+def _env_value(key: str) -> str | None:
+    """Lê uma chave do `.env` do raiz sem expor o valor (Story 1.6: senha do Postgres)."""
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if not env_file.is_file():
+        return None
+    for line in env_file.read_text().splitlines():
+        if line.startswith(f"{key}="):
+            return line.split("=", 1)[1].strip() or None
+    return None
+
+
+def _default_test_dsn() -> str:
+    real = os.environ.get("DATABASE_URL") or _env_value("DATABASE_URL")
+    if not real:
+        return "postgresql://goodies:goodies@localhost:5432/goodies_test"
+    return real.rsplit("/", 1)[0] + "/goodies_test"
+
+
+TEST_DSN = os.environ.get("TEST_DATABASE_URL") or _default_test_dsn()
 os.environ["DATABASE_URL"] = TEST_DSN
+# Story 1.6: suíte roda como `environment=test` (aceita segredos de dev) e com o Hermes montado,
+# porque os testes dele seguem valendo até a v2.1 (em produção local o padrão é desligado).
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("HERMES_ENABLED", "true")
 
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
@@ -72,3 +93,18 @@ def _fresh_price_cache():
 
     market_service._cache = PriceCache()
     yield
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    """Story 1.2: teste `dados_reais` pulado aparece em destaque (o /gate falha com qualquer um)."""
+    skipped = [
+        r
+        for r in terminalreporter.stats.get("skipped", [])
+        if "dados_reais" in getattr(r, "keywords", {})
+    ]
+    if skipped:
+        terminalreporter.write_line(
+            f"⚠ {len(skipped)} teste(s) dados_reais PULADO(S) — o /gate falha assim.",
+            red=True,
+            bold=True,
+        )

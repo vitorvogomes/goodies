@@ -6,6 +6,10 @@
 # Ativado por: git config core.hooksPath .githooks  (ver scripts/setup-dev.sh)
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
+# Node/pnpm do nvm (carregado só em shell interativo): o hook não enxergaria o pnpm.
+for nvm_bin in "$HOME"/.nvm/versions/node/*/bin; do
+  [ -x "$nvm_bin/pnpm" ] && export PATH="$nvm_bin:$PATH"
+done
 
 fail=0
 
@@ -53,8 +57,8 @@ mapfile -t ts_files < <(git diff --cached --name-only --diff-filter=ACM -- 'web/
 if [ "${#ts_files[@]}" -gt 0 ]; then
   if [ -f web/package.json ] && command -v pnpm >/dev/null 2>&1; then
     echo "[pre-commit] eslint: ${#ts_files[@]} arquivo(s) .ts/.tsx staged..."
-    if (cd web && pnpm lint); then
-      echo "[pre-commit] ✅ eslint: ok."
+    if (cd web && pnpm lint && pnpm test); then
+      echo "[pre-commit] ✅ eslint + vitest (no raw color): ok."
     else
       echo "[pre-commit] ❌ eslint falhou. Rode 'pnpm --dir web lint'. COMMIT BLOQUEADO." >&2
       fail=1

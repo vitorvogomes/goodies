@@ -284,7 +284,9 @@ async def test_defi_distinct_symbols_guard_is_fail_soft() -> None:
 def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}
-    assert set(jobs) == {"price_b3", "price_crypto", "wallet_scan", "benchmark_daily"}
+    assert set(jobs) == {
+        "price_b3", "price_crypto", "wallet_scan", "benchmark_daily", "db_backup", "restore_check",
+    }
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)
     assert "day_of_week='mon-fri'" in b3
@@ -292,3 +294,5 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
     assert "hour='*/2'" in str(jobs["price_crypto"].trigger)
     assert "hour='8,14,20'" in str(jobs["wallet_scan"].trigger)  # 3x/dia (m4)
     assert "hour='22'" in str(jobs["benchmark_daily"].trigger)  # 1x/dia (m4)
+    assert "hour='13'" in str(jobs["db_backup"].trigger)  # Story 1.2: 1x/dia
+    assert "day='1'" in str(jobs["restore_check"].trigger)  # Story 1.2: dia 1 de cada mês

@@ -5,6 +5,7 @@ GET /me (protegida). O refresh token é guardado como hash em users.refresh_toke
 """
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 import asyncpg
@@ -13,6 +14,7 @@ from jose import JWTError
 from pydantic import BaseModel
 
 from auth.dependencies import get_current_user
+from auth.rate_limit import LoginLimiter, login_limiter
 from auth.security import (
     create_access_token,
     create_refresh_token,
@@ -68,11 +70,20 @@ async def login(
     response: Response,
     db: Annotated[asyncpg.Connection, Depends(get_db)],
 ) -> TokenResponse:
+    now = datetime.now(UTC)
+    locked = login_limiter.locked_minutes(body.email, now)
+    if locked:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            {"error": "too_many_attempts", "message": LoginLimiter.message(locked)},
+        )
     row = await db.fetchrow(
         "SELECT id, password_hash FROM users WHERE email = $1", body.email
     )
     if row is None or not verify_password(body.password, row["password_hash"]):
+        login_limiter.record_failure(body.email, now)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "email ou senha inválidos")
+    login_limiter.record_success(body.email)
 
     user_id = str(row["id"])
     access = create_access_token(user_id, scope="user")

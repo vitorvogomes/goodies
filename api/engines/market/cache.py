@@ -1,11 +1,8 @@
 """Cache Redis para preços e métricas de mercado — STORY-00-04.
 
 Decisão de transporte (ADR-001 / CLAUDE.md): usamos `redis.asyncio` (cliente TCP)
-sobre uma única variável `REDIS_URL`. O texto da story menciona "UPSTASH REST API
-(não TCP)", mas isso contradiz `redis[asyncio]` (que é TCP). Seguimos o ADR-001:
-- Dev:  `redis://localhost:6379/0`
-- Prod (Upstash): `rediss://...upstash.io:6379` (TLS) via a MESMA `REDIS_URL`.
-NÃO usamos a REST HTTP API da Upstash.
+sobre uma única variável `REDIS_URL` (Redis 7 do compose, com senha — Story 1.6;
+lida via `settings.redis_url`).
 
 Formato de chave (conventions.md / ADR — "Chave de nomes Redis"):
     {engine}:{type}:{identifier}
@@ -18,14 +15,13 @@ retornam sem efeito.
 """
 
 import json
-import os
 
 import redis.asyncio as redis
 import structlog
 
-logger = structlog.get_logger()
+from config import settings
 
-DEFAULT_REDIS_URL = "redis://localhost:6379/0"
+logger = structlog.get_logger()
 
 # Um valor de cache é sempre um objeto JSON (dict). `object` (não `Any`) mantém
 # mypy --strict satisfeito sem afrouxar a tipagem dos chamadores.
@@ -33,10 +29,10 @@ CacheValue = dict[str, object]
 
 
 def _resolve_url(redis_url: str | None) -> str:
-    """Resolve a URL efetiva: argumento explícito > `REDIS_URL` > default."""
+    """Resolve a URL efetiva: argumento explícito > `settings.redis_url` (REDIS_URL do .env)."""
     if redis_url is not None:
         return redis_url
-    return os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
+    return settings.redis_url
 
 
 class PriceCache:

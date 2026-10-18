@@ -2,7 +2,7 @@
 
 TDD RED-first: estes testes falham enquanto `engines.market.cache` não existe.
 
-Rodam contra o Redis real (docker em redis://localhost:6379/0). Usam o prefixo
+Rodam contra o Redis real do compose (`settings.redis_url`, com senha). Usam o prefixo
 `test:cache:` e limpam tudo que criam (fixture `cleanup_keys`). O caso de
 fail-soft aponta o cache para uma porta sem servidor (`redis://localhost:6399/0`).
 """
@@ -12,9 +12,10 @@ import uuid
 
 import pytest
 
+from config import settings
 from engines.market.cache import PriceCache, check_redis
 
-LOCAL_URL = "redis://localhost:6379/0"
+LOCAL_URL = settings.redis_url  # Redis do compose, com a senha do .env (Story 1.6)
 UNREACHABLE_URL = "redis://localhost:6399/0"  # nenhum servidor escutando aqui
 
 
