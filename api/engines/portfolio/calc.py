@@ -10,6 +10,7 @@ como aporte.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -70,3 +71,61 @@ def period_result(
     """Resultado de um período (Story 7.1): valor no fim − valor no início − aportado líquido no
     período + proventos no período. Desde o início, é o `investment_result`."""
     return value_end - value_start - flows + income
+
+
+# --------------------------------------------------------------------------------------------
+# Rentabilidade de um período (Story 7.3 — XIRR, nunca (resultado − aplicado) / aplicado)
+# --------------------------------------------------------------------------------------------
+
+
+def period_xirr(
+    start_value: Decimal,
+    start_day: date,
+    flows: Iterable[tuple[date, Decimal]],
+    end_value: Decimal,
+    end_day: date,
+) -> float | None:
+    """XIRR do período: o valor investido no início entra como aporte (negativo) no dia anterior
+    ao período, os fluxos líquidos datados (aporte < 0, venda/provento > 0) e o valor no fim como
+    saída. Sem valor nem fluxo, ou sem convergência → None."""
+    from .xirr import xirr
+
+    cashflows: list[tuple[date, float]] = []
+    if start_value:
+        cashflows.append((start_day, -float(start_value)))
+    cashflows += [(d, float(v)) for d, v in flows if v]
+    if end_value:
+        cashflows.append((end_day, float(end_value)))
+    if len(cashflows) < 2 or all(v >= 0 for _, v in cashflows) or all(v <= 0 for _, v in cashflows):
+        return None
+    rate = xirr(cashflows)
+    return None if rate != rate else rate  # NaN → sem convergência
+
+
+def ipca_factor(monthly_pct: Iterable[Decimal]) -> Decimal:
+    """IPCA efetivo do período: Π(1 + IPCA do mês / 100)."""
+    factor = Decimal(1)
+    for m in monthly_pct:
+        factor *= 1 + m / 100
+    return factor
+
+
+def real_rate(nominal_annual: float, ipca_period_factor: Decimal, days: int) -> float:
+    """Taxa real anual (Fisher): (1 + nominal) / (1 + IPCA anualizado do período) − 1."""
+    ipca_annual: float = float(ipca_period_factor) ** (365 / max(days, 1)) - 1
+    return float((1 + nominal_annual) / (1 + ipca_annual) - 1)
+
+
+def monthly_rate(annual: float) -> float:
+    """Taxa anual → ao mês: (1 + a)^(1/12) − 1."""
+    return float((1 + annual) ** (1 / 12) - 1)
+
+
+def signed_flow(op: Mapping[str, Any]) -> Decimal:
+    """Fluxo de uma operação no sinal do XIRR: aporte/compra < 0; venda/resgate/provento > 0."""
+    total = _total(op)
+    if op["tipo"] in INFLOW:
+        return -total
+    if op["tipo"] in OUTFLOW or op["tipo"] in INCOME:
+        return total
+    return Decimal(0)

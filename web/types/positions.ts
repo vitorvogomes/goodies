@@ -7,6 +7,7 @@ export interface PositionAsset {
   valor: Valued;
   resultado: number | null;
   manual: boolean;
+  xirr_mensal: number | null; // % a.m. do período (RF e cripto não têm)
 }
 
 export interface PositionClass {
@@ -17,6 +18,8 @@ export interface PositionClass {
   valor: number;
   resultado: number | null;
   assets: PositionAsset[];
+  xirr_nominal: Valued;
+  xirr_real: Valued;
 }
 
 export interface PositionsReport {
@@ -27,4 +30,7 @@ export interface PositionsReport {
   classes: PositionClass[];
   aplicado: number;
   valor: number;
+  xirr_nominal: Valued;
+  xirr_real: Valued;
+  ipca_ate: string | null;
 }

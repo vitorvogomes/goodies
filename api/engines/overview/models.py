@@ -17,6 +17,8 @@ class Painel(BaseModel):
     patrimonio: Valued[Money]
     resultado_investimentos: Valued[Money]
     rentabilidade_nominal: Valued[Pct]  # XIRR desde o início até o fim do período, em % a.a.
+    # Story 7.3: a nominal descontada do IPCA; as_of = o mês do IPCA (carimbo do cartão)
+    rentabilidade_real: Valued[Pct]
     a_revisar: int  # transações pendentes de revisão (Story 4.2)
 
 

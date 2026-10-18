@@ -143,3 +143,87 @@ async def test_price_flags_live(pool: Any) -> None:
     assert rows[t_none].valor.value is None
     assert rows[t_none].valor.unavailable_reason == "sem_preco"
     assert rows[t_man].manual is True
+
+
+def test_period_xirr_and_real() -> None:
+    """Story 7.3: XIRR do período (valor inicial como aporte, fluxos datados, valor final) e o real
+    pelo IPCA efetivo do período."""
+    start, end = date(2025, 1, 31), date(2025, 2, 28)
+    r = calc.period_xirr(D(1000), start, [(date(2025, 2, 10), D(-100))], D(1110), end)
+    assert r is not None and r > 0
+    assert calc.period_xirr(D(1000), start, [], D(1000), end) == pytest.approx(0, abs=1e-6)
+    assert calc.period_xirr(D(0), start, [], D(0), end) is None
+    flat = calc.period_xirr(D(1000), start, [], D(1010), end)
+    assert flat is not None
+    factor = calc.ipca_factor([D("1.0")])  # 1% no período
+    assert factor == D("1.01")
+    real = calc.real_rate(flat, factor, (end - start).days)
+    assert real == pytest.approx(0, abs=1e-3)  # rendeu o mesmo que a inflação
+    assert calc.monthly_rate(0.12682503) == pytest.approx(0.01, rel=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_period_return_nominal_and_real(pool: Any) -> None:
+    """Story 7.3: XIRR do período por classe e consolidado; com o IPCA do mês, o real; sem ele,
+    `aguardando_ipca` e a nominal normal. Por ativo, % a.m. (exceto RF e cripto)."""
+    import main  # noqa: F401
+
+    t = f"ZR{uuid.uuid4().hex[:2].upper()}3"
+    feb = [date(2025, 2, 1)]
+    async with pool.acquire() as conn:
+        await _seed(conn, t)
+        had = await conn.fetchval(
+            "SELECT value FROM benchmark_data WHERE series = 'IPCA' AND ref_date = '2025-02-01'"
+        )
+        await conn.execute(
+            "DELETE FROM benchmark_data WHERE series = 'IPCA' AND ref_date = '2025-02-01'"
+        )
+        try:
+            waiting = await closing.period_return(conn, feb)
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('IPCA', '2025-02-01', 1.31, 'teste')"
+            )
+            with_ipca = await closing.period_return(conn, feb)
+            report = await closing.positions(conn, "2025-02", "mes")
+        finally:
+            await conn.execute(
+                "DELETE FROM benchmark_data WHERE series = 'IPCA' AND ref_date = '2025-02-01'"
+            )
+            if had is not None:
+                await conn.execute(
+                    "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                    "VALUES ('IPCA', '2025-02-01', $1, 'bcb')",
+                    had,
+                )
+            await _drop(conn, t)
+    nominal, real = waiting.by_class["acoes_br"]
+    assert nominal.value is not None and real.unavailable_reason == "aguardando_ipca"
+    nominal2, real2 = with_ipca.by_class["acoes_br"]
+    assert nominal2.value == nominal.value and real2.value is not None
+    assert real2.value < nominal2.value  # descontou a inflação
+    acoes = next(c for c in report.classes if c.key == "acoes_br")
+    asset = next(a for a in acoes.assets if a.symbol == t)
+    assert asset.xirr_mensal is not None and asset.xirr_mensal > 0
+    assert acoes.xirr_nominal.value is not None
+    for key in ("renda_fixa", "cripto"):
+        cls = next(c for c in report.classes if c.key == key)
+        assert all(a.xirr_mensal is None for a in cls.assets)
+    assert report.xirr_nominal.value is not None
+
+
+@pytest.mark.asyncio
+async def test_real_since_start_waits_for_ipca(pool: Any) -> None:
+    async with pool.acquire() as conn:
+        missing = await conn.fetchval(
+            "SELECT count(*) FROM generate_series('2024-07-01'::date, '2025-01-01', '1 month') m "
+            "WHERE NOT EXISTS (SELECT 1 FROM benchmark_data b WHERE b.series = 'IPCA' "
+            "AND date_trunc('month', b.ref_date) = m)"
+        )
+        waiting = await closing.real_since_start(conn, D("12.00"), date(2025, 2, 1))
+        none = await closing.real_since_start(conn, None, date(2025, 2, 1))
+    assert none.unavailable_reason == "sem_preco"
+    if missing:
+        assert waiting.value is None and waiting.unavailable_reason == "aguardando_ipca"
+    else:
+        assert waiting.value is not None and waiting.value < D("12.00")

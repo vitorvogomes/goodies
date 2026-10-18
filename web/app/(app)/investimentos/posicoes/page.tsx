@@ -4,16 +4,18 @@
 // expansíveis para ativos, com aplicado e valor atual no fim do mês e o resultado do período da
 // leitura. Cripto é o bloco "quanto saiu × quanto vale" (ativos só com valor). Preço velho: "preço de
 // dd/mm/aaaa" com ponto de aviso; sem preço: "—" + "sem preço"; preço manual: Selo "manual".
+// XIRR nominal × real do período por classe e consolidado; por ativo, % a.m. (Story 7.3).
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, Suspense, useState } from "react";
 
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatDate, formatMonth, formatSignedBRL } from "@/lib/format";
+import { formatBRL, formatDate, formatMonth, formatPercent, formatSignedBRL } from "@/lib/format";
 import { usePositions } from "@/lib/positions";
 import { usePeriodo } from "@/lib/use-periodo";
 import { cn } from "@/lib/utils";
+import type { Valued } from "@/types/overview";
 import type { PositionAsset } from "@/types/positions";
 
 const LEITURA_LABEL = { mes: "do mês", tri: "do trimestre", ano: "do ano", inicio: "desde o início" };
@@ -30,6 +32,15 @@ function Result({ value }: { value: number | null }) {
       {formatSignedBRL(value)}
     </span>
   );
+}
+
+// XIRR do período (% a.a.): "aguardando IPCA" vira Selo (o IPCA do último mês ainda não saiu).
+function Rate({ v }: { v: Valued }) {
+  if (v.value !== null) return <span>{formatPercent(v.value)}</span>;
+  if (v.unavailable_reason === "aguardando_ipca") {
+    return <StatusBadge tooltip="o IPCA do último mês do período ainda não saiu">aguardando IPCA</StatusBadge>;
+  }
+  return <span className="text-muted-foreground">—</span>;
 }
 
 function AssetValue({ a }: { a: PositionAsset }) {
@@ -97,6 +108,8 @@ function Posicoes() {
                 <th scope="col" className="px-4 py-2 text-right font-medium">Aplicado</th>
                 <th scope="col" className="px-4 py-2 text-right font-medium">Valor atual</th>
                 <th scope="col" className="px-4 py-2 text-right font-medium">Resultado</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">XIRR nominal</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">XIRR real</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -123,6 +136,12 @@ function Posicoes() {
                     <td className="px-4 py-2 text-right type-num-table">
                       <Result value={c.resultado} />
                     </td>
+                    <td className="px-4 py-2 text-right type-num-table">
+                      <Rate v={c.xirr_nominal} />
+                    </td>
+                    <td className="px-4 py-2 text-right type-num-table">
+                      <Rate v={c.xirr_real} />
+                    </td>
                   </tr>
                   {open.has(c.key) &&
                     c.assets.map((a) => (
@@ -140,6 +159,9 @@ function Posicoes() {
                         <td className="px-4 py-1.5 text-right type-num-table">
                           <Result value={a.resultado} />
                         </td>
+                        <td className="px-4 py-1.5 text-right type-num-table text-muted-foreground" colSpan={2}>
+                          {a.xirr_mensal !== null ? `${formatPercent(a.xirr_mensal)} a.m.` : "—"}
+                        </td>
                       </tr>
                     ))}
                 </Fragment>
@@ -151,6 +173,12 @@ function Posicoes() {
                 <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.aplicado)}</td>
                 <td className="px-4 py-2 text-right type-num-table">{formatBRL(data.valor)}</td>
                 <td />
+                <td className="px-4 py-2 text-right type-num-table">
+                  <Rate v={data.xirr_nominal} />
+                </td>
+                <td className="px-4 py-2 text-right type-num-table">
+                  <Rate v={data.xirr_real} />
+                </td>
               </tr>
             </tfoot>
           </table>

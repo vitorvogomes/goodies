@@ -2,7 +2,7 @@
 
 // Visão geral › Painel (Story 4.1 — FR-13): KPIs datados na grade do DESIGN.md. Resultado do mês
 // (Disponível para consumo chega no Épico 6); Patrimônio | Resultado dos investimentos |
-// Rentabilidade nominal (a real chega com o IPCA). Cada bloco carrega, falha e tenta de novo
+// Rentabilidade nominal × real (7.3, descontado o IPCA). Cada bloco carrega, falha e tenta de novo
 // sozinho; durante a carga, Esqueleto com a geometria final. O Assistente de recuperação (5.8) fica
 // acima de tudo enquanto a base estiver incompleta.
 import Link from "next/link";
@@ -15,7 +15,7 @@ import { FixedCostsSummary } from "@/components/overview/FixedCostsSummary";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
 import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatPercent, formatSignedBRL } from "@/lib/format";
+import { formatBRL, formatMonth, formatPercent, formatSignedBRL } from "@/lib/format";
 import { useOverviewSources, usePainel } from "@/lib/overview";
 import { useMonthBudget } from "@/lib/planning";
 import { usePeriodo } from "@/lib/use-periodo";
@@ -112,7 +112,7 @@ function Painel() {
           <KpiSkeleton />
         )}
       </div>
-      <div className="grid gap-card-gap md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-card-gap md:grid-cols-2 xl:grid-cols-4">
         {data ? (
           <>
             <KpiCard
@@ -135,9 +135,22 @@ function Painel() {
               support="XIRR · desde o início"
               href="/investimentos/posicoes"
             />
+            <KpiCard
+              label="Rentabilidade real"
+              valued={data.rentabilidade_real}
+              format={(v) => formatPercent(v)}
+              suffix="a.a."
+              support={
+                data.rentabilidade_real.as_of
+                  ? `descontado o IPCA até ${formatMonth(data.rentabilidade_real.as_of.slice(0, 7))}`
+                  : "descontado o IPCA"
+              }
+              href="/investimentos/posicoes"
+            />
           </>
         ) : (
           <>
+            <KpiSkeleton />
             <KpiSkeleton />
             <KpiSkeleton />
             <KpiSkeleton />

@@ -8,14 +8,22 @@ telas: mês aberto, ao vivo; mês fechado, a versão vigente do snapshot, nunca 
 from __future__ import annotations
 
 import json
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
 import asyncpg
 
 from engines.common.alerts import brl
-from engines.common.dates import MIN_MONTH, add_months, month_end, resolve_period, today_brt
+from engines.common.dates import (
+    MIN_MONTH,
+    add_months,
+    month_end,
+    months_between,
+    resolve_period,
+    today_brt,
+)
 from engines.common.models import Valued
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
@@ -74,6 +82,7 @@ async def build_month_summary(
     income_stale = mei_until is not None and mei_until < month_end(month) and as_of >= mei_until
     rate = ledger.taxa_poupanca
     budget = await planning_service.month_budget(conn, month)
+    month_ret = await _month_return(conn, month, valuation, as_of)
     return MonthSummary(
         month=month,
         as_of=as_of,
@@ -103,6 +112,8 @@ async def build_month_summary(
         aplicado=valuation.contributed,
         resultado_investimentos=valuation.result,
         rentabilidade=(Decimal(repr(valuation.xirr)) * 100 if valuation.xirr is not None else None),
+        rentabilidade_mes=month_ret.nominal.value,
+        rentabilidade_mes_real=month_ret.real.value,
         valor_por_classe=valuation.by_class,
         valor_por_ativo=valuation.by_asset,
         asset_ids_value=valuation.by_asset_id,
@@ -194,7 +205,7 @@ _MONEY = (
     "restante_sem_resgates",
     "consumo_financiado",
 )
-_PCT = ("taxa_poupanca", "rentabilidade")
+_PCT = ("taxa_poupanca", "rentabilidade", "rentabilidade_mes", "rentabilidade_mes_real")
 _TERMS = (*_MONEY, *_PCT)
 _LABELS = {
     "receitas": "Receitas",
@@ -212,6 +223,8 @@ _LABELS = {
     "resultado_investimentos": "Resultado dos investimentos",
     "taxa_poupanca": "Taxa de poupança (%)",
     "rentabilidade": "Rentabilidade (% a.a.)",
+    "rentabilidade_mes": "Rentabilidade do mês (% a.a.)",
+    "rentabilidade_mes_real": "Rentabilidade real do mês (% a.a.)",
     "consumido": "Consumido",
     "disponivel": "Disponível para consumo",
     "restante": "Restante",
@@ -227,12 +240,22 @@ def _totals(s: MonthSummary) -> tuple[dict[str, Any], dict[str, str]]:
     totals: dict[str, Any] = {t: getattr(s, t) for t in _MONEY}
     totals["taxa_poupanca"] = s.taxa_poupanca
     totals["rentabilidade"] = s.rentabilidade
+    totals["rentabilidade_mes"] = s.rentabilidade_mes
+    totals["rentabilidade_mes_real"] = s.rentabilidade_mes_real
     totals["saldo_conferido"] = s.saldo_conferido_pf
     unavailable = {t: "fora_do_resumo" for t in _FUTURE_TERMS}
     if s.taxa_poupanca is None:
         unavailable["taxa_poupanca"] = "sem_receita"
     if s.rentabilidade is None:
         unavailable["rentabilidade"] = "sem_preco"
+    if s.rentabilidade_mes is None:
+        unavailable["rentabilidade_mes"] = s.unavailable.get(
+            "rentabilidade_mes", "antes_do_primeiro_fechamento"
+        )
+    if s.rentabilidade_mes_real is None:
+        unavailable["rentabilidade_mes_real"] = s.unavailable.get(
+            "rentabilidade_mes_real", "aguardando_ipca"
+        )
     return totals, unavailable
 
 
@@ -423,6 +446,8 @@ async def _snapshot_summary(conn: asyncpg.Connection, close: asyncpg.Record) -> 
         **money,
         taxa_poupanca=t["taxa_poupanca"],
         rentabilidade=t["rentabilidade"],
+        rentabilidade_mes=t["rentabilidade_mes"],
+        rentabilidade_mes_real=t["rentabilidade_mes_real"],
         receitas_por_pagador=by.get(("receitas", "payer"), {}),
         gastos_por_categoria=by.get(("gastos", "category"), {}),
         ledger_as_of=as_of,
@@ -873,6 +898,21 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
     start = None if leitura == "inicio" else months[0]
     owner = await get_owner_id(conn)
     classes = await positions_service.positions_period(conn, owner, start, end)
+    if leitura == "inicio":
+        ret = await period_return(conn, months)  # desde jul/2024: o valor de jun/2024 não existe
+        summary = await month_summary(conn, end)
+        if summary.rentabilidade is not None:  # consolidado desde o início (o XIRR de sempre)
+            ret = PeriodReturn(
+                Valued[Decimal](value=summary.rentabilidade, as_of=summary.as_of, source="xirr"),
+                ret.real,
+                ret.by_class,
+                ret.ipca_ate,
+            )
+    else:
+        ret = await period_return(conn, months)
+    for c in classes:
+        if c.key in ret.by_class:
+            c.xirr_nominal, c.xirr_real = ret.by_class[c.key]
     return PositionsReport(
         periodo=periodo,
         leitura=leitura,
@@ -881,4 +921,152 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
         classes=classes,
         aplicado=sum((c.aplicado or Decimal(0) for c in classes), Decimal(0)),
         valor=sum((c.valor for c in classes), Decimal(0)),
+        xirr_nominal=ret.nominal,
+        xirr_real=ret.real,
+        ipca_ate=ret.ipca_ate,
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Rentabilidade de um período, nominal × real (Story 7.3 — XIRR sobre o valor investido)
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PeriodReturn:
+    nominal: Valued[Decimal]
+    real: Valued[Decimal]
+    by_class: dict[str, tuple[Valued[Decimal], Valued[Decimal]]]
+    ipca_ate: date | None
+
+
+def _pct(rate: float | None) -> Decimal | None:
+    return (Decimal(repr(rate)) * 100).quantize(Decimal("0.01")) if rate is not None else None
+
+
+async def _class_values_at(conn: asyncpg.Connection, month: date) -> dict[str, Decimal] | None:
+    """Valor investido por classe no fim do mês: o snapshot se fechado; senão a valoração do
+    portfolio naquela data (sem montar o resumo inteiro). Antes de jul/2024 → None."""
+    if month < MIN_MONTH:
+        return None
+    close = await latest_close(conn, month)
+    if close is not None and close["status"] == "closed":
+        _, lines = await _frozen(conn, month, close["version"])
+        return {
+            r["dimension_id"]: r["value"]
+            for r in lines
+            if r["metric"] == "valor" and r["dimension_kind"] == "class"
+        }
+    owner = await get_owner_id(conn)
+    return dict((await valuation_as_of(conn, owner, month_end(month))).by_class)
+
+
+async def _ipca(conn: asyncpg.Connection, months: list[date]) -> tuple[Decimal | None, date | None]:
+    """IPCA efetivo dos meses (fator) e o último mês publicado; falta o do último → fator None."""
+    from engines.market import service as market_service
+
+    found = await market_service.ipca_monthly(conn, months[0], months[-1])
+    published = await conn.fetchval(
+        "SELECT max(ref_date) FROM benchmark_data WHERE series = 'IPCA'"
+    )
+    last = published.replace(day=1) if published is not None else None
+    if any(m not in found for m in months):
+        return None, last
+    return portfolio_calc.ipca_factor(found[m] for m in months), last
+
+
+def _returns(
+    start: dict[str, Decimal],
+    start_day: date,
+    flows: dict[tuple[str, date], Decimal],
+    end: dict[str, Decimal],
+    end_day: date,
+    ipca: Decimal | None,
+    ipca_last: date | None,
+) -> PeriodReturn:
+    days = (end_day - start_day).days
+
+    def pair(s: Decimal, f: list[tuple[date, Decimal]], e: Decimal) -> tuple[Any, Any]:
+        rate = portfolio_calc.period_xirr(s, start_day, f, e, end_day)
+        if rate is None:
+            nominal = Valued[Decimal](unavailable_reason="sem_preco", as_of=end_day)
+            return nominal, Valued[Decimal](unavailable_reason="sem_preco", as_of=end_day)
+        nominal = Valued[Decimal](value=_pct(rate), as_of=end_day, source="xirr")
+        if ipca is None:
+            real = Valued[Decimal](unavailable_reason="aguardando_ipca", as_of=ipca_last)
+        else:
+            real_rate = portfolio_calc.real_rate(rate, ipca, days)
+            real = Valued[Decimal](value=_pct(real_rate), as_of=ipca_last, source="ipca")
+        return nominal, real
+
+    classes = set(start) | set(end) | {c for c, _ in flows}
+    by_date: dict[date, Decimal] = {}
+    for (_, d), v in flows.items():
+        by_date[d] = by_date.get(d, Decimal(0)) + v
+    nominal, real = pair(
+        sum(start.values(), Decimal(0)), sorted(by_date.items()), sum(end.values(), Decimal(0))
+    )
+    by_class = {
+        c: pair(
+            start.get(c, Decimal(0)),
+            sorted((d, v) for (k, d), v in flows.items() if k == c),
+            end.get(c, Decimal(0)),
+        )
+        for c in classes
+    }
+    return PeriodReturn(nominal, real, by_class, ipca_last)
+
+
+def _unavailable_return(reason: str) -> PeriodReturn:
+    none = Valued[Decimal](unavailable_reason=reason)
+    return PeriodReturn(none, none, {}, None)
+
+
+async def _month_return(
+    conn: asyncpg.Connection, month: date, valuation: Any, as_of: date
+) -> PeriodReturn:
+    """XIRR do mês para o resumo: fim do mês anterior → fim do mês (ou hoje)."""
+    start = await _class_values_at(conn, add_months(month, -1))
+    if start is None:
+        return _unavailable_return("antes_do_primeiro_fechamento")
+    ipca, last = await _ipca(conn, [month])
+    return _returns(
+        start, month - timedelta(days=1), valuation.flows, valuation.by_class, as_of, ipca, last
+    )
+
+
+async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodReturn:
+    """XIRR do período: valor no fim do mês anterior (snapshot ou valoração), os fluxos líquidos
+    datados de cada mês (snapshot ou ao vivo) e o valor no fim; o real desconta o IPCA efetivo."""
+    start = await _class_values_at(conn, add_months(months[0], -1))
+    if start is None:
+        return _unavailable_return("antes_do_primeiro_fechamento")
+    flows: dict[tuple[str, date], Decimal] = {}
+    end: dict[str, Decimal] = {}
+    end_day = months[-1]
+    for month in months:
+        s = await month_summary(conn, month)
+        for key, value in s.flows.items():
+            flows[key] = flows.get(key, Decimal(0)) + value
+        end, end_day = dict(s.valor_por_classe), s.as_of
+    ipca, last = await _ipca(conn, months)
+    return _returns(start, months[0] - timedelta(days=1), flows, end, end_day, ipca, last)
+
+
+async def real_since_start(
+    conn: asyncpg.Connection, nominal_pct: Decimal | None, month: date
+) -> Valued[Decimal]:
+    """Rentabilidade real desde o início (Painel): a nominal desde o início descontada do IPCA
+    anualizado de jul/2024 até o último mês publicado. Sem o IPCA do mês anterior ao período →
+    `aguardando_ipca`; o `as_of` é o mês do IPCA (o carimbo do cartão)."""
+    if nominal_pct is None:
+        return Valued[Decimal](unavailable_reason="sem_preco")
+    months = [m for m in months_between(MIN_MONTH, add_months(month, -1))]
+    if not months:
+        return Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
+    factor, last = await _ipca(conn, months)
+    if factor is None:
+        return Valued[Decimal](unavailable_reason="aguardando_ipca", as_of=last, source="ipca")
+    days = (month_end(months[-1]) - MIN_MONTH).days + 1
+    real = portfolio_calc.real_rate(float(nominal_pct) / 100, factor, days)
+    return Valued[Decimal](value=_pct(real), as_of=last, source="ipca")

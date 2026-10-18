@@ -11,6 +11,7 @@ import type { Valued } from "@/types/overview";
 
 const UNAVAILABLE: Record<string, string> = {
   antes_do_primeiro_fechamento: "Disponível depois do fechamento do mês.",
+  aguardando_ipca: "Aguardando o IPCA.",
   nao_definido: "Sem transações no mês.",
   sem_preco: "Sem preço para calcular.",
   sem_receita: "Sem receita no mês.",

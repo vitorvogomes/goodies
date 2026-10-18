@@ -34,6 +34,8 @@ TERMS = (
     "resultado_investimentos",
     "taxa_poupanca",
     "rentabilidade",
+    "rentabilidade_mes",
+    "rentabilidade_mes_real",
 )
 
 

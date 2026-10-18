@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import asyncpg
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from engines.common.assets import CLASS_BY_CATEGORY, CRYPTO_CATEGORIES, AssetClass
 from engines.common.dates import month_end, today_brt
@@ -39,12 +39,17 @@ CLASS_ORDER = (
 )
 
 
+def _before_first() -> Valued[Decimal]:
+    return Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
+
+
 class PositionAsset(BaseModel):
     symbol: str
     aplicado: Money | None  # None no bloco cripto (custo por ativo não é conhecido)
     valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
     resultado: Money | None
     manual: bool = False
+    xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); RF e cripto não têm
 
 
 class PositionClass(BaseModel):
@@ -55,6 +60,9 @@ class PositionClass(BaseModel):
     valor: Money
     resultado: Money | None
     assets: list[PositionAsset]
+    # Story 7.3: XIRR do período da classe (% a.a.), nominal e real — preenchidos por `closing`
+    xirr_nominal: Valued[Decimal] = Field(default_factory=lambda: _before_first())
+    xirr_real: Valued[Decimal] = Field(default_factory=lambda: _before_first())
 
 
 def _dec(value: Any) -> Decimal:
@@ -164,6 +172,24 @@ async def positions_period(
                         flows=calc.net_contributed(in_period),
                         income=calc.income_received(in_period),
                     )
+        xirr_mensal: Decimal | None = None
+        if value is not None and cls not in (AssetClass.RENDA_FIXA, AssetClass.CRIPTO):
+            in_period = [op for op in sops if start is None or op["data_operacao"] >= start]
+            held_before = (
+                start is not None
+                and calc.quantity([op for op in sops if op["data_operacao"] < start]) > 0
+            )
+            value_start = start_val.by_asset.get(symbol) if start_val is not None else None
+            if not held_before or value_start is not None:
+                rate = calc.period_xirr(
+                    value_start or Decimal(0),
+                    start_day or as_of,
+                    [(op["data_operacao"], calc.signed_flow(op)) for op in in_period],
+                    value,
+                    as_of,
+                )
+                if rate is not None:
+                    xirr_mensal = (Decimal(repr(calc.monthly_rate(rate))) * 100).quantize(_CENT)
         assets_by_class[cls].append(
             PositionAsset(
                 symbol=symbol,
@@ -171,6 +197,7 @@ async def positions_period(
                 valor=valor,
                 resultado=resultado.quantize(_CENT) if resultado is not None else None,
                 manual=manual,
+                xirr_mensal=xirr_mensal,
             )
         )
 

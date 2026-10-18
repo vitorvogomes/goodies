@@ -57,6 +57,7 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
             value=value, as_of=when, source="portfolio", stale=summary.portfolio_stale
         )
 
+    real = await closing.real_since_start(conn, summary.rentabilidade, month)
     return Painel(
         periodo=f"{month:%Y-%m}",
         resultado_mes=resultado,
@@ -73,6 +74,7 @@ async def painel(conn: asyncpg.Connection, month: date) -> Painel:
                 unavailable_reason="sem_preco", as_of=summary.portfolio_as_of, source="portfolio"
             )
         ),
+        rentabilidade_real=real,
         a_revisar=pending,
     )
 

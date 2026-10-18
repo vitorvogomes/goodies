@@ -25,6 +25,7 @@ export interface Painel {
   patrimonio: Valued;
   resultado_investimentos: Valued;
   rentabilidade_nominal: Valued;
+  rentabilidade_real: Valued;
   a_revisar: number;
 }
 

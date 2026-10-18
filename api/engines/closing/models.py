@@ -4,9 +4,11 @@ congelados no fechamento)."""
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from engines.common.models import Valued
 from engines.common.money import Money, Pct
 from engines.planning.models import MonthBudget
 from engines.portfolio.positions import PositionClass
@@ -44,6 +46,9 @@ class MonthSummary(BaseModel):
     aplicado: Money
     resultado_investimentos: Money
     rentabilidade: Pct | None  # XIRR desde o início até as_of, em % a.a.
+    # Story 7.3: XIRR do mês (fim do mês anterior → fim do mês), % a.a.; real descontado o IPCA
+    rentabilidade_mes: Pct | None = None
+    rentabilidade_mes_real: Pct | None = None
     valor_por_classe: dict[str, Money]
     valor_por_ativo: dict[str, Money]
     caixa_corretora: Money
@@ -176,3 +181,6 @@ class PositionsReport(BaseModel):
     classes: list[PositionClass]
     aplicado: Money
     valor: Money
+    xirr_nominal: Valued[Decimal]  # consolidado do período, % a.a.
+    xirr_real: Valued[Decimal]  # descontado o IPCA do período; sem o IPCA do último mês: aguardando
+    ipca_ate: date | None  # último mês com IPCA publicado
