@@ -39,7 +39,7 @@ function Aportes() {
         autoFocus={params.get("foco") === "aporte"}
         onCommit={(valor, onError) => setAporte.mutate({ periodo, valor }, { onError })}
       />
-      <DistributionTable periodo={periodo} enabled={data.aporte_definido} />
+      <DistributionTable periodo={periodo} enabled={data.aporte_definido} readOnly={data.closed} />
     </div>
   );
 }

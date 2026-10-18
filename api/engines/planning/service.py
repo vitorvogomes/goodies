@@ -67,6 +67,38 @@ async def set_aporte(conn: asyncpg.Connection, month: date, value: Decimal | Non
     return await month_plan(conn, month)
 
 
+LOCK_PREFIXES = ("goal:", "class:", "asset:")
+
+
+class InvalidLockKey(ValueError):
+    pass
+
+
+async def set_lock(conn: asyncpg.Connection, month: date, key: str, value: Decimal | None) -> None:
+    """Story 8.6: trava (ou destrava, com None) uma linha da distribuição do mês — `goal:<id>`,
+    `class:<classe>` ou `asset:<id>` — em `month_plans.travas`. Recusa em mês fechado."""
+    if not key.startswith(LOCK_PREFIXES) or key.split(":", 1)[1] == "":
+        raise InvalidLockKey(key)
+    if await month_status().is_closed(conn, month):
+        raise MonthClosedError(f"{month:%Y-%m}")
+    if value is None:
+        await conn.execute(
+            "UPDATE month_plans SET travas = travas - $2, updated_at = now() WHERE month = $1",
+            month,
+            key,
+        )
+        return
+    await conn.execute(
+        "INSERT INTO month_plans (month, travas) "
+        "VALUES ($1, jsonb_build_object($2::text, $3::text)) "
+        "ON CONFLICT (month) DO UPDATE SET travas = month_plans.travas || "
+        "jsonb_build_object($2::text, $3::text), updated_at = now()",
+        month,
+        key,
+        str(value),
+    )
+
+
 async def ensure_month_plan(conn: asyncpg.Connection, month: date, *, mode: str) -> MonthPlanOut:
     """Plano do mês para o fechamento (Story 6.8). `retro`: dívidas = Σ das transações de role
     `divida` não casadas a custo fixo; aporte planejado nulo (`nao_definido`) — só quando o mês

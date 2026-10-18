@@ -144,3 +144,21 @@ export function useDistribution(periodo: string, enabled: boolean) {
     enabled,
   });
 }
+
+// ---- Travas da distribuição (Story 8.6) ----
+
+// Grava (valor) ou tira (null) a trava e devolve a prévia nova (o resto redistribuído pela API).
+export function useSetLock(periodo: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ key, valor }: { key: string; valor: string | null }) => {
+      const url = `/api/v1/planning/months/${periodo}/travas/${encodeURIComponent(key)}`;
+      await apiFetch<unknown>(url, valor === null ? { method: "DELETE" } : { method: "PUT", body: JSON.stringify({ valor }) });
+      return apiFetch<Distribution>("/api/v1/planning/distribution/preview", {
+        method: "POST",
+        body: JSON.stringify({ mes: periodo }),
+      });
+    },
+    onSuccess: (next) => queryClient.setQueryData(["planning", "distribution", periodo], next),
+  });
+}

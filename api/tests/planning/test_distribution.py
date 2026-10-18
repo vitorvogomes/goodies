@@ -155,3 +155,60 @@ async def test_preview_route(api, auth_headers) -> None:
     assert all(c["sugerido"] >= c["floor"] or body["floors_reduced"] for c in body["classes"])
     bad = await api.post(url, json={"mes": "2093-4"}, headers=auth_headers)
     assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_locks_saved_in_month_plan(api, auth_headers, pool) -> None:
+    """Story 8.6: travar grava em month_plans.travas e a prévia redistribui o resto com o total =
+    planejado; destravar volta ao sugerido; travas acima do planejado são sinalizadas; mês fechado
+    recusa."""
+    from datetime import date as _d
+
+    import main  # noqa: F401
+
+    month = _d(2093, 5, 1)
+    mes = "2093-05"
+    base = f"/api/v1/planning/months/{mes}"
+    preview = "/api/v1/planning/distribution/preview"
+    try:
+        assert (
+            await api.put(f"{base}/aporte", json={"valor": "3000.00"}, headers=auth_headers)
+        ).status_code == 200
+        free = (await api.post(preview, json={"mes": mes}, headers=auth_headers)).json()
+        cls = free["classes"][0]["cls"]
+        r = await api.put(
+            f"{base}/travas/class:{cls}", json={"valor": "1234.56"}, headers=auth_headers
+        )
+        assert r.status_code == 200, r.text
+        locked = (await api.post(preview, json={"mes": mes}, headers=auth_headers)).json()
+        line = next(c for c in locked["classes"] if c["cls"] == cls)
+        assert line["locked"] and line["sugerido"] == 1234.56
+        total = sum(D(str(g["sugerido"])) for g in locked["goals"]) + sum(
+            D(str(c["sugerido"])) for c in locked["classes"]
+        )
+        assert total + D(str(locked["unassigned"])) == D("3000.00")
+        over = await api.put(
+            f"{base}/travas/class:{cls}", json={"valor": "9000.00"}, headers=auth_headers
+        )
+        assert over.status_code == 200
+        flagged = (await api.post(preview, json={"mes": mes}, headers=auth_headers)).json()
+        assert flagged["locks_over"] is True and flagged["locks_total"] == 9000.0
+        assert (
+            await api.delete(f"{base}/travas/class:{cls}", headers=auth_headers)
+        ).status_code == 200
+        back = (await api.post(preview, json={"mes": mes}, headers=auth_headers)).json()
+        assert back["classes"] == free["classes"]
+        bad = await api.put(f"{base}/travas/x:y", json={"valor": "1"}, headers=auth_headers)
+        assert bad.status_code == 422
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO month_closes (month, version, status) VALUES ($1, 1, 'closed')", month
+            )
+        closed = await api.put(
+            f"{base}/travas/class:{cls}", json={"valor": "1"}, headers=auth_headers
+        )
+        assert closed.status_code == 409
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM month_closes WHERE month = $1", month)
+            await conn.execute("DELETE FROM month_plans WHERE month = $1", month)

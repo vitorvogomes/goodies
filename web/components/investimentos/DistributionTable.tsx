@@ -4,16 +4,92 @@
 // objetivos (progresso até o alvo, "Snow Trip · R$ 350/mês para chegar em jul/2027") e as classes
 // recolhidas, expansíveis para ativos, com meta, atual, desvio (p.p.), banda e sugerido — tudo de
 // `POST /api/v1/planning/distribution/preview` (o front não calcula). Pisos reduzidos → a nota.
-import { ChevronRightIcon } from "lucide-react";
+// Story 8.6: o sugerido se edita (Enter trava, cadeado no slot de anotação; clicar destrava); a
+// trava é gravada no mês e o resto redistribui pela API, com o total = planejado.
+import { ChevronRightIcon, LockIcon } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useState } from "react";
 
+import { Input } from "@/components/ui/input";
+
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatMonth, formatPercent, formatPP } from "@/lib/format";
-import { useDistribution } from "@/lib/planning";
+import { formatBRL, formatMonth, formatPercent, formatPP, normalizeMoneyInput } from "@/lib/format";
+import { useDistribution, useSetLock } from "@/lib/planning";
 import { cn } from "@/lib/utils";
 import type { Distribution, DistributionGoal } from "@/types/planning";
+
+type Lock = (key: string, valor: string | null, onError?: () => void) => void;
+
+const LOCK_FAILED = "Não foi possível salvar. Nada foi perdido. Tentar de novo.";
+
+function LockCell({
+  lockKey,
+  label,
+  value,
+  locked,
+  readOnly,
+  onLock,
+}: {
+  lockKey: string;
+  label: string;
+  value: number;
+  locked: boolean;
+  readOnly: boolean;
+  onLock: Lock;
+}) {
+  // O pai remonta a célula (key) quando o valor muda; com erro, a célula fica e mantém o digitado.
+  const shown = value.toFixed(2).replace(".", ",");
+  const [text, setText] = useState(shown);
+  const [error, setError] = useState<string | null>(null);
+  if (readOnly) return <span className="type-num-table">{formatBRL(value)}</span>;
+  function commit() {
+    const normalized = normalizeMoneyInput(text);
+    if (normalized === null || Number(normalized) < 0) {
+      setError("Informe um valor (ex.: 800,00).");
+      return;
+    }
+    setError(null);
+    onLock(lockKey, normalized, () => setError(LOCK_FAILED));
+  }
+  return (
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <span className="inline-flex items-center gap-1">
+        {locked && (
+          <button
+            type="button"
+            aria-label={`Destravar ${label}`}
+            title="Destravar: volta ao sugerido"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onLock(lockKey, null, () => setError(LOCK_FAILED))}
+          >
+            <LockIcon aria-hidden className="size-3.5" />
+          </button>
+        )}
+        <Input
+          aria-label={`Sugerido para ${label}`}
+          inputMode="decimal"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setText(shown);
+              setError(null);
+            }
+          }}
+          aria-invalid={Boolean(error)}
+          className="h-8 w-28 type-num-table text-right"
+        />
+      </span>
+      {error && (
+        <span role="alert" className="type-caption text-negative">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function goalNote(g: DistributionGoal): string {
   if (g.kind === "reserva") return g.monthly > 0 ? `${formatBRL(g.monthly)}/mês até encher` : "cheia";
@@ -21,7 +97,7 @@ function goalNote(g: DistributionGoal): string {
   return `${formatBRL(g.monthly)}/mês para chegar em ${formatMonth(g.deadline.slice(0, 7))}`;
 }
 
-function Goals({ data }: { data: Distribution }) {
+function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boolean; onLock: Lock }) {
   if (!data.goals.length) return null;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -47,7 +123,17 @@ function Goals({ data }: { data: Distribution }) {
                 <span className="block type-caption text-muted-foreground">{formatBRL(g.current)}</span>
               </td>
               <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.target)}</td>
-              <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.sugerido)}</td>
+              <td className="px-4 py-2 text-right">
+                <LockCell
+                  key={`${g.id}-${g.sugerido}-${g.locked}`}
+                  lockKey={`goal:${g.id}`}
+                  label={g.name}
+                  value={g.sugerido}
+                  locked={g.locked}
+                  readOnly={readOnly}
+                  onLock={onLock}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -56,7 +142,7 @@ function Goals({ data }: { data: Distribution }) {
   );
 }
 
-function Classes({ data }: { data: Distribution }) {
+function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boolean; onLock: Lock }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (cls: string) =>
     setOpen((cur) => {
@@ -106,7 +192,15 @@ function Classes({ data }: { data: Distribution }) {
                   <td className="px-4 py-2 text-right type-num-table">
                     <span className="inline-flex items-center gap-1">
                       {c.floor_only && <StatusBadge tooltip="acima da banda: só o piso">piso</StatusBadge>}
-                      {formatBRL(c.sugerido)}
+                      <LockCell
+                        key={`${c.cls}-${c.sugerido}-${c.locked}`}
+                        lockKey={`class:${c.cls}`}
+                        label={c.label}
+                        value={c.sugerido}
+                        locked={c.locked}
+                        readOnly={readOnly}
+                        onLock={onLock}
+                      />
                     </span>
                   </td>
                 </tr>
@@ -119,7 +213,21 @@ function Classes({ data }: { data: Distribution }) {
                       <td className="px-4 py-1.5 text-right type-num-table">{a.meta != null ? formatPercent(a.meta) : "—"}</td>
                       <td className="px-4 py-1.5 text-right type-num-table">{formatPercent(a.atual)}</td>
                       <td colSpan={2} />
-                      <td className="px-4 py-1.5 text-right type-num-table">{a.sugerido != null ? formatBRL(a.sugerido) : "—"}</td>
+                      <td className="px-4 py-1.5 text-right">
+                        {a.sugerido != null ? (
+                          <LockCell
+                            key={`${a.id}-${a.sugerido}-${a.locked}`}
+                            lockKey={`asset:${a.id}`}
+                            label={a.label}
+                            value={a.sugerido}
+                            locked={a.locked}
+                            readOnly={readOnly}
+                            onLock={onLock}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                     </tr>
                   ))}
               </Fragment>
@@ -131,8 +239,30 @@ function Classes({ data }: { data: Distribution }) {
   );
 }
 
-export function DistributionTable({ periodo, enabled }: { periodo: string; enabled: boolean }) {
+// Linhas cujo sugerido mudou (o anúncio "Redistribuído: {n} linhas"), sem contar a editada.
+function changedLines(before: Distribution, after: Distribution, edited: string): number {
+  const values = (d: Distribution) =>
+    new Map<string, number | null>([
+      ...d.goals.map((g) => [`goal:${g.id}`, g.sugerido] as const),
+      ...d.classes.map((c) => [`class:${c.cls}`, c.sugerido] as const),
+      ...d.classes.flatMap((c) => c.assets.map((a) => [`asset:${a.id}`, a.sugerido] as const)),
+    ]);
+  const old = values(before);
+  return [...values(after)].filter(([k, v]) => k !== edited && old.get(k) !== v).length;
+}
+
+export function DistributionTable({
+  periodo,
+  enabled,
+  readOnly,
+}: {
+  periodo: string;
+  enabled: boolean;
+  readOnly: boolean;
+}) {
   const query = useDistribution(periodo, enabled);
+  const setLock = useSetLock(periodo);
+  const [announce, setAnnounce] = useState("");
   if (!enabled) return null;
   if (query.isError) {
     return (
@@ -146,6 +276,14 @@ export function DistributionTable({ periodo, enabled }: { periodo: string; enabl
   }
   const data = query.data;
   if (!data) return <div className="h-64 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
+  const onLock: Lock = (key, valor, onError) =>
+    setLock.mutate(
+      { key, valor },
+      {
+        onSuccess: (next) => setAnnounce(`Redistribuído: ${changedLines(data, next, key)} linhas`),
+        onError,
+      },
+    );
   return (
     <section aria-labelledby="distribuicao" className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -154,10 +292,18 @@ export function DistributionTable({ periodo, enabled }: { periodo: string; enabl
         </h2>
         <span className="type-caption text-muted-foreground">total = aporte planejado · {formatBRL(data.planned)}</span>
       </div>
-      <Goals data={data} />
+      <p role="status" aria-live="polite" className="sr-only">
+        {announce}
+      </p>
+      {data.locks_over && (
+        <p role="alert" className="type-body-sm text-negative">
+          Travas somam {formatBRL(data.locks_total)}, acima do planejado.
+        </p>
+      )}
+      <Goals data={data} readOnly={readOnly} onLock={onLock} />
       {data.has_targets ? (
         <>
-          <Classes data={data} />
+          <Classes data={data} readOnly={readOnly} onLock={onLock} />
           {data.floors_reduced && (
             <p className="type-body-sm text-muted-foreground">
               Os pisos somam mais do que sobra depois dos objetivos: foram reduzidos em proporção.

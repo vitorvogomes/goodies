@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -126,6 +127,40 @@ async def save_targets(body: targets.TargetsIn, user: AuthUser, db: Db) -> targe
                 "errors": [e.model_dump(mode="json") for e in exc.errors],
             },
         ) from None
+
+
+# ---- Travas da distribuição (Story 8.6) ----
+
+
+async def _lock(db: Db, mes: str, key: str, value: Decimal | None) -> None:
+    try:
+        await service.set_lock(db, _month(mes), key, value)
+    except service.InvalidLockKey:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "trava_invalida", "message": "Linha desconhecida da distribuição."},
+        ) from None
+    except service.MonthClosedError:
+        raise _closed("a distribuição") from None
+
+
+@router.put("/months/{mes}/travas/{key}")
+async def set_lock(mes: str, key: str, body: AporteIn, user: AuthUser, db: Db) -> dict[str, str]:
+    """Trava a linha no valor (o resto redistribui na prévia)."""
+    if body.valor is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "valor_ausente", "message": "Informe o valor da linha."},
+        )
+    await _lock(db, mes, key, body.valor)
+    return {"status": "travado"}
+
+
+@router.delete("/months/{mes}/travas/{key}")
+async def delete_lock(mes: str, key: str, user: AuthUser, db: Db) -> dict[str, str]:
+    """Destrava: a linha volta a ser sugerida."""
+    await _lock(db, mes, key, None)
+    return {"status": "destravado"}
 
 
 # ---- Distribuição do aporte (Story 8.5) ----
