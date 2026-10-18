@@ -15,7 +15,7 @@ import { useAporteSummary } from "@/lib/planning";
 export function AporteSummary({ periodo }: { periodo: string }) {
   const summary = useAporteSummary(periodo);
   const href = `/investimentos/aportes?periodo=${periodo}`;
-  if (summary.isError) {
+  if (summary.isError && !summary.data) {
     return (
       <section className="rounded-lg border border-border bg-card p-card-padding type-body-sm text-negative">
         Não foi possível carregar o aporte do mês.{" "}
@@ -38,7 +38,9 @@ export function AporteSummary({ periodo }: { periodo: string }) {
         </h2>
         {data.aporte_definido && <DateStamp asOf={data.as_of} source="ledger" />}
       </div>
-      {!data.aporte_definido ? (
+      {!data.aporte_definido && data.closed ? (
+        <p className="type-body-sm text-muted-foreground">Aporte planejado não definido · mês fechado</p>
+      ) : !data.aporte_definido ? (
         <Link href={`${href}&foco=aporte`} className="type-body-sm text-positive underline">
           Defina o aporte planejado de {formatMonth(periodo)} para ver a distribuição.
         </Link>

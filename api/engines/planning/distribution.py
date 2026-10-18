@@ -62,6 +62,7 @@ class ClassState:
     band_pp: Decimal
     floor: Decimal
     assets: Sequence[AssetState] = ()
+    has_target: bool = True  # sem meta cadastrada: nunca "fora da banda" nem "só o piso"
 
 
 @dataclass
@@ -210,7 +211,10 @@ def distribute(
         unassigned = class_amount
 
     top = {**{k: v for k, v in raw.items()}, **{f"class:{k}": v for k, v in class_raw.items()}}
-    rounded = round_cents(top, planned - unassigned) if top else {}
+    # o que tem destino fecha ao centavo; a sobra sem destino é o resto exato
+    placed = (planned - unassigned).quantize(_CENT)
+    unassigned = planned - placed
+    rounded = round_cents(top, placed) if top else {}
     for g in goals:
         key = f"goal:{g.id}"
         goal_lines.append(
@@ -243,7 +247,9 @@ def distribute(
                 floor=c.floor,
                 sugerido=amount,
                 floor_only=_above_band(c, total_value),
-                out_of_band=abs(atual - c.target_pct) > c.band_pp and total_value > 0,
+                out_of_band=c.has_target
+                and total_value > 0
+                and abs(atual - c.target_pct) > c.band_pp,
                 locked=f"class:{c.cls}" in locks,
                 assets=_assets(c, amount, locks),
             )
@@ -260,7 +266,7 @@ def distribute(
 
 
 def _above_band(c: ClassState, total: Decimal) -> bool:
-    if total <= 0:
+    if total <= 0 or not c.has_target:
         return False
     return c.value / total * _HUNDRED - c.target_pct > c.band_pp
 
@@ -292,7 +298,9 @@ def _assets(c: ClassState, amount: Decimal, locks: Mapping[str, Decimal]) -> lis
         a.id: max(_ZERO, (a.target_pct or _ZERO) / _HUNDRED * after - a.value) for a in free
     }
     raw.update(_fill(left, deficits, {a.id: a.target_pct or _ZERO for a in free}))
-    rounded = round_cents(raw, max(amount, sum(raw.values(), _ZERO).quantize(_CENT)))
+    # com ativos livres com meta, a classe fecha ao centavo; tudo travado → as travas, exatas
+    target = amount if free else sum(raw.values(), _ZERO).quantize(_CENT)
+    rounded = round_cents(raw, max(target, sum(raw.values(), _ZERO).quantize(_CENT)))
     for line in lines:
         line.sugerido = rounded.get(line.id, _ZERO)
     return lines

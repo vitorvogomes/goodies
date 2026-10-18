@@ -123,7 +123,9 @@ async def save_targets(body: targets.TargetsIn, user: AuthUser, db: Db) -> targe
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             {
                 "error": "metas_invalidas",
-                "message": exc.errors[0].message if exc.errors else "Classe desconhecida.",
+                "message": exc.errors[0].message
+                if exc.errors
+                else "Classe ou ativo inválido para as metas.",
                 "errors": [e.model_dump(mode="json") for e in exc.errors],
             },
         ) from None

@@ -556,9 +556,10 @@ async def reopen_preview(conn: asyncpg.Connection, month: date) -> ReopenPreview
     close = await _closed(conn, month)
     frozen, _ = await _frozen(conn, month, close["version"])
     live = await build_month_summary(conn, month, month_end(month))
+    live_totals, _ = _totals(live)  # as mesmas regras do congelado (ex.: pendente sem planejado)
     rows = []
     for term in _TERMS:
-        before, after = _cents(frozen[term]), _cents(getattr(live, term))
+        before, after = _cents(frozen[term]), _cents(live_totals.get(term, getattr(live, term)))
         if before != after:
             rows.append(ReopenRow(metric=term, label=_LABELS[term], frozen=before, live=after))
     return ReopenPreview(month=month, version=close["version"], rows=rows)
@@ -878,8 +879,6 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
     for term in (
         "disponivel",
         "consumido",
-    "realizado",
-    "pendente",
         "restante",
         "consumo_financiado",
         "restante_sem_resgates",
@@ -915,8 +914,6 @@ _PERIOD_TERMS = (
     "investido",
     "resultado_mes",
     "consumido",
-    "realizado",
-    "pendente",
 )
 
 
@@ -1115,6 +1112,8 @@ async def _month_return(
     if found is None:
         return _unavailable_return("antes_do_primeiro_fechamento")
     start, estimated = found
+    if valuation.coverage.get("cripto") == CRYPTO_ESTIMATED:  # fim estimado também fabrica
+        estimated = estimated | {"cripto"}
     ipca, last = await _ipca(conn, [month])
     return _returns(
         start,
@@ -1138,11 +1137,15 @@ async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodR
     flows: dict[tuple[str, date], Decimal] = {}
     end: dict[str, Decimal] = {}
     end_day = months[-1]
+    end_estimated = False
     for month in months:
         s = await month_summary(conn, month)
         for key, value in s.flows.items():
             flows[key] = flows.get(key, Decimal(0)) + value
         end, end_day = dict(s.valor_por_classe), s.as_of
+        end_estimated = s.coverage.get("cripto") == CRYPTO_ESTIMATED
+    if end_estimated:  # o fim do bloco cripto pelo aplicado: o retorno seria fabricado
+        estimated = estimated | {"cripto"}
     ipca, last = await _ipca(conn, months)
     return _returns(
         start, months[0] - timedelta(days=1), flows, end, end_day, ipca, last, estimated

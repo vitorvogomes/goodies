@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from engines.common.alerts import Alert, AlertAction, AlertContext, brl, fingerprint
 from engines.common.dates import month_end, month_label, today_brt
 from engines.common.money import Money
+from engines.common.month_status import month_status
 from engines.common.owner import get_owner_id
 from engines.portfolio import brokers as portfolio_brokers
 
@@ -32,6 +33,7 @@ class AporteSummary(BaseModel):
     month: date
     as_of: date
     aporte_definido: bool
+    closed: bool  # mês fechado: sem campo para definir o aporte (só leitura)
     andamento: distribution_service.Andamento
     fora_da_banda: int  # classes fora da banda → "Ver aportes"
     a_caminho: list[OnTheWay]  # o dinheiro a caminho das corretoras (Story 7.7)
@@ -46,6 +48,7 @@ async def aporte_summary(conn: asyncpg.Connection, month: date) -> AporteSummary
         month=month,
         as_of=as_of,
         aporte_definido=preview.aporte_definido,
+        closed=await month_status().is_closed(conn, month),
         andamento=preview.andamento,
         fora_da_banda=sum(1 for c in preview.classes if c.out_of_band),
         a_caminho=[

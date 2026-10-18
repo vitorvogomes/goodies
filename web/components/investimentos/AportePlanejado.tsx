@@ -58,7 +58,8 @@ export function AportePlanejado({
           inputMode="decimal"
           placeholder="0,00"
           value={value}
-          disabled={saving}
+          readOnly={saving}
+          aria-busy={saving}
           autoFocus={autoFocus}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

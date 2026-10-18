@@ -268,6 +268,9 @@ async def _past(
     if priced_all:
         out.crypto_value = crypto_value.quantize(_CENT)
         crypto_method = "histórico de carteira"
+    elif not wallets and crypto_net == 0:  # nada em cripto na data: zero de verdade, não estimado
+        out.crypto_value = Decimal(0)
+        crypto_method = "sem cripto"
     else:
         out.crypto_value = max(crypto_net, Decimal(0))
         crypto_method = CRYPTO_ESTIMATED

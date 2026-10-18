@@ -121,4 +121,9 @@ async def test_close_without_wallet_history_estimates_crypto(pool) -> None:
             "SELECT count(*) FROM wallet_position_history WHERE ref_date <= '2004-02-29'"
         )
         summary = await closing.build_month_summary(conn, date(2004, 2, 1))
-    assert summary.coverage["cripto"] == "estimada (aplicado do bloco)"
+        from engines.portfolio.crypto_sleeve import sleeve_cashflows
+
+        held = any(d <= date(2004, 2, 29) for d, _ in await sleeve_cashflows(conn))
+    # revisão do Épico 8: sem nada em cripto na data, o bloco é zero de verdade ("sem cripto")
+    expected = "estimada (aplicado do bloco)" if held else "sem cripto"
+    assert summary.coverage["cripto"] == expected

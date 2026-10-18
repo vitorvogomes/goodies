@@ -4,7 +4,7 @@
 // A Distribuição do aporte (8.5–8.7) vem abaixo. `?foco=aporte` (Painel, aviso) abre com o campo
 // em foco.
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { AportePlanejado } from "@/components/investimentos/AportePlanejado";
 import { DistributionTable } from "@/components/investimentos/DistributionTable";
@@ -17,7 +17,9 @@ function Aportes() {
   const params = useSearchParams();
   const budget = useMonthBudget(periodo);
   const setAporte = useSetAporte();
-  if (budget.isError) {
+  // depois de gravar, o campo remonta (key): o foco volta para ele (teclado e leitor de tela)
+  const [refocus, setRefocus] = useState(false);
+  if (budget.isError && !budget.data) {
     return (
       <div role="alert" className="flex items-center gap-2 type-body text-negative">
         Não foi possível carregar o aporte do mês.
@@ -36,8 +38,11 @@ function Aportes() {
         budget={data}
         periodo={periodo}
         saving={setAporte.isPending}
-        autoFocus={params.get("foco") === "aporte"}
-        onCommit={(valor, onError) => setAporte.mutate({ periodo, valor }, { onError })}
+        autoFocus={refocus || params.get("foco") === "aporte"}
+        onCommit={(valor, onError) => {
+          setRefocus(true);
+          setAporte.mutate({ periodo, valor }, { onError });
+        }}
       />
       <DistributionTable periodo={periodo} enabled={data.aporte_definido} readOnly={data.closed} />
     </div>

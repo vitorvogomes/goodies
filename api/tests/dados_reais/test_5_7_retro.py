@@ -71,7 +71,11 @@ async def test_close_retro_base_real() -> None:
                     assert coverage["B3"].startswith("consolidado de "), key
                 else:
                     assert coverage["B3"] == "patrimônio não coberto", key
-                assert coverage["cripto"].startswith("estimada"), key
+                # sem histórico de carteira: estimada pelo aplicado; antes de qualquer cripto, o
+                # bloco é zero de verdade (revisão do Épico 8)
+                assert coverage["cripto"].startswith("estimada") or coverage["cripto"] == (
+                    "sem cripto"
+                ), key
             conferidos = [r["month"] for r in rows if r["saldo_conferido"]]
             assert conferidos == [m for m in report.closed if m < date(2025, 2, 1)]
             again = await close_retro.run(conn, START, END, echo=said.append)

@@ -32,6 +32,7 @@ function LockCell({
   value,
   locked,
   readOnly,
+  busy,
   onLock,
 }: {
   lockKey: string;
@@ -39,6 +40,7 @@ function LockCell({
   value: number;
   locked: boolean;
   readOnly: boolean;
+  busy: boolean;
   onLock: Lock;
 }) {
   // O pai remonta a célula (key) quando o valor muda; com erro, a célula fica e mantém o digitado.
@@ -63,7 +65,8 @@ function LockCell({
             type="button"
             aria-label={`Destravar ${label}`}
             title="Destravar: volta ao sugerido"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+            disabled={busy}
             onClick={() => onLock(lockKey, null, () => setError(LOCK_FAILED))}
           >
             <LockIcon aria-hidden className="size-3.5" />
@@ -73,8 +76,11 @@ function LockCell({
           aria-label={`Sugerido para ${label}`}
           inputMode="decimal"
           value={text}
+          readOnly={busy}
+          aria-busy={busy}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
+            if (busy) return; // uma trava por vez: a prévia de uma não sobrescreve a outra
             if (e.key === "Enter") commit();
             if (e.key === "Escape") {
               setText(shown);
@@ -100,7 +106,17 @@ function goalNote(g: DistributionGoal): string {
   return `${formatBRL(g.monthly)}/mês para chegar em ${formatMonth(g.deadline.slice(0, 7))}`;
 }
 
-function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boolean; onLock: Lock }) {
+function Goals({
+  data,
+  readOnly,
+  busy,
+  onLock,
+}: {
+  data: Distribution;
+  readOnly: boolean;
+  busy: boolean;
+  onLock: Lock;
+}) {
   if (!data.goals.length) return null;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -141,6 +157,7 @@ function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boole
                   value={g.sugerido}
                   locked={g.locked}
                   readOnly={readOnly}
+                  busy={busy}
                   onLock={onLock}
                 />
               </td>
@@ -154,7 +171,17 @@ function Goals({ data, readOnly, onLock }: { data: Distribution; readOnly: boole
   );
 }
 
-function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boolean; onLock: Lock }) {
+function Classes({
+  data,
+  readOnly,
+  busy,
+  onLock,
+}: {
+  data: Distribution;
+  readOnly: boolean;
+  busy: boolean;
+  onLock: Lock;
+}) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (cls: string) =>
     setOpen((cur) => {
@@ -213,6 +240,7 @@ function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boo
                         value={c.sugerido}
                         locked={c.locked}
                         readOnly={readOnly}
+                        busy={busy}
                         onLock={onLock}
                       />
                     </span>
@@ -238,6 +266,7 @@ function Classes({ data, readOnly, onLock }: { data: Distribution; readOnly: boo
                             value={a.sugerido}
                             locked={a.locked}
                             readOnly={readOnly}
+                            busy={busy}
                             onLock={onLock}
                           />
                         ) : (
@@ -341,7 +370,7 @@ export function DistributionTable({
   const setLock = useSetLock(periodo);
   const [announce, setAnnounce] = useState("");
   if (!enabled) return null;
-  if (query.isError) {
+  if (query.isError && !query.data) {
     return (
       <div role="alert" className="flex items-center gap-2 type-body text-negative">
         Não foi possível carregar a distribuição.
@@ -378,10 +407,10 @@ export function DistributionTable({
         </p>
       )}
       <Andamento data={data} periodo={periodo} />
-      <Goals data={data} readOnly={readOnly} onLock={onLock} />
+      <Goals data={data} readOnly={readOnly} busy={setLock.isPending} onLock={onLock} />
       {data.has_targets ? (
         <>
-          <Classes data={data} readOnly={readOnly} onLock={onLock} />
+          <Classes data={data} readOnly={readOnly} busy={setLock.isPending} onLock={onLock} />
           <p className="type-caption text-muted-foreground">
             Por linha, o realizado só conta quando o dinheiro vira ativo.
             {data.andamento.confere && (

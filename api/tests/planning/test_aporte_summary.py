@@ -24,7 +24,7 @@ async def test_summary_route(api, auth_headers) -> None:
     r = await api.get("/api/v1/planning/months/2093-07/aporte/resumo", headers=auth_headers)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["aporte_definido"] is False
+    assert body["aporte_definido"] is False and body["closed"] is False
     assert set(body) >= {"andamento", "fora_da_banda", "a_caminho", "as_of"}
 
 

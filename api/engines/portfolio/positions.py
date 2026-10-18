@@ -285,7 +285,7 @@ async def positions_period(
         crypto_result = calc.investment_result(
             crypto_value, contributed=crypto_out, income=Decimal(0)
         )
-    elif start_val.coverage.get("cripto") == CRYPTO_ESTIMATED:
+    elif CRYPTO_ESTIMATED in (start_val.coverage.get("cripto"), end_val.coverage.get("cripto")):
         crypto_result = (
             None  # início pelo aplicado (sem preço histórico): o resultado seria fabricado
         )
@@ -365,8 +365,9 @@ def _block(key: str, label: str, assets: list[PositionAsset]) -> PositionClass:
 async def month_contributions(
     conn: asyncpg.Connection, owner: str, month: date
 ) -> tuple[dict[str, Decimal], Decimal]:
-    """Story 8.7: o que virou ativo no mês — aportes líquidos por ativo (assets.id) e, no bloco
-    cripto, o que saiu para as carteiras no mês (as saídas do ledger do sleeve)."""
+    """Story 8.7: o que virou ativo no mês — o que entrou em cada ativo (compras e aportes, por
+    assets.id) e, no bloco cripto, o que saiu para as carteiras no mês. Só entradas: o realizado
+    total (o investimento do ledger) não abate resgates, que são receita (ADR-015)."""
     from .crypto_sleeve import sleeve_cashflows
 
     end = month_end(month)
@@ -382,9 +383,17 @@ async def month_contributions(
     by_asset: dict[str, list[Any]] = defaultdict(list)
     for r in rows:
         by_asset[r["asset_id"]].append(r)
-    contributions = {a: calc.net_contributed(ops) for a, ops in by_asset.items()}
+    contributions = {
+        a: calc.net_contributed([op for op in ops if op["tipo"] in calc.INFLOW])
+        for a, ops in by_asset.items()
+    }
+    contributions = {a: v for a, v in contributions.items() if v}
     crypto = -sum(
-        (_dec(amount) for d, amount in await sleeve_cashflows(conn) if month <= d <= end),
+        (
+            _dec(amount)
+            for d, amount in await sleeve_cashflows(conn)
+            if month <= d <= end and amount < 0
+        ),
         Decimal(0),
     )
     return contributions, crypto

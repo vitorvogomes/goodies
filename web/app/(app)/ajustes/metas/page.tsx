@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { SAVE_FAILED } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, normalizeMoneyInput } from "@/lib/format";
 import { useSaveTargets, useTargets, useTargetsPreview } from "@/lib/planning";
 import { useDebounced } from "@/lib/use-debounced";
 import type { TargetsIn, TargetsOut } from "@/types/planning";
@@ -42,13 +42,11 @@ function toDraft(data: TargetsOut): Draft {
   }));
 }
 
-function money(raw: string): string {
-  return raw.trim().replace(/\./g, "").replace(",", ".");
-}
-
 function toBody(draft: Draft): TargetsIn | null {
   const fields = draft.flatMap((c) => [c.pct, c.band, ...c.assets.map((a) => a.pct)]);
-  if (fields.some((f) => !NUMBER.test(f.trim())) || draft.some((c) => !/^\d+(\.\d{1,2})?$/.test(money(c.floor)))) {
+  // o piso é dinheiro: o mesmo leitor dos outros campos de R$ ("1.500,50" e "1500.50")
+  const floors = draft.map((c) => normalizeMoneyInput(c.floor));
+  if (fields.some((f) => !NUMBER.test(f.trim())) || floors.some((f) => f === null || f.startsWith("-"))) {
     return null;
   }
   const dot = (v: string) => v.trim().replace(",", ".");
@@ -57,7 +55,7 @@ function toBody(draft: Draft): TargetsIn | null {
       cls: c.cls,
       pct: dot(c.pct),
       band_pp: dot(c.band),
-      floor: money(c.floor),
+      floor: normalizeMoneyInput(c.floor) ?? "0",
       assets: c.assets.map((a) => ({ asset_id: a.asset_id, pct: dot(a.pct) })),
     })),
   };
@@ -204,7 +202,7 @@ function ClassRows({
 export default function MetasPage() {
   const targets = useTargets();
   const [editing, setEditing] = useState(false);
-  if (targets.isError) return <p className="type-body text-negative">Não foi possível carregar as metas.</p>;
+  if (targets.isError && !targets.data) return <p className="type-body text-negative">Não foi possível carregar as metas.</p>;
   if (!targets.data) return <div className="h-48 animate-pulse rounded-lg border border-border bg-card" aria-hidden />;
   const data = targets.data;
   // chave fixa: a revalidação depois de salvar não pode remontar o editor (o onSuccess se perderia)

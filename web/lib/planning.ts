@@ -161,6 +161,13 @@ export function useSetLock(periodo: string) {
       });
     },
     onSuccess: (next) => queryClient.setQueryData(["planning", "distribution", periodo], next),
+    // a trava pode ter sido gravada mesmo com a prévia falhando, e travas seguidas podem responder
+    // fora de ordem: no fim, sempre a versão do servidor
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["planning", "distribution", periodo] }),
+        queryClient.invalidateQueries({ queryKey: ["planning", "aporte-resumo", periodo] }),
+      ]),
   });
 }
 

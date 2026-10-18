@@ -91,6 +91,17 @@ async def test_preview_save_and_v1_allocation(api, auth_headers, pool) -> None:
         if assets:
             got = {a["asset_id"]: a["pct"] for a in by_cls["fiis"]["assets"]}
             assert (got[picks[0]], got[picks[1]]) == (70.0, 30.0)
+        wrong_class = {"etfs": [(picks[0], "100")]} if picks else {"etfs": [("x", "100")]}
+        moved = await api.put(
+            URL, json=_body(["15", "10", "10", "50", "10", "5"], wrong_class), headers=auth_headers
+        )
+        assert moved.status_code == 422  # um FII não é meta de ETF (nem id inválido)
+        bad_id = await api.put(
+            URL,
+            json=_body(["15", "10", "10", "50", "10", "5"], {"etfs": [("nao-e-uuid", "100")]}),
+            headers=auth_headers,
+        )
+        assert bad_id.status_code == 422
         again = await api.put(
             URL, json=_body(["20", "10", "10", "45", "10", "5"]), headers=auth_headers
         )

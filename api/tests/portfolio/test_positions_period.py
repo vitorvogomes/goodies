@@ -315,3 +315,14 @@ def test_estimated_start_class_is_left_out() -> None:
     assert out.nominal == only.nominal
     assert out.by_class["cripto"][0].unavailable_reason == "sem_preco"
     assert out.by_class["acoes_br"][0] == only.by_class["acoes_br"][0]
+
+
+@pytest.mark.asyncio
+async def test_no_crypto_yet_is_not_estimated(pool: Any) -> None:
+    """Revisão do Épico 8: antes de qualquer cripto, o bloco vale zero de verdade (não é a
+    estimativa pelo aplicado que tira a classe do consolidado)."""
+    from engines.portfolio.valuation import CRYPTO_ESTIMATED, valuation_as_of
+
+    async with pool.acquire() as conn:
+        v = await valuation_as_of(conn, await get_owner_id(conn), date(2001, 1, 31))
+    assert v.coverage["cripto"] != CRYPTO_ESTIMATED and v.crypto_value == D(0)

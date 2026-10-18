@@ -127,13 +127,20 @@ async def preview(
     locks = locks if locks is not None else await month_locks(conn, month)
 
     goal_list = (await goals.list_goals(conn)).goals
+    # a base é a posição antes do aporte do mês: o que entrou no mês sai dos valores, senão a
+    # sugestão mudaria a cada aporte feito (e o plano pediria mais que o planejado)
+    month_done = await progress_service.month_progress(conn, month)
+
+    def before(value: Decimal, key: str) -> Decimal:
+        return max(Decimal(0), value - month_done.by_line.get(key, Decimal(0)))
+
     needs = [
         GoalNeed(
             id=g.id,
             name=g.name,
             kind=g.kind,
             target=g.target,
-            current=g.valor,
+            current=before(g.valor, f"goal:{g.id}"),
             months=(g.horizon_months or 12)
             if g.kind == "reserva"
             else months_until(month, g.deadline or month),
@@ -155,15 +162,16 @@ async def preview(
             ClassState(
                 cls=c.key,
                 label=labels.get(c.key, c.label),
-                value=c.valor,
+                value=before(c.valor, f"class:{c.key}"),
                 target_pct=Decimal(row["target_pct"]) if row else Decimal(0),
                 band_pp=Decimal(row["band_pp"]) if row else Decimal(0),
                 floor=Decimal(row["floor"]) if row else Decimal(0),
+                has_target=row is not None,
                 assets=[
                     AssetState(
                         id=a.asset_id or a.symbol,
                         label=a.symbol,
-                        value=a.valor.value or Decimal(0),
+                        value=before(a.valor.value or Decimal(0), f"asset:{a.asset_id}"),
                         target_pct=own.get(a.asset_id or ""),
                     )
                     for a in c.assets
@@ -172,7 +180,6 @@ async def preview(
         )
     d = distribute(amount, needs, states, locks)
     progress = {g.id: g.progress for g in goal_list}
-    month_done = await progress_service.month_progress(conn, month)
     sugerido = {f"goal:{g.id}": g.sugerido for g in d.goals}
     sugerido.update({f"class:{c.cls}": c.sugerido for c in d.classes})
     done = progress_service.summary(month_done, sugerido, amount)

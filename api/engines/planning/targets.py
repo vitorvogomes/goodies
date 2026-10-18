@@ -7,6 +7,7 @@ anterior). Cada nível soma 100% (conferido aqui, nunca no navegador); o nível 
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -144,8 +145,16 @@ async def asset_targets(
 
 
 async def legacy_category_targets(conn: asyncpg.Connection, user_id: str) -> dict[str, float]:
-    """Provider da tela v1 de alocação (`portfolio`, registrado em main.py): rótulo legado → %."""
-    rows = await class_targets(conn, user_id)
+    """Provider da tela v1 de alocação (`portfolio`, registrado em main.py): rótulo legado → %.
+    Numa base anterior à revisão 0043 (os testes de migração medem o "antes"), a meta é a única
+    linha por categoria."""
+    try:
+        rows = await class_targets(conn, user_id)
+    except asyncpg.UndefinedColumnError:
+        legacy = await conn.fetch(
+            "SELECT category, target_pct FROM portfolio_targets WHERE user_id = $1::uuid", user_id
+        )
+        return {r["category"]: float(r["target_pct"]) for r in legacy}
     return {CATEGORY_BY_CLASS[c]: float(r["target_pct"]) for c, r in rows.items()}
 
 
@@ -185,12 +194,33 @@ async def get_targets(conn: asyncpg.Connection) -> TargetsOut:
     return TargetsOut(defined=bool(by_class), valid_from=valid_from, classes=classes)
 
 
+async def _check_assets(conn: asyncpg.Connection, body: TargetsIn) -> None:
+    """Cada meta por ativo é de um ativo da própria classe e fora dos objetivos (AD-11)."""
+    wanted = {a.asset_id: c.cls for c in body.classes for a in c.assets if a.pct > 0}
+    if not wanted:
+        return
+    try:
+        ids = [str(uuid.UUID(a)) for a in wanted]
+    except ValueError:
+        raise InvalidTargets([]) from None
+    classes = {
+        r["id"]: r["class"]
+        for r in await conn.fetch(
+            "SELECT id::text AS id, class FROM assets WHERE id = ANY($1::uuid[])", ids
+        )
+    }
+    linked = await linked_assets(conn)
+    if any(classes.get(a) != cls or a in linked for a, cls in wanted.items()):
+        raise InvalidTargets([])
+
+
 async def save_targets(conn: asyncpg.Connection, body: TargetsIn) -> TargetsOut:
     """Grava a versão das metas a partir do mês atual (a vigente antes fecha no mês anterior)."""
     errors = check_sums(body)
     known = {str(c) for c, _ in CLASS_LABELS}
     if errors or any(c.cls not in known for c in body.classes):
         raise InvalidTargets(errors)
+    await _check_assets(conn, body)
     owner = await get_owner_id(conn)
     month = today_brt().replace(day=1)
     async with conn.transaction():

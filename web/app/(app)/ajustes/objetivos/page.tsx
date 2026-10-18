@@ -325,7 +325,7 @@ export default function ObjetivosPage() {
     },
   ];
 
-  if (data.isError) return <p className="type-body text-negative">Não foi possível carregar os objetivos.</p>;
+  if (data.isError && !data.data) return <p className="type-body text-negative">Não foi possível carregar os objetivos.</p>;
   return (
     <div className="space-y-3">
       <Suggestions

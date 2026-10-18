@@ -233,3 +233,26 @@ async def test_preview_carries_progress(api, auth_headers, pool) -> None:
         assert D(str(a["pendente_linhas"])) == D(str(a["pendente"])) + D(str(a["a_caminho"]))
         assert a["confere"] is True
     assert D(str(a["pct_em_ativo"])) + D(str(a["pct_a_caminho"])) <= D(100)
+
+
+def test_review_e8_rounding_and_targetless_classes() -> None:
+    """Revisão do Épico 8: (a) tudo travado na classe → as travas exatas, sem centavo inventado;
+    (b) sem metas, o sem destino fecha ao centavo; (c) classe sem meta nunca fora da banda."""
+    cls = ClassState(
+        "etfs",
+        "ETFs",
+        D(1000),
+        D(100),
+        D(5),
+        D(0),
+        (AssetState("a", "A", D(500), D(100)), AssetState("b", "B", D(500), None)),
+    )
+    d = distribute(D(500), [], [cls], {"asset:a": D(100)})
+    assets = {a.id: a.sugerido for a in d.classes[0].assets}
+    assert assets == {"a": D("100.00"), "b": D("0.00")}
+    reserve = [GoalNeed("res", "Reserva", "reserva", D("666.67"), D(0), 2)]
+    flat = [ClassState("etfs", "ETFs", D(1000), D(0), D(0), D(0), has_target=False)]
+    d = distribute(D(1000), reserve, flat)
+    assert d.goals[0].sugerido + d.unassigned == D(1000)
+    assert d.unassigned == d.unassigned.quantize(D("0.01"))
+    assert not d.classes[0].out_of_band and not d.classes[0].floor_only
