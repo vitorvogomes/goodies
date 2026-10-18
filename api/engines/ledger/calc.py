@@ -350,6 +350,84 @@ def match_fixed_costs(
 
 
 # --------------------------------------------------------------------------------------------
+# Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026): o planejado × recebido
+# --------------------------------------------------------------------------------------------
+
+INCOME_RECEIVED_SHARE = Decimal("0.99")  # recebeu 99% ou mais: recebido (tarifa, centavos)
+
+
+@dataclass(frozen=True)
+class ExpectedIncome:
+    income_id: str
+    name: str
+    amount: Decimal
+    due: date
+    payer: str | None  # o pagador da transação; sem pagador, a palavra do nome na descrição
+
+
+@dataclass(frozen=True)
+class IncomeTx:
+    transaction_id: str
+    amount: Decimal  # entrada (positivo)
+    date: date
+    description: str
+    payer: str | None
+
+
+@dataclass(frozen=True)
+class IncomeMatch:
+    income_id: str
+    received: Decimal
+    pending: Decimal  # o que falta (nunca negativo)
+    status: str  # recebido | parcial | a_receber | atrasado
+    transaction_ids: list[str] = field(default_factory=list)
+
+
+def _payer_hit(expected: str, tx: IncomeTx) -> bool:
+    want, got = " ".join(_words(expected)), " ".join(_words(tx.payer or ""))
+    return bool(want and got) and (want in got or got in want)
+
+
+def match_expected_incomes(
+    expected: Sequence[ExpectedIncome], incomes: Sequence[IncomeTx], today: date
+) -> list[IncomeMatch]:
+    """Cada receita esperada (por vencimento) junta as entradas do mês do pagador dela — ou com a
+    palavra do nome na descrição — por data, até chegar ao valor; cada entrada conta uma vez (duas
+    receitas do mesmo pagador dividem as entradas em ordem)."""
+    used: set[str] = set()
+    out: list[IncomeMatch] = []
+    for e in sorted(expected, key=lambda x: (x.due, x.income_id)):
+        received, ids = Decimal(0), []
+        for tx in sorted(incomes, key=lambda t: (t.date, t.transaction_id)):
+            if received >= e.amount * INCOME_RECEIVED_SHARE:
+                break
+            if tx.transaction_id in used:
+                continue
+            hit = (
+                _payer_hit(e.payer, tx)
+                if e.payer
+                else name_hit(CostDue(e.income_id, e.amount, e.due, e.name), _as_cost_tx(tx))
+            )
+            if hit:
+                used.add(tx.transaction_id)
+                ids.append(tx.transaction_id)
+                received += tx.amount
+        if received >= e.amount * INCOME_RECEIVED_SHARE:
+            status = "recebido"
+        elif received > 0:
+            status = "parcial"
+        else:
+            status = "atrasado" if e.due < today else "a_receber"
+        pending = max(e.amount - received, Decimal(0))
+        out.append(IncomeMatch(e.income_id, received, pending, status, ids))
+    return out
+
+
+def _as_cost_tx(tx: IncomeTx) -> TxCandidate:
+    return TxCandidate(tx.transaction_id, tx.amount, tx.date, tx.description)
+
+
+# --------------------------------------------------------------------------------------------
 # Consumido (Story 6.5 — AD-7): gastos − deduções, cada transação num balde só
 # --------------------------------------------------------------------------------------------
 

@@ -4,10 +4,11 @@
 // tipo de movimento e role. Arquivadas ocultas ("Mostrar arquivadas" as esmaece). Criar e editar em
 // Formulário em painel lateral; categoria com transações só arquiva; renome avisa que reflete em todo
 // o histórico; o tipo de um grupo com transações não muda.
-import { PlusIcon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { RowActions } from "@/components/data/RowActions";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -292,26 +293,25 @@ export default function CategoriasPage() {
                 <StatusBadge>{g.kind_label.toLowerCase()}</StatusBadge>
                 {!g.is_active && <StatusBadge>arquivado</StatusBadge>}
               </div>
-              <div className="flex gap-3 type-body-sm">
-                <button type="button" className="text-positive underline" onClick={() => setEditing({ type: "group", node: g })}>
-                  Editar grupo
-                </button>
-                <button
-                  type="button"
-                  className="text-positive underline"
-                  onClick={() => setEditing({ type: "category", node: null, groupId: g.id })}
-                >
-                  Nova subcategoria
-                </button>
-              </div>
+              <RowActions
+                subject={`o grupo ${g.name}`}
+                onEdit={() => setEditing({ type: "group", node: g })}
+                extra={[
+                  {
+                    label: `Nova subcategoria em ${g.name}`,
+                    icon: PlusIcon,
+                    onClick: () => setEditing({ type: "category", node: null, groupId: g.id }),
+                  },
+                ]}
+              />
             </div>
             <table className="w-full table-fixed type-body-sm">
               <caption className="sr-only">Subcategorias de {g.name}</caption>
               <colgroup>
-                <col className="w-[40%]" />
+                <col className="w-[50%]" />
                 <col className="w-[25%]" />
                 <col className="w-[10%]" />
-                <col className="w-[25%]" />
+                <col className="w-[15%]" />
               </colgroup>
               <thead className="sr-only">
                 <tr>
@@ -332,26 +332,29 @@ export default function CategoriasPage() {
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{c.role_label}</td>
                     <td className="px-4 py-2 text-right type-num-table">{c.transaction_count}</td>
-                    <td className="px-4 py-2 text-right whitespace-nowrap">
-                      <span className="inline-flex gap-3">
-                        <button type="button" className="text-positive underline" onClick={() => setEditing({ type: "category", node: c })}>
-                          Editar
-                        </button>
-                        {c.is_active ? (
-                          <button type="button" className="text-positive underline" onClick={() => act(`${c.name} arquivada.`, { op: "update", id: c.id, body: { is_active: false } })}>
-                            Arquivar
-                          </button>
-                        ) : (
-                          <button type="button" className="text-positive underline" onClick={() => act(`${c.name} reativada.`, { op: "update", id: c.id, body: { is_active: true } })}>
-                            Reativar
-                          </button>
-                        )}
-                        {c.transaction_count === 0 && (
-                          <button type="button" className="text-negative underline" onClick={() => act(`${c.name} apagada.`, { op: "delete", id: c.id })}>
-                            Apagar
-                          </button>
-                        )}
-                      </span>
+                    <td className="px-2 py-1 text-right whitespace-nowrap">
+                      <RowActions
+                        subject={c.name}
+                        onEdit={() => setEditing({ type: "category", node: c })}
+                        onDelete={
+                          c.transaction_count === 0
+                            ? () => act(`${c.name} apagada.`, { op: "delete", id: c.id })
+                            : undefined
+                        }
+                        extra={[
+                          c.is_active
+                            ? {
+                                label: `Arquivar ${c.name}`,
+                                icon: ArchiveIcon,
+                                onClick: () => act(`${c.name} arquivada.`, { op: "update", id: c.id, body: { is_active: false } }),
+                              }
+                            : {
+                                label: `Reativar ${c.name}`,
+                                icon: ArchiveRestoreIcon,
+                                onClick: () => act(`${c.name} reativada.`, { op: "update", id: c.id, body: { is_active: true } }),
+                              },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

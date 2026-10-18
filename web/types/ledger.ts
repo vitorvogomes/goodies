@@ -54,6 +54,7 @@ export interface LedgerTransaction {
   file_name: string | null;
   rule_pattern: string | null;
   asset_id: string | null; // caixinha/CDB da transação (Story 7.5)
+  rule_id: string | null; // a regra que categorizou
 }
 
 export interface Page<T> {

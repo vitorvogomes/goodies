@@ -465,6 +465,7 @@ def to_row(r: asyncpg.Record) -> TransactionRow:
         file_name=r["file_name"],
         rule_pattern=r["rule_pattern"],
         asset_id=str(r["asset_id"]) if r["asset_id"] else None,
+        rule_id=str(r["rule_id"]) if r.get("rule_id") else None,
     )
 
 
@@ -574,8 +575,8 @@ async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate)
 async def update_transaction(
     conn: asyncpg.Connection, tx_id: str, body: ManualTransactionUpdate
 ) -> TransactionRow | None:
-    """Manual muda tudo; importada só a categoria e a descrição (Story 2.8; a descrição a pedido
-    do Vitor em 18/10/2026 — valor, data e conta seguem os do extrato)."""
+    """Manual muda tudo; importada só a categoria, a descrição e o pagador (Story 2.8; descrição e
+    pagador a pedido do Vitor em 18/10/2026 — valor, data e conta seguem os do extrato)."""
     if body.category_id is not None and not await queries.category_exists(conn, body.category_id):
         raise LookupError("categoria")
     if body.amount is not None and body.amount == 0:
@@ -586,18 +587,21 @@ async def update_transaction(
         current = await queries.tx_source(conn, tx_id)
         if current is None:
             return None
-        if set(fields) - {"description"} and current["source"] != "manual":
+        if set(fields) - {"description", "payer"} and current["source"] != "manual":
             raise ImportedTransactionError
         if fields:
             await conn.execute(
                 "UPDATE transactions SET account_id = COALESCE($2::uuid, account_id), "
                 "date = COALESCE($3, date), amount = COALESCE($4, amount), "
-                "description = COALESCE($5, description) WHERE id = $1::uuid",
+                "description = COALESCE($5, description), "
+                "payer = CASE WHEN $6::text IS NULL THEN payer ELSE NULLIF(trim($6), '') END "
+                "WHERE id = $1::uuid",
                 tx_id,
                 body.account_id,
                 body.date,
                 body.amount,
                 body.description,
+                body.payer,
             )
             await mark_months(conn, current["date"], body.date or current["date"])
             await run_transaction_hooks(conn, [tx_id])  # a descrição casa caixinha/regra
@@ -1876,6 +1880,12 @@ class BudgetFacts:
     by_category: dict[tuple[str, str], tuple[Decimal, int]]
     as_of: date | None
     taxa_poupanca: Decimal | None  # fração
+    # pedido de 18/10/2026: todos os grupos de gasto (com os fixos e as dívidas de cada um) e o
+    # investimento do mês por categoria (não é custo)
+    expense_groups: list[str] = field(default_factory=list)
+    fixed_by_group: dict[str, Decimal] = field(default_factory=dict)
+    debt_by_group: dict[str, Decimal] = field(default_factory=dict)
+    invested_by_category: dict[str, tuple[Decimal, int]] = field(default_factory=dict)
 
 
 async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
@@ -1910,10 +1920,24 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
     matched = {m.transaction_id for m in matches if m.transaction_id}
     spend = [SpendTx(str(r["id"]), r["amount"], r["kind"], r["role"]) for r in rows]
     by_category: dict[tuple[str, str], tuple[Decimal, int]] = {}
+    fixed_by_group: dict[str, Decimal] = {}
+    debt_by_group: dict[str, Decimal] = {}
+    invested: dict[str, tuple[Decimal, int]] = {}
     for r in rows:
-        if r["kind"] != "expense" or str(r["id"]) in matched or r["role"] == "divida":
+        if r["kind"] == "investment":
+            value, n = invested.get(r["category_name"], (Decimal(0), 0))
+            invested[r["category_name"]] = (value - r["amount"], n + 1)
             continue
-        key = (r["group_name"], r["category_name"])
+        if r["kind"] != "expense":
+            continue
+        group = r["group_name"]
+        if str(r["id"]) in matched:
+            fixed_by_group[group] = fixed_by_group.get(group, Decimal(0)) - r["amount"]
+            continue
+        if r["role"] == "divida":
+            debt_by_group[group] = debt_by_group.get(group, Decimal(0)) - r["amount"]
+            continue
+        key = (group, r["category_name"])
         value, n = by_category.get(key, (Decimal(0), 0))
         by_category[key] = (value - r["amount"], n + 1)
     por_pagador: dict[str, Decimal] = {}
@@ -1939,6 +1963,16 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
         by_category=by_category,
         as_of=max((r["date"] for r in rows), default=None),
         taxa_poupanca=savings_rate(moves),
+        expense_groups=[
+            r["name"]
+            for r in await conn.fetch(
+                "SELECT name FROM category_groups WHERE kind = 'expense' AND is_active "
+                "AND NOT is_system ORDER BY name"
+            )
+        ],
+        fixed_by_group=fixed_by_group,
+        debt_by_group=debt_by_group,
+        invested_by_category=invested,
     )
 
 

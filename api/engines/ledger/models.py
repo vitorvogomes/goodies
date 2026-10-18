@@ -39,6 +39,7 @@ class TransactionRow(BaseModel):
     file_name: str | None
     rule_pattern: str | None
     asset_id: str | None = None  # Story 7.5: o ativo (caixinha/CDB) da transação
+    rule_id: str | None = None  # a regra que categorizou (editável na linha)
 
 
 class TransactionList(BaseModel):
@@ -78,6 +79,7 @@ class ManualTransactionUpdate(BaseModel):
     amount: Money | None = None
     description: str | None = None
     category_id: Uuid | None = None
+    payer: str | None = Field(default=None, max_length=120)  # "" limpa
 
 
 GROUP_KIND_LABEL = {

@@ -50,7 +50,7 @@ export const AREAS: Area[] = [
     tabs: [
       { slug: "categorias", label: "Categorias", story: "2.9" },
       { slug: "regras", label: "Regras", story: "2.10" },
-      { slug: "custos-fixos", label: "Custos fixos", story: "6.2" },
+      { slug: "custos-fixos", label: "Custos e receitas", story: "6.2" },
       { slug: "contas", label: "Contas", story: "10.1" },
       { slug: "objetivos", label: "Objetivos", story: "8.1" },
       { slug: "debentures", label: "Debêntures", story: "7.6" },

@@ -26,6 +26,7 @@ from engines.ingest import service as ingest_service
 from engines.ingest.router import router as ingest_router
 from engines.ledger import service as ledger_service
 from engines.ledger.adapters import NubankStatementAdapter
+from engines.ledger.expected_incomes import router as ledger_incomes_router
 from engines.ledger.router import router as ledger_router
 from engines.ledger.service import register_on_transactions_changed
 from engines.market import service as market_service
@@ -139,6 +140,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(ledger_router)
+app.include_router(ledger_incomes_router)
 app.include_router(portfolio_debentures_router)
 app.include_router(portfolio_brokers_router)
 app.include_router(portfolio_caixinha_router)

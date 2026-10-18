@@ -2,7 +2,9 @@
 
 // Caixa › Transações (Story 2.7 — FR-12, FR-16, UX-DR14, UX-DR31): transações do período com tipo,
 // "Grupo › Subcategoria", origem da categoria, pagador e conta; a linha expandida mostra fonte,
-// lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual).
+// lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual). Filtros por
+// trecho da descrição, tipo, categoria, origem e pagador (como Operações); descrição, pagador e a
+// condição da regra se editam na linha expandida (pedido de 18/10/2026).
 import { PlusIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useDebounced } from "@/lib/use-debounced";
 import { apiErrorMessage } from "@/lib/errors";
 import { ApiError } from "@/lib/api";
 import { formatBRL, formatDate, formatMonth } from "@/lib/format";
@@ -38,6 +41,7 @@ import {
   useSaveManualTransaction,
   useSetCaixinha,
   useSetTransactionCategory,
+  useUpdateRule,
 } from "@/lib/ledger";
 import { usePeriodo } from "@/lib/use-periodo";
 import type { CategoryOption, LedgerTransaction } from "@/types/ledger";
@@ -64,31 +68,133 @@ function categoryLabel(t: LedgerTransaction): string {
 }
 const NO_OPTIONS: CategoryOption[] = [];
 
-// Descrição editável na linha expandida (importada também: valor, data e conta seguem o extrato).
-// Enter grava, Esc volta ao texto gravado.
-function DescriptionEditor({
-  t,
+// Texto editável na linha expandida: Enter grava, Esc volta ao gravado. `allowEmpty` limpa o campo.
+function InlineText({
+  label,
+  initial,
   saving,
   onSave,
+  allowEmpty = false,
+  list,
+  className = "h-8 w-full max-w-xl",
 }: {
-  t: LedgerTransaction;
+  label: string;
+  initial: string;
   saving: boolean;
-  onSave: (description: string) => void;
+  onSave: (text: string) => void;
+  allowEmpty?: boolean;
+  list?: string;
+  className?: string;
 }) {
-  const [text, setText] = useState(t.description ?? "");
+  const [text, setText] = useState(initial);
   return (
     <Input
-      aria-label="Descrição"
+      aria-label={label}
       value={text}
+      list={list}
       readOnly={saving}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Enter" && text.trim() && text.trim() !== (t.description ?? "")) onSave(text.trim());
-        if (e.key === "Escape") setText(t.description ?? "");
+        const next = text.trim();
+        if (e.key === "Enter" && (next || allowEmpty) && next !== initial) onSave(next);
+        if (e.key === "Escape") setText(initial);
       }}
-      className="h-8 w-full max-w-xl"
+      className={className}
     />
+  );
+}
+
+interface Filters {
+  q: string;
+  kind: string;
+  category: string;
+  origin: string;
+  payer: string;
+}
+const NO_FILTERS: Filters = { q: "", kind: "", category: "", origin: "", payer: "" };
+const SELECT = "h-9 w-full rounded-md border border-input bg-background px-2 type-body-sm text-foreground";
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+function matches(t: LedgerTransaction, f: Filters, q: string): boolean {
+  if (q && !normalize(t.description ?? "").includes(q)) return false;
+  if (f.kind && t.kind_label !== f.kind) return false;
+  if (f.category && t.category_id !== f.category) return false;
+  if (f.origin === "pending" ? t.review_status !== "pending" : f.origin && t.category_source !== f.origin) return false;
+  if (f.payer && (t.payer ?? "sem pagador") !== f.payer) return false;
+  return true;
+}
+
+function FilterBar({
+  items,
+  filters,
+  onChange,
+}: {
+  items: LedgerTransaction[];
+  filters: Filters;
+  onChange: (f: Filters) => void;
+}) {
+  const set = (key: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    onChange({ ...filters, [key]: e.target.value });
+  const kinds = [...new Set(items.map((t) => t.kind_label))].sort();
+  const categories = [...new Map(items.map((t) => [t.category_id, categoryLabel(t)])).entries()].sort((a, b) =>
+    a[1].localeCompare(b[1], "pt-BR"),
+  );
+  const payers = [...new Set(items.map((t) => t.payer ?? "sem pagador"))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const field = "space-y-1 type-caption text-muted-foreground";
+  return (
+    <div className="grid gap-card-gap sm:grid-cols-2 lg:grid-cols-5">
+      <label className={field}>
+        Descrição
+        <Input value={filters.q} placeholder="busca por trecho: mercado, pix…" onChange={set("q")} />
+      </label>
+      <label className={field}>
+        Tipo
+        <select value={filters.kind} onChange={set("kind")} className={SELECT}>
+          <option value="">Todos</option>
+          {kinds.map((k) => (
+            <option key={k} value={k}>
+              {k}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={field}>
+        Categoria
+        <select value={filters.category} onChange={set("category")} className={SELECT}>
+          <option value="">Todas</option>
+          {categories.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={field}>
+        Origem
+        <select value={filters.origin} onChange={set("origin")} className={SELECT}>
+          <option value="">Todas</option>
+          <option value="rule">regra</option>
+          <option value="suggestion">sugestão</option>
+          <option value="manual">manual</option>
+          <option value="pending">a revisar</option>
+        </select>
+      </label>
+      <label className={field}>
+        Pagador
+        <select value={filters.payer} onChange={set("payer")} className={SELECT}>
+          <option value="">Todos</option>
+          {payers.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -120,11 +226,15 @@ function Transacoes() {
   const groupCategories = new Set(
     (options.data ?? []).filter((o) => o.group_key === groupFilter).map((o) => o.id),
   );
-  const shown = categoryFilter
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const q = normalize(useDebounced(filters.q.trim()));
+  const linked = categoryFilter
     ? (txs.data?.items ?? EMPTY).filter((t) => t.category_id === categoryFilter)
     : groupFilter
       ? (txs.data?.items ?? EMPTY).filter((t) => groupCategories.has(t.category_id))
       : (txs.data?.items ?? EMPTY);
+  const shown = linked.filter((t) => matches(t, filters, q));
+  const payerOptions = [...new Set((txs.data?.items ?? EMPTY).map((t) => t.payer).filter(Boolean))] as string[];
   const filterLabel = categoryFilter
     ? options.data?.find((o) => o.id === categoryFilter)?.label
     : options.data?.find((o) => o.group_key === groupFilter)?.group_name;
@@ -134,11 +244,11 @@ function Transacoes() {
   const caixinhas = useCaixinhas();
   const setCaixinha = useSetCaixinha();
   const saveTx = useSaveManualTransaction();
-  const saveDescription = (t: LedgerTransaction, description: string) =>
+  const saveField = (t: LedgerTransaction, body: { description?: string; payer?: string }) =>
     saveTx.mutate(
-      { id: t.id, body: { description } },
+      { id: t.id, body },
       {
-        onSuccess: () => toast("Descrição salva."),
+        onSuccess: () => toast(body.payer !== undefined ? "Pagador salvo." : "Descrição salva."),
         onError: (err) =>
           toast(
             err instanceof ApiError
@@ -156,6 +266,20 @@ function Transacoes() {
       { id: t.id, caixinha },
       {
         onSuccess: (o) => toast(`Caixinha: ${o.label}.`),
+        onError: (err) =>
+          toast(
+            err instanceof ApiError
+              ? apiErrorMessage(err.detail, "Não foi possível salvar. Nada foi perdido.")
+              : "Não foi possível salvar. Nada foi perdido.",
+          ),
+      },
+    );
+  const updateRule = useUpdateRule();
+  const saveRule = (ruleId: string, pattern: string) =>
+    updateRule.mutate(
+      { id: ruleId, body: { pattern } },
+      {
+        onSuccess: () => toast("Regra salva. Vale para as próximas transações; reaplique em Ajustes › Regras."),
         onError: (err) =>
           toast(
             err instanceof ApiError
@@ -250,12 +374,31 @@ function Transacoes() {
           </button>
         </p>
       )}
-      <div className="flex justify-end">
+      <FilterBar items={linked} filters={filters} onChange={setFilters} />
+      <div className="flex items-center justify-between gap-2">
+        <p className="type-caption text-muted-foreground" aria-live="polite">
+          {shown.length === linked.length
+            ? `${linked.length} transações`
+            : `${shown.length} de ${linked.length} transações`}
+          {Object.values(filters).some(Boolean) && (
+            <>
+              {" · "}
+              <button type="button" className="text-positive underline" onClick={() => setFilters(NO_FILTERS)}>
+                Limpar filtros
+              </button>
+            </>
+          )}
+        </p>
         <Button variant="secondary" onClick={() => setForm({ open: true, tx: null })}>
           <PlusIcon aria-hidden />
           Nova transação
         </Button>
       </div>
+      <datalist id="pagadores">
+        {payerOptions.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
       {form.open && (
         <TransactionForm
           key={form.tx?.id ?? "nova"}
@@ -293,6 +436,7 @@ function Transacoes() {
       </AlertDialog>
       <DataTable
       tableId="caixa-transacoes"
+      filterable={false}
       caption={`Transações de ${formatMonth(periodo)}`}
       data={shown}
       columns={columns}
@@ -315,11 +459,12 @@ function Transacoes() {
         <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 type-body-sm">
           <dt className="text-muted-foreground">Descrição</dt>
           <dd>
-            <DescriptionEditor
+            <InlineText
               key={`${t.id}:${t.description ?? ""}`}
-              t={t}
+              label="Descrição"
+              initial={t.description ?? ""}
               saving={saveTx.isPending}
-              onSave={(d) => saveDescription(t, d)}
+              onSave={(description) => saveField(t, { description })}
             />
           </dd>
           <dt className="text-muted-foreground">Fonte</dt>
@@ -359,9 +504,48 @@ function Transacoes() {
             </>
           )}
           <dt className="text-muted-foreground">Regra aplicada</dt>
-          <dd>{t.rule_pattern ? `descrição contém “${t.rule_pattern}”` : "—"}</dd>
+          <dd>
+            {t.rule_id && t.rule_pattern ? (
+              <span className="flex flex-wrap items-center gap-2">
+                descrição contém
+                <InlineText
+                  key={`${t.rule_id}:${t.rule_pattern}`}
+                  label="Condição da regra"
+                  initial={t.rule_pattern}
+                  saving={updateRule.isPending}
+                  onSave={(pattern) => saveRule(t.rule_id!, pattern)}
+                  className="h-8 w-56"
+                />
+                <span className="type-caption text-muted-foreground">Enter grava (vale para toda a regra)</span>
+              </span>
+            ) : (
+              <span className="flex flex-wrap items-center gap-2">
+                —
+                {!t.category_key.startsWith("sistema:") && t.description && (
+                  <button
+                    type="button"
+                    className="text-positive underline"
+                    onClick={() => setProposal({ id: t.id, categoryId: t.category_id })}
+                  >
+                    Criar regra com esta categoria
+                  </button>
+                )}
+              </span>
+            )}
+          </dd>
           <dt className="text-muted-foreground">Pagador</dt>
-          <dd>{t.payer ?? "—"}</dd>
+          <dd>
+            <InlineText
+              key={`${t.id}:${t.payer ?? ""}`}
+              label="Pagador"
+              initial={t.payer ?? ""}
+              saving={saveTx.isPending}
+              allowEmpty
+              list="pagadores"
+              onSave={(payer) => saveField(t, { payer })}
+              className="h-8 w-56"
+            />
+          </dd>
           <dt className="text-muted-foreground">Conta</dt>
           <dd>{t.account_name}</dd>
           {t.source === "manual" && (

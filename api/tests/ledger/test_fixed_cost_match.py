@@ -155,3 +155,28 @@ def test_every_undone_transaction_stays_out() -> None:
         [Decision("a", "desfeito", "x"), Decision("a", "desfeito", "y")],
     )
     assert m["a"].status == "pendente" and m["a"].candidates == []
+
+
+# ---- Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026) ----
+
+
+def test_expected_income_by_payer_and_name() -> None:
+    from engines.ledger.calc import ExpectedIncome, IncomeTx, match_expected_incomes
+
+    expected = [
+        ExpectedIncome("a", "Salário", D("5000"), date(2026, 10, 5), "Flash"),
+        ExpectedIncome("b", "Aluguel sala", D("800"), date(2026, 10, 10), None),
+        ExpectedIncome("c", "Freela", D("1200"), date(2026, 10, 25), "Cliente X"),
+    ]
+    incomes = [
+        IncomeTx("t1", D("3000"), date(2026, 10, 5), "Pix recebido", "FLASH"),
+        IncomeTx("t2", D("2000"), date(2026, 10, 6), "Pix recebido", "Flash"),
+        IncomeTx("t3", D("800"), date(2026, 10, 11), "Aluguel da sala", None),
+        IncomeTx("t4", D("99"), date(2026, 10, 12), "Outro", None),
+    ]
+    m = {x.income_id: x for x in match_expected_incomes(expected, incomes, date(2026, 10, 20))}
+    assert (m["a"].received, m["a"].status) == (D("5000"), "recebido")
+    assert (m["b"].received, m["b"].status) == (D("800"), "recebido")
+    assert (m["c"].received, m["c"].status, m["c"].pending) == (D(0), "a_receber", D("1200"))
+    late = match_expected_incomes(expected[2:], [], date(2026, 10, 26))[0]
+    assert late.status == "atrasado"

@@ -183,3 +183,87 @@ async def test_aporte_planejado_write(api, auth_headers, pool, seeded) -> None:
         )
     r = await api.put(url, json={"valor": "100.00"}, headers=auth_headers)
     assert r.status_code == 409 and r.json()["detail"]["error"] == "mes_fechado"
+
+
+@pytest.mark.asyncio
+async def test_budget_shows_every_group_investment_and_planned_income(
+    api, auth_headers, pool, seeded
+) -> None:
+    """Pedido de 18/10/2026: o consumido por grupo mostra todos os grupos de gasto (com os custos
+    fixos pagos de cada um), o investimento do mês por categoria (não é custo), o aporte planejado ×
+    realizado e as receitas esperadas (Ajustes › Custos e receitas) × recebidas — a receber entra
+    num disponível à parte; os termos do golden não mudam."""
+    import main  # noqa: F401
+
+    budget = f"/api/v1/closing/months/{MES}/budget"
+    before = (await api.get(budget, headers=auth_headers)).json()
+    flash = next(p["value"] for p in before["trabalho_por_pagador"] if p["payer"] == "Flash")
+    created = []
+    for body in (
+        {
+            "name": "Salário Flash",
+            "amount": str(Decimal(str(flash)) + 500),
+            "due_day": 5,
+            "payer": "flash",
+            "valid_from": f"{YEAR}-01-01",
+        },
+        {
+            "name": "Freela site",
+            "amount": "1200.00",
+            "due_day": 20,
+            "payer": "Cliente X",
+            "valid_from": MES + "-01",
+            "only_month": True,
+        },
+    ):
+        r = await api.post("/api/v1/ledger/expected-incomes", json=body, headers=auth_headers)
+        assert r.status_code == 201, r.text
+        created.append(r.json()["id"])
+    try:
+        listed = (await api.get("/api/v1/ledger/expected-incomes", headers=auth_headers)).json()
+        assert {i["id"] for i in listed} >= set(created)
+        b = (await api.get(budget, headers=auth_headers)).json()
+        for term in ("disponivel", "consumido", "restante", "consumo_financiado"):
+            assert b[term] == before[term], term
+        async with pool.acquire() as conn:
+            groups = {
+                r["name"]
+                for r in await conn.fetch(
+                    "SELECT name FROM category_groups WHERE kind = 'expense' AND is_active "
+                    "AND NOT is_system"
+                )
+            }
+        assert groups <= {g["group"] for g in b["consumido_por_grupo"]}
+        assert Decimal(str(sum(g["fixos"] for g in b["consumido_por_grupo"]))).quantize(
+            Decimal("0.01")
+        ) == Decimal(str(b["deducao_fixos"]))
+        assert Decimal(str(sum(i["value"] for i in b["investido_por_categoria"]))).quantize(
+            Decimal("0.01")
+        ) == Decimal(str(b["investido"]))
+        assert Decimal(str(b["aporte_diferenca"])) == Decimal(str(b["aporte_planejado"])) - Decimal(
+            str(b["investido"])
+        )
+        by_name = {i["name"]: i for i in b["receitas_planejadas"]}
+        assert Decimal(str(by_name["Salário Flash"]["received"])) == Decimal(str(flash))
+        assert by_name["Salário Flash"]["status"] == "parcial"
+        assert by_name["Freela site"]["status"] in ("a_receber", "atrasado")
+        assert Decimal(str(b["receita_a_receber"])) == Decimal("1700.00")
+        assert Decimal(str(b["disponivel_com_a_receber"]["value"])) == Decimal(
+            str(b["disponivel"]["value"])
+        ) + Decimal("1700.00")
+        # a receita do mês seguinte não leva o freela (só neste mês)
+        nxt = (
+            await api.get(f"/api/v1/closing/months/{YEAR}-11/budget", headers=auth_headers)
+        ).json()
+        assert [i["name"] for i in nxt["receitas_planejadas"]] == ["Salário Flash"]
+        r = await api.patch(
+            f"/api/v1/ledger/expected-incomes/{created[1]}",
+            json={"amount": "1000.00"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200 and Decimal(str(r.json()["amount"])) == Decimal("1000.00")
+    finally:
+        for i in created:
+            await api.delete(f"/api/v1/ledger/expected-incomes/{i}", headers=auth_headers)
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM expected_incomes WHERE id = ANY($1::uuid[])", created)

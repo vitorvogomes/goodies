@@ -10,6 +10,7 @@ import asyncpg
 
 from engines.common.models import Valued
 from engines.common.month_status import month_status
+from engines.ledger import expected_incomes
 from engines.ledger import service as ledger_service
 
 from . import calc, goals
@@ -121,11 +122,13 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal:
     return (part / whole * _HUNDRED).quantize(_CENT) if whole else Decimal(0)
 
 
-def _groups(
-    by_category: dict[tuple[str, str], tuple[Decimal, int]], total: Decimal
-) -> list[ConsumedGroup]:
-    groups: dict[str, list[tuple[str, Decimal, int]]] = {}
-    for (group, sub), (value, n) in by_category.items():
+def _groups(facts: ledger_service.BudgetFacts, total: Decimal) -> list[ConsumedGroup]:
+    """Todos os grupos de gasto (pedido de 18/10/2026: o grupo só de custo fixo também aparece),
+    do maior consumido para o menor; os fixos e as dívidas de cada grupo ao lado."""
+    groups: dict[str, list[tuple[str, Decimal, int]]] = {
+        g: [] for g in (*facts.expense_groups, *facts.fixed_by_group, *facts.debt_by_group)
+    }
+    for (group, sub), (value, n) in facts.by_category.items():
         groups.setdefault(group, []).append((sub, value, n))
     out = [
         ConsumedGroup(
@@ -137,10 +140,12 @@ def _groups(
                 ConsumedSub(name=s, value=v, pct=_pct(v, total), count=n)
                 for s, v, n in sorted(subs, key=lambda x: -x[1])
             ],
+            fixos=facts.fixed_by_group.get(g, Decimal(0)),
+            dividas=facts.debt_by_group.get(g, Decimal(0)),
         )
         for g, subs in groups.items()
     ]
-    return sorted(out, key=lambda g: -g.value)
+    return sorted(out, key=lambda g: (-g.value, -g.fixos, g.group))
 
 
 async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
@@ -172,6 +177,8 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
     def v(value: Decimal) -> Valued[Decimal]:
         return Valued[Decimal](value=value, as_of=as_of, source="ledger")
 
+    planned = await expected_incomes.month_incomes(conn, month)
+    planned_total, a_receber = expected_incomes.planned_totals(planned)
     rate = facts.taxa_poupanca
     groups_total = sum((v for v, _ in facts.by_category.values()), Decimal(0))
     return MonthBudget(
@@ -226,6 +233,15 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         ),
         # % sobre o total dos grupos (antes das devoluções): as linhas somam 100% e o rodapé mostra
         # total dos grupos − devoluções = consumido
-        consumido_por_grupo=_groups(facts.by_category, groups_total),
+        consumido_por_grupo=_groups(facts, groups_total),
         grupos_total=groups_total,
+        investido_por_categoria=[
+            ConsumedSub(name=name, value=x, pct=_pct(x, facts.investido), count=n)
+            for name, (x, n) in sorted(facts.invested_by_category.items(), key=lambda i: -i[1][0])
+        ],
+        aporte_diferenca=b.aporte_planejado - facts.investido if b.aporte_definido else None,
+        receitas_planejadas=planned,
+        receita_planejada=planned_total,
+        receita_a_receber=a_receber,
+        disponivel_com_a_receber=v(b.disponivel + a_receber),
     )

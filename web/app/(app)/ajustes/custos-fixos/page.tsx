@@ -1,12 +1,14 @@
 "use client";
 
-// Ajustes › Custos fixos (Story 6.1 — FR-18, UX-DR43): o cadastro. Criar e editar (nome, valor,
-// vencimento, categoria) no Formulário em painel lateral; o valor, campo único, edita inline (Enter
-// grava, Esc reverte). O estado do mês (pago × pendente) fica em Caixa › Custos fixos.
+// Ajustes › Custos e receitas (Story 6.1 — FR-18, UX-DR43; receitas esperadas a pedido de
+// 18/10/2026): o cadastro. Criar e editar (nome, valor, vencimento, categoria) no Formulário em
+// painel lateral; o valor, campo único, edita inline (Enter grava, Esc reverte). O estado do mês
+// (pago × pendente) fica em Caixa › Custos fixos; o planejado × recebido, em Caixa › Orçamento.
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
+import { ExpectedIncomes } from "@/components/caixa/ExpectedIncomes";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { RowActions } from "@/components/data/RowActions";
 import { FormField, SAVE_FAILED, SideForm } from "@/components/forms/SideForm";
@@ -242,50 +244,56 @@ export default function CustosFixosPage() {
   if (costs.isError) return <p className="type-body text-negative">Não foi possível carregar os custos fixos.</p>;
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button onClick={() => setEditing("novo")}>Novo custo fixo</Button>
-      </div>
-      <DataTable
-        tableId="ajustes-custos-fixos"
-        caption="Custos fixos"
-        data={costs.data ?? []}
-        columns={columns}
-        getRowId={(c) => c.id}
-        empty={costs.isLoading ? "Carregando…" : "Nenhum custo fixo. Cadastre para acompanhar pago × pendente."}
-      />
-      {editing && (
-        <FixedCostForm
-          key={editing === "novo" ? "novo" : editing.id}
-          cost={editing === "novo" ? null : editing}
-          options={options.data ?? []}
-          onClose={() => setEditing(null)}
+    <div className="space-y-8">
+      <section aria-labelledby="custos-fixos-cadastro" className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="custos-fixos-cadastro" className="type-section-title">
+            Custos fixos
+          </h2>
+          <Button onClick={() => setEditing("novo")}>Novo custo fixo</Button>
+        </div>
+        <DataTable
+          tableId="ajustes-custos-fixos"
+          caption="Custos fixos"
+          data={costs.data ?? []}
+          columns={columns}
+          getRowId={(c) => c.id}
+          empty={costs.isLoading ? "Carregando…" : "Nenhum custo fixo. Cadastre para acompanhar pago × pendente."}
         />
-      )}
-      <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? undefined : setDeleting(null))}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir {deleting?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Os meses em que ele já foi pago continuam com ele; a partir deste mês, sai da lista.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel autoFocus>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                deleting &&
-                remove.mutate(deleting.id, {
-                  onSuccess: () => toast("Custo fixo excluído."),
-                  onError: () => toast(SAVE_FAILED),
-                })
-              }
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {editing && (
+          <FixedCostForm
+            key={editing === "novo" ? "novo" : editing.id}
+            cost={editing === "novo" ? null : editing}
+            options={options.data ?? []}
+            onClose={() => setEditing(null)}
+          />
+        )}
+        <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? undefined : setDeleting(null))}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir {deleting?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Os meses em que ele já foi pago continuam com ele; a partir deste mês, sai da lista.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel autoFocus>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  deleting &&
+                  remove.mutate(deleting.id, {
+                    onSuccess: () => toast("Custo fixo excluído."),
+                    onError: () => toast(SAVE_FAILED),
+                  })
+                }
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </section>
+      <ExpectedIncomes />
     </div>
   );
 }

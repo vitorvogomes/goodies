@@ -14,6 +14,19 @@ export interface ConsumedGroup {
   pct: number;
   count: number;
   subcategories: ConsumedSub[];
+  fixos: number; // custos fixos pagos do grupo (fora do consumido)
+  dividas: number;
+}
+
+export interface PlannedIncome {
+  id: string;
+  name: string;
+  payer: string | null;
+  amount: number;
+  due_date: string;
+  received: number;
+  pending: number;
+  status: "recebido" | "parcial" | "a_receber" | "atrasado";
 }
 
 export interface MonthBudget {
@@ -50,6 +63,12 @@ export interface MonthBudget {
   consumido_por_grupo: ConsumedGroup[];
   grupos_total: number;
   detalhe: boolean; // false: fechado antes do orçamento — só os totais congelados
+  investido_por_categoria: ConsumedSub[]; // investimento do mês (não é custo)
+  aporte_diferenca: number | null; // planejado − realizado; null = não definido
+  receitas_planejadas: PlannedIncome[];
+  receita_planejada: number;
+  receita_a_receber: number;
+  disponivel_com_a_receber: Valued;
 }
 
 // Ajustes › Objetivos (Story 8.1).

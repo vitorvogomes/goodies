@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from engines.common.models import Valued
 from engines.common.money import Money, Pct
+from engines.ledger.expected_incomes import PlannedIncome
 
 
 def _out_of_summary() -> Valued[Decimal]:
@@ -36,10 +37,13 @@ class ConsumedSub(BaseModel):
 
 class ConsumedGroup(BaseModel):
     group: str
-    value: Money
+    value: Money  # consumido (variável)
     pct: Pct
     count: int
     subcategories: list[ConsumedSub]
+    # pedido de 18/10/2026: o que o grupo pagou em custo fixo e em dívida (fora do consumido)
+    fixos: Money = Decimal(0)
+    dividas: Money = Decimal(0)
 
 
 class MonthBudget(BaseModel):
@@ -79,6 +83,15 @@ class MonthBudget(BaseModel):
     grupos_total: Money  # Σ dos grupos (consumido antes das devoluções); base dos %
     # False: mês fechado antes do orçamento existir — só os totais congelados, sem o detalhe
     detalhe: bool = True
+    # pedido de 18/10/2026 (fora dos termos do golden): o investimento do mês por categoria (não é
+    # custo), o aporte planejado − realizado e as receitas esperadas × recebidas; o a receber entra
+    # num disponível à parte
+    investido_por_categoria: list[ConsumedSub] = Field(default_factory=list)
+    aporte_diferenca: Money | None = None  # planejado − realizado; None = aporte não definido
+    receitas_planejadas: list[PlannedIncome] = Field(default_factory=list)
+    receita_planejada: Money = Decimal(0)
+    receita_a_receber: Money = Decimal(0)
+    disponivel_com_a_receber: Valued[Decimal] = Field(default_factory=_out_of_summary)
 
 
 class DividasIn(BaseModel):

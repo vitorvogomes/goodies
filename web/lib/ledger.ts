@@ -119,6 +119,7 @@ export interface ManualTransactionIn {
   amount: string; // decimal em string (AD-4)
   description: string | null;
   category_id: string;
+  payer?: string; // "" limpa (importada também)
 }
 
 export function useSaveManualTransaction() {
@@ -318,6 +319,54 @@ export function useBalanceCandidates(range: { start: string; end: string } | nul
         `/api/v1/ledger/balance-check/candidates?inicio=${range?.start}&fim=${range?.end}`,
       ),
     enabled: range !== null,
+  });
+}
+
+// ---- Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026) ----
+
+export interface ExpectedIncome {
+  id: string;
+  name: string;
+  amount: number;
+  due_day: number;
+  payer: string | null;
+  valid_from: string;
+  valid_to: string | null;
+}
+
+export interface ExpectedIncomeIn {
+  name: string;
+  amount: string;
+  due_day: number;
+  payer: string;
+  valid_from?: string;
+  only_month?: boolean;
+}
+
+export function useExpectedIncomes() {
+  return useQuery({
+    queryKey: ["ledger", "expected-incomes"],
+    queryFn: () => apiFetch<ExpectedIncome[]>("/api/v1/ledger/expected-incomes"),
+  });
+}
+
+export function useSaveExpectedIncome() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string | null; body: Partial<ExpectedIncomeIn> }) =>
+      apiFetch<ExpectedIncome>(`/api/v1/ledger/expected-incomes${id ? `/${id}` : ""}`, {
+        method: id ? "PATCH" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+export function useDeleteExpectedIncome() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/v1/ledger/expected-incomes/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }
 

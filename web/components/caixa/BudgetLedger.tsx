@@ -5,7 +5,8 @@
 // pagador; Dívidas do mês é input inline (Enter grava, Esc reverte, anuncia o disponível novo);
 // disponível ou restante negativo em vermelho com "−" e ▼ e a nota; abaixo, o consumo financiado
 // por resgate (dividido em por objetivo × por resgate da carteira — Story 8.1) e o restante sem os
-// resgates.
+// resgates. Pedido de 18/10/2026: o aporte planejado × realizado e as receitas esperadas (Ajustes ›
+// Custos e receitas) × recebidas; o que falta receber dá um disponível à parte (a conta não muda).
 import { type ReactNode, useState } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,13 @@ import type { Valued } from "@/types/overview";
 import type { MonthBudget } from "@/types/planning";
 
 const SAVE_FAILED = "Não foi possível salvar as dívidas. Nada foi perdido. Tentar de novo.";
+
+const INCOME_STATUS: Record<MonthBudget["receitas_planejadas"][number]["status"], string> = {
+  recebido: "recebido",
+  parcial: "parcial",
+  a_receber: "a receber",
+  atrasado: "atrasado",
+};
 
 function money(v: Valued | number): string {
   const value = typeof v === "number" ? v : v.value;
@@ -126,6 +134,52 @@ function DividasInput({
   );
 }
 
+// Receitas esperadas do mês × recebidas: o que falta receber soma num disponível à parte.
+function PlannedIncomes({ budget }: { budget: MonthBudget }) {
+  const comAReceber = budget.disponivel_com_a_receber.value;
+  return (
+    <div className="space-y-1 border-t border-border pt-3 type-body-sm">
+      <table className="w-full">
+        <caption className="pb-1 text-left font-semibold">Receitas planejadas</caption>
+        <thead className="text-muted-foreground">
+          <tr>
+            <th scope="col" className="py-1 text-left font-normal">Receita</th>
+            <th scope="col" className="py-1 text-right font-normal">Planejado</th>
+            <th scope="col" className="py-1 text-right font-normal">Recebido</th>
+            <th scope="col" className="py-1 text-right font-normal">Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {budget.receitas_planejadas.map((i) => (
+            <tr key={i.id}>
+              <th scope="row" className="py-1 text-left font-normal">
+                {i.name}
+                <span className="block type-caption text-muted-foreground">
+                  {i.payer ? `${i.payer} · ` : ""}dia {formatDate(i.due_date).slice(0, 5)}
+                </span>
+              </th>
+              <td className="py-1 text-right type-num-table">{formatBRL(i.amount)}</td>
+              <td className="py-1 text-right type-num-table">{formatBRL(i.received)}</td>
+              <td className={cn("py-1 text-right", i.status === "atrasado" && "text-warning")}>
+                {INCOME_STATUS[i.status]}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="flex justify-between gap-4">
+        <span>
+          Disponível se receber o que falta{" "}
+          <span className="text-muted-foreground">· + {formatBRL(budget.receita_a_receber)} a receber</span>
+        </span>
+        <span className={cn("type-num-body", comAReceber !== null && comAReceber < 0 && "text-negative")}>
+          {money(budget.disponivel_com_a_receber)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
 export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo: string }) {
   const [payers, setPayers] = useState(false);
   // Depois de gravar as dívidas, anuncia o disponível recalculado pela API.
@@ -164,6 +218,11 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
             }
             value={money(budget.trabalho)}
           >
+            {budget.receitas_planejadas.length > 0 && (
+              <span className="block">
+                planejado {formatBRL(budget.receita_planejada)} · a receber {formatBRL(budget.receita_a_receber)}
+              </span>
+            )}
             {payers &&
               budget.trabalho_por_pagador.map((p) => (
                 <span key={p.payer} className="flex justify-between gap-4">
@@ -182,7 +241,15 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
               `todos os do mês: pago ${formatBRL(budget.custos_fixos_pagos)} · a pagar ${formatBRL(budget.custos_fixos_a_pagar)}`}
           </Row>
           <Row op="−" label="Aporte planejado" value={part(budget.aporte_planejado)}>
-            {budget.detalhe && !budget.aporte_definido ? "não definido" : null}
+            {budget.detalhe && !budget.aporte_definido
+              ? `não definido · realizado ${formatBRL(budget.investido)}`
+              : budget.detalhe && budget.aporte_diferenca !== null
+                ? `realizado ${formatBRL(budget.investido)} · ${
+                    budget.aporte_diferenca >= 0
+                      ? `falta aportar ${formatBRL(budget.aporte_diferenca)}`
+                      : `passou do planejado em ${formatBRL(-budget.aporte_diferenca)}`
+                  }`
+                : null}
           </Row>
           <Row
             op="−"
@@ -229,6 +296,7 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
           </Row>
         </tbody>
       </table>
+      {budget.receitas_planejadas.length > 0 && <PlannedIncomes budget={budget} />}
       <p className="sr-only" role="status" aria-live="polite">
         {saved && disponivel !== null ? `Disponível: ${formatBRL(disponivel)}` : ""}
       </p>

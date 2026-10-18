@@ -95,6 +95,16 @@ async def test_imported_changes_only_category_and_description(
         )
         assert described.status_code == 200, described.text
         assert described.json()["description"] == "Padaria do bairro"
+        assert "rule_id" in described.json()
+        # o pagador também (pedido de 18/10/2026: receitas a receber por pagador); "" limpa
+        paid = await api.patch(
+            f"/api/v1/ledger/transactions/{tx}", json={"payer": "Flash"}, headers=auth_headers
+        )
+        assert paid.status_code == 200 and paid.json()["payer"] == "Flash"
+        cleared = await api.patch(
+            f"/api/v1/ledger/transactions/{tx}", json={"payer": ""}, headers=auth_headers
+        )
+        assert cleared.status_code == 200 and cleared.json()["payer"] is None
         mixed = await api.patch(
             f"/api/v1/ledger/transactions/{tx}",
             json={"description": "x", "date": "2099-08-06"},

@@ -75,6 +75,7 @@ export function DataTable<T extends RowData>({
   renderBelow,
   caption,
   empty,
+  filterable = true,
 }: {
   tableId: string;
   data: T[];
@@ -85,6 +86,8 @@ export function DataTable<T extends RowData>({
   renderBelow?: (row: T) => ReactNode | null;
   caption: string;
   empty?: ReactNode;
+  /** false: a página tem os próprios filtros (ex.: Caixa › Transações). */
+  filterable?: boolean;
 }) {
   // A tabela só renderiza no cliente (depois do gate de sessão), então ler o navegador no
   // inicializador não gera diferença de hidratação.
@@ -209,7 +212,7 @@ export function DataTable<T extends RowData>({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {data.length > 20 ? (
+        {filterable && data.length > 20 ? (
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
