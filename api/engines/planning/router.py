@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
-from . import goals, service, targets
+from . import distribution_service, goals, service, targets
 from .models import AporteIn, DividasIn, MonthPlanOut
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
@@ -126,3 +126,13 @@ async def save_targets(body: targets.TargetsIn, user: AuthUser, db: Db) -> targe
                 "errors": [e.model_dump(mode="json") for e in exc.errors],
             },
         ) from None
+
+
+# ---- Distribuição do aporte (Story 8.5) ----
+
+
+@router.post("/distribution/preview", response_model=distribution_service.DistributionOut)
+async def distribution_preview(
+    body: distribution_service.PreviewIn, user: AuthUser, db: Db
+) -> distribution_service.DistributionOut:
+    return await distribution_service.preview(db, _month(body.mes), body.planejado, body.travas)

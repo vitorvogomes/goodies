@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
 import type {
+  Distribution,
   Goal,
   GoalIn,
   GoalsOut,
@@ -127,5 +128,19 @@ export function useSetAporte() {
         body: JSON.stringify({ valor }),
       }),
     onSuccess: () => invalidateAfter(queryClient, "planning"),
+  });
+}
+
+// ---- Distribuição do aporte (Story 8.5) ----
+
+export function useDistribution(periodo: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["planning", "distribution", periodo],
+    queryFn: () =>
+      apiFetch<Distribution>("/api/v1/planning/distribution/preview", {
+        method: "POST",
+        body: JSON.stringify({ mes: periodo }),
+      }),
+    enabled,
   });
 }

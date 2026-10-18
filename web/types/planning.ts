@@ -131,3 +131,54 @@ export interface TargetsPreview {
   ok: boolean;
   errors: { level: string; total: number; message: string }[];
 }
+
+// Distribuição do aporte (Story 8.5) — POST /api/v1/planning/distribution/preview.
+export interface DistributionAsset {
+  id: string;
+  label: string;
+  meta: number | null;
+  atual: number;
+  sugerido: number | null;
+  locked: boolean;
+}
+
+export interface DistributionClass {
+  cls: string;
+  label: string;
+  meta: number;
+  atual: number;
+  desvio: number;
+  banda: number;
+  floor: number;
+  sugerido: number;
+  floor_only: boolean;
+  out_of_band: boolean;
+  locked: boolean;
+  assets: DistributionAsset[];
+}
+
+export interface DistributionGoal {
+  id: string;
+  name: string;
+  kind: "reserva" | "objetivo";
+  target: number;
+  current: number;
+  progress: number;
+  deadline: string | null;
+  monthly: number;
+  sugerido: number;
+  locked: boolean;
+}
+
+export interface Distribution {
+  month: string;
+  aporte_definido: boolean;
+  planned: number;
+  goals: DistributionGoal[];
+  classes: DistributionClass[];
+  floors_reduced: boolean;
+  locks_total: number;
+  locks_over: boolean;
+  has_targets: boolean;
+  unassigned: number;
+}

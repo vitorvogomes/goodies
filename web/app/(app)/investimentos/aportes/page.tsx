@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import { AportePlanejado } from "@/components/investimentos/AportePlanejado";
+import { DistributionTable } from "@/components/investimentos/DistributionTable";
 import { Button } from "@/components/ui/button";
 import { useMonthBudget, useSetAporte } from "@/lib/planning";
 import { usePeriodo } from "@/lib/use-periodo";
@@ -38,6 +39,7 @@ function Aportes() {
         autoFocus={params.get("foco") === "aporte"}
         onCommit={(valor, onError) => setAporte.mutate({ periodo, valor }, { onError })}
       />
+      <DistributionTable periodo={periodo} enabled={data.aporte_definido} />
     </div>
   );
 }
