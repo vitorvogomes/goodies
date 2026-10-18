@@ -38,6 +38,7 @@ CRON_JOB_SPEC = {
     "price_crypto": "price_crypto",
     "wallet_scan": "wallet_scan",
     "benchmark_daily": "benchmark",
+    "rf_cdi": "rf_cdi",
     "db_backup": "db_backup",
     "restore_check": "restore_check",
 }
@@ -62,6 +63,10 @@ async def _job_wallet_scan() -> None:
 
 async def _job_benchmark_daily() -> None:
     await _run("benchmark_daily")
+
+
+async def _job_rf_cdi() -> None:
+    await _run("rf_cdi")
 
 
 async def _job_db_backup() -> None:
@@ -103,6 +108,13 @@ def build_scheduler() -> AsyncIOScheduler:
         CronTrigger(hour=22, minute=0, timezone="America/Sao_Paulo"),
         id="benchmark_daily",
         name="benchmark_daily",
+    )
+    scheduler.add_job(
+        _job_rf_cdi,
+        # Story 7.4: depois do CDI do dia (22h), o preço de caixinhas e CDBs.
+        CronTrigger(hour=22, minute=20, timezone="America/Sao_Paulo"),
+        id="rf_cdi",
+        name="rf_cdi",
     )
     scheduler.add_job(
         _job_db_backup,

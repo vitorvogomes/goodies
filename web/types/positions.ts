@@ -8,6 +8,7 @@ export interface PositionAsset {
   resultado: number | null;
   manual: boolean;
   xirr_mensal: number | null; // % a.m. do período (RF e cripto não têm)
+  nota: string | null; // RF: "{x}% do CDI · CDI até dd/mm/aaaa"
 }
 
 export interface PositionClass {

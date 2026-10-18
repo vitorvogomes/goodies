@@ -24,6 +24,7 @@ from engines.wallet import service as wallet_service
 from workers.backup import run_db_backup, run_restore_check
 from workers.benchmark_workers import run_benchmark_daily
 from workers.price_workers import run_price_b3, run_price_crypto
+from workers.rf_cdi import run_rf_cdi
 from workers.wallet_workers import _default_fetchers, resolve_owner_id, run_wallet_scan
 
 _LOCK_KEY = 0x60D1E5  # chave fixa do advisory lock do refresh on-demand
@@ -142,6 +143,10 @@ async def _job_benchmark(pool: asyncpg.Pool) -> dict[str, Any]:
     return await run_benchmark_daily(pool)
 
 
+async def _job_rf_cdi(pool: asyncpg.Pool) -> dict[str, Any]:
+    return await run_rf_cdi(pool)
+
+
 def stats_partial(stats: Any) -> bool:
     """Run "ok" cujo conteúdo indica falha de fonte: o fail-soft dos workers engole
     exceções e grava ok=true, então `partial` é derivado dos stats — failed>0, fonte
@@ -185,6 +190,8 @@ def default_jobs() -> list[JobSpec]:
             cron_run=_job_wallet_cron,
         ),
         JobSpec("benchmark", _job_benchmark, settings.ttl_benchmark),
+        # Story 7.4 — caixinhas/CDB pelo CDI publicado (depois do benchmark)
+        JobSpec("rf_cdi", _job_rf_cdi, settings.ttl_benchmark),
         # Story 1.2 — backup diário do banco local e conferência mensal da restauração.
         JobSpec("db_backup", _job_db_backup, 24 * 3600, forceable=False),
         JobSpec(

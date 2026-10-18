@@ -24,6 +24,7 @@ from engines.market import service as market_service
 from engines.wallet import service as wallet_service
 
 from . import calc
+from .rf import rf_cdi_assets
 from .valuation import PortfolioValuation, valuation_as_of
 
 STALE_AFTER_DAYS = 3  # preço diário + fim de semana (o mesmo do Painel)
@@ -39,6 +40,11 @@ CLASS_ORDER = (
 )
 
 
+def _pct_label(pct: Decimal) -> str:
+    """117.5 → "117,5"; 100 → "100"."""
+    return f"{pct.normalize():f}".replace(".", ",")
+
+
 def _before_first() -> Valued[Decimal]:
     return Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
 
@@ -50,6 +56,7 @@ class PositionAsset(BaseModel):
     resultado: Money | None
     manual: bool = False
     xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); RF e cripto não têm
+    nota: str | None = None  # RF pelo CDI: "{x}% do CDI · CDI até dd/mm/aaaa" (Story 7.4)
 
 
 class PositionClass(BaseModel):
@@ -131,6 +138,15 @@ async def positions_period(
     for op in ops:
         by_symbol[op["asset_symbol"]].append(op)
     prices = await _live_prices(conn, list(by_symbol)) if live else {}
+    cdi_assets = await rf_cdi_assets(conn)
+    cdi_until = (
+        await conn.fetchval(
+            "SELECT max(ref_date) FROM benchmark_data WHERE series = 'CDI' AND ref_date <= $1",
+            as_of,
+        )
+        if cdi_assets
+        else None
+    )
 
     assets_by_class: dict[str, list[PositionAsset]] = defaultdict(list)
     for symbol, sops in by_symbol.items():
@@ -196,8 +212,14 @@ async def positions_period(
                 aplicado=aplicado,
                 valor=valor,
                 resultado=resultado.quantize(_CENT) if resultado is not None else None,
-                manual=manual,
+                manual=manual and symbol not in cdi_assets,
                 xirr_mensal=xirr_mensal,
+                nota=(
+                    f"{_pct_label(cdi_assets[symbol])}% do CDI · CDI até "
+                    + (f"{cdi_until:%d/%m/%Y}" if cdi_until else "—")
+                    if symbol in cdi_assets
+                    else None
+                ),
             )
         )
 

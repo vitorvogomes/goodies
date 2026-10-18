@@ -151,6 +151,7 @@ function Posicoes() {
                             <span className="type-num-table">{a.symbol}</span>
                             {a.manual && <StatusBadge tooltip="Preço informado à mão.">manual</StatusBadge>}
                           </span>
+                          {a.nota && <span className="block type-caption text-muted-foreground">{a.nota}</span>}
                         </th>
                         <td className="px-4 py-1.5 text-right type-num-table">{money(a.aplicado)}</td>
                         <td className="px-4 py-1.5 text-right type-num-table">

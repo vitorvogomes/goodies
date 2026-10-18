@@ -5,7 +5,7 @@
 - Mês passado (as_of = fim do mês):
   - B3 e Tesouro: o consolidado daquele fim de mês (`broker_position_snapshots`); sem ele, o preço
     do histórico até a data × a quantidade (`market.price_as_of`);
-  - caixinhas e CDB: o CDI fixo até a data (`caixinhas.compute_value`, método vigente até a 7.4);
+  - caixinhas e CDB: o %CDI do ativo sobre o CDI publicado até a data (`rf.cdi_value`, Story 7.4);
   - outra renda fixa sem preço na data: o aplicado (cobertura "estimada");
   - cripto: a carteira do histórico até a data × o preço até a data; sem histórico, o aplicado do
     bloco (cobertura "estimada").
@@ -22,18 +22,16 @@ from typing import Any
 
 import asyncpg
 
-from config import settings
 from engines.common.assets import CLASS_BY_CATEGORY, CRYPTO_CATEGORIES, AssetCategory, AssetClass
 from engines.common.dates import today_brt
 from engines.market import service as market_service
 from engines.wallet import service as wallet_service
 
 from . import calc
-from .caixinhas import CAIXINHAS, CDB_GUANABARA, compute_value
+from .rf import cdi_value, rf_cdi_assets
 from .xirr import xirr
 
 _CRYPTO = [str(c) for c in CRYPTO_CATEGORIES]
-_SPECS = {s.symbol: s for s in [*CAIXINHAS, CDB_GUANABARA]}
 _B3_CLASSES = {AssetClass.ACOES_BR, AssetClass.ETFS, AssetClass.FIIS, AssetClass.APOSENTADORIA}
 _CENT = Decimal("0.01")
 
@@ -152,7 +150,7 @@ async def _live(conn: asyncpg.Connection, user_id: str, as_of: date) -> Portfoli
         (_dec(r["caixa_corretora_brl"]) for r in rails if r["caixa_corretora_brl"] > 0), Decimal(0)
     )
     out.xirr = (await service.calculate_portfolio_xirr(conn, user_id)).get("consolidated")
-    out.coverage = {"B3": "preço atual", "RF": "CDI fixo", "cripto": "carteiras"}
+    out.coverage = {"B3": "preço atual", "RF": "CDI real (job rf_cdi)", "cripto": "carteiras"}
     return out
 
 
@@ -191,6 +189,10 @@ async def _past(
     )
     estimated_rf = False
     unpriced: set[str] = set()
+    cdi_assets = await rf_cdi_assets(conn)
+    cdi_series: list[tuple[date, Decimal]] | None = None
+    cdi_until: date | None = None
+    cdi_estimated = False
     for symbol, sops in by_symbol.items():
         qty = calc.quantity(sops)
         if qty <= 0:
@@ -204,10 +206,14 @@ async def _past(
             else:
                 price = prices[symbol]
                 value = price.value * qty if price.value is not None else None
-        elif symbol in _SPECS:
-            spec = _SPECS[symbol]
-            spec_ops = [dict(op) for op in sops]
-            value = _dec(compute_value(spec_ops, as_of, settings.cdi_anual, spec.pct_cdi))
+        elif symbol in cdi_assets:  # Story 7.4: %CDI do ativo sobre o CDI publicado
+            if cdi_series is None:
+                cdi_series = await market_service.cdi_daily(conn, date(2000, 1, 1), as_of)
+            cdi = cdi_value(sops, as_of, cdi_assets[symbol], cdi_series)
+            value = cdi.value
+            if cdi.cdi_until is not None:
+                cdi_until = max(cdi_until or cdi.cdi_until, cdi.cdi_until)
+            cdi_estimated = cdi_estimated or cdi.estimated
         else:
             price = prices[symbol]
             if price.value is not None:
@@ -258,7 +264,9 @@ async def _past(
     out.xirr = None if rate != rate else rate  # NaN → sem convergência
     out.coverage = {
         "B3": b3_method,
-        "RF": "CDI fixo" + (" + aplicado estimado" if estimated_rf else ""),
+        "RF": (f"CDI real até {cdi_until:%d/%m/%Y}" if cdi_until else "CDI real sem CDI publicado")
+        + (" · dias sem CDI estimados" if cdi_estimated else "")
+        + (" + aplicado estimado" if estimated_rf else ""),
         "cripto": crypto_method,
     }
     return out
