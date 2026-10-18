@@ -174,7 +174,7 @@
 |---|---|---|---|
 | 10.1 | Ajustes › Contas | [x] | — |
 | 10.2 | Ajustes › Preços manuais | [x] | — |
-| 10.3 | Ajustes › Atualização | [ ] | — |
+| 10.3 | Ajustes › Atualização | [x] | — |
 | 10.4 | Revisão final das abas de Ajustes e checagem de teclado | [ ] | — |
 | 10.5 | Métricas de sucesso num comando | [ ] | — |
 | 10.6 | Fim das telas da v1 | [ ] | — |
@@ -256,3 +256,4 @@
 | 2026-10-18 | m4 | Épico 9 fechado | Review 51664df (6 achados aplicados com teste: crescimento com as duas pontas da mesma fonte e cobertura no fim; aporte = aplicado que entrou, proventos no resultado; "antes do primeiro fechamento" pelo primeiro mês fechado; média 12m do planejado sobre os meses com plano; média do realizado no gráfico sem o mês escolhido; clique na barra só na leitura mês). Suíte 890 verde, cov 94,06%, 0 dados_reais pulados; mypy engines limpo; web 44 Vitest + lint + build. Commits 0375686..8ee51dc + review 51664df. |
 | 2026-10-18 | m4 | Épico 10: 10.1 | BASE do épico = f93083e. /api/v1/accounts aceita e devolve `holder` (pf/mei, 422 fora disso), `fonte` (Nubank PF/MEI) e `conferencia` (só a PF; a MEI fica sem conferência de saldo). Web: Ajustes › Contas (conta, tipo, fonte, Selo "sem conferência" na MEI; criar/editar no Formulário em painel lateral; vazio "Nenhuma conta. Cadastre a conta Nubank PF." com Nova conta). |
 | 2026-10-18 | m4 | Épico 10: 10.2 | market.has_market_source (classe com fetcher, valorado pelo app — CDI/taxa — ou com preço automático gravado; `valuation = manual` nunca) e POST /api/v1/market/prices/{ticker} recusa quem tem fonte de mercado com 409 {"error":"preco_de_mercado","message":"{Ativo} tem preço de mercado automático."} e aceita `as_of` (a data do preço). portfolio/manual_prices + GET /api/v1/portfolio/manual-prices: só os sem fonte de mercado (valuation manual, fora o bucket das encerradas, e símbolos de carteira/DeFi sem cotação automática), com preço e data. Testes antigos que usavam a rota manual para pôr preço de B3 passaram a gravar pelo chokepoint (set_price); o teste do override manual sobre B3 virou o da recusa. Web: Ajustes › Preços manuais (valor + data na linha, Enter grava, Esc reverte, mutação na página; vazio "Nenhum ativo sem fonte de mercado."). |
+| 2026-10-18 | m4 | Épico 10: 10.3 | GET /api/v1/jobs/status ganha label (nome na tela), note (carteiras: a Binance só no horário agendado), last_success_at e next_run (scheduler.next_runs pelo cron registrado, sem iniciar o scheduler). Aviso de worker leva a /ajustes/atualizacao. Web: Ajustes › Atualização (cada job com Selo em dia/atrasado/parcial/erro, última execução, último sucesso, próxima, erro, em BRT; "Atualizar tudo" roda o catch-up e mostra o resultado por job). |

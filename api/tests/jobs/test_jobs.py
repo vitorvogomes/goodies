@@ -42,6 +42,12 @@ class TestJobsStatus:
         assert by["price_b3"]["stale"] is False
         assert by["wallet_scan"]["stale"] is True  # nunca rodou
         assert by["wallet_scan"]["last_run"] is None
+        # Story 10.3: nome na tela, último sucesso e próxima execução (pelo cron registrado)
+        assert by["price_b3"]["label"] == "Preços B3 e Tesouro"
+        assert "last_success_at" in by["price_b3"]
+        assert by["wallet_scan"]["note"] and "Binance" in by["wallet_scan"]["note"]
+        assert all(j["next_run"] is not None for j in by.values())
+        assert datetime.fromisoformat(by["db_backup"]["next_run"]) > now
 
     @pytest.mark.asyncio
     async def test_requires_auth(self, api: AsyncClient) -> None:

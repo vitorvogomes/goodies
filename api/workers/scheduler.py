@@ -15,6 +15,7 @@ Os jobs pegam o pool vivo via `get_pool()` no disparo (pool aberto no lifespan a
 workers, re-disparos convergem. Cada disparo grava o heartbeat em `job_runs` (mesmo caminho
 do catch-up, `run_named_job`) — o /jobs/status e o catch-up enxergam os runs do cron.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -83,9 +84,7 @@ def build_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         _job_price_b3,
         # 1x/dia útil após o fechamento (free-tier BRAPI: 1.000 req/mês, 1 ativo/req).
-        CronTrigger(
-            day_of_week="mon-fri", hour=19, minute=0, timezone="America/Sao_Paulo"
-        ),
+        CronTrigger(day_of_week="mon-fri", hour=19, minute=0, timezone="America/Sao_Paulo"),
         id="price_b3",
         name="price_b3",
     )
@@ -131,3 +130,27 @@ def build_scheduler() -> AsyncIOScheduler:
         name="restore_check",
     )
     return scheduler
+
+
+# Story 10.3: o nome do job no catch-up (`refresh.default_jobs`) → o id no scheduler.
+_SCHEDULER_ID = {"benchmark": "benchmark_daily"}
+
+
+def next_runs(now: datetime) -> dict[str, datetime]:
+    """A próxima execução de cada job pelo cron registrado (sem iniciar o scheduler)."""
+    out: dict[str, datetime] = {}
+    jobs = {j.id: j for j in build_scheduler().get_jobs()}
+    for name in (
+        "price_b3",
+        "price_crypto",
+        "wallet_scan",
+        "benchmark",
+        "rf_cdi",
+        "db_backup",
+        "restore_check",
+    ):
+        job = jobs.get(_SCHEDULER_ID.get(name, name))
+        fire = job.trigger.get_next_fire_time(None, now) if job is not None else None
+        if fire is not None:
+            out[name] = fire
+    return out

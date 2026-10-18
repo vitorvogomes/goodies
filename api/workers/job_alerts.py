@@ -28,7 +28,7 @@ LABELS = {
     "db_backup": "Backup do banco",
     "restore_check": "Conferência do backup",
 }
-_ACTION = AlertAction(label="Ver atualização", route="/refresh")
+_ACTION = AlertAction(label="Ver atualização", route="/ajustes/atualizacao")  # Story 10.3
 # O run grava o horário em que começou e o limiar é o próprio intervalo do cron: sem folga, todo
 # ciclo agendado "atrasaria" enquanto roda. Atraso = mais de 1,5 intervalo sem sucesso.
 LATE_FACTOR = 1.5

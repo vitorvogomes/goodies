@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from auth.dependencies import get_current_user
 from db.connection import get_db, get_pool
 from workers.refresh import default_jobs, oldest_wallet_scan, refresh_stale, stats_partial
+from workers.scheduler import next_runs
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -25,9 +26,26 @@ AuthUser = Annotated[dict[str, str], Depends(get_current_user)]
 Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 
+# Story 10.3: o nome de cada job na tela (Ajustes › Atualização) e o que vale saber dele.
+JOB_LABELS = {
+    "price_b3": "Preços B3 e Tesouro",
+    "price_crypto": "Preços cripto",
+    "wallet_scan": "Carteiras",
+    "benchmark": "Índices (CDI e IPCA)",
+    "rf_cdi": "Renda fixa pelo CDI",
+    "db_backup": "Backup do banco",
+    "restore_check": "Conferência do backup",
+}
+JOB_NOTES = {"wallet_scan": "a Binance só entra no horário agendado (não no Atualizar tudo)"}
+
+
 class JobStatus(BaseModel):
     job: str
+    label: str = ""
+    note: str | None = None
     last_run: datetime | None
+    last_success_at: datetime | None = None
+    next_run: datetime | None = None
     ok: bool | None
     error: str | None
     stale: bool
@@ -51,8 +69,12 @@ def _derive_status(ok: bool | None, stale: bool, stats: Any) -> str:
 async def jobs_status(user: AuthUser, db: Db) -> list[JobStatus]:
     now = datetime.now(UTC)
     rows = {
-        r["job"]: r for r in await db.fetch("SELECT job, last_run, ok, error, stats FROM job_runs")
+        r["job"]: r
+        for r in await db.fetch(
+            "SELECT job, last_run, ok, error, stats, last_success_at FROM job_runs"
+        )
     }
+    upcoming = next_runs(now)
     # idade do DADO de carteira (não do heartbeat): um scan que rodou mas não trouxe
     # nada renova last_run sem renovar scanned_at — /refresh e /wallets divergiam
     oldest_scan = await oldest_wallet_scan(db)
@@ -63,6 +85,9 @@ async def jobs_status(user: AuthUser, db: Db) -> list[JobStatus]:
             out.append(
                 JobStatus(
                     job=spec.name,
+                    label=JOB_LABELS.get(spec.name, spec.name),
+                    note=JOB_NOTES.get(spec.name),
+                    next_run=upcoming.get(spec.name),
                     last_run=None,
                     ok=None,
                     error=None,
@@ -83,6 +108,10 @@ async def jobs_status(user: AuthUser, db: Db) -> list[JobStatus]:
         out.append(
             JobStatus(
                 job=spec.name,
+                label=JOB_LABELS.get(spec.name, spec.name),
+                note=JOB_NOTES.get(spec.name),
+                last_success_at=r["last_success_at"],
+                next_run=upcoming.get(spec.name),
                 last_run=r["last_run"],
                 ok=r["ok"],
                 error=r["error"],

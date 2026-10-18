@@ -3,7 +3,11 @@ export type JobState = "fresh" | "stale" | "error" | "partial";
 
 export interface JobStatus {
   job: string;
+  label: string; // Story 10.3: o nome na tela
+  note: string | null;
   last_run: string | null; // ISO8601 ou null (nunca rodou)
+  last_success_at: string | null;
+  next_run: string | null;
   ok: boolean | null;
   error: string | null;
   stale: boolean;
