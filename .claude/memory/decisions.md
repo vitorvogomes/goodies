@@ -7,7 +7,7 @@
 
 ## ADR-001 — Stack (LOCKED)
 FastAPI + Next.js 16 + Supabase (Postgres 15) + Redis (Upstash).
-**Emenda 2026-10-17:** Fly.io e Vercel removidos (workflow, `fly.toml`, `DEPLOY.md`). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1.
+**Emenda 2026-10-17:** Fly.io e Vercel removidos (workflow, `fly.toml`, `DEPLOY.md`). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1. Postgres 15 e Redis 7 rodam no `docker compose` local (ADR-014); Supabase e Upstash não são usados.
 **Não mudar sem ADR aprovado.** (Frontend atualizado de Next 14 → 16 / React 19 / Tailwind v4 por ADR-009.)
 
 ## ADR-002 — XIRR é a métrica de retorno

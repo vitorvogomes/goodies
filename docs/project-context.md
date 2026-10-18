@@ -17,8 +17,8 @@ Plataforma pessoal de controle financeiro para substituir uma planilha Google Sh
 |---|---|
 | Backend | FastAPI 0.111+ / Python 3.12 (deps via uv — ADR-010) |
 | Frontend | Next.js 16 (App Router) / React 19 / TypeScript (ADR-009) |
-| Database | Supabase (Postgres 15) |
-| Cache | Redis via Upstash |
+| Database | PostgreSQL 15 local (`docker compose`) |
+| Cache | Redis 7 local (`docker compose`) |
 | Deploy | Nenhum — só localhost; infra de deploy do zero na v2.1 |
 | Scheduler | APScheduler (no mesmo processo FastAPI) |
 
@@ -91,7 +91,7 @@ goodies/
 3. **Dados manuais são fallback, nunca bloqueantes.** `asset_prices.is_manual = true` para ativos sem API.
 4. **Liquid Network tem client dedicado** (`fetchers/wallets/liquid.py`) — não reutilizar fetcher Bitcoin mainchain. Base URL: `blockstream.info/liquid/api/`.
 5. **Hermes é opcional** — Goodies funciona 100% sem ele. Endpoints `/hermes/*` têm service token separado.
-6. **JWT custom no FastAPI** — Supabase Auth não é usado para autenticação de usuário (apenas para conexão de banco).
+6. **JWT custom no FastAPI** — sem provedor de auth externo (ADR-006).
 7. **Refresh token em httpOnly cookie** — access token em memória (não localStorage).
 
 ---
@@ -137,7 +137,7 @@ O XIRR de cripto atualmente deve ser negativo (~-18% a.a.) — isso é esperado 
 ## Variáveis de ambiente necessárias (ver .env.example)
 
 ```
-DATABASE_URL, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN,
+DATABASE_URL, REDIS_URL, BACKUP_DIR,
 JWT_SECRET_KEY, JWT_ALGORITHM, HERMES_SERVICE_TOKEN,
 BRAPI_TOKEN, BINANCE_API_KEY, BINANCE_API_SECRET, ETHERSCAN_API_KEY,
 WALLET_RABBY_ADDRESS, WALLET_PHANTOM_SOL_ADDRESS, WALLET_SIDESWAP_ADDRESS, WALLET_TRUST_BTC_ADDRESS,

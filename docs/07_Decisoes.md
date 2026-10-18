@@ -261,7 +261,8 @@ Comandos: `uv sync` (base+dev), `uv sync --no-dev` (só runtime, imagem), `uv ru
 ## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
 
 **Data:** 2026-06-06  
-**Status:** Aceito (faxina pré-m3)
+**Status:** Substituído em parte pelo ADR-015 (2026-10-17) — resgate passa a ser receita. Seguem valendo: caixinhas/CDB
+como ativos RF, reclassificação in-place/idempotente, NÃO rodar `reset_ledger.py`, Santander externo.
 
 ### Contexto
 A planilha tratava resgates de caixinha Nubank como receita, inflando a taxa de poupança; CDB/caixinhas não apareciam no portfólio; Pix do próprio nome via Santander pareciam transferência interna.
@@ -311,6 +312,37 @@ O m4 escaneia carteiras cripto on-chain + Binance (6 fetchers) gravando `wallet_
 
 ### Consequências
 - Débito conhecido (ver `docs/15_Debito_Tecnico.md`): aliases DeFi carregam sufixo de vencimento; manual+escaneado do mesmo ativo pode contar dobrado; valoração de wallet/DeFi ignora a camada de cache do m3.
+
+---
+
+## ADR-014 — v2.0 só em localhost (sem deploy, sem CI)
+
+**Data:** 2026-10-17  
+**Status:** Aceito (v2.0)
+
+### Decisão
+Fly.io, Vercel e GitHub Actions removidos (commit d3748a4). A v2.0 roda só local (`docker compose` com postgres 15,
+redis 7 e api + `pnpm dev`); nenhum host de nuvem recebe dado financeiro. Backup local diário (`pg_dump`, fora do
+repo). Infra de deploy desenhada do zero na v2.1.
+
+### Consequências
+Supabase, Upstash, Fly e Vercel não são usados; `DATABASE_URL`/`REDIS_URL` só apontam para localhost ou o compose.
+`git push` é manual. Ver spine AD-18.
+
+---
+
+## ADR-015 — Resgate é receita (substitui o ADR-011 nesse ponto)
+
+**Data:** 2026-10-17  
+**Status:** Aceito (PRD v2)
+
+### Decisão
+Resgate de caixinha/RF/corretora é receita, exibido em linha própria e reclassificado em todo o histórico (FR-19,
+migração idempotente). A taxa de poupança usa a **receita do trabalho** (sem resgates), então o gate
+jun/2026 = 55,48% continua válido.
+
+### Consequências
+O ADR-011 fica substituído nesse ponto. Ver spine AD-6/AD-7/AD-16.
 
 ---
 

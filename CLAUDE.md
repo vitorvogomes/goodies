@@ -40,28 +40,28 @@ Referências completas: `docs/project-context.md` | backlog v2: `docs/v2/plannin
 Roteamento autoritativo em `.claude/memory/skills.md` (área→skill + matriz milestone→skills).
 `/story` lê o `skills:` da story (ou deriva da matriz) e **invoca** as skills certas.
 
-**Guardrail crítico — `supabase`:** neste projeto Supabase é só a connection string do
-Postgres. Use o skill `supabase` **apenas** para contexto Postgres/SQL. **Nunca** para
-auth/JWT/login (é JWT custom no FastAPI — ADR-006), nem para supabase-js/RLS/Edge Functions,
-nem para migrations (são **Alembic**). Para SQL puro, prefira `supabase-postgres-best-practices`.
+**Guardrail crítico — `supabase`:** o banco é Postgres 15 local (compose); não há Supabase na v2.0.
+Para SQL use `supabase-postgres-best-practices` (só o conteúdo Postgres). **Nunca** use skills de Supabase para
+auth/JWT/login (é JWT custom no FastAPI — ADR-006), supabase-js/RLS/Edge Functions ou migrations (são **Alembic**).
 
 Lacunas sem skill (Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD):
 seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
 
 ---
 
-## Stack (não mudar sem ADR)
+## Stack (não mudar sem ADR) — só localhost (ADR-014)
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | FastAPI 0.111+ / Python 3.12 — `api/` |
-| Frontend | Next.js 16 App Router / TypeScript — `web/` (ADR-009) |
-| Database | Supabase (Postgres 15) via asyncpg direto (sem ORM) |
-| Cache | Redis via Upstash (`redis[asyncio]`) |
+| Backend | FastAPI 0.136 / Python 3.12 — `api/` (monólito modular, engines em camadas — spine AD-1/AD-2) |
+| Frontend | Next.js 16 App Router / React 19 / TypeScript — `web/` (ADR-009), shadcn/ui radix new-york |
+| Database | PostgreSQL 15 no `docker compose`, asyncpg direto (sem ORM), migrações Alembic |
+| Cache | Redis 7 no `docker compose` (`redis[asyncio]`, `common.cache`) |
 | Scheduler | APScheduler no mesmo processo FastAPI (não Celery) |
-| Deploy | Nenhum — só localhost (`docker compose` + `pnpm dev`); infra de deploy do zero na v2.1 |
+| Ambiente | `docker compose up` (postgres, redis, api) + `cd web && pnpm dev`. Sem deploy, sem CI, sem nuvem: Supabase, Upstash, Fly e Vercel não são usados. Infra de deploy do zero na v2.1 |
+| Backup | `pg_dump` diário + antes de toda migração, em `BACKUP_DIR` (fora do repo) — runbook em `docs/LOCAL_DEV.md` |
 
----
+Versões travadas e invariantes: `docs/v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md`.
 
 ## Auth — CRÍTICO
 
@@ -85,7 +85,7 @@ def xirr(cashflows: list[tuple[date, float]]) -> float:
     return brentq(npv, -0.999, 100.0, xtol=1e-8)
 ```
 
-Gate m2: XIRR Python == Excel XIRR (±0,1 pp) nos dados históricos.
+Regressão: XIRR consolidado, por classe e por ativo = baseline da Story 1.3 (`EVALUATION_DATE` fixa, preços congelados).
 
 ---
 
@@ -116,20 +116,21 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 
 ---
 
-## Gates de qualidade por milestone
+## Gates de qualidade da v2.0 (marcos do PRD §6.1)
 
-| Milestone | Gate |
-|---|---|
-| m0 | `GET /api/v1/health` → 200 com postgres+redis. |
-| m1 | taxa de poupança junho/2026 == planilha (±0,1%) |
-| m2 | XIRR Python == Excel XIRR (±0,1 pp) |
-| m3 | Preços atualizando sem erro por 48h |
-| m4 | Posições cripto escaneadas sem entrada manual |
-| m5 | CDI/IPCA/IBOV no dashboard. Alerta concentração Flash ativo. |
-| m6 | Falha de worker notifica Discord <5min |
-| m7 | 30 dias de uso sem abrir a planilha |
+Todos os marcos exigem: suíte verde com cobertura ≥ 80%, `pnpm test/lint/build`, `GET /api/v1/health` → 200 com
+postgres+redis, banco em `head` e **nenhum teste `dados_reais` pulado**. Gate de dados permanente:
+**taxa de poupança jun/2026 = 55,48%** (a receita do trabalho não inclui resgates — ADR-015).
 
----
+| Marco | Épicos | Gate (`/gate mK`) |
+|---|---|---|
+| m1 — Ritual confiável | 1–5 | 55,48%, contagens, zero órfãs, deltas esperados, XIRR = baseline da Story 1.3; UJ-1 (importar → revisar → saldo PF conferido) e UJ-5 (Assistente de recuperação); jul/2024–mai/2026 fechados em bloco |
+| m2 — Caixa e orçamento | 6 | golden do orçamento (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77); deltas dos meses com Repasse; SM-1 parcial registrada |
+| m3 — Investimentos e aportes | 7–8 | XIRR consolidado = baseline (salvo correção explicada); conciliação B3/carteiras nas tolerâncias da AD-13; distribuição fecha ao centavo (2.200 = 1.700 + 500); SM-1 registrada |
+| m4 — Histórico e ajustes | 9–10 | `metricas`: SM-1 ≥ 30 dias, SM-2/SM-3/SM-5 na meta; nenhuma rota v1 sem substituto; "no raw color" sem exceções |
+
+Decisões que valem para todos os gates: ADR-014 (v2.0 só em localhost, sem deploy nem CI) e ADR-015 (resgate é
+receita, em linha própria; o ADR-011 foi substituído nesse ponto). Detalhe por marco em `PROGRESS.md`.
 
 ## NÃO fazer
 
@@ -138,7 +139,9 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 - ❌ Chamar Binance API on-demand — cron only
 - ❌ `access_token` em localStorage
 - ❌ HTTP 5xx por falha de API externa
-- ❌ Supabase Auth para login (ADR-006)
+- ❌ Supabase Auth para login (ADR-006) — e nenhum serviço de nuvem (ADR-014)
+- ❌ `git push` (o Vitor faz manual) e `docker compose down -v` (apaga o banco real)
+- ❌ Migrar o banco sem backup feito antes
 - ❌ Celery — APScheduler é suficiente
 - ❌ Commitar `.env` com valores reais
 - ❌ Misturar rendimentos de FII com ganho de capital em `asset_operations`
