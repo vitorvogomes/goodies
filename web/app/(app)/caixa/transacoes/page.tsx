@@ -29,9 +29,12 @@ import { apiErrorMessage } from "@/lib/errors";
 import { ApiError } from "@/lib/api";
 import { formatBRL, formatDate, formatMonth } from "@/lib/format";
 import {
+  CAIXINHA_RAIL,
+  useCaixinhas,
   useCategoryOptions,
   useDeleteManualTransaction,
   useLedgerTransactions,
+  useSetCaixinha,
   useSetTransactionCategory,
 } from "@/lib/ledger";
 import { usePeriodo } from "@/lib/use-periodo";
@@ -97,6 +100,26 @@ function Transacoes() {
     : options.data?.find((o) => o.group_key === groupFilter)?.group_name;
   const setCategory = useSetTransactionCategory();
   const remove = useDeleteManualTransaction();
+  // O OFX não traz mais o nome da caixinha (desde 19/06/2026): escolhida na linha expandida.
+  const caixinhas = useCaixinhas();
+  const setCaixinha = useSetCaixinha();
+  const caixinhaOf = (t: LedgerTransaction) =>
+    t.category_key === "transfer:saldo_separado"
+      ? "separado"
+      : (caixinhas.data?.find((o) => o.asset_id && o.asset_id === t.asset_id)?.key ?? "");
+  const chooseCaixinha = (t: LedgerTransaction, caixinha: string) =>
+    setCaixinha.mutate(
+      { id: t.id, caixinha },
+      {
+        onSuccess: (o) => toast(`Caixinha: ${o.label}.`),
+        onError: (err) =>
+          toast(
+            err instanceof ApiError
+              ? apiErrorMessage(err.detail, "Não foi possível salvar. Nada foi perdido.")
+              : "Não foi possível salvar. Nada foi perdido.",
+          ),
+      },
+    );
   const [form, setForm] = useState<{ open: boolean; tx: LedgerTransaction | null }>({
     open: false,
     tx: null,
@@ -256,6 +279,29 @@ function Transacoes() {
               "sem lote"
             )}
           </dd>
+          {CAIXINHA_RAIL.includes(t.category_key) && (
+            <>
+              <dt className="text-muted-foreground">
+                <label htmlFor={`caixinha-${t.id}`}>Caixinha</label>
+              </dt>
+              <dd>
+                <select
+                  id={`caixinha-${t.id}`}
+                  value={caixinhaOf(t)}
+                  disabled={setCaixinha.isPending || !caixinhas.data}
+                  onChange={(e) => e.target.value && chooseCaixinha(t, e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 type-body-sm"
+                >
+                  {caixinhaOf(t) === "" && <option value="">a escolher (o extrato não diz)</option>}
+                  {(caixinhas.data ?? []).map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Regra aplicada</dt>
           <dd>{t.rule_pattern ? `descrição contém “${t.rule_pattern}”` : "—"}</dd>
           <dt className="text-muted-foreground">Pagador</dt>

@@ -81,6 +81,36 @@ export function useSetTransactionCategory() {
   });
 }
 
+// ---- A caixinha de cada transação (conciliação de 18/10/2026): o OFX não traz mais o nome ----
+
+export interface CaixinhaOption {
+  key: string; // assets.key ou "separado"
+  label: string;
+  asset_id: string | null; // null = Saldo separado (caixa da conta)
+}
+
+export const CAIXINHA_RAIL = ["invest:caixinha_rdb", "resgate:caixinha_rdb", "transfer:saldo_separado"];
+
+export function useCaixinhas() {
+  return useQuery({
+    queryKey: ["portfolio", "caixinhas"],
+    queryFn: () => apiFetch<CaixinhaOption[]>("/api/v1/portfolio/caixinhas"),
+    staleTime: 60_000,
+  });
+}
+
+export function useSetCaixinha() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, caixinha }: { id: string; caixinha: string }) =>
+      apiFetch<CaixinhaOption>(`/api/v1/portfolio/caixinhas/transactions/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ caixinha }),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
 // ---- v2: lançamento manual (Story 2.8) ----
 
 export interface ManualTransactionIn {

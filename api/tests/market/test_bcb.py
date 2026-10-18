@@ -90,3 +90,31 @@ async def test_fetch_range_uses_sgs_interval() -> None:
         ("IPCA", date(2024, 6, 1)),
     }
     assert all(s["dataInicial"] == "01/06/2024" and s["dataFinal"] == "30/06/2024" for s in seen)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_range_falls_back_to_ipeadata_when_sgs_fails() -> None:
+    """P16: o SGS do BCB fora (500/timeout) → as mesmas séries pelo espelho do Ipeadata
+    (SGS366_CDI366 = CDI diário % a.d.; PRECOS12_IPCAG12 = IPCA % ao mês), só o intervalo pedido."""
+    respx.get(url__startswith=_BASE).mock(return_value=httpx.Response(500))
+
+    def ipea(request: httpx.Request) -> httpx.Response:
+        if "SGS366_CDI366" in str(request.url):
+            rows = [
+                {"VALDATA": "2024-05-31T00:00:00-03:00", "VALVALOR": 0.039},
+                {"VALDATA": "2024-06-03T00:00:00-03:00", "VALVALOR": 0.03927},
+                {"VALDATA": "2024-07-01T00:00:00-03:00", "VALVALOR": 0.04},
+            ]
+        else:
+            rows = [{"VALDATA": "2024-06-01T00:00:00-03:00", "VALVALOR": 0.21}]
+        return httpx.Response(200, json={"value": rows})
+
+    respx.get(url__startswith="http://www.ipeadata.gov.br/api/odata4/ValoresSerie").mock(
+        side_effect=ipea
+    )
+    out = await _fetcher().fetch_range(date(2024, 6, 1), date(2024, 6, 30))
+    assert {(p.series, p.ref_date, p.value, p.source) for p in out} == {
+        ("CDI", date(2024, 6, 3), 0.03927, "ipeadata"),
+        ("IPCA", date(2024, 6, 1), 0.21, "ipeadata"),
+    }

@@ -364,7 +364,7 @@ async def categorize(
 ) -> CategorizeResult:
     """Único caminho de mudança de categoria (AD-6). Roda na transação de quem chama.
 
-    Grava `category_id`, a cópia de `kind` do grupo, a coluna de texto (esquema duplo até a 10.6),
+    Grava `category_id`, a cópia de `kind` do grupo,
     `category_source` e a regra; registra o evento; marca o mês sujo; chama os hooks. Categoria
     `manual` nunca é sobrescrita por regra ou sugestão.
     """
@@ -463,6 +463,7 @@ def to_row(r: asyncpg.Record) -> TransactionRow:
         batch_id=str(r["batch_id"]) if r["batch_id"] else None,
         file_name=r["file_name"],
         rule_pattern=r["rule_pattern"],
+        asset_id=str(r["asset_id"]) if r["asset_id"] else None,
     )
 
 

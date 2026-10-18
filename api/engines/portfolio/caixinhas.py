@@ -7,6 +7,10 @@ operações DERIVADAS das próprias `transactions` pelos hooks de import e de re
 
 Registro CONFIG-DRIVEN: adicionar uma caixinha = uma linha em CAIXINHAS. A Reserva de
 Emergência (próxima a ser criada) já está listada, basta `enabled=True`.
+
+Desde 19/06/2026 o OFX traz só "Aplicação RDB" / "Resgate RDB", sem o nome: a caixinha escolhida na
+transação (`transaction_caixinha`, revisão 0046) vence o casamento pela descrição. "Saldo separado"
+(o "Separar saldo" do Nubank, que não rende) é caixa da conta: vira transferência interna.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ import asyncpg
 
 from engines.common.assets import AssetCategory
 from engines.ledger import queries as ledger_queries
+from engines.ledger import service as ledger_service
 
 _CATEGORY = AssetCategory.RENDA_FIXA
 
@@ -44,6 +49,8 @@ CAIXINHAS: list[CaixinhaSpec] = [
     # Nu Reserva Imediata: criada em jul/2026 (OFX de jul-out/2026), ativa desde então.
     CaixinhaSpec("Nubank-Reserva", "Nubank", 100.0, ("reserva", "resp. ltda")),
     CaixinhaSpec("Nubank-HotCash", "Nubank", 100.0, ("hotcash",), enabled=False),
+    # Caixinha Ana Maria: criada em out/2026 (o OFX já não traz o nome — escolhida na transação).
+    CaixinhaSpec("Nubank-AnaMaria", "Nubank", 100.0, ("ana maria",)),
 ]
 
 # CDB Guanabara (117,5% CDI, venc. 2028) — fonte diferente (Renda Fixa Nubank).
@@ -67,15 +74,23 @@ async def build_caixinha_ops(
     """
     if not spec.desc_match:
         return []
-    rows = await ledger_queries.transactions_by_category_keys(
+    by_description = await ledger_queries.transactions_by_category_keys(
         conn,
         spec.source_keys,
         description_any=spec.desc_match,
         with_pairs=True,
         ids=transaction_ids,
     )
+    chosen = {
+        str(r["id"]): r
+        for r in await conn.fetch(
+            _CHOSEN, list(transaction_ids) if transaction_ids is not None else None
+        )
+    }
+    rows = [r for r in by_description if str(r["id"]) not in chosen]
+    rows += [r for r in chosen.values() if r["symbol"] == spec.symbol]
     ops: list[dict[str, Any]] = []
-    for r in rows:
+    for r in sorted(rows, key=lambda r: r["date"]):
         amount = float(r["amount"])
         if amount == 0:
             continue
@@ -95,6 +110,17 @@ async def build_caixinha_ops(
         )
     return ops
 
+
+# A caixinha escolhida na transação (só no trilho de caixinha): vence a descrição.
+_CHOSEN = """
+    SELECT t.id, t.date, t.amount, t.external_id, a.price_ref AS symbol
+    FROM transaction_caixinha o
+    JOIN transactions t ON t.id = o.transaction_id
+    JOIN assets a ON a.id = o.asset_id
+    JOIN categories c ON c.id = t.category_id
+    WHERE c.key IN ('invest:caixinha_rdb', 'resgate:caixinha_rdb')
+      AND ($1::uuid[] IS NULL OR t.id = ANY($1::uuid[]))
+"""
 
 _DERIVED = """
     SELECT id, transaction_id::text AS transaction_id, asset_symbol, tipo, quantidade,
@@ -173,3 +199,74 @@ async def derive_caixinha_ops(
 
 # Só operações destas caixinhas/CDB são derivadas (e apagáveis pela derivação).
 _DERIVED_SYMBOLS = frozenset({*(s.symbol for s in CAIXINHAS), CDB_GUANABARA.symbol})
+
+
+# --------------------------------------------------------------------------------------------
+# A caixinha de cada transação (conciliação de 18/10/2026, P21)
+# --------------------------------------------------------------------------------------------
+
+SEPARADO = "separado"
+_RAIL_KEYS = ("invest:caixinha_rdb", "resgate:caixinha_rdb")
+_SEPARADO_KEY = "transfer:saldo_separado"
+
+
+class NotCaixinhaError(ValueError):
+    """A transação não é aplicação/resgate de caixinha."""
+
+
+@dataclass(frozen=True)
+class CaixinhaOption:
+    key: str  # `assets.key` ou "separado"
+    label: str
+    asset_id: str | None = None
+
+
+async def caixinha_options(conn: asyncpg.Connection) -> list[CaixinhaOption]:
+    """As caixinhas vivas (sem o bucket das encerradas) + "Saldo separado" (caixa da conta)."""
+    rows = await conn.fetch(
+        "SELECT id::text, key, name FROM assets WHERE key LIKE 'caixinha:%' "
+        "AND key <> 'caixinha:encerradas' AND is_active ORDER BY name"
+    )
+    out = [CaixinhaOption(r["key"], str(r["name"]).removeprefix("Nubank-"), r["id"]) for r in rows]
+    return [*out, CaixinhaOption(SEPARADO, "Saldo separado (caixa da conta)")]
+
+
+async def assign_caixinha(conn: asyncpg.Connection, transaction_id: str, choice: str) -> None:
+    """Grava a caixinha da transação e refaz a operação derivada; "separado" tira a transação do
+    trilho de caixinha (transferência interna: caixa da conta, fora de aporte e investimento)."""
+    if choice not in {o.key for o in await caixinha_options(conn)}:
+        raise LookupError(choice)
+    tx = await conn.fetchrow(
+        "SELECT t.amount, c.key FROM transactions t JOIN categories c ON c.id = t.category_id "
+        "WHERE t.id = $1::uuid",
+        transaction_id,
+    )
+    if tx is None:
+        raise LookupError(transaction_id)
+    if tx["key"] not in (*_RAIL_KEYS, _SEPARADO_KEY):
+        raise NotCaixinhaError(transaction_id)
+    async with conn.transaction():
+        if choice == SEPARADO:
+            await conn.execute(
+                "DELETE FROM transaction_caixinha WHERE transaction_id = $1::uuid", transaction_id
+            )
+            target = _SEPARADO_KEY
+        else:
+            await conn.execute(
+                "INSERT INTO transaction_caixinha (transaction_id, asset_id) "
+                "SELECT $1::uuid, id FROM assets WHERE key = $2 "
+                "ON CONFLICT (transaction_id) DO UPDATE SET asset_id = EXCLUDED.asset_id",
+                transaction_id,
+                choice,
+            )
+            target = _RAIL_KEYS[0] if tx["amount"] < 0 else _RAIL_KEYS[1]
+        if tx["key"] != target:
+            category = await ledger_queries.category_id_by_key(conn, target)
+            await ledger_service.categorize(
+                conn,
+                [ledger_service.CategoryChange(transaction_id, category, "manual")],
+                cause="inline_edit",
+                review_status="confirmed",
+            )
+        else:
+            await ledger_service.run_transaction_hooks(conn, [transaction_id])

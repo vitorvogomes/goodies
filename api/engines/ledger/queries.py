@@ -119,6 +119,7 @@ TX_COLUMNS = """
     t.id, t.date, t.description, t.amount, t.kind, t.category_id, c.name AS category_name,
     c.key AS category_key, g.name AS group_name, t.category_source, t.review_status, t.payer,
     t.account_id, a.name AS account_name, t.source, t.batch_id, r.pattern AS rule_pattern,
+    t.asset_id,
     (SELECT f.file_name FROM import_batch_files f WHERE f.batch_id = t.batch_id
      ORDER BY f.created_at LIMIT 1) AS file_name
 """

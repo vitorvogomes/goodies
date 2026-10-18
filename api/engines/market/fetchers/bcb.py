@@ -6,6 +6,10 @@ API pública do Banco Central (SGS), sem auth/quota:
 &dataInicial=dd/mm/aaaa&dataFinal=dd/mm/aaaa` → todos os pontos do período.
 Séries: **CDI = 12** (taxa diária %), **IPCA = 433** (variação mensal %).
 
+Fallback por intervalo (P16): o SGS anda fora (500/timeout); a mesma série do BCB é espelhada pelo
+Ipeadata (`ValoresSerie(SERCODIGO=...)`: CDI = SGS366_CDI366, % a.d.; IPCA = PRECOS12_IPCAG12, % ao
+mês) — usada só para a série que o SGS não devolveu, com `source = "ipeadata"`.
+
 Devolve `BenchmarkPoint`s normalizados; a valoração/uso pleno (acumulado, retorno real) é
 do m5. Fail-soft (CLAUDE.md): série fora → omitida; tudo fora → lista vazia, nunca levanta.
 IBOV não entra aqui (deferido ao m5, story 05-03).
@@ -27,6 +31,8 @@ _BASE_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"
 _SOURCE = "bcb"
 # série SGS → nome do benchmark. CDI diário (12), IPCA mensal (433).
 _DEFAULT_SERIES: dict[str, int] = {"CDI": 12, "IPCA": 433}
+_IPEA_URL = "http://www.ipeadata.gov.br/api/odata4/ValoresSerie(SERCODIGO='{code}')"
+_IPEA_SERIES: dict[str, str] = {"CDI": "SGS366_CDI366", "IPCA": "PRECOS12_IPCAG12"}
 
 
 @dataclass(frozen=True)
@@ -102,16 +108,43 @@ class BcbFetcher:
                 try:
                     data = await with_client(_req, client=client, sleep=self._sleep)
                 except Exception:
-                    continue  # fail-soft por série
-                if not isinstance(data, list):
-                    continue
-                for row in data:
-                    point = self._parse(name, [row])
-                    if point is not None:
-                        out.append(point)
+                    data = None  # fail-soft por série: tenta o espelho do Ipeadata
+                points = [
+                    p
+                    for row in (data if isinstance(data, list) else [])
+                    if (p := self._parse(name, [row])) is not None
+                ]
+                if not points and name in _IPEA_SERIES:
+                    points = await self._ipeadata(client, name, start, end)
+                out.extend(points)
         finally:
             if self._client is None:
                 await client.aclose()
+        return out
+
+    async def _ipeadata(
+        self, client: httpx.AsyncClient, name: str, start: date, end: date
+    ) -> list[BenchmarkPoint]:
+        async def _req(c: httpx.AsyncClient) -> Any:
+            resp = await c.get(_IPEA_URL.format(code=_IPEA_SERIES[name]), timeout=60.0)
+            resp.raise_for_status()
+            return resp.json()
+
+        try:
+            data = await with_client(_req, client=client, sleep=self._sleep)
+        except Exception:
+            return []
+        out: list[BenchmarkPoint] = []
+        for row in data.get("value", []) if isinstance(data, dict) else []:
+            try:
+                ref = date.fromisoformat(str(row["VALDATA"])[:10])
+                value = float(row["VALVALOR"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if start <= ref <= end:
+                out.append(
+                    BenchmarkPoint(series=name, ref_date=ref, value=value, source="ipeadata")
+                )
         return out
 
     async def _latest(self, client: httpx.AsyncClient, code: int) -> Any:

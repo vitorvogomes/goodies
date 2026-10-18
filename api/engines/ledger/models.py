@@ -38,6 +38,7 @@ class TransactionRow(BaseModel):
     batch_id: str | None
     file_name: str | None
     rule_pattern: str | None
+    asset_id: str | None = None  # Story 7.5: o ativo (caixinha/CDB) da transação
 
 
 class TransactionList(BaseModel):

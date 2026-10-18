@@ -53,6 +53,7 @@ export interface LedgerTransaction {
   batch_id: string | null;
   file_name: string | null;
   rule_pattern: string | null;
+  asset_id: string | null; // caixinha/CDB da transação (Story 7.5)
 }
 
 export interface Page<T> {

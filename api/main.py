@@ -42,6 +42,7 @@ from engines.portfolio import reconciliation as portfolio_reconciliation
 from engines.portfolio import service as portfolio_service
 from engines.portfolio.b3_adapter import B3Adapter
 from engines.portfolio.brokers_router import router as portfolio_brokers_router
+from engines.portfolio.caixinha_router import router as portfolio_caixinha_router
 from engines.portfolio.debentures_router import router as portfolio_debentures_router
 from engines.portfolio.manual_prices import router as portfolio_manual_prices_router
 from engines.portfolio.operations_router import router as portfolio_operations_router
@@ -139,6 +140,7 @@ app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(portfolio_debentures_router)
 app.include_router(portfolio_brokers_router)
+app.include_router(portfolio_caixinha_router)
 app.include_router(portfolio_manual_prices_router)
 app.include_router(portfolio_operations_router)
 app.include_router(portfolio_reconciliation_router)

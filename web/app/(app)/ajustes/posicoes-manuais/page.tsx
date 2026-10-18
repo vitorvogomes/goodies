@@ -54,7 +54,13 @@ function ManualForm({ item, onClose }: { item: ManualItem | null; onClose: () =>
     amount: qty(amount) === null ? "Informe a quantidade (ex.: 0,0123)." : null,
     day: kind === "carteira" && day > currentDayBRT() ? "A data não pode ser depois de hoje." : null,
   };
-  const dirty = asset !== (item?.asset_symbol ?? "") || amount !== (item ? qtyText(item.quantity) : "");
+  // Qualquer campo conta como alteração (só a data ou só o vencimento também salvam).
+  const dirty =
+    asset !== (item?.asset_symbol ?? "") ||
+    amount !== (item ? qtyText(item.quantity) : "") ||
+    where !== (item ? (item.chain ?? item.protocol ?? "") : "") ||
+    day !== (item?.as_of ?? currentDayBRT()) ||
+    maturity !== (item?.maturity_date ?? "");
 
   function submit() {
     setTouched(true);
