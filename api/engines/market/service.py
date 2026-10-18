@@ -322,7 +322,7 @@ async def _price_changed(conn: asyncpg.Connection, ticker: str) -> None:
 async def upsert_price(
     conn: asyncpg.Connection,
     ticker: str,
-    price_brl: float,
+    price_brl: float | Decimal,
     *,
     price_usd: float | None = None,
     source: str = "manual",

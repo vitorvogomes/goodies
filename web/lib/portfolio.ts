@@ -10,7 +10,7 @@ import { invalidateAfter } from "@/lib/invalidate";
 export interface ManualPrice {
   ticker: string;
   label: string;
-  price_brl: number | null;
+  price_brl: string | null; // decimal em texto (preço unitário, até 8 casas)
   as_of: string | null;
   is_manual: boolean;
 }

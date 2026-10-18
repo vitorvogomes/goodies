@@ -7,8 +7,9 @@ import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Input } from "@/components/ui/input";
-import { fmtQty, formatBRL, formatDate } from "@/lib/format";
+import { fmtQty, formatBRL, formatDate, formatUnitPrice } from "@/lib/format";
 import { useOperations } from "@/lib/positions";
+import { useDebounced } from "@/lib/use-debounced";
 import { cn } from "@/lib/utils";
 
 const TIPOS = ["compra", "venda", "aporte", "resgate", "dividendo", "juros"];
@@ -18,7 +19,7 @@ function Operations() {
   const [tipo, setTipo] = useState("");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
-  const ops = useOperations({ ativo, tipo, de, ate });
+  const ops = useOperations({ ativo: useDebounced(ativo.trim()), tipo, de, ate });
   const field = "space-y-1 type-caption text-muted-foreground";
   return (
     <div className="space-y-3">
@@ -95,7 +96,7 @@ function Operations() {
                 </td>
                 <td className="px-4 py-2">{op.tipo}</td>
                 <td className="px-4 py-2 text-right type-num-table">{fmtQty(Number(op.quantidade))}</td>
-                <td className="px-4 py-2 text-right type-num-table">{formatBRL(op.valor_unitario)}</td>
+                <td className="px-4 py-2 text-right type-num-table">R$&nbsp;{formatUnitPrice(op.valor_unitario)}</td>
                 <td className="px-4 py-2 text-right type-num-table">{formatBRL(op.total)}</td>
               </tr>
             ))}

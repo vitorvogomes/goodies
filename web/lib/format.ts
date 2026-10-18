@@ -106,13 +106,30 @@ export function parseDecimalInput(raw: string): number {
 export function normalizeMoneyInput(raw: string): string | null {
   const s = raw.replace(/\s|R\$| /g, "").replace("−", "-");
   if (!s) return null;
+  const parts = decimalParts(s, 2);
+  return parts && `${parts.sign}${parts.int}.${parts.frac.padEnd(2, "0")}`;
+}
+
+function decimalParts(s: string, maxDecimals: number): { sign: string; int: string; frac: string } | null {
   let body = s;
   if (s.includes(",")) body = s.replace(/\./g, "").replace(",", ".");
   else if ((s.match(/\./g) ?? []).length > 1) body = s.replace(/\./g, "");
-  const m = /^([+-]?)(\d+)(?:\.(\d{1,2}))?$/.exec(body);
+  const m = new RegExp(`^([+-]?)(\\d+)(?:\\.(\\d{1,${maxDecimals}}))?$`).exec(body);
   if (!m) return null;
-  const sign = m[1] === "-" ? "-" : "";
-  const int = m[2].replace(/^0+(?=\d)/, "");
-  const frac = (m[3] ?? "").padEnd(2, "0");
-  return `${sign}${int}.${frac}`;
+  return { sign: m[1] === "-" ? "-" : "", int: m[2].replace(/^0+(?=\d)/, ""), frac: m[3] ?? "" };
+}
+
+// Preço unitário (Ajustes › Preços manuais): até 8 casas, como `asset_prices.price_brl` — token de
+// carteira pode valer menos de um centavo. "0,0042" → "0.0042"; mais de 8 casas → null.
+export function normalizeUnitPriceInput(raw: string): string | null {
+  const s = raw.replace(/\s|R\$/g, "").replace("−", "-");
+  const parts = s ? decimalParts(s, 8) : null;
+  if (!parts) return null;
+  return parts.frac ? `${parts.sign}${parts.int}.${parts.frac}` : `${parts.sign}${parts.int}`;
+}
+
+// Decimal da API ("0.00420000") → "0,0042": sem zeros à direita, com no mínimo 2 casas. Só texto.
+export function formatUnitPrice(value: string): string {
+  const [int, frac = ""] = value.split(".");
+  return `${int},${frac.replace(/0+$/, "").padEnd(2, "0")}`;
 }

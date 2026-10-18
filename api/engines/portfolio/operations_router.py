@@ -28,7 +28,7 @@ class OperationRow(BaseModel):
     asset_category: str
     tipo: str
     quantidade: Decimal
-    valor_unitario: Money
+    valor_unitario: Decimal  # unitário sem arredondar (numeric 15,6), em texto
     total: Money  # quantidade × valor unitário
 
 

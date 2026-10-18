@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from auth.dependencies import get_current_user
+from config import settings
 from db.connection import get_db, get_pool
 from workers.refresh import default_jobs, oldest_wallet_scan, refresh_stale, stats_partial
 from workers.scheduler import next_runs
@@ -74,7 +75,8 @@ async def jobs_status(user: AuthUser, db: Db) -> list[JobStatus]:
             "SELECT job, last_run, ok, error, stats, last_success_at FROM job_runs"
         )
     }
-    upcoming = next_runs(now)
+    # scheduler desligado (ENABLE_SCHEDULER=false): nada vai rodar, então não há próxima execução
+    upcoming = next_runs(now) if settings.enable_scheduler else {}
     # idade do DADO de carteira (não do heartbeat): um scan que rodou mas não trouxe
     # nada renova last_run sem renovar scanned_at — /refresh e /wallets divergiam
     oldest_scan = await oldest_wallet_scan(db)

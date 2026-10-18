@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PriceOut(BaseModel):
@@ -27,5 +28,5 @@ class PricesResponse(BaseModel):
 class SetPriceRequest(BaseModel):
     """Corpo do POST manual de preço (BRL)."""
 
-    price_brl: float
+    price_brl: Decimal = Field(ge=0)  # preço unitário: até 8 casas (asset_prices.price_brl)
     as_of: date | None = None  # Story 10.2: a data do preço informado (padrão: hoje)

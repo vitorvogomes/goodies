@@ -56,6 +56,24 @@ class AccountResponse(BaseModel):
     conferencia: bool = False  # saldo conferido (só a PF; a MEI é sempre zerada)
 
 
+_SECOND_PF = {"error": "conta_pf_existente", "message": "Já existe uma conta PF."}
+
+
+async def _check_single_pf(
+    db: asyncpg.Connection, holder: str | None, own: uuid.UUID | None
+) -> None:
+    """A conferência encadeada de saldo lê a conta PF (`ledger.queries.PF_ACCOUNT`): uma segunda
+    PF a desviaria."""
+    if holder != "pf":
+        return
+    taken = await db.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM accounts WHERE holder = 'pf' AND id IS DISTINCT FROM $1)",
+        own,
+    )
+    if taken:
+        raise HTTPException(status.HTTP_409_CONFLICT, _SECOND_PF)
+
+
 def _to_response(row: asyncpg.Record) -> AccountResponse:
     return AccountResponse(
         id=str(row["id"]),
@@ -77,6 +95,7 @@ async def list_accounts(user: AuthUser, db: Db) -> list[AccountResponse]:
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(body: AccountCreate, user: AuthUser, db: Db) -> AccountResponse:
+    await _check_single_pf(db, body.holder, None)
     try:
         row = await db.fetchrow(
             "INSERT INTO accounts (name, type, currency, account_number, holder) "
@@ -96,6 +115,7 @@ async def create_account(body: AccountCreate, user: AuthUser, db: Db) -> Account
 async def update_account(
     account_id: uuid.UUID, body: AccountUpdate, user: AuthUser, db: Db
 ) -> AccountResponse:
+    await _check_single_pf(db, body.holder, account_id)
     try:
         row = await db.fetchrow(
             """

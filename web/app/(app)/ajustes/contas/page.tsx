@@ -11,22 +11,28 @@ import { StatusBadge } from "@/components/data/StatusBadge";
 import { FormField, SideForm } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ApiError } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { useAccounts, useSaveAccount } from "@/lib/ledger";
 import type { Account } from "@/types/ledger";
 
 const HOLDER = { pf: "PF", mei: "MEI" } as const;
+type HolderChoice = "pf" | "mei" | "";
 
 function AccountForm({ account, onClose }: { account: Account | null; onClose: () => void }) {
   const save = useSaveAccount();
   const [name, setName] = useState(account?.name ?? "");
-  const [holder, setHolder] = useState<"pf" | "mei">(account?.holder ?? "pf");
+  // Conta sem tipo (corretora, cripto, banco externo) continua sem tipo: só a escolha explícita grava
+  // PF ou MEI — a conferência de saldo lê a conta PF.
+  const initialHolder: HolderChoice = account ? (account.holder ?? "") : "pf";
+  const [holder, setHolder] = useState<HolderChoice>(initialHolder);
   const [number, setNumber] = useState(account?.account_number ?? "");
   const [touched, setTouched] = useState(false);
   const [failed, setFailed] = useState(false);
   const errors = { name: name.trim() ? null : "Informe o nome da conta." };
   const dirty =
     name !== (account?.name ?? "") ||
-    holder !== (account?.holder ?? "pf") ||
+    holder !== initialHolder ||
     number !== (account?.account_number ?? "");
 
   function submit() {
@@ -39,7 +45,7 @@ function AccountForm({ account, onClose }: { account: Account | null; onClose: (
         body: {
           name: name.trim(),
           type: account?.type ?? "bank",
-          holder,
+          ...(holder ? { holder } : {}),
           ...(number.trim() ? { account_number: number.trim() } : {}),
         },
       },
@@ -48,7 +54,10 @@ function AccountForm({ account, onClose }: { account: Account | null; onClose: (
           toast(account ? "Conta salva." : "Conta cadastrada.");
           onClose();
         },
-        onError: () => setFailed(true),
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 409) toast(apiErrorMessage(err.detail, "Não foi possível salvar."));
+          setFailed(true);
+        },
       },
     );
   }
@@ -71,9 +80,10 @@ function AccountForm({ account, onClose }: { account: Account | null; onClose: (
         <select
           id="conta-tipo"
           value={holder}
-          onChange={(e) => setHolder(e.target.value as "pf" | "mei")}
+          onChange={(e) => setHolder(e.target.value as HolderChoice)}
           className="h-9 w-40 rounded-md border border-input bg-background px-2 type-body-sm"
         >
+          {initialHolder === "" && <option value="">—</option>}
           <option value="pf">PF</option>
           <option value="mei">MEI</option>
         </select>
@@ -106,8 +116,10 @@ export default function ContasPage() {
       cell: (a) =>
         a.conferencia ? (
           <span className="type-body-sm">conferido pelo OFX</span>
-        ) : (
+        ) : a.holder === "mei" ? (
           <StatusBadge tooltip="A conta MEI é sempre zerada: a conferência encadeada é só da PF.">sem conferência</StatusBadge>
+        ) : (
+          <span className="type-body-sm text-muted-foreground">sem conferência</span>
         ),
     },
     {

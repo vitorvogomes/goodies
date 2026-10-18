@@ -6,10 +6,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from scripts.ops import metricas
+
+BRT = ZoneInfo("America/Sao_Paulo")
 
 
 async def _events(conn: Any) -> tuple[str, list[str]]:
@@ -18,30 +21,53 @@ async def _events(conn: Any) -> tuple[str, list[str]]:
     owner = await get_owner_id(conn)
     account = await conn.fetchval("SELECT id FROM accounts ORDER BY created_at LIMIT 1")
     cats = [r["id"] for r in await conn.fetch("SELECT id FROM categories LIMIT 2")]
+    at = datetime(2097, 5, 5, 12, tzinfo=BRT)
+    batch = await conn.fetchval(
+        "INSERT INTO import_batches (status, applied_at) VALUES ('applied', now()) RETURNING id"
+    )
     txs: list[str] = []
-    for i in range(4):
+    # 5 transações novas do import: 3 por regra, 1 por sugestão, 1 sem nada ("a classificar")
+    for i in range(5):
         txs.append(
             str(
                 await conn.fetchval(
                     "INSERT INTO transactions (account_id, date, amount, category_id, kind, "
-                    "description) VALUES ($1, '2097-05-05', -10, $2, 'expense', $3) RETURNING "
-                    "id",
+                    "description, source, batch_id, created_at) VALUES ($1, '2097-05-05', -10, $2, "
+                    "'expense', $3, 'nubank_ofx', $4, $5) RETURNING id",
                     account,
                     cats[0],
                     f"sm {i}",
+                    batch,
+                    at,
                 )
             )
         )
-    at = datetime(2097, 5, 5, 12)
+    legacy = await conn.fetchval(
+        "INSERT INTO import_batches (status) VALUES ('legacy') RETURNING id"
+    )
+    await conn.execute(  # lote legado (a base anterior ao Hub): não é transação nova
+        "INSERT INTO transactions (account_id, date, amount, category_id, kind, description, "
+        "source, batch_id, created_at) VALUES ($1, '2097-05-05', -10, $2, 'expense', 'velha', "
+        "'nubank_ofx', $3, $4)",
+        account,
+        cats[0],
+        legacy,
+        at,
+    )
+    later = at + timedelta(days=2)
     rows = [
-        (txs[0], "rule", "import", at),
-        (txs[1], "rule", "import", at),
-        (txs[2], "rule", "import", at),
-        (txs[3], "suggestion", "import", at),
-        (txs[0], "manual", "inline_edit", at + timedelta(days=2)),  # corrigida depois
-        (txs[1], "manual", "migration", at + timedelta(days=2)),  # migração não conta
+        (txs[0], "rule", "import", at, cats[0]),
+        (txs[1], "rule", "import", at, cats[0]),
+        (txs[2], "rule", "import", at, cats[0]),
+        (txs[3], "suggestion", "import", at, cats[0]),
+        # tx0: confirmada na revisão sem mudar (não é correção) e corrigida depois → SM-C1
+        (txs[0], "rule", "review", later, cats[0]),
+        (txs[0], "manual", "inline_edit", later + timedelta(days=1), cats[1]),
+        # tx2: trocada NA revisão (a revisão funcionando): correção da SM-6, não da SM-C1
+        (txs[2], "manual", "review", later, cats[1]),
+        (txs[1], "manual", "migration", later, cats[1]),  # migração não conta
     ]
-    for tx, source, cause, when in rows:
+    for tx, source, cause, when, after in rows:
         await conn.execute(
             "INSERT INTO categorization_events (user_id, transaction_id, before_category_id, "
             "after_category_id, source, cause, created_at) "
@@ -49,14 +75,16 @@ async def _events(conn: Any) -> tuple[str, list[str]]:
             owner,
             tx,
             cats[0],
-            cats[1] if cause != "import" else cats[0],
+            after,
             source,
             cause,
             when,
         )
     await conn.execute(
         "INSERT INTO alert_dismissals (key, fingerprint, dismissed_at) VALUES "
-        "('teste:sm', 'x', '2097-05-06')"
+        "('teste:sm', 'x', '2097-05-06'), "
+        # 31/05 23:30 em Brasília = 01/06 02:30 UTC: ainda é maio
+        "('teste:fim', 'y', '2097-05-31 23:30-03')"
     )
     return owner, txs
 
@@ -70,14 +98,19 @@ async def test_metrics_read_only(pool: Any) -> None:
             await _events(conn)
             before = await conn.fetchval("SELECT count(*) FROM categorization_events")
             report = await metricas.compute(conn, date(2097, 5, 1), date(2097, 5, 1))
+            june = await metricas.compute(conn, date(2097, 6, 1), date(2097, 6, 1))
             after = await conn.fetchval("SELECT count(*) FROM categorization_events")
         finally:
             await tx.rollback()
     assert before == after  # só lê
-    assert report.sm5_rule_pct == pytest.approx(75.0)  # 3 de 4 por regra; só cause = import
-    assert sum(report.sm6_corrections_by_week.values()) == 1  # a migração não conta
+    # 3 por regra das 5 novas: a sem categoria entra no denominador
+    assert report.sm5_rule_pct == pytest.approx(60.0)
+    # correções: a troca na revisão e a correção depois; confirmar sem mudar e migração não
+    assert sum(report.sm6_corrections_by_week.values()) == 2
     assert report.sm_c1_pct == pytest.approx(25.0)  # 1 das 4 automáticas corrigida depois
-    assert report.sm_c2_dismissed == 1
+    assert report.sm_c2_dismissed == 2  # o de 31/05 23:30 (Brasília) é de maio
+    assert june.sm_c2_dismissed == 0
+    assert report.sm3_wallets_total >= report.sm3_wallets_ok
 
 
 @pytest.mark.asyncio

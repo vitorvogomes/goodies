@@ -4,6 +4,7 @@ recusado com "{Ativo} tem preço de mercado automático."."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -38,13 +39,19 @@ async def test_manual_with_date_and_listing(api: Any, pool: Any, portfolio_user:
     try:
         r = await api.post(
             "/api/v1/market/prices/ZZNEO",
-            json={"price_brl": 5.25, "as_of": "2026-10-01"},
+            json={"price_brl": "0.0042", "as_of": "2026-10-01"},
             headers=headers,
         )
         assert r.status_code == 200, r.text
         listed = (await api.get("/api/v1/portfolio/manual-prices", headers=headers)).json()
         item = next(i for i in listed if i["ticker"] == "ZZNEO")
-        assert (item["price_brl"], item["as_of"], item["is_manual"]) == (5.25, "2026-10-01", True)
+        # preço unitário abaixo de um centavo, sem arredondar e sem float (texto decimal)
+        assert Decimal(item["price_brl"]) == Decimal("0.0042")
+        assert (item["as_of"], item["is_manual"]) == ("2026-10-01", True)
+        bad = await api.post(
+            "/api/v1/market/prices/ZZNEO", json={"price_brl": "-1"}, headers=headers
+        )
+        assert bad.status_code == 422
         assert all(i["ticker"] != "MKT_B3X" for i in listed)
     finally:
         async with pool.acquire() as conn:

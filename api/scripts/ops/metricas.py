@@ -9,11 +9,16 @@ nada, salvo o registro da SM-1 (`metric_events`):
 
 - SM-2: meses fechados com o saldo PF conferido.
 - SM-3: meses fechados com o patrimônio por classe dentro da tolerância (consolidado B3 do fim do
-  mês, AD-13); sem consolidado daquele fim de mês → "sem origem".
+  mês, AD-13); sem consolidado daquele fim de mês → "sem origem". As carteiras não têm origem por
+  fim de mês (o scan é o de agora): entram como a conferência de hoje (conferidas × total).
 - SM-4: preços digitados no período para ativos que têm fonte de mercado (os sem fonte não contam).
-- SM-5: % das transações novas categorizadas por regra, por semana (só `cause = import`).
-- SM-6: correções por semana (só `cause ∈ {review, inline_edit}`).
-- SM-C1: % das categorizações automáticas (regra/sugestão no import) corrigidas depois.
+- SM-5: % das transações novas (do import) categorizadas por regra, por semana; o denominador são
+  todas as novas, inclusive as que ficaram "a classificar" (sem evento).
+- SM-6: correções por semana (só `cause ∈ {review, inline_edit}` que mudam a categoria; confirmar
+  sem mudar não é correção).
+- SM-C1: % das categorizações automáticas (regra/sugestão no import) corrigidas depois de
+  confirmadas: a primeira revisão/edição confirma; só uma mudança posterior conta.
+- Os limites do período e as semanas são no horário de Brasília.
 - SM-C2: avisos dispensados sem ação.
 - SM-1: dias seguidos sem abrir a planilha "Rotina", por escopo (`caixa` = a parcial do marco 2;
   abrir para a caixa zera os dois; abrir para o resto da v2 zera só o `v2`).
@@ -28,6 +33,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -38,6 +44,8 @@ from engines.common.owner import get_owner_id
 SM1_GOAL_DAYS = 30
 _CORRECTION_CAUSES = ("review", "inline_edit")
 _AUTO_SOURCES = ("rule", "suggestion")
+_IMPORT_SOURCES = ("nubank_ofx", "nubank_csv")  # transação "nova" = a que chegou por arquivo
+_BRT = ZoneInfo("America/Sao_Paulo")
 
 
 @dataclass
@@ -49,6 +57,9 @@ class Report:
     sm3_closed: int = 0
     sm3_within: int = 0
     sm3_no_origin: int = 0
+    sm3_wallets_ok: int = 0
+    sm3_wallets_total: int = 0
+    sm3_wallets_stale: bool = False
     sm4_typed: int = 0
     sm5_by_week: dict[str, tuple[int, int]] = field(default_factory=dict)  # semana → (regra, total)
     sm5_rule_pct: float | None = None
@@ -73,7 +84,7 @@ class Streak:
 
 
 def _week(when: datetime) -> str:
-    year, week, _ = when.isocalendar()
+    year, week, _ = when.astimezone(_BRT).isocalendar()
     return f"{year}-S{week:02d}"
 
 
@@ -83,8 +94,8 @@ async def compute(conn: asyncpg.Connection, de: date, ate: date) -> Report:
     from engines.portfolio import reconciliation
 
     r = Report(de=de, ate=ate)
-    start = datetime.combine(de, time.min)
-    end = datetime.combine(add_months(ate, 1), time.min)
+    start = datetime.combine(de, time.min, tzinfo=_BRT)
+    end = datetime.combine(add_months(ate, 1), time.min, tzinfo=_BRT)
 
     # SM-2 e SM-3: os meses fechados do período (a versão vigente)
     closes = await conn.fetch(
@@ -114,6 +125,10 @@ async def compute(conn: asyncpg.Connection, de: date, ate: date) -> Report:
             continue
         b3 = await reconciliation.b3_reconciliation(conn, owner, ref)
         r.sm3_within += 0 if any(x.status == "divergente" for x in b3.rows) else 1
+    wallets = await reconciliation.wallet_reconciliation(conn, owner)
+    r.sm3_wallets_total = len(wallets.rows)
+    r.sm3_wallets_ok = sum(1 for x in wallets.rows if x.status != "divergente")
+    r.sm3_wallets_stale = wallets.stale
 
     # SM-4: preços digitados no período para ativos que têm fonte de mercado
     typed = await conn.fetch(
@@ -126,33 +141,54 @@ async def compute(conn: asyncpg.Connection, de: date, ate: date) -> Report:
         if await market_service.has_market_source(conn, row["ticker"]):
             r.sm4_typed += 1
 
-    # SM-5, SM-6 e SM-C1: os eventos de categorização do período
+    # SM-5: as transações novas do período (por arquivo, pelo Hub — o lote `legacy` é a base de
+    # antes da v2) e quantas chegaram por regra no import
+    weeks: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for t in await conn.fetch(
+        "SELECT t.created_at, EXISTS (SELECT 1 FROM categorization_events e "
+        "WHERE e.transaction_id = t.id AND e.cause = 'import' AND e.source = 'rule') AS by_rule "
+        "FROM transactions t JOIN import_batches b ON b.id = t.batch_id AND b.status <> 'legacy' "
+        "WHERE t.source = ANY($1::text[]) AND t.created_at >= $2 AND t.created_at < $3",
+        list(_IMPORT_SOURCES),
+        start,
+        end,
+    ):
+        week = weeks[_week(t["created_at"])]
+        week[1] += 1
+        week[0] += 1 if t["by_rule"] else 0
+    r.sm5_by_week = {k: (v[0], v[1]) for k, v in sorted(weeks.items())}
+    rule = sum(v[0] for v in weeks.values())
+    total = sum(v[1] for v in weeks.values())
+    r.sm5_rule_pct = rule / total * 100 if total else None
+
+    # SM-6 e SM-C1: os eventos de categorização do período
     events = await conn.fetch(
-        "SELECT transaction_id, source, cause, after_category_id, created_at "
+        "SELECT transaction_id, source, cause, before_category_id, after_category_id, created_at "
         "FROM categorization_events WHERE created_at >= $1 AND created_at < $2 "
         "ORDER BY created_at",
         start,
         end,
     )
-    weeks: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-    auto: dict[str, Any] = {}
+    auto: set[str] = set()
+    confirmed: dict[str, Any] = {}  # transação automática → categoria na confirmação
     corrected: set[str] = set()
     for e in events:
-        week = _week(e["created_at"])
+        tx = str(e["transaction_id"])
         if e["cause"] == "import":
-            weeks[week][1] += 1
-            weeks[week][0] += 1 if e["source"] == "rule" else 0
             if e["source"] in _AUTO_SOURCES:
-                auto[str(e["transaction_id"])] = e["after_category_id"]
-        elif e["cause"] in _CORRECTION_CAUSES:
-            r.sm6_corrections_by_week[week] = r.sm6_corrections_by_week.get(week, 0) + 1
-            tx = str(e["transaction_id"])
-            if tx in auto and e["after_category_id"] != auto[tx]:
-                corrected.add(tx)
-    r.sm5_by_week = {k: (v[0], v[1]) for k, v in sorted(weeks.items())}
-    rule = sum(v[0] for v in weeks.values())
-    total = sum(v[1] for v in weeks.values())
-    r.sm5_rule_pct = rule / total * 100 if total else None
+                auto.add(tx)
+            continue
+        if e["cause"] not in _CORRECTION_CAUSES:
+            continue
+        if e["before_category_id"] != e["after_category_id"]:
+            label = _week(e["created_at"])
+            r.sm6_corrections_by_week[label] = r.sm6_corrections_by_week.get(label, 0) + 1
+        if tx not in auto:
+            continue
+        if tx not in confirmed:
+            confirmed[tx] = e["after_category_id"]  # a primeira revisão/edição confirma
+        elif e["after_category_id"] != confirmed[tx]:
+            corrected.add(tx)
     r.sm_c1_auto, r.sm_c1_corrected = len(auto), len(corrected)
     r.sm_c1_pct = len(corrected) / len(auto) * 100 if auto else None
 
@@ -223,6 +259,8 @@ def render(r: Report, streaks: list[Streak]) -> str:
         f"SM-2 — meses fechados com o saldo PF conferido: {r.sm2_checked} de {r.sm2_closed}",
         f"SM-3 — meses fechados com o patrimônio dentro da tolerância: {r.sm3_within} de "
         f"{r.sm3_closed - r.sm3_no_origin} com origem ({r.sm3_no_origin} sem consolidado B3)",
+        f"  carteiras hoje: {r.sm3_wallets_ok} de {r.sm3_wallets_total} conferidas"
+        + (" (scan desatualizado)" if r.sm3_wallets_stale else ""),
         f"SM-4 — preços digitados para ativos com fonte de mercado: {r.sm4_typed}",
         f"SM-5 — transações novas por regra: {_pct(r.sm5_rule_pct)} (meta ≥ 80%)",
     ]

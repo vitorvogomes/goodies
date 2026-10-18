@@ -1,7 +1,7 @@
 "use client";
 
 // Investimentos › Posições (Story 7.1) — queryKey [engine, recurso, periodo, leitura] (AD-17).
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -93,7 +93,7 @@ export interface OperationRow {
   asset_category: string;
   tipo: string;
   quantidade: string;
-  valor_unitario: number;
+  valor_unitario: string; // decimal em texto, sem arredondar
   total: number;
 }
 
@@ -106,5 +106,6 @@ export function useOperations(filters: { ativo: string; tipo: string; de: string
   return useQuery({
     queryKey: ["portfolio", "operations-v2", q.toString()],
     queryFn: () => apiFetch<OperationRow[]>(`/api/v1/portfolio/operations?${q}`),
+    placeholderData: keepPreviousData, // filtro novo: a lista anterior fica até a nova chegar
   });
 }

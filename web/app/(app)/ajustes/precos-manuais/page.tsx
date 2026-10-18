@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
-import { normalizeMoneyInput } from "@/lib/format";
+import { formatUnitPrice, normalizeUnitPriceInput } from "@/lib/format";
 import { currentDayBRT } from "@/lib/period";
 import { type ManualPrice, useManualPrices, useSaveManualPrice } from "@/lib/portfolio";
 
@@ -21,16 +21,16 @@ type Save = (price: string, asOf: string, onError: (message: string) => void) =>
 // A linha remonta (key) quando o preço gravado muda: a mutação fica na página, senão o retorno
 // dela chegaria a uma linha já remontada.
 function Row({ item, saving, onSave }: { item: ManualPrice; saving: boolean; onSave: Save }) {
-  const shownPrice = item.price_brl != null ? item.price_brl.toFixed(2).replace(".", ",") : "";
+  const shownPrice = item.price_brl != null ? formatUnitPrice(item.price_brl) : "";
   const shownDay = item.as_of ?? currentDayBRT();
   const [price, setPrice] = useState(shownPrice);
   const [day, setDay] = useState(shownDay);
   const [error, setError] = useState<string | null>(null);
 
   function commit() {
-    const normalized = normalizeMoneyInput(price);
+    const normalized = normalizeUnitPriceInput(price);
     if (normalized === null || normalized.startsWith("-") || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-      setError("Informe o preço (ex.: 5,25) e a data.");
+      setError("Informe o preço (ex.: 5,25 ou 0,0042) e a data.");
       return;
     }
     if (day > currentDayBRT()) {

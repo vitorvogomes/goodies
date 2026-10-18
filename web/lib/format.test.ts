@@ -104,6 +104,21 @@ describe("normalizeMoneyInput", () => {
   });
 });
 
+describe("preço unitário (até 8 casas)", () => {
+  it("lê e mostra preço abaixo de um centavo sem arredondar", async () => {
+    const { normalizeUnitPriceInput, formatUnitPrice } = await import("./format");
+    expect(normalizeUnitPriceInput("0,0042")).toBe("0.0042");
+    expect(normalizeUnitPriceInput("1.234,5")).toBe("1234.5");
+    expect(normalizeUnitPriceInput("5,25")).toBe("5.25");
+    expect(normalizeUnitPriceInput("0,123456789")).toBeNull();
+    expect(normalizeUnitPriceInput("abc")).toBeNull();
+    expect(formatUnitPrice("0.00420000")).toBe("0,0042");
+    expect(formatUnitPrice("5.25000000")).toBe("5,25");
+    expect(formatUnitPrice("1234.5")).toBe("1234,50");
+    expect(formatUnitPrice("12")).toBe("12,00");
+  });
+});
+
 describe("fmtWhen", () => {
   it("mostra o horário de Brasília, qualquer que seja o fuso do navegador", () => {
     expect(fmtWhen("2026-10-18T01:30:00+00:00")).toBe("17/10/2026, 22:30");

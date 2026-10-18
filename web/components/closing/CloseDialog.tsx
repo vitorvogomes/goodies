@@ -34,7 +34,7 @@ function linkFor(item: ChecklistItem, periodo: string): string | null {
     case "mei_nao_cobre":
       return `/visao-geral/historico?importar=1`;
     case "sem_scan_cripto":
-      return "/refresh";
+      return "/ajustes/atualizacao";
     default:
       return null;
   }

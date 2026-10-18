@@ -4,6 +4,7 @@ operação calculado na API."""
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -33,6 +34,7 @@ async def test_operations_with_total(api, auth_headers, pool: Any) -> None:
         assert r.status_code == 200, r.text
         rows = r.json()
         assert len(rows) == 1 and rows[0]["total"] == 30.46  # 3 × 10,155 = 30,465 (meio-par)
+        assert Decimal(rows[0]["valor_unitario"]) == Decimal("10.155")  # unitário sem arredondar
         none = await api.get(
             f"/api/v1/portfolio/operations?asset_symbol={sym}&tipo=venda", headers=auth_headers
         )

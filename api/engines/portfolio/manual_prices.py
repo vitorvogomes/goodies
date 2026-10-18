@@ -6,6 +6,7 @@ Neobankless) —, com o preço e a data informados. A gravação é do `market` 
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 import asyncpg
 from fastapi import APIRouter
@@ -25,7 +26,7 @@ _NOT_PRICED = {"caixinha:encerradas"}  # o bucket das encerradas não tem preço
 class ManualPrice(BaseModel):
     ticker: str
     label: str
-    price_brl: float | None  # None = ainda sem preço
+    price_brl: Decimal | None  # None = ainda sem preço; texto decimal (unitário, até 8 casas)
     as_of: date | None
     is_manual: bool
 
@@ -59,7 +60,7 @@ async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
             ManualPrice(
                 ticker=ticker,
                 label=label,
-                price_brl=float(row["price_brl"]) if row else None,
+                price_brl=row["price_brl"] if row else None,
                 as_of=today_brt(row["fetched_at"]) if row else None,
                 is_manual=bool(row["is_manual"]) if row else False,
             )

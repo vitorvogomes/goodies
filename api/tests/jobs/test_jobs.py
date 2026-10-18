@@ -50,6 +50,17 @@ class TestJobsStatus:
         assert datetime.fromisoformat(by["db_backup"]["next_run"]) > now
 
     @pytest.mark.asyncio
+    async def test_no_next_run_when_scheduler_is_off(
+        self, api: AsyncClient, auth_headers: dict, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Com o scheduler desligado (ENABLE_SCHEDULER=false) nada vai rodar: sem "Próxima"."""
+        from config import settings
+
+        monkeypatch.setattr(settings, "enable_scheduler", False)
+        resp = await api.get("/api/v1/jobs/status", headers=auth_headers)
+        assert all(j["next_run"] is None for j in resp.json())
+
+    @pytest.mark.asyncio
     async def test_requires_auth(self, api: AsyncClient) -> None:
         resp = await api.get("/api/v1/jobs/status")
         assert resp.status_code in (401, 403)
