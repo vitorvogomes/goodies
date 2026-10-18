@@ -1,9 +1,10 @@
-"""Adapter do extrato Nubank (OFX e CSV) no protocolo `SourceAdapter` (AD-5 — Story 3.3).
+"""Adapter do extrato Nubank (OFX e CSV) no protocolo `SourceAdapter` (AD-5 — Stories 3.3 e 3.4).
 
 OFX: a conta vem do `ACCTID` do próprio arquivo e a dedup usa o FITID. CSV não traz conta: a prévia
 pede a escolha (`needs = ["account"]`) e a nova prévia leva `overrides = {"account_id": ...}`. A
 detecção de transferência interna (contas próprias + `LEDGER_SELF_IDENTIFIERS`) roda no `apply`,
-antes das regras.
+antes das regras. O OFX traz ainda o saldo informado (`LEDGERBAL` → `account_balances`) e o pagador
+das entradas (`transactions.payer`).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from .importer import (
     own_identifiers,
     parse_account_number,
     parse_csv,
+    parse_ledger_balance,
     parse_ofx,
 )
 
@@ -80,6 +82,10 @@ class NubankStatementAdapter:
             plan.rows.append(e)
         plan.new = len(plan.rows)
         plan.existing = len(entries) - plan.new
+        if parsed.source == "nubank_ofx":
+            balance = parse_ledger_balance(_text(parsed.content))
+            if balance is not None:
+                plan.reported_balance, plan.reported_balance_date = balance
         plan.fingerprint = {"new_ids": sorted(seen)}
         return plan
 
@@ -123,6 +129,16 @@ class NubankStatementAdapter:
             source=plan.source,
             batch_id=batch_id,
         )
+        if plan.reported_balance is not None and plan.reported_balance_date is not None:
+            # Saldo informado entra mesmo com 0 transações novas (Story 3.4).
+            await conn.execute(
+                "INSERT INTO account_balances (account_id, as_of, balance, batch_id) "
+                "VALUES ($1::uuid, $2, $3, $4::uuid) ON CONFLICT (account_id, as_of) DO NOTHING",
+                plan.account_id,
+                plan.reported_balance_date,
+                plan.reported_balance,
+                batch_id,
+            )
         return Applied(
             inserted=report.imported,
             months={e.date.replace(day=1) for e in plan.rows},
@@ -130,4 +146,5 @@ class NubankStatementAdapter:
         )
 
     async def undo(self, conn: asyncpg.Connection, batch_id: str) -> None:
+        await conn.execute("DELETE FROM account_balances WHERE batch_id = $1::uuid", batch_id)
         await conn.execute("DELETE FROM transactions WHERE batch_id = $1::uuid", batch_id)

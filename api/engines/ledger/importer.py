@@ -139,6 +139,41 @@ def parse_statement(filename: str, content: str) -> list[StatementEntry]:
     return parse_csv(content)
 
 
+_PIX_RECEIVED = re.compile(
+    r"^(?:Transfer[eê]ncia|Reembolso|Devolu[cç][aã]o)\s+recebid[ao]\s+(?:pelo\s+Pix\s+)?-\s+"
+    r"(?P<name>[^-]+?)\s+-\s",
+    re.IGNORECASE,
+)
+_CNPJ = re.compile(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b")
+
+
+def extract_payer(description: str, amount: Decimal) -> str | None:
+    """Pagador de uma entrada (Story 3.4): nome no Pix recebido, senão o CNPJ do memo. Saída não tem
+    pagador. Nunca decide categoria."""
+    if amount <= 0:
+        return None
+    match = _PIX_RECEIVED.match(description.strip())
+    if match:
+        return match.group("name").strip()
+    cnpj = _CNPJ.search(description)
+    return cnpj.group(0) if cnpj else None
+
+
+def parse_ledger_balance(content: str) -> tuple[Decimal, datetime.date] | None:
+    """Saldo informado do OFX: `<LEDGERBAL><BALAMT>` com a data de `<DTASOF>`."""
+    block = re.search(r"<LEDGERBAL>(.*?)</LEDGERBAL>", content, re.DOTALL)
+    if block is None:
+        return None
+    amount = _ofx_tag(block.group(1), "BALAMT")
+    asof = _ofx_tag(block.group(1), "DTASOF")
+    if not (amount and asof):
+        return None
+    try:
+        return Decimal(amount), datetime.date(int(asof[0:4]), int(asof[4:6]), int(asof[6:8]))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def parse_account_number(content: str) -> str | None:
     """Extrai o ACCTID (nº da conta) do OFX BANKACCTFROM. CSV não carrega conta -> None."""
     match = re.search(r"<ACCTID>([^\r\n<]*)", content)
@@ -188,8 +223,9 @@ async def insert_entries(
                 inserted = await conn.fetchval(
                     "INSERT INTO transactions "
                     "(account_id, date, amount, category, category_id, kind, description, "
-                    "external_id, batch_id, source, category_source, review_status) "
-                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
+                    "external_id, batch_id, source, payer, category_source, review_status) "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'suggestion', "
+                    "'pending') "
                     "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
                     "RETURNING id",
                     account_id,
@@ -202,6 +238,7 @@ async def insert_entries(
                     entry.external_id,
                     batch_id,
                     source,
+                    extract_payer(entry.description, entry.amount),
                 )
         except (asyncpg.PostgresError, InvalidOperation):
             report.errors += 1

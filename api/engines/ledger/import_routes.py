@@ -74,9 +74,7 @@ async def import_endpoint(
     target = await _resolve_account(db, parse_account_number(content), account_id)
     name = filename or ("extrato.ofx" if parse_account_number(content) else "extrato.csv")
     digest = hashlib.sha256(raw).hexdigest()
-    preview = await ingest_service.preview(
-        db, [(name, raw)], {digest: {"account_id": str(target)}}
-    )
+    preview = await ingest_service.preview(db, [(name, raw)], {digest: {"account_id": str(target)}})
     plan = preview.files[0]
     if plan.error is not None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, plan.error)
