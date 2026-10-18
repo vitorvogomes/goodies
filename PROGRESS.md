@@ -54,20 +54,20 @@
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 3.1 | Central de avisos e Sino | [x] | — |
-| 3.2 | Ativos com chave única | [x] | — |
-| 3.3 | Import com prévia e lote — protocolo e OFX do Nubank | [x] | — |
-| 3.4 | OFX completo — titular, pagador e saldo informado | [x] | — |
-| 3.5 | Operações de caixinha ligadas à transação | [x] | — |
-| 3.6 | Sugestão de categoria para toda transação nova | [x] | — |
-| 3.7 | CSV do Nubank | [x] | — |
-| 3.8 | Adapters da B3 — movimentação, negociação e consolidado | [x] | — |
-| 3.9 | Hub de import | [x] | — |
-| 3.10 | Revisão de transações | [x] | — |
-| 3.11 | Proposta de regra a partir da correção | [x] | — |
-| 3.12 | Saldo ancorado e conferência encadeada | [x] | — |
-| 3.13 | Conferência na tela e aviso de saldo divergente | [x] | — |
-| 3.14 | Desfazer o último lote e Histórico de imports | [x] | — |
+| 3.1 | Central de avisos e Sino | [x] | 066acad |
+| 3.2 | Ativos com chave única | [x] | 2c43f71 |
+| 3.3 | Import com prévia e lote — protocolo e OFX do Nubank | [x] | 5717487, 54ce71b |
+| 3.4 | OFX completo — titular, pagador e saldo informado | [x] | 037de71 |
+| 3.5 | Operações de caixinha ligadas à transação | [x] | 6e42e54, 54ce71b |
+| 3.6 | Sugestão de categoria para toda transação nova | [x] | 898fb2e |
+| 3.7 | CSV do Nubank | [x] | 616d5ea |
+| 3.8 | Adapters da B3 — movimentação, negociação e consolidado | [x] | 43bf870, 54ce71b |
+| 3.9 | Hub de import | [x] | da752d0 |
+| 3.10 | Revisão de transações | [x] | ad00d6e |
+| 3.11 | Proposta de regra a partir da correção | [x] | ec4c629, 54ce71b |
+| 3.12 | Saldo ancorado e conferência encadeada | [x] | 03512a2, 54ce71b |
+| 3.13 | Conferência na tela e aviso de saldo divergente | [x] | ccc4590 |
+| 3.14 | Desfazer o último lote e Histórico de imports | [x] | b748496, 54ce71b |
 
 ### Épico 4 — Painel principal
 
@@ -208,3 +208,4 @@
 | 2026-10-18 | m1 | Épico 3: 3.12 | Revisão 0027 aplicada com backup (pre-0027): accounts.opening_balance/opening_balance_date. ledger/calc: opening_balance, chained_check (cada intervalo parte do saldo informado anterior: diferença isolada) e month_checked (1º saldo ≥ fim do mês com tudo batendo até ele); ledger.service.pf_balance_check. scripts.ops.ancorar_saldo (backup antes; --relatorio só calcula): OFX mensais da PF em modo só-saldo (jul/2024 até a última transação; jun/2024 fora), âncora no saldo mais antigo, idempotente. Base real: âncora 31/07/2024, 28 saldos, 27 intervalos, 1 divergente (31/01–28/02/2025 → P8). |
 | 2026-10-18 | m1 | Épico 3: 3.13 | Bloco Fontes ganha a coluna Saldo: conta PF "conferido · dd/mm/aaaa" (intervalo mais recente bate) ou "divergente · R$ x" (intervalo divergente mais recente), via resolver que o ledger registra no ingest; MEI sem conferência. Provider "Saldo divergente em R$ x na conta PF." (divergência, um por intervalo, ação Ver transações → ?periodo=&conferencia=início_fim). GET /api/v1/ledger/balance-check/candidates: transações do intervalo ordenadas pela proximidade do valor com a diferença; seção de candidatas em Caixa › Transações. Selo de estado com tooltip (Radix Tooltip). Testado no navegador com a base real (fev/2025 divergente, 57 candidatas). |
 | 2026-10-18 | m1 | Épico 3: 3.14 | API: GET /api/v1/ingest/batches (lotes do mais recente para o mais antigo, arquivos — do plano quando desfeito —, novos, undoable só no último applied com até 7 dias, nota de prazo encerrado ou só legado), POST /batches/{id}/undo/preview (contagens dos adapters + operações derivadas do portfolio) e /undo (uma transação: hooks on_batch_undo em ordem decrescente de camada, undo dos adapters, arquivos; lote undone, mark_dirty, XIRR invalidado; operação protegida trava → 409). Protocolo: undo_preview e undo devolvendo os meses. Ledger: sai regra created_in_batch (as de fora voltam por categorize sem ela, pendentes), saldos do lote (âncora recalculada se estava neles) e transações; B3: operações não protegidas e snapshots. Histórico de imports no rodapé do Hub com Desfazer, Diálogo "Remove {n} transações, … do lote de dd/mm/aaaa." (foco em Cancelar), falha com Tentar de novo. Testado no navegador. |
+| 2026-10-18 | m1 | Épico 3 fechado | Ritual semanal roda na v2 (Hub → prévia → confirmar → Revisão → regra → conferido → desfazer). Code review: 10 achados aplicados com teste (54ce71b): regra nova só onde vence (mais longa/recente); apagar transação leva a operação derivada (hook do portfolio; protegida → 409); âncora recalculada sem as transações do lote desfeito; confirmar sem nada novo não deixa lote vazio; ids do ingest validados e nova prévia substitui a antiga; preço do consolidado invalidado só depois do commit e desfazer volta ao preço do consolidado anterior; avisos sem recalcular cobertura/conferência; chained_check com somas acumuladas; período do Nubank pelo nome do arquivo; histórico de sugestão com cache por versão; upsert_price/clear_manual_price movidos para market (AD-1, hook on_price_changed). Suíte 731 verde, cov 93,59%, 0 dados_reais pulados; mypy limpo; web 38 Vitest + lint + build. Pendência nova P8 (saldo PF de fev/2025). |
