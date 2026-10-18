@@ -40,14 +40,14 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 };
 
 const INLINE_INPUT =
-  "w-full rounded border border-accent/40 bg-background px-1.5 py-1 text-foreground outline-none";
+  "w-full rounded border border-ring bg-background px-1.5 py-1 text-foreground outline-none";
 
 // ---------------------------------------------------------------- Breakdown
 
 type Tone = "gain" | "loss" | "invest";
 
 function BreakdownRow({ row, tone }: { row: CategoryBreakdownRow; tone: Tone }) {
-  const bar = tone === "gain" ? "bg-gain/70" : tone === "loss" ? "bg-loss/70" : "bg-accent/70";
+  const bar = tone === "gain" ? "bg-positive/70" : tone === "loss" ? "bg-negative/70" : "bg-chart-2";
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between text-sm">
@@ -80,7 +80,7 @@ function BreakdownSection({
   note?: string;
 }) {
   const totalColor =
-    tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-accent";
+    tone === "gain" ? "text-positive" : tone === "loss" ? "text-negative" : "text-foreground";
   return (
     <Card>
       <div className="mb-4 flex items-baseline justify-between">
@@ -128,7 +128,7 @@ function CategoryBreakdownCard() {
       </div>
 
       {breakdown.isLoading && <p className="text-foreground/50">Carregando…</p>}
-      {breakdown.isError && <p className="text-loss">Erro ao carregar o breakdown.</p>}
+      {breakdown.isError && <p className="text-negative">Erro ao carregar o breakdown.</p>}
       {data && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <BreakdownSection
@@ -221,7 +221,7 @@ function CategoryRow({
         <select
           value={cat.kind}
           onChange={(e) => onUpdate(cat.id, { kind: e.target.value as CategoryKind })}
-          className="cursor-pointer rounded border-0 bg-transparent py-0.5 text-foreground/60 outline-none hover:text-foreground focus:ring-1 focus:ring-accent/40"
+          className="cursor-pointer rounded border-0 bg-transparent py-0.5 text-foreground/60 outline-none hover:text-foreground focus:ring-1 focus-visible:ring-ring"
         >
           {KINDS.map((k) => (
             <option key={k} value={k}>
@@ -263,7 +263,7 @@ function CategoryRow({
           onClick={() => onUpdate(cat.id, { is_active: !cat.is_active })}
           className={
             cat.is_active
-              ? "rounded-full bg-gain/15 px-2 py-0.5 text-xs text-gain"
+              ? "rounded-full bg-positive/15 px-2 py-0.5 text-xs text-positive"
               : "rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/40"
           }
         >
@@ -275,7 +275,7 @@ function CategoryRow({
           type="button"
           onClick={() => onDelete(cat.id)}
           aria-label="Excluir categoria"
-          className="text-foreground/30 hover:text-loss"
+          className="text-foreground/30 hover:text-negative"
         >
           ✕
         </button>
@@ -352,7 +352,7 @@ function CategoryManager() {
           Adicionar
         </Button>
       </div>
-      {error && <p className="mb-3 text-sm text-loss">{error}</p>}
+      {error && <p className="mb-3 text-sm text-negative">{error}</p>}
 
       <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -473,7 +473,7 @@ function FixedCostRow({
           </select>
         </td>
         <td className="space-x-3 px-3 py-2 text-right">
-          <button type="button" onClick={save} className="text-sm text-accent hover:underline">
+          <button type="button" onClick={save} className="text-sm text-positive hover:underline">
             Salvar
           </button>
           <button
@@ -506,7 +506,7 @@ function FixedCostRow({
           type="button"
           onClick={() => onDelete(fc.id)}
           aria-label="Excluir custo fixo"
-          className="text-foreground/30 hover:text-loss"
+          className="text-foreground/30 hover:text-negative"
         >
           ✕
         </button>
@@ -650,8 +650,8 @@ function SuggestionsCard() {
             <span className="min-w-0 flex-1 truncate" title={s.description}>
               {s.description}
             </span>
-            <span className="shrink-0 tabular-nums text-loss">{formatBRL(s.amount)}</span>
-            <span className="shrink-0 rounded bg-accent/15 px-2 py-0.5 text-xs text-accent">
+            <span className="shrink-0 tabular-nums text-negative">{formatBRL(s.amount)}</span>
+            <span className="shrink-0 rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
               {s.suggested_category}
             </span>
             <Button

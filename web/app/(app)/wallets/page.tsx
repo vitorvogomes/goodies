@@ -62,8 +62,8 @@ function EditableNumber({
         <span
           className={
             error
-              ? "text-[10px] text-loss"
-              : "text-[10px] text-foreground/30 group-hover:text-accent"
+              ? "text-[10px] text-negative"
+              : "text-[10px] text-foreground/30 group-hover:text-positive"
           }
           title={error ? "Falha ao salvar — tente de novo" : "Editar"}
         >
@@ -85,7 +85,7 @@ function EditableNumber({
         if (e.key === "Enter") commit();
         else if (e.key === "Escape") setEditing(false);
       }}
-      className="w-28 rounded border border-border bg-muted/40 px-2 py-1 text-right tabular-nums text-foreground outline-none focus:border-accent"
+      className="w-28 rounded border border-border bg-muted/40 px-2 py-1 text-right tabular-nums text-foreground outline-none focus-visible:border-ring"
     />
   );
 }
@@ -202,7 +202,7 @@ function PositionRow({ p }: { p: WalletPosition }) {
           <button
             onClick={() => del.mutate({ chain: p.chain, asset_symbol: p.asset_symbol })}
             disabled={del.isPending}
-            className="text-xs text-loss/80 hover:text-loss disabled:opacity-50"
+            className="text-xs text-negative/80 hover:text-negative disabled:opacity-50"
             aria-label="Remover posição manual"
           >
             ✕
@@ -267,7 +267,7 @@ function ManualForm() {
           </Button>
         </div>
       </form>
-      {error && <p className="mt-2 text-sm text-loss">{error}</p>}
+      {error && <p className="mt-2 text-sm text-negative">{error}</p>}
     </Card>
   );
 }
@@ -298,7 +298,7 @@ function DefiRow({ d }: { d: DefiPosition }) {
         <button
           onClick={() => del.mutate(d.id)}
           disabled={del.isPending}
-          className="text-xs text-loss/80 hover:text-loss disabled:opacity-50"
+          className="text-xs text-negative/80 hover:text-negative disabled:opacity-50"
           aria-label="Remover posição DeFi"
         >
           ✕ remover
@@ -378,7 +378,7 @@ function DefiSection() {
             )}
             {isError && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-loss">
+                <td colSpan={7} className="px-4 py-6 text-center text-negative">
                   Erro ao carregar DeFi.
                 </td>
               </tr>
@@ -439,7 +439,7 @@ function DefiSection() {
           </Button>
         </div>
       </form>
-      {error && <p className="mt-2 text-sm text-loss">{error}</p>}
+      {error && <p className="mt-2 text-sm text-negative">{error}</p>}
     </Card>
   );
 }
@@ -509,7 +509,7 @@ export default function WalletsPage() {
           {isError && (
             <tbody>
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-loss">
+                <td colSpan={7} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar carteiras.
                 </td>
               </tr>

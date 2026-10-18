@@ -18,12 +18,12 @@ const TIPOS: OperationTipo[] = [
 ];
 
 const TIPO_COLOR: Record<OperationTipo, string> = {
-  compra: "text-accent",
-  aporte: "text-accent",
-  venda: "text-gain",
-  resgate: "text-gain",
-  dividendo: "text-gain",
-  juros: "text-gain",
+  compra: "text-foreground",
+  aporte: "text-foreground",
+  venda: "text-positive",
+  resgate: "text-positive",
+  dividendo: "text-positive",
+  juros: "text-positive",
 };
 
 export default function HistoryPage() {
@@ -109,7 +109,7 @@ export default function HistoryPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-loss">
+                <td colSpan={6} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar operações.
                 </td>
               </tr>

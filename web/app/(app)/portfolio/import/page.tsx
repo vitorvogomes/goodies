@@ -27,7 +27,7 @@ function ReportRows({ report }: { report: ImportB3Report }) {
           <dt className="text-foreground/60">
             {report.dry_run ? "Preços a atualizar" : "Preços atualizados"}
           </dt>
-          <dd className="text-right tabular-nums text-gain">{report.prices_upserted}</dd>
+          <dd className="text-right tabular-nums text-positive">{report.prices_upserted}</dd>
           {report.prices_skipped_manual > 0 && (
             <>
               <dt className="text-foreground/60">Mantidos manuais (não tocados)</dt>
@@ -42,7 +42,7 @@ function ReportRows({ report }: { report: ImportB3Report }) {
           <dt className="text-foreground/60">
             {report.dry_run ? "A importar" : "Importadas"}
           </dt>
-          <dd className="text-right tabular-nums text-gain">{report.imported}</dd>
+          <dd className="text-right tabular-nums text-positive">{report.imported}</dd>
           <dt className="text-foreground/60">Duplicadas (ignoradas)</dt>
           <dd className="text-right tabular-nums">{report.skipped_duplicate}</dd>
           <dt className="text-foreground/60">Já cobertas (outra fonte)</dt>
@@ -125,12 +125,12 @@ export default function ImportB3Page() {
             type="file"
             accept=".xlsx"
             onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-            className="w-full text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-2 file:text-white hover:file:bg-accent/90"
+            className="w-full text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:text-primary-foreground file:px-4 file:py-2 hover:file:bg-primary/80"
           />
         </Field>
 
         {error && (
-          <p role="alert" className="text-sm text-loss">
+          <p role="alert" className="text-sm text-negative">
             {error}
           </p>
         )}
@@ -174,7 +174,7 @@ export default function ImportB3Page() {
 
       {confirmed && (
         <Card>
-          <p className="mb-3 text-sm text-gain">Importado com sucesso</p>
+          <p className="mb-3 text-sm text-positive">Importado com sucesso</p>
           <ReportRows report={confirmed} />
         </Card>
       )}

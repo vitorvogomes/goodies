@@ -14,7 +14,7 @@ const EPS = 5e-9;
 
 function deltaClass(delta: number): string {
   if (Math.abs(delta) < EPS) return "text-foreground/40";
-  return delta > 0 ? "text-gain" : "text-loss";
+  return delta > 0 ? "text-positive" : "text-negative";
 }
 
 function fmtDelta(delta: number): string {
@@ -26,7 +26,7 @@ function fmtDelta(delta: number): string {
 function ValuePanel() {
   const { data: s } = useCryptoSleeve();
   if (!s) return null;
-  const tone = s.resultado < 0 ? "text-loss" : "text-gain";
+  const tone = s.resultado < 0 ? "text-negative" : "text-positive";
   return (
     <div className="rounded-2xl border border-border bg-muted/20 p-4">
       <div className="mb-3 text-xs font-medium uppercase tracking-wide text-foreground/60">
@@ -125,7 +125,7 @@ export default function ReconciliationPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-loss">
+                <td colSpan={4} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar a reconciliação.
                 </td>
               </tr>

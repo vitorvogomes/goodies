@@ -31,7 +31,7 @@ export default function AllocationPage() {
       </h1>
 
       {isLoading && <p className="text-foreground/50">Carregando…</p>}
-      {isError && <p className="text-loss">Erro ao carregar alocação.</p>}
+      {isError && <p className="text-negative">Erro ao carregar alocação.</p>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
@@ -96,7 +96,7 @@ export default function AllocationPage() {
                       {c.desvio_pp != null && (
                         <span
                           className={`ml-2 ${
-                            c.desvio_pp >= 0 ? "text-gain" : "text-loss"
+                            c.desvio_pp >= 0 ? "text-positive" : "text-negative"
                           }`}
                         >
                           {formatPP(c.desvio_pp)}
@@ -110,7 +110,7 @@ export default function AllocationPage() {
                     <span>
                       {alvo != null && <>alvo {formatBRL(alvo)}</>}
                       {desvioBrl != null && (
-                        <span className={`ml-2 ${desvioBrl >= 0 ? "text-gain" : "text-loss"}`}>
+                        <span className={`ml-2 ${desvioBrl >= 0 ? "text-positive" : "text-negative"}`}>
                           {desvioBrl >= 0 ? "+" : ""}
                           {formatBRL(desvioBrl)}
                         </span>
@@ -120,7 +120,7 @@ export default function AllocationPage() {
                   {/* barra: atual (cheia) com marcador da meta */}
                   <div className="relative h-2 overflow-hidden rounded bg-muted">
                     <div
-                      className="h-full rounded bg-accent/70"
+                      className="h-full rounded bg-chart-2"
                       style={{ width: `${Math.min(100, c.pct_atual)}%` }}
                     />
                     {c.pct_meta != null && (

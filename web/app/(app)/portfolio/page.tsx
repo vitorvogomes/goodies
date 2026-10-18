@@ -25,7 +25,7 @@ export default function PortfolioPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card>
           <p className="text-sm text-foreground/50">XIRR consolidado (a.a.)</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums text-gain">
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-positive">
             {xirr.isLoading ? "…" : formatRate(xirr.data?.consolidated ?? null)}
           </p>
         </Card>
@@ -40,7 +40,7 @@ export default function PortfolioPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href}>
-            <Card className="transition hover:border-accent/50">
+            <Card className="transition hover:border-ring">
               <p className="font-medium text-foreground/90">{l.label}</p>
               <p className="mt-0.5 text-sm text-foreground/50">{l.desc}</p>
             </Card>

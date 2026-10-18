@@ -82,7 +82,7 @@ function PriceCell({ pos }: { pos: Position }) {
         type="button"
         title={auto ? "Automático via API — clique para sobrescrever (vira manual)" : "Clique para definir o preço manual"}
         onClick={() => setEditing(true)}
-        className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-accent hover:text-foreground"
+        className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-ring hover:text-foreground"
       >
         {pos.preco_atual != null ? formatBRL(pos.preco_atual) : "definir ✎"}
       </button>
@@ -96,7 +96,7 @@ function PriceCell({ pos }: { pos: Position }) {
           type="button"
           title="Voltar ao automático (o worker volta a cotar)"
           onClick={() => revert.mutate(pos.asset_symbol)}
-          className="text-[11px] text-foreground/40 hover:text-accent"
+          className="text-[11px] text-foreground/40 hover:text-positive"
         >
           ↺
         </button>
@@ -144,7 +144,7 @@ function ValueCell({ pos }: { pos: Position }) {
       type="button"
       title="Clique para informar o valor atual (o preço é recalculado)"
       onClick={() => setEditing(true)}
-      className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-accent hover:text-foreground"
+      className="cursor-text border-b border-dashed border-foreground/30 tabular-nums hover:border-ring hover:text-foreground"
     >
       {pos.valor_atual != null ? formatBRL(pos.valor_atual) : "definir ✎"}
     </button>
@@ -155,7 +155,7 @@ function ResultCell({ pos }: { pos: Position }) {
   if (pos.resultado == null || pos.resultado_pct == null) {
     return <span className="text-foreground/40">—</span>;
   }
-  const tone = pos.resultado >= 0 ? "text-gain" : "text-loss";
+  const tone = pos.resultado >= 0 ? "text-positive" : "text-negative";
   return (
     <span className={`tabular-nums ${tone}`}>
       {formatBRL(pos.resultado)}{" "}
@@ -175,7 +175,7 @@ function IncomeCard() {
         <span className="text-xs font-medium uppercase tracking-wide text-foreground/60">
           💰 Rendimentos recebidos (dividendos / juros)
         </span>
-        <span className="tabular-nums text-sm font-medium text-gain">
+        <span className="tabular-nums text-sm font-medium text-positive">
           {formatBRL(income.total)}
         </span>
       </div>
@@ -249,7 +249,7 @@ export default function PositionsPage() {
           </span>
           <span>
             Resultado{" "}
-            <span className={`tabular-nums ${totalResult < 0 ? "text-loss" : "text-gain"}`}>
+            <span className={`tabular-nums ${totalResult < 0 ? "text-negative" : "text-positive"}`}>
               {formatBRL(totalResult)}
             </span>
           </span>
@@ -279,7 +279,7 @@ export default function PositionsPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-loss">
+                <td colSpan={7} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar posições.
                 </td>
               </tr>
@@ -350,7 +350,7 @@ export default function PositionsPage() {
                       {g.subtotalCusto > 0 ? (
                         <span
                           className={`font-medium tabular-nums ${
-                            g.subtotalResult < 0 ? "text-loss" : "text-gain"
+                            g.subtotalResult < 0 ? "text-negative" : "text-positive"
                           }`}
                         >
                           {formatBRL(g.subtotalResult)}{" "}
@@ -377,7 +377,7 @@ export default function PositionsPage() {
             <span className="text-xs font-medium uppercase tracking-wide text-foreground/60">
               🪙 Cripto (bloco)
             </span>
-            <a href="/wallets" className="text-xs text-accent hover:underline">
+            <a href="/wallets" className="text-xs text-positive hover:underline">
               ver Carteiras →
             </a>
           </div>
@@ -398,13 +398,13 @@ export default function PositionsPage() {
             </div>
             <div>
               <div className="text-xs text-foreground/50">Resultado</div>
-              <div className={`tabular-nums ${sleeve.resultado < 0 ? "text-loss" : "text-gain"}`}>
+              <div className={`tabular-nums ${sleeve.resultado < 0 ? "text-negative" : "text-positive"}`}>
                 {formatBRL(sleeve.resultado)}
               </div>
             </div>
             <div>
               <div className="text-xs text-foreground/50">XIRR</div>
-              <div className={`tabular-nums ${(sleeve.xirr ?? 0) < 0 ? "text-loss" : "text-gain"}`}>
+              <div className={`tabular-nums ${(sleeve.xirr ?? 0) < 0 ? "text-negative" : "text-positive"}`}>
                 {formatRate(sleeve.xirr)}
               </div>
             </div>

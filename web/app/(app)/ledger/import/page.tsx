@@ -73,12 +73,12 @@ export default function ImportPage() {
             type="file"
             accept=".ofx,.csv"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="w-full text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-2 file:text-white hover:file:bg-accent/90"
+            className="w-full text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:text-primary-foreground file:px-4 file:py-2 hover:file:bg-primary/80"
           />
         </Field>
 
         {error && (
-          <p role="alert" className="text-sm text-loss">
+          <p role="alert" className="text-sm text-negative">
             {error}
           </p>
         )}
@@ -95,7 +95,7 @@ export default function ImportPage() {
             <dt className="text-foreground/60">Linhas lidas</dt>
             <dd className="text-right tabular-nums">{report.parsed}</dd>
             <dt className="text-foreground/60">Importadas (novas)</dt>
-            <dd className="text-right tabular-nums text-gain">{report.imported}</dd>
+            <dd className="text-right tabular-nums text-positive">{report.imported}</dd>
             {Object.entries(report.by_kind).map(([kind, n]) => (
               <Fragment key={kind}>
                 <dt className="pl-3 text-foreground/45">↳ {KIND_LABEL[kind] ?? kind}</dt>
@@ -105,7 +105,7 @@ export default function ImportPage() {
             <dt className="text-foreground/60">Duplicadas (ignoradas)</dt>
             <dd className="text-right tabular-nums">{report.duplicates}</dd>
             <dt className="text-foreground/60">Erros</dt>
-            <dd className={`text-right tabular-nums ${report.errors > 0 ? "text-loss" : ""}`}>
+            <dd className={`text-right tabular-nums ${report.errors > 0 ? "text-negative" : ""}`}>
               {report.errors}
             </dd>
           </dl>

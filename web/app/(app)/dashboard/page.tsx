@@ -8,7 +8,7 @@ import { useAlerts, useMonthlySummaries, useProjection } from "@/lib/ledger";
 import type { MonthlySummary } from "@/types/ledger";
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "gain" | "loss" }) {
-  const color = tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-foreground";
+  const color = tone === "gain" ? "text-positive" : tone === "loss" ? "text-negative" : "text-foreground";
   return (
     <Card>
       <p className="text-sm text-foreground/50">{label}</p>
@@ -42,13 +42,13 @@ function SavingsTrend({ months }: { months: MonthlySummary[] }) {
       <p className="mb-4 text-sm text-foreground/50">Taxa de poupança (últimos meses)</p>
       <div className="flex h-40 items-end gap-3">
         {data.map((m) => (
-          <div key={m.month} className="flex flex-1 flex-col items-center gap-1.5">
+          <div key={m.month} className="flex h-full flex-1 flex-col items-center gap-1.5">
             <span className="text-xs tabular-nums text-foreground/60">
               {Math.round(m.savings_rate)}%
             </span>
             <div className="flex w-full flex-1 items-end">
               <div
-                className="w-full rounded-t bg-gain/70"
+                className="w-full rounded-t bg-positive/70"
                 style={{ height: `${Math.max(2, Math.min(100, m.savings_rate))}%` }}
               />
             </div>
@@ -80,7 +80,7 @@ export default function DashboardPage() {
       )}
 
       {summaries.isLoading && <p className="text-foreground/50">Carregando…</p>}
-      {summaries.isError && <p className="text-loss">Erro ao carregar o resumo.</p>}
+      {summaries.isError && <p className="text-negative">Erro ao carregar o resumo.</p>}
       {summaries.data && !latest && (
         <p className="text-foreground/50">Sem transações ainda. Adicione a primeira em “Nova transação”.</p>
       )}
@@ -100,7 +100,7 @@ export default function DashboardPage() {
                   <span className="text-foreground/60">{p.days} dias</span>
                   <span
                     className={`tabular-nums ${
-                      p.projected_balance < 0 ? "text-loss" : "text-foreground"
+                      p.projected_balance < 0 ? "text-negative" : "text-foreground"
                     }`}
                   >
                     {formatBRL(p.projected_balance)}

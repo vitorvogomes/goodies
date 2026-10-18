@@ -47,7 +47,7 @@ export default function RebalancingPage() {
       </Card>
 
       {isLoading && <p className="text-foreground/50">Calculando…</p>}
-      {isError && <p className="text-loss">Erro ao calcular rebalanceamento.</p>}
+      {isError && <p className="text-negative">Erro ao calcular rebalanceamento.</p>}
 
       {data && data.message && (
         <Card>
@@ -75,7 +75,7 @@ export default function RebalancingPage() {
                       {data.deviations_pp[cat] != null ? (
                         <span
                           className={
-                            data.deviations_pp[cat] >= 0 ? "text-gain" : "text-loss"
+                            data.deviations_pp[cat] >= 0 ? "text-positive" : "text-negative"
                           }
                         >
                           {formatPP(data.deviations_pp[cat])}
@@ -84,7 +84,7 @@ export default function RebalancingPage() {
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-accent">
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-positive">
                       {formatBRL(value)}
                     </td>
                   </tr>

@@ -23,10 +23,10 @@ function Legend() {
   );
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground/50">
-      {item("bg-gain", "via API (atual)")}
+      {item("bg-positive", "via API (atual)")}
       {item("bg-warning", "via API (desatualizado)")}
-      {item("bg-accent", "manual (você definiu)")}
-      {item("bg-loss", "não encontrado")}
+      {item("bg-primary", "manual (você definiu)")}
+      {item("bg-negative", "não encontrado")}
     </div>
   );
 }
@@ -86,7 +86,7 @@ export default function MarketPricesPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-loss">
+                <td colSpan={6} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar preços.
                 </td>
               </tr>

@@ -19,9 +19,9 @@ const LIMIT = 50;
 
 // Cor do valor pelo tipo (não pelo sinal): investimento/transferência não são "perda".
 const KIND_COLOR: Record<CategoryKind, string> = {
-  income: "text-gain",
-  expense: "text-loss",
-  investment: "text-accent",
+  income: "text-positive",
+  expense: "text-negative",
+  investment: "text-foreground",
   transfer: "text-foreground/50",
 };
 
@@ -67,7 +67,7 @@ function TransactionRow({
                 setEditingDesc(false);
               }
             }}
-            className="w-full rounded border border-accent/40 bg-background px-1.5 py-1 text-foreground outline-none"
+            className="w-full rounded border border-ring bg-background px-1.5 py-1 text-foreground outline-none"
           />
         ) : (
           <button
@@ -89,7 +89,7 @@ function TransactionRow({
         <select
           value={tx.category}
           onChange={(e) => onSave(tx.id, { category: e.target.value })}
-          className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-foreground/80 outline-none transition hover:border-accent/40 focus:border-accent focus:ring-2 focus:ring-accent/40"
+          className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-foreground/80 outline-none transition hover:border-ring focus-visible:border-ring focus:ring-2 focus-visible:ring-ring"
         >
           {options.map((name) => (
             <option key={name} value={name} className="bg-background text-foreground">
@@ -198,18 +198,18 @@ export default function LedgerPage() {
         <div className="flex flex-wrap justify-end gap-x-5 gap-y-1 text-xs text-foreground/50">
           {data.total_income > 0 && (
             <span>
-              Receita <span className="tabular-nums text-gain">{formatBRL(data.total_income)}</span>
+              Receita <span className="tabular-nums text-positive">{formatBRL(data.total_income)}</span>
             </span>
           )}
           {data.total_expense > 0 && (
             <span>
-              Despesa <span className="tabular-nums text-loss">{formatBRL(data.total_expense)}</span>
+              Despesa <span className="tabular-nums text-negative">{formatBRL(data.total_expense)}</span>
             </span>
           )}
           {data.total_invested !== 0 && (
             <span>
               Investido{" "}
-              <span className="tabular-nums text-accent">{formatBRL(data.total_invested)}</span>
+              <span className="tabular-nums text-foreground">{formatBRL(data.total_invested)}</span>
             </span>
           )}
           {data.transfer_count > 0 && (
@@ -221,7 +221,7 @@ export default function LedgerPage() {
           {(data.total_income > 0 || data.total_expense > 0) && (
             <span>
               Líquido{" "}
-              <span className={`tabular-nums ${net < 0 ? "text-loss" : "text-gain"}`}>
+              <span className={`tabular-nums ${net < 0 ? "text-negative" : "text-positive"}`}>
                 {formatBRL(net)}
               </span>
             </span>
@@ -250,7 +250,7 @@ export default function LedgerPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-loss">
+                <td colSpan={5} className="px-4 py-8 text-center text-negative">
                   Erro ao carregar transações.
                 </td>
               </tr>

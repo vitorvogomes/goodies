@@ -36,7 +36,7 @@ export default function TransitPage() {
       </div>
 
       {isLoading && <p className="text-sm text-foreground/40">Carregando…</p>}
-      {isError && <p className="text-sm text-loss">Falha ao carregar.</p>}
+      {isError && <p className="text-sm text-negative">Falha ao carregar.</p>}
 
       {data && (
         <>
@@ -107,7 +107,7 @@ export default function TransitPage() {
               <dt className="text-foreground/60">Resultado</dt>
               <dd
                 className={`text-right tabular-nums ${
-                  data.crypto.resultado_brl >= 0 ? "text-gain" : "text-loss"
+                  data.crypto.resultado_brl >= 0 ? "text-positive" : "text-negative"
                 }`}
               >
                 {formatBRL(data.crypto.resultado_brl)}

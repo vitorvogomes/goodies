@@ -138,7 +138,7 @@ export default function NewTransactionPage() {
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
+            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition focus-visible:border-ring focus:ring-2 focus-visible:ring-ring"
           />
         </Field>
 
@@ -147,13 +147,13 @@ export default function NewTransactionPage() {
             type="checkbox"
             checked={isRecurring}
             onChange={(e) => setIsRecurring(e.target.checked)}
-            className="h-4 w-4 rounded border-border bg-background accent-accent"
+            className="h-4 w-4 rounded border-border bg-background accent-primary"
           />
           Recorrente (receita/despesa fixa mensal)
         </label>
 
         {error && (
-          <p role="alert" className="text-sm text-loss">
+          <p role="alert" className="text-sm text-negative">
             {error}
           </p>
         )}
