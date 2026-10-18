@@ -172,12 +172,12 @@
 
 | # | Story | Status | Commit |
 |---|---|---|---|
-| 10.1 | Ajustes › Contas | [x] | — |
-| 10.2 | Ajustes › Preços manuais | [x] | — |
-| 10.3 | Ajustes › Atualização | [x] | — |
-| 10.4 | Revisão final das abas de Ajustes e checagem de teclado | [x] | — |
-| 10.5 | Métricas de sucesso num comando | [x] | — |
-| 10.6 | Fim das telas da v1 | [x] | — |
+| 10.1 | Ajustes › Contas | [x] | 8dbc006 |
+| 10.2 | Ajustes › Preços manuais | [x] | 1933b94 |
+| 10.3 | Ajustes › Atualização | [x] | 6369641 |
+| 10.4 | Revisão final das abas de Ajustes e checagem de teclado | [x] | eef027b |
+| 10.5 | Métricas de sucesso num comando | [x] | 17fa6b4 |
+| 10.6 | Fim das telas da v1 | [x] | 8dcdb6d |
 
 **Gate marco 4 (`/gate m4`):**
 - `metricas` mostra SM-1 ≥ 30 dias seguidos sem abrir a planilha; SM-2, SM-3 e SM-5 dentro da meta.
@@ -261,3 +261,4 @@
 | 2026-10-18 | m4 | Épico 10: 10.5 | Revisão 0044 aplicada com backup (pre-0044): metric_events (sm1_inicio / planilha_aberta, escopo caixa ou v2). scripts/ops/metricas: --de/--ate imprime SM-2 (fechados com saldo PF conferido), SM-3 (fechados dentro da tolerância do consolidado B3 do fim do mês; sem consolidado = sem origem), SM-4 (preços digitados para ativos com fonte de mercado), SM-5 (% por regra por semana, só cause import), SM-6 (correções por semana, só review/inline_edit), SM-C1 (% das automáticas corrigidas depois) e SM-C2 (avisos dispensados), só lendo; --sm1-inicio e --planilha-aberta gravam o registro da SM-1 (abrir para a caixa zera os dois escopos). SM-1 iniciada na base real em 18/10/2026 (caixa e v2 — P15). Base real hoje: SM-2 7 de 23 (P8), SM-3 4 de 7 com origem (os passageiros já registrados no P19), SM-4 0. |
 | 2026-10-18 | m4 | Épico 10: 10.6 | Telas v1 apagadas com redirect para a aba v2 (tabela rota v1 → substituto em docs/v2/stories/10.6-fim-das-telas-v1.md; nenhuma sem substituto; /portfolio/history → bloco Operações em Posições, GET /api/v1/portfolio/operations com total por operação). Saíram ui.tsx, Money.tsx, TabPlaceholder, "Telas da v1" do nav, o selo v1 de dev/tema, libs/hooks/tipos só da v1; no-raw-color sem exceção. API: rotas legadas sem uso no web nem no Hermes removidas (/transactions, /categories, /fixed-costs, /cashflow*, /ledger/import, /asset-operations*, /portfolio/xirr|positions|allocation|rebalancing|income|ir-*|crypto-sleeve|import-b3|transit) com o código que só elas usavam; testes de serviço chamam os serviços direto. Revisão 0045 aplicada com backup (pre-0045): saem transactions.category, fixed_costs.category e categories.match_patterns (guarda: custo fixo sem subcategoria ou padrão sem regra param a revisão; fixed_costs.category_id obrigatório; INSERT sem category_id cai em a classificar pelo sinal); invariante dados_reais mês × categoria, custos fixos, poupança e regras iguais, ida e volta idempotente. Escritores do texto (import, manual, categorize, renome, custo fixo, Hermes, oneoffs) passaram ao category_id. Smoke: redirects, Operações com filtros, 10 telas sem falha, lançar/editar/apagar transação e CRUD de categoria. P27. |
 | 2026-10-18 | m4 | Épico 10: review | Code review f93083e..HEAD aplicado: SM-5 com denominador = transações novas do Hub (lote não legado), inclusive as sem categoria; SM-6 só conta mudança de categoria; SM-C1 só correção depois da confirmação; limites e semanas das métricas em BRT; SM-3 mostra as carteiras conferidas hoje; uma conta PF só (409 na segunda) e o formulário de Contas não grava PF em conta sem tipo; preço unitário manual e da lista de Operações em Decimal até 8 casas (abaixo de 1 centavo não zera); sem "Próxima" com o scheduler desligado; link do fechamento para Ajustes › Atualização; filtro de Operações com debounce e lista anterior até a nova chegar. |
+| 2026-10-18 | m4 | Épico 10 fechado + gate m4 | Review da2b4cd. Commits 8dbc006, 1933b94, 6369641, eef027b, 17fa6b4, 8dcdb6d. Gate m4 = **FAIL** só nas métricas de uso, que dependem do Vitor e de tempo: SM-1 = 0 dias (iniciada em 18/10/2026; meta ≥ 30 — P15), SM-2 = 7 de 23 meses fechados com saldo PF conferido (P8, P12), SM-3 = 4 de 7 meses com consolidado B3 dentro da tolerância (16 sem consolidado; carteiras 9 de 9 hoje — P19), SM-5 sem dado (nenhum import pelo Hub ainda; a base inteira está no lote legado). PASS no resto: suíte 93,82% sem nenhum dados_reais pulado, mypy, pnpm test/lint/build, health 200 com postgres+redis, banco no head (0045), todas as stories [x], nenhuma rota v1 sem substituto (docs/v2/stories/10.6-fim-das-telas-v1.md), no raw color sem exceções. |
