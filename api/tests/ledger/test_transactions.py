@@ -15,7 +15,7 @@ async def test_create_transaction(api, auth_headers, account):
             "account_id": account,
             "date": "2099-03-10",
             "amount": -123.45,
-            "category": "alimentação",
+            "category": "Alimentação",
             "description": "mercado",
         },
         headers=auth_headers,
@@ -23,7 +23,7 @@ async def test_create_transaction(api, auth_headers, account):
     assert resp.status_code == 201
     body = resp.json()
     assert body["amount"] == -123.45
-    assert body["category"] == "alimentação"
+    assert body["category"] == "Alimentação"
     assert body["kind"] == "expense"  # derivado da categoria semeada
     assert body["is_recurring"] is False
 
@@ -41,20 +41,30 @@ async def test_create_derives_investment_kind_from_category(api, auth_headers, a
     assert listed.json()["total_expense"] == 0.0  # não conta como consumo
 
 
-async def test_create_with_explicit_kind_overrides(api, auth_headers, account):
+async def test_kind_comes_from_category_group_and_unknown_category_is_refused(
+    api, auth_headers, account
+):
+    # Story 2.5 (AD-6): o kind é cópia do grupo da subcategoria; categoria inexistente → 422.
     resp = await api.post(
         "/api/v1/transactions",
         json={
             "account_id": account,
             "date": "2099-03-12",
-            "amount": 300,
-            "category": "categoria-livre",
+            "amount": -300,
+            "category": "Alimentação",
             "kind": "investment",
         },
         headers=auth_headers,
     )
     assert resp.status_code == 201
-    assert resp.json()["kind"] == "investment"
+    assert resp.json()["kind"] == "expense"
+    bad = await api.post(
+        "/api/v1/transactions",
+        json={"account_id": account, "date": "2099-03-12", "amount": 1, "category": "livre"},
+        headers=auth_headers,
+    )
+    assert bad.status_code == 422
+    assert bad.json()["detail"]["error"] == "categoria_inexistente"
 
 
 async def test_create_rejects_zero_amount(api, auth_headers, account):
@@ -83,9 +93,9 @@ async def test_create_rejects_unknown_account(api, auth_headers):
 async def test_list_filters_and_pagination(api, auth_headers, account):
     # 3 transações em 2099-04, categorias e datas distintas
     payloads = [
-        {"date": "2099-04-01", "amount": 1000, "category": "Salário"},
-        {"date": "2099-04-10", "amount": -200, "category": "alimentação"},
-        {"date": "2099-04-20", "amount": -50, "category": "transporte"},
+        {"date": "2099-04-01", "amount": 1000, "category": "Recorrente"},
+        {"date": "2099-04-10", "amount": -200, "category": "Alimentação"},
+        {"date": "2099-04-20", "amount": -50, "category": "Transporte"},
     ]
     for p in payloads:
         r = await api.post(
@@ -97,12 +107,12 @@ async def test_list_filters_and_pagination(api, auth_headers, account):
 
     # filtro por conta + categoria
     by_cat = await api.get(
-        f"/api/v1/transactions?account_id={account}&category=alimentação",
+        f"/api/v1/transactions?account_id={account}&category=Alimentação",
         headers=auth_headers,
     )
     assert by_cat.status_code == 200
     assert by_cat.json()["total"] == 1
-    assert by_cat.json()["items"][0]["category"] == "alimentação"
+    assert by_cat.json()["items"][0]["category"] == "Alimentação"
 
     # filtro por intervalo de datas
     by_range = await api.get(
@@ -142,9 +152,9 @@ async def test_create_transaction_with_notes(api, auth_headers, account):
 
 async def test_list_returns_filtered_totals(api, auth_headers, account):
     for p in [
-        {"date": "2099-11-01", "amount": 1000, "category": "Salário"},
-        {"date": "2099-11-02", "amount": -200, "category": "alimentação"},
-        {"date": "2099-11-03", "amount": -50, "category": "transporte"},
+        {"date": "2099-11-01", "amount": 1000, "category": "Recorrente"},
+        {"date": "2099-11-02", "amount": -200, "category": "Alimentação"},
+        {"date": "2099-11-03", "amount": -50, "category": "Transporte"},
     ]:
         await api.post(
             "/api/v1/transactions", json={"account_id": account, **p}, headers=auth_headers
@@ -159,7 +169,7 @@ async def test_list_returns_filtered_totals(api, auth_headers, account):
 
     # os totais respeitam os filtros
     food = await api.get(
-        f"/api/v1/transactions?account_id={account}&category=alimentação", headers=auth_headers
+        f"/api/v1/transactions?account_id={account}&category=Alimentação", headers=auth_headers
     )
     assert food.json()["total_income"] == 0.0
     assert food.json()["total_expense"] == 200.0
@@ -168,8 +178,8 @@ async def test_list_returns_filtered_totals(api, auth_headers, account):
 async def test_list_returns_transfer_totals(api, auth_headers, account):
     # duas pernas de transferência interna que se cancelam (saída -300 / entrada +300)
     for p in [
-        {"date": "2099-12-01", "amount": -300, "category": "transf-saída", "kind": "transfer"},
-        {"date": "2099-12-02", "amount": 300, "category": "transf-entrada", "kind": "transfer"},
+        {"date": "2099-12-01", "amount": -300, "category": "Transferência interna"},
+        {"date": "2099-12-02", "amount": 300, "category": "Transferência interna"},
     ]:
         r = await api.post(
             "/api/v1/transactions", json={"account_id": account, **p}, headers=auth_headers

@@ -4,6 +4,7 @@ Cripto não vive em asset_operations; o sleeve cruza `transactions` (categorias 
 ledger) com `wallet_positions`+`defi_positions` valorados. Custo/XIRR só no nível do sleeve.
 Tickers SINTÉTICOS de propósito (evita colisão com chaves cripto reais no Redis compartilhado).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -29,12 +30,16 @@ async def _seed_account(conn: Any) -> uuid.UUID:
     )
 
 
-async def _tx(conn: Any, account_id: uuid.UUID, amount: float, category: str,
-              when: date = _TODAY) -> None:
+async def _tx(
+    conn: Any, account_id: uuid.UUID, amount: float, category: str, when: date = _TODAY
+) -> None:
     await conn.execute(
         "INSERT INTO transactions (account_id, date, amount, category, kind) "
         "VALUES ($1, $2, $3, $4, 'investment')",
-        account_id, when, amount, category,
+        account_id,
+        when,
+        amount,
+        category,
     )
 
 
@@ -43,27 +48,53 @@ async def _price(conn: Any, ticker: str, price_brl: float) -> None:
         "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
         "VALUES ($1, $2, 'coingecko', false) "
         "ON CONFLICT (ticker) DO UPDATE SET price_brl = EXCLUDED.price_brl",
-        ticker, price_brl,
+        ticker,
+        price_brl,
     )
 
 
-async def _wallet(conn: Any, uid: str, chain: str, symbol: str, qty: float,
-                  *, source: str = "etherscan", is_manual: bool = False,
-                  address: str = "addr") -> None:
+async def _wallet(
+    conn: Any,
+    uid: str,
+    chain: str,
+    symbol: str,
+    qty: float,
+    *,
+    source: str = "etherscan",
+    is_manual: bool = False,
+    address: str = "addr",
+) -> None:
     await conn.execute(
         "INSERT INTO wallet_positions "
         "(user_id, chain, wallet_address, asset_symbol, quantity, source, is_manual) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        uid, chain, address, symbol, qty, source, is_manual,
+        uid,
+        chain,
+        address,
+        symbol,
+        qty,
+        source,
+        is_manual,
     )
 
 
-async def _defi(conn: Any, uid: str, symbol: str, balance: float,
-                *, protocol: str = "hylo", is_active: bool = True) -> None:
+async def _defi(
+    conn: Any,
+    uid: str,
+    symbol: str,
+    balance: float,
+    *,
+    protocol: str = "hylo",
+    is_active: bool = True,
+) -> None:
     await conn.execute(
         "INSERT INTO defi_positions (user_id, protocol, asset_symbol, balance, is_active) "
         "VALUES ($1, $2, $3, $4, $5)",
-        uid, protocol, symbol, balance, is_active,
+        uid,
+        protocol,
+        symbol,
+        balance,
+        is_active,
     )
 
 
@@ -90,7 +121,8 @@ async def _create_user(pool: Any) -> uuid.UUID:
     async with pool.acquire() as conn:
         return await conn.fetchval(
             "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id",
-            email, hash_password("sleeve-test"),
+            email,
+            hash_password("sleeve-test"),
         )
 
 
@@ -126,7 +158,7 @@ class TestCurrentValue:
             await _price(conn, "TKNA", 100.0)
             await _price(conn, "TKND", 2.0)
             await _wallet(conn, uid, "ethereum", "TKNA", 3.0)  # 300
-            await _defi(conn, uid, "TKND", 25.0)               # 50
+            await _defi(conn, uid, "TKND", 25.0)  # 50
             sv = await sleeve_current_value(conn, uid)
         assert abs(sv.total_brl - 350.0) < 0.01
         assert sv.stale is False
@@ -140,10 +172,19 @@ class TestCurrentValue:
         pool, uid = sleeve_user["pool"], sleeve_user["uid"]
         async with pool.acquire() as conn:
             await _price(conn, "TKNA", 100.0)
-            await _wallet(conn, uid, "liquid", "TKNA", 1.0, source="etherscan",
-                          is_manual=False, address="scanned")
-            await _wallet(conn, uid, "liquid", "TKNA", 1.0, source="manual",
-                          is_manual=True, address="manual")
+            await _wallet(
+                conn,
+                uid,
+                "liquid",
+                "TKNA",
+                1.0,
+                source="etherscan",
+                is_manual=False,
+                address="scanned",
+            )
+            await _wallet(
+                conn, uid, "liquid", "TKNA", 1.0, source="manual", is_manual=True, address="manual"
+            )
             sv = await sleeve_current_value(conn, uid)
         assert abs(sv.total_brl - 100.0) < 0.01  # não 200
 

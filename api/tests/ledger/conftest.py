@@ -39,9 +39,7 @@ async def auth_headers(pool: object) -> AsyncIterator[dict[str, str]]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        resp = await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": _PASSWORD}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
     token = resp.json()["access_token"]
     yield {"Authorization": f"Bearer {token}"}
     async with pool.acquire() as conn:  # type: ignore[attr-defined]

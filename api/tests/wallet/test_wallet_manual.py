@@ -1,4 +1,5 @@
 """Posições manuais em wallet_positions (Liquid confidencial, não escaneável) — m4."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -44,13 +45,11 @@ async def test_manual_upsert_is_idempotent(api: Any, wallet_user: dict, pool: An
         )
     async with pool.acquire() as conn:
         n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1 "
-            "AND asset_symbol = 'L-USDT'",
+            "SELECT count(*) FROM wallet_positions WHERE user_id = $1 AND asset_symbol = 'L-USDT'",
             uid,
         )
         q = await conn.fetchval(
-            "SELECT quantity FROM wallet_positions WHERE user_id = $1 "
-            "AND asset_symbol = 'L-USDT'",
+            "SELECT quantity FROM wallet_positions WHERE user_id = $1 AND asset_symbol = 'L-USDT'",
             uid,
         )
     assert n == 1  # upsert: uma linha só

@@ -1,4 +1,5 @@
 """Tests for STORY-02-07 — GET /api/v1/portfolio/positions (preço manual)."""
+
 from __future__ import annotations
 
 import pytest
@@ -6,8 +7,14 @@ from httpx import AsyncClient
 
 
 async def _buy(
-    api: AsyncClient, headers: dict, sym: str, qty: float, price: float,
-    *, tipo: str = "compra", category: str = "Ações Nacionais",
+    api: AsyncClient,
+    headers: dict,
+    sym: str,
+    qty: float,
+    price: float,
+    *,
+    tipo: str = "compra",
+    category: str = "Ações Nacionais",
 ) -> None:
     await api.post(
         "/api/v1/asset-operations",
@@ -37,9 +44,7 @@ class TestPositions:
         assert resp.json() == []
 
     @pytest.mark.asyncio
-    async def test_position_with_price(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_position_with_price(self, api: AsyncClient, auth_headers: dict) -> None:
         """Buy 100 @ 10, current price 12 → result +200 (20%)."""
         await _buy(api, auth_headers, "PETR4", 100.0, 10.0)
         await api.post(
@@ -95,9 +100,7 @@ class TestPositions:
         assert abs(float(pos["preco_atual"]) - 35.0) < 0.01
 
     @pytest.mark.asyncio
-    async def test_net_quantity_after_sell(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_net_quantity_after_sell(self, api: AsyncClient, auth_headers: dict) -> None:
         """Buy 100 @ 10, sell 40 @ 15 → net 60, DCA still 10."""
         await _buy(api, auth_headers, "ITSA4", 100.0, 10.0)
         await _buy(api, auth_headers, "ITSA4", 40.0, 15.0, tipo="venda")
@@ -114,9 +117,7 @@ class TestPositions:
         assert abs(float(pos["valor_atual"]) - 720.0) < 0.01
 
     @pytest.mark.asyncio
-    async def test_fully_sold_excluded(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_fully_sold_excluded(self, api: AsyncClient, auth_headers: dict) -> None:
         """Buy 100, sell 100 → net 0 → not listed as position."""
         await _buy(api, auth_headers, "BBAS3", 100.0, 10.0)
         await _buy(api, auth_headers, "BBAS3", 100.0, 12.0, tipo="venda")
@@ -125,13 +126,16 @@ class TestPositions:
         assert "BBAS3" not in symbols
 
     @pytest.mark.asyncio
-    async def test_rf_aporte_position(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_rf_aporte_position(self, api: AsyncClient, auth_headers: dict) -> None:
         """RF modeled as qty=1, valor=total; current price = valor atual base."""
         await _buy(
-            api, auth_headers, "Flash_CDB", 1.0, 12000.0,
-            tipo="aporte", category="Renda Fixa",
+            api,
+            auth_headers,
+            "Flash_CDB",
+            1.0,
+            12000.0,
+            tipo="aporte",
+            category="Renda Fixa",
         )
         await api.post(
             "/api/v1/market/prices/Flash_CDB",

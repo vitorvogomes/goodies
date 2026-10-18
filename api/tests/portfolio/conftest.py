@@ -1,4 +1,5 @@
 """Fixtures for portfolio tests: client + auth."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,9 +17,7 @@ _PASSWORD = "portfolio-test-password"
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    )
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 async def _create_user_and_login(pool: Any) -> tuple[str, dict[str, str]]:
@@ -31,9 +30,7 @@ async def _create_user_and_login(pool: Any) -> tuple[str, dict[str, str]]:
             hash_password(_PASSWORD),
         )
     async with _client() as client:
-        resp = await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": _PASSWORD}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
     token = resp.json()["access_token"]
     return str(uid), {"Authorization": f"Bearer {token}"}
 

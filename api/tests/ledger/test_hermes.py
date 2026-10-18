@@ -86,8 +86,12 @@ async def test_hermes_expense_respects_investment_category_kind(api, account, po
     try:
         resp = await api.post(
             "/api/v1/hermes/expenses",
-            json={"account_id": account, "date": "2099-06-02", "amount": 200,
-                  "category": "ZZHermesInv"},
+            json={
+                "account_id": account,
+                "date": "2099-06-02",
+                "amount": 200,
+                "category": "ZZHermesInv",
+            },
             headers=_hermes_headers(),
         )
         assert resp.status_code == 201

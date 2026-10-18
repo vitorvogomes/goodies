@@ -1,4 +1,5 @@
 """Loader + detecção de tipo do workbook B3 (A2). xlsx construído em memória."""
+
 from __future__ import annotations
 
 import io

@@ -1,4 +1,5 @@
 """F — reconciliação de trânsito por trilho (saiu ledger vs aplicado asset_operations)."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -12,14 +13,29 @@ from engines.portfolio.transit import calculate_transit
 
 
 async def _ins_op(
-    conn: Any, uid: str, broker: str, sym: str, cat: str, tipo: str,
-    qty: str, vu: str, ext: str,
+    conn: Any,
+    uid: str,
+    broker: str,
+    sym: str,
+    cat: str,
+    tipo: str,
+    qty: str,
+    vu: str,
+    ext: str,
 ) -> None:
     await conn.execute(
         "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, "
         "tipo, quantidade, valor_unitario, data_operacao, external_id) "
         "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-        uid, broker, sym, cat, tipo, Decimal(qty), Decimal(vu), date(2026, 6, 1), ext,
+        uid,
+        broker,
+        sym,
+        cat,
+        tipo,
+        Decimal(qty),
+        Decimal(vu),
+        date(2026, 6, 1),
+        ext,
     )
 
 
@@ -27,15 +43,17 @@ async def _ins_tx(conn: Any, acc: Any, amount: str, category: str, ext: str) -> 
     await conn.execute(
         "INSERT INTO transactions (account_id, date, amount, category, kind, "
         "description, external_id) VALUES ($1,$2,$3,$4,'investment','x',$5)",
-        acc, date(2026, 6, 1), Decimal(amount), category, ext,
+        acc,
+        date(2026, 6, 1),
+        Decimal(amount),
+        category,
+        ext,
     )
 
 
 class TestTransit:
     @pytest.mark.asyncio
-    async def test_b3_rail_saiu_aplicado_em_transito(
-        self, pool: Any, portfolio_user: dict
-    ) -> None:
+    async def test_b3_rail_saiu_aplicado_em_transito(self, pool: Any, portfolio_user: dict) -> None:
         uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM transactions")  # estado global limpo
@@ -185,9 +203,7 @@ class TestTransit:
         assert flash["status"] == "reconciled"
 
     @pytest.mark.asyncio
-    async def test_crypto_block_from_sleeve(
-        self, pool: Any, portfolio_user: dict
-    ) -> None:
+    async def test_crypto_block_from_sleeve(self, pool: Any, portfolio_user: dict) -> None:
         uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM transactions")
@@ -198,14 +214,10 @@ class TestTransit:
 
 class TestTransitEndpoint:
     @pytest.mark.asyncio
-    async def test_endpoint_shape(
-        self, api: AsyncClient, pool: Any, portfolio_user: dict
-    ) -> None:
+    async def test_endpoint_shape(self, api: AsyncClient, pool: Any, portfolio_user: dict) -> None:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM transactions")
-        resp = await api.get(
-            "/api/v1/portfolio/transit", headers=portfolio_user["headers"]
-        )
+        resp = await api.get("/api/v1/portfolio/transit", headers=portfolio_user["headers"])
         assert resp.status_code == 200
         body = resp.json()
         assert any(r["rail"] == "B3 (corretoras)" for r in body["rails"])

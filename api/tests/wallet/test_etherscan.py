@@ -1,4 +1,5 @@
 """EtherscanFetcher (V2 multichain) — ETH + ARB + ETH/PENDLE (Arbitrum). STORY-04-02 / m4."""
+
 from __future__ import annotations
 
 import httpx

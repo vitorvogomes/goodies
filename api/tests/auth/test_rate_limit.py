@@ -1,4 +1,5 @@
 """Story 1.6 — limite de tentativas de login: 5 erradas em 15 min bloqueiam por 15 min."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

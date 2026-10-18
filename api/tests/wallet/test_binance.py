@@ -1,4 +1,5 @@
 """BinanceFetcher — spot + earn assinado (HMAC). STORY-04-05. Mock respx."""
+
 from __future__ import annotations
 
 import hashlib
@@ -30,9 +31,7 @@ def _fetcher() -> BinanceFetcher:
 
 
 def _route(path: str, payload: dict) -> None:
-    respx.get(url__startswith=f"{_BASE}{path}").mock(
-        return_value=httpx.Response(200, json=payload)
-    )
+    respx.get(url__startswith=f"{_BASE}{path}").mock(return_value=httpx.Response(200, json=payload))
 
 
 def _mock_time(server_ms: int | None = None) -> None:
@@ -47,17 +46,32 @@ def _mock_time(server_ms: int | None = None) -> None:
 @respx.mock
 async def test_aggregates_spot_and_earn() -> None:
     _mock_time()
-    _route("/api/v3/account", {"balances": [
-        {"asset": "BTC", "free": "0.5", "locked": "0.1"},
-        {"asset": "ETH", "free": "2.0", "locked": "0"},
-        {"asset": "DUST", "free": "100", "locked": "0"},  # fora de symbols → dropado
-    ]})
-    _route("/sapi/v1/simple-earn/flexible/position", {"rows": [
-        {"asset": "BTC", "totalAmount": "0.4"},  # soma ao spot do BTC
-    ]})
-    _route("/sapi/v1/simple-earn/locked/position", {"rows": [
-        {"asset": "SOL", "amount": "30"},
-    ]})
+    _route(
+        "/api/v3/account",
+        {
+            "balances": [
+                {"asset": "BTC", "free": "0.5", "locked": "0.1"},
+                {"asset": "ETH", "free": "2.0", "locked": "0"},
+                {"asset": "DUST", "free": "100", "locked": "0"},  # fora de symbols → dropado
+            ]
+        },
+    )
+    _route(
+        "/sapi/v1/simple-earn/flexible/position",
+        {
+            "rows": [
+                {"asset": "BTC", "totalAmount": "0.4"},  # soma ao spot do BTC
+            ]
+        },
+    )
+    _route(
+        "/sapi/v1/simple-earn/locked/position",
+        {
+            "rows": [
+                {"asset": "SOL", "amount": "30"},
+            ]
+        },
+    )
     out = {b.asset_symbol: b for b in await _fetcher().fetch()}
     assert out["BTC"].quantity == pytest.approx(1.0)  # 0.5 + 0.1 + 0.4
     assert out["ETH"].quantity == pytest.approx(2.0)
@@ -76,9 +90,7 @@ async def test_signs_request_and_sends_api_key() -> None:
     assert req.headers["X-MBX-APIKEY"] == "test-key"
     # assinatura = HMAC_SHA256(secret, "timestamp=...&recvWindow=...")
     expected_query = urlencode({"timestamp": int(_TS * 1000), "recvWindow": 5000})
-    expected_sig = hmac.new(
-        _SECRET.encode(), expected_query.encode(), hashlib.sha256
-    ).hexdigest()
+    expected_sig = hmac.new(_SECRET.encode(), expected_query.encode(), hashlib.sha256).hexdigest()
     assert req.url.params["signature"] == expected_sig
 
 
@@ -119,9 +131,7 @@ async def test_applies_server_time_offset() -> None:
     assert int(params["timestamp"]) == server_ms  # offset aplicado
     # a assinatura confere sobre o timestamp corrigido
     expected_query = urlencode({"timestamp": server_ms, "recvWindow": 5000})
-    expected_sig = hmac.new(
-        _SECRET.encode(), expected_query.encode(), hashlib.sha256
-    ).hexdigest()
+    expected_sig = hmac.new(_SECRET.encode(), expected_query.encode(), hashlib.sha256).hexdigest()
     assert params["signature"] == expected_sig
 
 

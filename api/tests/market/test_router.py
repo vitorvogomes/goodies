@@ -1,4 +1,5 @@
 """Endpoints /api/v1/market/* (STORY-03-08/09). Usa as fixtures de portfolio (auth)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -16,9 +17,7 @@ async def test_requires_auth(api: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_get_unknown_ticker_is_stale_null(api: Any, portfolio_user: dict) -> None:
-    resp = await api.get(
-        "/api/v1/market/prices/MKT_UNKNOWN", headers=portfolio_user["headers"]
-    )
+    resp = await api.get("/api/v1/market/prices/MKT_UNKNOWN", headers=portfolio_user["headers"])
     assert resp.status_code == 200
     body = resp.json()
     assert body["price_brl"] is None
@@ -58,14 +57,17 @@ async def test_manual_overrides_cached_auto_price(
         )
         # preço de mercado em cache + Postgres (como o worker grava)
         await service.cache_aside_write(
-            conn, "MKT_OVR", cache_type="b3", price_brl=30.0,
-            price_usd=None, source="brapi", ttl=300,
+            conn,
+            "MKT_OVR",
+            cache_type="b3",
+            price_brl=30.0,
+            price_usd=None,
+            source="brapi",
+            ttl=300,
         )
     try:
         # override manual
-        await api.post(
-            "/api/v1/market/prices/MKT_OVR", json={"price_brl": 40.0}, headers=headers
-        )
+        await api.post("/api/v1/market/prices/MKT_OVR", json={"price_brl": 40.0}, headers=headers)
         got = await api.get("/api/v1/market/prices/MKT_OVR", headers=headers)
         body = got.json()
         assert body["price_brl"] == 40.0  # manual, não os 30.0 cacheados
@@ -80,21 +82,15 @@ async def test_revert_manual_price_to_auto(api: Any, pool: Any, portfolio_user: 
     sem apagar o preço. Idempotente; 404 se o ticker não existe."""
     headers = portfolio_user["headers"]
     # 404 quando não há linha
-    miss = await api.delete(
-        "/api/v1/market/prices/MKT_NONE/manual", headers=headers
-    )
+    miss = await api.delete("/api/v1/market/prices/MKT_NONE/manual", headers=headers)
     assert miss.status_code == 404
 
-    await api.post(
-        "/api/v1/market/prices/MKT_REV", json={"price_brl": 99.0}, headers=headers
-    )
+    await api.post("/api/v1/market/prices/MKT_REV", json={"price_brl": 99.0}, headers=headers)
     resp = await api.delete("/api/v1/market/prices/MKT_REV/manual", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["is_manual"] is False  # liberado p/ o worker
     async with pool.acquire() as conn:
-        flag = await conn.fetchval(
-            "SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_REV'"
-        )
+        flag = await conn.fetchval("SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_REV'")
     assert flag is False
     # preço preservado (não apagado)
     got = await api.get("/api/v1/market/prices/MKT_REV", headers=headers)
@@ -119,15 +115,11 @@ async def test_revert_manual_rejected_without_market_source(
             "VALUES ($1, 'Test', 'MKT_RFCX', 'Renda Fixa', 'compra', 1, 100, '2026-01-01')",
             uid,
         )
-    await api.post(
-        "/api/v1/market/prices/MKT_RFCX", json={"price_brl": 105.0}, headers=headers
-    )
+    await api.post("/api/v1/market/prices/MKT_RFCX", json={"price_brl": 105.0}, headers=headers)
     resp = await api.delete("/api/v1/market/prices/MKT_RFCX/manual", headers=headers)
     assert resp.status_code == 409
     async with pool.acquire() as conn:
-        flag = await conn.fetchval(
-            "SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_RFCX'"
-        )
+        flag = await conn.fetchval("SELECT is_manual FROM asset_prices WHERE ticker = 'MKT_RFCX'")
     assert flag is True
 
 

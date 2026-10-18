@@ -1,4 +1,5 @@
 """Fetcher CoinGecko (cripto) — STORY-03-03. Mockado com respx."""
+
 from __future__ import annotations
 
 import httpx
@@ -85,9 +86,7 @@ async def test_defi_alias_ignores_maturity_suffix() -> None:
 @respx.mock
 async def test_unknown_symbol_skipped() -> None:
     # DOGE não está no mapa -> nem é requisitado; sem ids -> sem chamada
-    route = respx.get(url__startswith=_URL).mock(
-        return_value=httpx.Response(200, json={})
-    )
+    route = respx.get(url__startswith=_URL).mock(return_value=httpx.Response(200, json={}))
     out = await _fetcher().fetch(["DOGE"])
     assert out == {}
     assert route.call_count == 0

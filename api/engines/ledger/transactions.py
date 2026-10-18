@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.numbers import as_decimal
+from engines.ledger import service as ledger_service
 from engines.ledger.categories import CategoryKind
 from engines.ledger.suggest import suggest_category
 
@@ -31,7 +32,7 @@ class TransactionCreate(BaseModel):
     date: datetime.date
     amount: float
     category: str = Field(min_length=1)
-    kind: CategoryKind | None = None  # omitido → derivado da categoria (ou do sinal)
+    kind: CategoryKind | None = None  # ignorado desde a Story 2.5: o kind vem do grupo
     description: str | None = None
     is_recurring: bool = False
     notes: str | None = None
@@ -107,19 +108,20 @@ def _to_response(row: asyncpg.Record) -> TransactionResponse:
     )
 
 
-async def _resolve_kind(
-    db: asyncpg.Connection, category: str | None, amount: float | None, explicit: str | None
-) -> str | None:
-    """kind explícito > kind da categoria escolhida > fallback por sinal (None se indeterminado)."""
-    if explicit is not None:
-        return explicit
-    if category is not None:
-        kind = await db.fetchval("SELECT kind FROM categories WHERE name = $1", category)
-        if kind is not None:
-            return str(kind)
-    if amount is not None:
-        return "income" if amount > 0 else "expense"
-    return None
+async def _category_id(db: asyncpg.Connection, name: str) -> str:
+    """Categoria escolhida pelo nome (as telas v1 mandam o nome da lista do banco). Story 2.5: a
+    transação sempre tem uma subcategoria existente; o `kind` vem do grupo dela (AD-6)."""
+    found = await db.fetchval(
+        "SELECT id FROM categories WHERE name = $1 OR lower(name) = lower($1) "
+        "ORDER BY (name = $1) DESC LIMIT 1",
+        name,
+    )
+    if found is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            {"error": "categoria_inexistente", "message": f"Categoria \"{name}\" não existe."},
+        )
+    return str(found)
 
 
 @router.get("", response_model=TransactionList)
@@ -229,23 +231,40 @@ async def suggest_categories(
 async def create_transaction(
     body: TransactionCreate, user: AuthUser, db: Db
 ) -> TransactionResponse:
-    kind = await _resolve_kind(db, body.category, body.amount, body.kind)
-    try:
-        row = await db.fetchrow(
-            "INSERT INTO transactions "
-            "(account_id, date, amount, category, kind, description, is_recurring, notes) "
-            f"VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {_COLUMNS}",
-            body.account_id,
-            body.date,
-            as_decimal(body.amount),
-            body.category,
-            kind,
-            body.description,
-            body.is_recurring,
-            body.notes,
+    category_id = await _category_id(db, body.category)
+    positive = body.amount > 0
+    async with db.transaction():
+        try:
+            # Lançamento à mão (source manual, sem lote): entra "a classificar" e recebe a categoria
+            # escolhida por categorize() — origem manual, confirmada (Story 2.5).
+            tx_id = await db.fetchval(
+                "INSERT INTO transactions "
+                "(account_id, date, amount, category, category_id, kind, description, "
+                "is_recurring, notes, source) "
+                "VALUES ($1, $2, $3, $4, "
+                "(SELECT id FROM categories WHERE key = $5), $6, $7, $8, $9, 'manual') "
+                "RETURNING id",
+                body.account_id,
+                body.date,
+                as_decimal(body.amount),
+                "Entrada a classificar" if positive else "Saída a classificar",
+                "sistema:entrada_a_classificar" if positive else "sistema:saida_a_classificar",
+                "income" if positive else "expense",
+                body.description,
+                body.is_recurring,
+                body.notes,
+            )
+        except asyncpg.ForeignKeyViolationError:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente"
+            ) from None
+        await ledger_service.categorize(
+            db,
+            [ledger_service.CategoryChange(str(tx_id), category_id, "manual")],
+            cause="inline_edit",
+            review_status="confirmed",
         )
-    except asyncpg.ForeignKeyViolationError:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
+        row = await db.fetchrow(f"SELECT {_COLUMNS} FROM transactions WHERE id = $1", tx_id)
     return _to_response(row)
 
 
@@ -253,37 +272,46 @@ async def create_transaction(
 async def update_transaction(
     transaction_id: uuid.UUID, body: TransactionUpdate, user: AuthUser, db: Db
 ) -> TransactionResponse:
-    # Troca de categoria conhecida re-deriva o kind; edição só de valor preserva (kind=None).
-    kind = await _resolve_kind(db, body.category, None, body.kind)
-    try:
+    # Story 2.5: os demais campos mudam aqui; categoria (e o kind do grupo) só por categorize().
+    category_id = await _category_id(db, body.category) if body.category is not None else None
+    async with db.transaction():
+        try:
+            row = await db.fetchrow(
+                """
+                UPDATE transactions SET
+                  account_id = COALESCE($2, account_id),
+                  date = COALESCE($3, date),
+                  amount = COALESCE($4, amount),
+                  description = COALESCE($5, description),
+                  is_recurring = COALESCE($6, is_recurring),
+                  notes = COALESCE($7, notes)
+                WHERE id = $1
+                RETURNING id
+                """,
+                transaction_id,
+                body.account_id,
+                body.date,
+                as_decimal(body.amount),
+                body.description,
+                body.is_recurring,
+                body.notes,
+            )
+        except asyncpg.ForeignKeyViolationError:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente"
+            ) from None
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")
+        if category_id is not None:
+            await ledger_service.categorize(
+                db,
+                [ledger_service.CategoryChange(str(transaction_id), category_id, "manual")],
+                cause="inline_edit",
+                review_status="confirmed",
+            )
         row = await db.fetchrow(
-            """
-            UPDATE transactions SET
-              account_id = COALESCE($2, account_id),
-              date = COALESCE($3, date),
-              amount = COALESCE($4, amount),
-              category = COALESCE($5, category),
-              description = COALESCE($6, description),
-              is_recurring = COALESCE($7, is_recurring),
-              notes = COALESCE($8, notes),
-              kind = COALESCE($9, kind)
-            WHERE id = $1
-            """
-            f" RETURNING {_COLUMNS}",
-            transaction_id,
-            body.account_id,
-            body.date,
-            as_decimal(body.amount),
-            body.category,
-            body.description,
-            body.is_recurring,
-            body.notes,
-            kind,
+            f"SELECT {_COLUMNS} FROM transactions WHERE id = $1", transaction_id
         )
-    except asyncpg.ForeignKeyViolationError:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
-    if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")
     return _to_response(row)
 
 

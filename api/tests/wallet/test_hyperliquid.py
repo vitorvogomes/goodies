@@ -1,4 +1,5 @@
 """HyperliquidFetcher — HYPE spot (Info API) + HyperEVM nativo. STORY-04-02 / m4. respx."""
+
 from __future__ import annotations
 
 import httpx
@@ -53,9 +54,7 @@ async def test_parses_hype_total() -> None:
 async def test_includes_hyperevm_native_hype() -> None:
     # HYPE existe em DOIS lugares: spot L1 (0.00979) + HyperEVM nativo (0.3108)
     respx.post(_URL).mock(
-        return_value=httpx.Response(
-            200, json={"balances": [{"coin": "HYPE", "total": "0.00979"}]}
-        )
+        return_value=httpx.Response(200, json={"balances": [{"coin": "HYPE", "total": "0.00979"}]})
     )
     respx.post(_EVM).mock(return_value=_evm_balance(310_800_000_000_000_000))  # 0.3108 HYPE
     out = {(b.chain, b.asset_symbol): b for b in await _fetcher().fetch()}

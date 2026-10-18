@@ -1,4 +1,5 @@
 """Tests for STORY-02-06 — GET /api/v1/portfolio/xirr (per-asset + consolidated)."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -19,9 +20,7 @@ class TestXIRREndpoint:
         assert resp.status_code in (401, 403)
 
     @pytest.mark.asyncio
-    async def test_empty_portfolio(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_empty_portfolio(self, api: AsyncClient, auth_headers: dict) -> None:
         """No operations → consolidated null, empty maps."""
         resp = await api.get("/api/v1/portfolio/xirr", headers=auth_headers)
         assert resp.status_code == 200
@@ -67,9 +66,7 @@ class TestXIRREndpoint:
         assert "Ações Nacionais" in data["by_category"]
 
     @pytest.mark.asyncio
-    async def test_realized_only_without_price(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_realized_only_without_price(self, api: AsyncClient, auth_headers: dict) -> None:
         """Buy then sell (realized), no current price → XIRR over realized flows."""
         await api.post(
             "/api/v1/asset-operations",

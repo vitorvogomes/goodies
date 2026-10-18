@@ -4,6 +4,7 @@ Fim-a-fim com fetchers FALSOS (sem rede): roda os corpos dos workers direto e ve
 que os endpoints /market e /portfolio refletem os preços, que o preço manual (RF) fica
 intacto, e que API fora vira `stale` (nunca 5xx).
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -45,9 +46,7 @@ async def _cleanup_keys() -> None:
 
 
 @pytest.mark.asyncio
-async def test_worker_to_endpoints_end_to_end(
-    api: Any, pool: Any, portfolio_user: dict
-) -> None:
+async def test_worker_to_endpoints_end_to_end(api: Any, pool: Any, portfolio_user: dict) -> None:
     uid, headers = portfolio_user["user_id"], portfolio_user["headers"]
     await _op(pool, uid, "MKT_PETR4", "Ações Nacionais")
     await _op(pool, uid, "MKT_BTC", "Cripto")

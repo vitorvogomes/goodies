@@ -1,4 +1,5 @@
 """Schema de wallet_positions (migration 0010) — m4 STORY-04-01."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,8 +19,7 @@ async def test_table_exists(pool: Any) -> None:
 @pytest.mark.asyncio
 async def test_columns(pool: Any) -> None:
     rows = await pool.fetch(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'wallet_positions'"
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'wallet_positions'"
     )
     names = {r["column_name"] for r in rows}
     assert {

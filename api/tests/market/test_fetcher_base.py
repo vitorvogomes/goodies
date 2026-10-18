@@ -1,4 +1,5 @@
 """Contrato base dos fetchers (retry/backoff) — puro, sem rede."""
+
 from __future__ import annotations
 
 from typing import Any

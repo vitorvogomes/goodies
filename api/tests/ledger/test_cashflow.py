@@ -21,8 +21,8 @@ async def test_cashflow_requires_auth(api):
 
 async def test_summary_savings_rate_for_month(api, auth_headers, account):
     # receita 10000, consumo 4500 -> poupança 55% (B); investimento 2000 -> taxa 20% (A).
-    await _post_tx(api, auth_headers, account, "2099-07-01", 10000, "Salário")
-    await _post_tx(api, auth_headers, account, "2099-07-15", -4500, "alimentação")
+    await _post_tx(api, auth_headers, account, "2099-07-01", 10000, "Recorrente")
+    await _post_tx(api, auth_headers, account, "2099-07-15", -4500, "Alimentação")
     await _post_tx(api, auth_headers, account, "2099-07-20", -2000, "Toro (B3)")
 
     resp = await api.get("/api/v1/cashflow/summary?month=2099-07", headers=auth_headers)
@@ -38,7 +38,7 @@ async def test_summary_savings_rate_for_month(api, auth_headers, account):
 
 
 async def test_summary_zero_income_returns_error(api, auth_headers, account):
-    await _post_tx(api, auth_headers, account, "2099-08-10", -300, "transporte")
+    await _post_tx(api, auth_headers, account, "2099-08-10", -300, "Transporte")
     resp = await api.get("/api/v1/cashflow/summary?month=2099-08", headers=auth_headers)
     assert resp.status_code == 422
 
@@ -49,7 +49,7 @@ async def test_summary_unknown_month_returns_404(api, auth_headers):
 
 
 async def test_summary_list_contains_month(api, auth_headers, account):
-    await _post_tx(api, auth_headers, account, "2099-07-01", 8000, "Salário")
+    await _post_tx(api, auth_headers, account, "2099-07-01", 8000, "Recorrente")
     resp = await api.get("/api/v1/cashflow/summary", headers=auth_headers)
     assert resp.status_code == 200
     months = {m["month"] for m in resp.json()}
@@ -62,11 +62,11 @@ async def test_by_category_requires_auth(api):
 
 
 async def test_by_category_groups_and_percentages(api, auth_headers, account):
-    # receitas: FLASH 7091 + BETUEL 1614 (total 8705); gastos: 1000 + 500 (total 1500).
-    await _post_tx(api, auth_headers, account, "2099-11-01", 7091, "FLASH")
-    await _post_tx(api, auth_headers, account, "2099-11-02", 1614, "BETUEL")
-    await _post_tx(api, auth_headers, account, "2099-11-10", -1000, "alimentação")
-    await _post_tx(api, auth_headers, account, "2099-11-12", -500, "transporte")
+    # receitas: Recorrente 7091 + Extra 1614 (total 8705); gastos: 1000 + 500 (total 1500).
+    await _post_tx(api, auth_headers, account, "2099-11-01", 7091, "Recorrente")
+    await _post_tx(api, auth_headers, account, "2099-11-02", 1614, "Extra")
+    await _post_tx(api, auth_headers, account, "2099-11-10", -1000, "Alimentação")
+    await _post_tx(api, auth_headers, account, "2099-11-12", -500, "Transporte")
 
     resp = await api.get("/api/v1/cashflow/by-category?month=2099-11", headers=auth_headers)
     assert resp.status_code == 200
@@ -76,18 +76,18 @@ async def test_by_category_groups_and_percentages(api, auth_headers, account):
     assert body["expense_total"] == 1500.0
 
     income = body["income"]
-    assert [r["category"] for r in income] == ["FLASH", "BETUEL"]  # ordenado por total desc
+    assert [r["category"] for r in income] == ["Recorrente", "Extra"]  # ordenado por total desc
     assert abs(income[0]["pct"] - 81.46) < 0.05
     assert abs(sum(r["pct"] for r in income) - 100.0) < 0.05
 
     expense = body["expense"]
-    assert expense[0]["category"] == "alimentação"
+    assert expense[0]["category"] == "Alimentação"
     assert abs(sum(r["pct"] for r in expense) - 100.0) < 0.05
 
 
 async def test_by_category_includes_investment_section(api, auth_headers, account):
     # investimento entra na 3ª seção (não em gastos); a categoria é o destino.
-    await _post_tx(api, auth_headers, account, "2099-12-01", 5000, "Salário")
+    await _post_tx(api, auth_headers, account, "2099-12-01", 5000, "Recorrente")
     await _post_tx(api, auth_headers, account, "2099-12-05", -1000, "Toro (B3)")
 
     resp = await api.get("/api/v1/cashflow/by-category?month=2099-12", headers=auth_headers)
@@ -99,12 +99,12 @@ async def test_by_category_includes_investment_section(api, auth_headers, accoun
 
 
 async def test_by_category_all_time_when_no_month(api, auth_headers, account):
-    await _post_tx(api, auth_headers, account, "2099-11-01", 1234, "FLASH")
+    await _post_tx(api, auth_headers, account, "2099-11-01", 1234, "Recorrente")
     resp = await api.get("/api/v1/cashflow/by-category", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["month"] is None
-    assert "FLASH" in {r["category"] for r in body["income"]}
+    assert "Recorrente" in {r["category"] for r in body["income"]}
 
 
 async def test_by_category_empty_month_returns_empty_200(api, auth_headers):
@@ -118,9 +118,9 @@ async def test_by_category_empty_month_returns_empty_200(api, auth_headers):
 
 
 async def test_cashflow_running_balance(api, auth_headers, account):
-    await _post_tx(api, auth_headers, account, "2099-10-01", 1000, "Salário")
-    await _post_tx(api, auth_headers, account, "2099-10-05", -200, "alimentação")
-    await _post_tx(api, auth_headers, account, "2099-10-09", -50, "transporte")
+    await _post_tx(api, auth_headers, account, "2099-10-01", 1000, "Recorrente")
+    await _post_tx(api, auth_headers, account, "2099-10-05", -200, "Alimentação")
+    await _post_tx(api, auth_headers, account, "2099-10-09", -50, "Transporte")
 
     resp = await api.get(f"/api/v1/cashflow?account_id={account}", headers=auth_headers)
     assert resp.status_code == 200
@@ -135,9 +135,9 @@ async def test_cashflow_running_balance(api, auth_headers, account):
 async def test_cashflow_running_balance_anchored_by_from(api, auth_headers, account):
     """O filtro `from` não pode 'esquecer' o saldo anterior: o running_balance ancora
     no SUM(amount) de tudo antes de `from` (senão a tela começa em 0 errado)."""
-    await _post_tx(api, auth_headers, account, "2099-05-01", 1000, "Salário")
-    await _post_tx(api, auth_headers, account, "2099-05-10", -300, "alimentação")  # saldo 700
-    await _post_tx(api, auth_headers, account, "2099-06-02", -100, "transporte")
+    await _post_tx(api, auth_headers, account, "2099-05-01", 1000, "Recorrente")
+    await _post_tx(api, auth_headers, account, "2099-05-10", -300, "Alimentação")  # saldo 700
+    await _post_tx(api, auth_headers, account, "2099-06-02", -100, "Transporte")
 
     resp = await api.get(
         f"/api/v1/cashflow?account_id={account}&from=2099-06-01", headers=auth_headers

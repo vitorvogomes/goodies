@@ -6,6 +6,7 @@ cashflow agregado como saída sem valor terminal → o XIRR consolidado/da categ
 despencava. Decisão: excluir do cashflow agregado os ativos com posição aberta e sem
 preço. Posição FECHADA (net<=0) permanece — seus fluxos realizados são válidos.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -44,9 +45,7 @@ async def _op(
 
 
 @pytest.mark.asyncio
-async def test_open_position_without_price_excluded(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_open_position_without_price_excluded(pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     async with pool.acquire() as conn:
         # A: aberto, COM preço, ganho ~10% em 1 ano
@@ -70,9 +69,7 @@ async def test_open_position_without_price_excluded(
 
 
 @pytest.mark.asyncio
-async def test_closed_position_without_price_stays(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_closed_position_without_price_stays(pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     async with pool.acquire() as conn:
         # comprado e VENDIDO por completo (net=0), sem preço atual: realizado ~20%

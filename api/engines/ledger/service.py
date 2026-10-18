@@ -1,14 +1,23 @@
-"""Lógica pura do Ledger: avaliação de alertas (STORY-01-08), sem I/O.
+"""Serviço do Ledger: avaliação de alertas v1 (STORY-01-08, puros) e `categorize()`, o caminho
+único de mudança de categoria (Story 2.5 — AD-6).
 
-As funções recebem `today` injetado -> determinísticas e testáveis sem relógio
-nem DB. Alertas compute-on-read; persistência (active_alerts) fica para o m5.
+As funções de alerta recebem `today` injetado -> determinísticas e testáveis sem relógio nem DB.
 """
 
 import calendar
 import datetime
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Literal
 
+import asyncpg
 from pydantic import BaseModel
+
+from engines.common.month_status import month_status
+
+from . import queries
+from .calc import Rule
 
 AlertData = dict[str, float | int | str]
 
@@ -120,3 +129,128 @@ def category_overspend_alerts(
                 )
             )
     return alerts
+
+
+# --------------------------------------------------------------------------------------------
+# Categorização por um caminho só (Story 2.5 — AD-6)
+# --------------------------------------------------------------------------------------------
+
+Source = Literal["rule", "suggestion", "manual"]
+Cause = Literal[
+    "import", "review", "inline_edit", "rule_created", "reapply", "move", "migration", "undo"
+]
+TransactionsChangedHook = Callable[[asyncpg.Connection, list[str]], Awaitable[None]]
+
+_hooks: list[TransactionsChangedHook] = []
+
+
+def register_on_transactions_changed(hook: TransactionsChangedHook) -> None:
+    """Engines de cima (portfolio) registram a derivação em `main.py` (AD-1/AD-6)."""
+    _hooks.append(hook)
+
+
+def clear_transaction_hooks() -> None:
+    _hooks.clear()
+
+
+@dataclass(frozen=True)
+class CategoryChange:
+    transaction_id: str
+    category_id: str
+    source: Source
+    rule_id: str | None = None
+
+
+@dataclass
+class CategorizeResult:
+    changed: list[str] = field(default_factory=list)
+    kept_manual: list[str] = field(default_factory=list)
+
+
+async def load_rules(conn: asyncpg.Connection) -> list[Rule]:
+    return [
+        Rule(
+            pattern=r["pattern"],
+            direction=r["direction"],
+            category_id=str(r["category_id"]),
+            category_name=r["category_name"],
+            kind=r["kind"],
+            rule_id=str(r["id"]),
+            created_at=r["created_at"],
+        )
+        for r in await queries.active_rules(conn)
+    ]
+
+
+async def categorize(
+    conn: asyncpg.Connection,
+    changes: Sequence[CategoryChange],
+    *,
+    cause: Cause,
+    batch_id: str | None = None,
+    review_status: Literal["pending", "confirmed"] | None = None,
+    fire_hooks: bool = True,
+) -> CategorizeResult:
+    """Único caminho de mudança de categoria (AD-6). Roda na transação de quem chama.
+
+    Grava `category_id`, a cópia de `kind` do grupo, a coluna de texto (esquema duplo até a 10.6),
+    `category_source` e a regra; registra o evento; marca o mês sujo; chama os hooks. Categoria
+    `manual` nunca é sobrescrita por regra ou sugestão.
+    """
+    result = CategorizeResult()
+    if not changes:
+        return result
+    tx_ids = [c.transaction_id for c in changes]
+    state = {str(r["id"]): r for r in await conn.fetch(queries.TX_STATE, tx_ids)}
+    cats = {
+        str(r["id"]): r
+        for r in await conn.fetch(queries.CATEGORY_INFO, list({c.category_id for c in changes}))
+    }
+    months: set[date] = set()
+    for ch in changes:
+        current = state.get(ch.transaction_id)
+        if current is None:
+            raise LookupError(f"transação inexistente: {ch.transaction_id}")
+        cat = cats.get(ch.category_id)
+        if cat is None:
+            raise LookupError(f"categoria inexistente: {ch.category_id}")
+        if current["category_source"] == "manual" and ch.source != "manual":
+            result.kept_manual.append(ch.transaction_id)
+            continue
+        before = str(current["category_id"]) if current["category_id"] else None
+        rule_id = ch.rule_id if ch.source == "rule" else None
+        if (
+            before == ch.category_id
+            and current["category_source"] == ch.source
+            and (review_status is None or review_status == current["review_status"])
+        ):
+            continue  # nada muda: sem evento
+        await conn.execute(
+            queries.APPLY_CATEGORY,
+            ch.transaction_id,
+            ch.category_id,
+            cat["name"],
+            cat["kind"],
+            ch.source,
+            rule_id,
+            review_status,
+        )
+        await conn.execute(
+            queries.INSERT_EVENT,
+            ch.transaction_id,
+            before,
+            ch.category_id,
+            ch.source,
+            cause,
+            batch_id,
+            rule_id,
+        )
+        result.changed.append(ch.transaction_id)
+        months.add(current["date"].replace(day=1))
+    port = month_status()
+    for month in sorted(months):
+        await port.mark_dirty(conn, month)
+    if fire_hooks and result.changed:
+        for hook in _hooks:
+            await hook(conn, list(result.changed))
+    return result

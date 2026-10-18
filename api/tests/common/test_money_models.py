@@ -1,4 +1,5 @@
 """Story 2.1 — Money/Pct na fronteira HTTP e Valued[T]."""
+
 from __future__ import annotations
 
 import json

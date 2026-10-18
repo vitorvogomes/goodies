@@ -34,3 +34,51 @@ async def transactions_by_category_keys(
         _BY_KEYS, list(keys), kind, list(description_any)
     )
     return rows
+
+
+ACTIVE_RULES = """
+    SELECT r.id, r.pattern, r.direction, r.category_id, r.created_at, c.name AS category_name,
+           g.kind
+    FROM category_rules r
+    JOIN categories c ON c.id = r.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE r.is_active AND c.is_active
+"""
+
+CATEGORY_INFO = """
+    SELECT c.id, c.name, c.key, c.role, g.kind
+    FROM categories c JOIN category_groups g ON g.id = c.group_id
+    WHERE c.id = ANY($1::uuid[])
+"""
+
+CATEGORY_BY_KEY = "SELECT id FROM categories WHERE key = $1"
+
+TX_STATE = """
+    SELECT id, category_id, category_source, review_status, date
+    FROM transactions WHERE id = ANY($1::uuid[]) FOR UPDATE
+"""
+
+APPLY_CATEGORY = """
+    UPDATE transactions SET
+      category_id = $2, category = $3, kind = $4, category_source = $5, category_rule_id = $6,
+      review_status = COALESCE($7, review_status)
+    WHERE id = $1
+"""
+
+INSERT_EVENT = """
+    INSERT INTO categorization_events
+      (transaction_id, before_category_id, after_category_id, source, cause, batch_id, rule_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+"""
+
+
+async def active_rules(conn: asyncpg.Connection) -> list[asyncpg.Record]:
+    rows: list[asyncpg.Record] = await conn.fetch(ACTIVE_RULES)
+    return rows
+
+
+async def category_id_by_key(conn: asyncpg.Connection, key: str) -> str:
+    value = await conn.fetchval(CATEGORY_BY_KEY, key)
+    if value is None:
+        raise LookupError(f"categoria de sistema ausente: {key}")
+    return str(value)

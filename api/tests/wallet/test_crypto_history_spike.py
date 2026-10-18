@@ -3,6 +3,7 @@
 Cobre o veredito de recuperabilidade, a lacuna permanente da KuCoin e a redação de
 segredos no relatório (nenhum endereço/chave pode vazar na saída).
 """
+
 from __future__ import annotations
 
 from scripts.spikes import crypto_history_spike as spike
@@ -61,9 +62,7 @@ class TestRedaction:
     def test_report_does_not_leak_secret_in_note(self) -> None:
         """Um endereço numa note de sonda não pode aparecer no relatório renderizado."""
         secret = "0xDEADBEEFdeadbeefDEADBEEFdeadbeef12345678"
-        probes = {
-            "evm-eth": spike.Probe("evm-eth", "tokentx", False, note=f"timeout em {secret}")
-        }
+        probes = {"evm-eth": spike.Probe("evm-eth", "tokentx", False, note=f"timeout em {secret}")}
         held = [{"asset": "ETH", "custody": "ethereum", "protocol": None}]
         report = spike.render_report(held, probes)
         assert secret not in report

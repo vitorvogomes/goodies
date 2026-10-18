@@ -1,4 +1,5 @@
 """SolanaFetcher — SOL nativo + SPL via JSON-RPC. STORY-04-03. Mock respx."""
+
 from __future__ import annotations
 
 import json
@@ -34,10 +35,13 @@ async def test_sol_native_and_spl() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         method = json.loads(request.content)["method"]
         if method == "getBalance":  # 1.5 SOL em lamports
-            return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1,
-                                             "result": {"value": 1500000000}})
-        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1,
-                                         "result": {"value": [_token_account(_USDC, 25.0)]}})
+            return httpx.Response(
+                200, json={"jsonrpc": "2.0", "id": 1, "result": {"value": 1500000000}}
+            )
+        return httpx.Response(
+            200,
+            json={"jsonrpc": "2.0", "id": 1, "result": {"value": [_token_account(_USDC, 25.0)]}},
+        )
 
     respx.post(_RPC).mock(side_effect=handler)
     out = {b.asset_symbol: b for b in await _fetcher().fetch()}
@@ -69,9 +73,7 @@ async def test_spl_survives_when_balance_fails() -> None:
         method = json.loads(request.content)["method"]
         if method == "getBalance":  # erro no SOL nativo
             return httpx.Response(200, json={"error": {"code": -32000, "message": "boom"}})
-        return httpx.Response(
-            200, json={"result": {"value": [_token_account(_USDC, 10.0)]}}
-        )
+        return httpx.Response(200, json={"result": {"value": [_token_account(_USDC, 10.0)]}})
 
     respx.post(_RPC).mock(side_effect=handler)
     out = {b.asset_symbol: b for b in await _fetcher().fetch()}
@@ -95,6 +97,7 @@ async def test_no_address_is_noop() -> None:
 @respx.mock
 async def test_scans_multiple_addresses() -> None:
     """Phantom + Neobankless num só fetcher → posições distintas por wallet_address (m4)."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         addr = body["params"][0]
@@ -105,9 +108,7 @@ async def test_scans_multiple_addresses() -> None:
         return httpx.Response(200, json={"result": {"value": accts}})
 
     respx.post(_RPC).mock(side_effect=handler)
-    out = await SolanaFetcher(
-        addresses=["ADDR1", "ADDR2"], sleep=_no_sleep, rpc_url=_RPC
-    ).fetch()
+    out = await SolanaFetcher(addresses=["ADDR1", "ADDR2"], sleep=_no_sleep, rpc_url=_RPC).fetch()
     by = {(b.wallet_address, b.asset_symbol): b for b in out}
     assert by[("ADDR1", "SOL")].quantity == 1.0
     assert by[("ADDR2", "SOL")].quantity == 2.0

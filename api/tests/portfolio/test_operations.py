@@ -1,4 +1,5 @@
 """Tests for asset operations CRUD."""
+
 from __future__ import annotations
 
 import uuid
@@ -17,9 +18,7 @@ async def _cleanup_operations(pool: Any) -> None:
             "DELETE FROM asset_operations WHERE user_id IN "
             "(SELECT id FROM users WHERE email LIKE 'test_%_%@test.com')"
         )
-        await conn.execute(
-            "DELETE FROM users WHERE email LIKE 'test_%_%@test.com'"
-        )
+        await conn.execute("DELETE FROM users WHERE email LIKE 'test_%_%@test.com'")
 
 
 class TestCreateAssetOperation:
@@ -253,16 +252,17 @@ class TestListAssetOperations:
             await api.post(
                 "/api/v1/asset-operations",
                 json={
-                    "broker": "B3", "asset_symbol": symbol,
-                    "asset_category": "Ações Nacionais", "tipo": "compra",
-                    "quantidade": 10.0, "valor_unitario": 25.50,
+                    "broker": "B3",
+                    "asset_symbol": symbol,
+                    "asset_category": "Ações Nacionais",
+                    "tipo": "compra",
+                    "quantidade": 10.0,
+                    "valor_unitario": 25.50,
                     "data_operacao": "2026-06-01",
                 },
                 headers=auth_headers,
             )
-        resp = await api.get(
-            "/api/v1/asset-operations?asset_symbol=petr", headers=auth_headers
-        )
+        resp = await api.get("/api/v1/asset-operations?asset_symbol=petr", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1

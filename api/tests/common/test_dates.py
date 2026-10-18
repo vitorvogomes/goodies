@@ -1,4 +1,5 @@
 """Helper de data no fuso BRT — corrige off-by-one dos alertas em prod UTC (débito m4)."""
+
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 

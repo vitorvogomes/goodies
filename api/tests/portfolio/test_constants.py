@@ -4,6 +4,7 @@ nunca faça uma posição sumir da alocação/IR sem erro.
 
 Testes puros (sem DB/Redis).
 """
+
 from __future__ import annotations
 
 from engines.portfolio.b3_import import b3_category

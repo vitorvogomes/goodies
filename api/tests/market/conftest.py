@@ -4,6 +4,7 @@
   (tabela global). Usam tickers com prefixo `MKT_` e esta fixture os limpa entre testes.
 - `api` + `portfolio_user`: cliente ASGI + usuário autenticado (auth dos endpoints).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -31,9 +32,7 @@ async def clean_market_prices(pool: Any) -> AsyncIterator[None]:
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    )
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 @pytest_asyncio.fixture
@@ -55,9 +54,7 @@ async def portfolio_user(pool: Any) -> AsyncIterator[dict[str, Any]]:
             )
         )
     async with _client() as client:
-        resp = await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": _PASSWORD}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
     headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
     yield {"headers": headers, "user_id": uid}
     async with pool.acquire() as conn:

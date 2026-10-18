@@ -2,6 +2,7 @@
 
 Unit tests on the pure function suggest_rebalancing + integration on the endpoint.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -42,8 +43,12 @@ class TestSuggestRebalancingPure:
 
 
 async def _buy_with_price(
-    api: AsyncClient, headers: dict, sym: str, category: str,
-    qty: float, price: float,
+    api: AsyncClient,
+    headers: dict,
+    sym: str,
+    category: str,
+    qty: float,
+    price: float,
 ) -> None:
     await api.post(
         "/api/v1/asset-operations",
@@ -93,9 +98,7 @@ class TestRebalancingEndpoint:
                 uid,
             )
 
-        resp = await api.get(
-            "/api/v1/portfolio/rebalancing?amount=4000", headers=headers
-        )
+        resp = await api.get("/api/v1/portfolio/rebalancing?amount=4000", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         assert abs(float(data["contribution"]) - 4000.0) < 0.01
@@ -109,9 +112,7 @@ class TestRebalancingEndpoint:
     ) -> None:
         headers = portfolio_user["headers"]
         await _buy_with_price(api, headers, "BTC", "Cripto", 1.0, 1000.0)
-        resp = await api.get(
-            "/api/v1/portfolio/rebalancing?amount=0", headers=headers
-        )
+        resp = await api.get("/api/v1/portfolio/rebalancing?amount=0", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["suggestions"] == {}

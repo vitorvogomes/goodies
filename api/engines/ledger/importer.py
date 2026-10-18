@@ -18,6 +18,9 @@ import asyncpg
 
 from engines.ingest import service as ingest_service
 from engines.ingest.models import BatchFileIn
+from engines.ledger import queries as ledger_queries
+from engines.ledger import service as ledger_service
+from engines.ledger.calc import Rule, best_rule
 
 
 @dataclass(frozen=True)
@@ -32,15 +35,11 @@ class StatementEntry:
 class Classification:
     kind: str  # "income" | "expense" | "investment" | "transfer"
     category: str
-
-
-@dataclass(frozen=True)
-class MatchRule:
-    """Regra de classificação configurável (vem de categories.match_patterns)."""
-
-    category: str
-    kind: str
-    patterns: tuple[str, ...]
+    # Story 2.5: a subcategoria vem da regra (`category_id` + `rule_id`) ou de uma key de sistema
+    # (transferência interna detectada pelo adapter; "a classificar" pelo sinal).
+    category_id: str | None = None
+    rule_id: str | None = None
+    category_key: str | None = None
 
 
 @dataclass
@@ -106,35 +105,30 @@ def parse_csv(content: str) -> list[StatementEntry]:
 
 def classify(
     entry: StatementEntry,
-    rules: Sequence[MatchRule] = (),
+    rules: Sequence[Rule] = (),
     self_identifiers: Sequence[str] = (),
 ) -> Classification:
-    """Classifica um lançamento: regra de destino (maior pattern vence) > transferência
-    interna (conta própria na descrição) > fallback por sinal (receita/despesa)."""
+    """Classifica um lançamento: transferência interna (conta própria na descrição — detecção do
+    adapter Nubank, antes das regras, AD-6) > regra (direção pelo sinal; maior padrão vence;
+    empate → mais recente) > "a classificar" pelo sinal."""
     desc = entry.description.lower()
-    best: MatchRule | None = None
-    best_len = 0
-    for rule in rules:
-        for pattern in rule.patterns:
-            p = pattern.lower()
-            if p and p in desc and len(p) > best_len:
-                best, best_len = rule, len(p)
-    if best is not None:
-        return Classification(best.kind, best.category)
     if "transfer" in desc and any(s.lower() in desc for s in self_identifiers):
-        return Classification("transfer", "Transferência interna")
+        return Classification("transfer", "Transferência interna", category_key="transfer:interna")
+    rule = best_rule(entry.description, entry.amount, rules)
+    if rule is not None:
+        return Classification(rule.kind, rule.category_name, rule.category_id, rule.rule_id)
     if entry.amount > 0:
-        return Classification("income", "Entrada a classificar")
-    return Classification("expense", "Saída a classificar")
-
-
-async def _load_rules(conn: asyncpg.Connection) -> list[MatchRule]:
-    """Carrega as regras de classificação das categorias ativas com patterns."""
-    rows = await conn.fetch(
-        "SELECT name, kind, match_patterns FROM categories "
-        "WHERE is_active AND array_length(match_patterns, 1) IS NOT NULL"
+        return Classification(
+            "income", "Entrada a classificar", category_key="sistema:entrada_a_classificar"
+        )
+    return Classification(
+        "expense", "Saída a classificar", category_key="sistema:saida_a_classificar"
     )
-    return [MatchRule(r["name"], r["kind"], tuple(r["match_patterns"])) for r in rows]
+
+
+async def _load_rules(conn: asyncpg.Connection) -> list[Rule]:
+    """Regras ativas de `category_rules` (Story 2.5; `match_patterns` deixa de ser lido)."""
+    return await ledger_service.load_rules(conn)
 
 
 def parse_statement(filename: str, content: str) -> list[StatementEntry]:
@@ -192,21 +186,30 @@ async def import_statement(
                 )
             ],
         )
+    pending_by_sign = {
+        True: await ledger_queries.category_id_by_key(conn, "sistema:entrada_a_classificar"),
+        False: await ledger_queries.category_id_by_key(conn, "sistema:saida_a_classificar"),
+    }
+    key_ids: dict[str, str] = {}
+    changes: list[ledger_service.CategoryChange] = []
     for entry in entries:
         result = classify(entry, rules, identifiers)
+        positive = entry.amount > 0
         try:
+            # Entra "a classificar" (sugestão, pendente); a categoria final vem por categorize().
             inserted = await conn.fetchval(
                 "INSERT INTO transactions "
-                "(account_id, date, amount, category, kind, description, external_id, batch_id, "
-                "source) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) "
+                "(account_id, date, amount, category, category_id, kind, description, "
+                "external_id, batch_id, source, category_source, review_status) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'suggestion', 'pending') "
                 "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
                 "RETURNING id",
                 account_id,
                 entry.date,
                 entry.amount,
-                result.category,
-                result.kind,
+                "Entrada a classificar" if positive else "Saída a classificar",
+                pending_by_sign[positive],
+                "income" if positive else "expense",
                 entry.description,
                 entry.external_id,
                 batch_id,
@@ -217,9 +220,29 @@ async def import_statement(
             continue
         if inserted is None:
             report.duplicates += 1
-        else:
-            report.imported += 1
-            report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
+            continue
+        report.imported += 1
+        report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
+        target = result.category_id
+        if target is None and result.category_key is not None:
+            if result.category_key not in key_ids:
+                key_ids[result.category_key] = await ledger_queries.category_id_by_key(
+                    conn, result.category_key
+                )
+            target = key_ids[result.category_key]
+        if target is not None and target != pending_by_sign[positive]:
+            changes.append(
+                ledger_service.CategoryChange(
+                    transaction_id=str(inserted),
+                    category_id=target,
+                    source="rule",
+                    rule_id=result.rule_id,
+                )
+            )
+    # AD-5: dentro do import a derivação roda pelo hook do lote, não por on_transactions_changed.
+    await ledger_service.categorize(
+        conn, changes, cause="import", batch_id=batch_id, fire_hooks=False
+    )
     if batch_id is not None and report.imported == 0:
         await conn.execute(
             "DELETE FROM import_batches WHERE id = $1 AND NOT EXISTS "

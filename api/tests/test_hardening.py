@@ -1,4 +1,5 @@
 """Story 1.6 — segredos dev-insecure recusados, Hermes desligado por padrão, Redis pela config."""
+
 from __future__ import annotations
 
 import importlib

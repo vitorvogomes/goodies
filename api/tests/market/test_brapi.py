@@ -1,4 +1,5 @@
 """Fetcher BRAPI (B3) — STORY-03-02. APIs mockadas com respx (sem rede)."""
+
 from __future__ import annotations
 
 import httpx
@@ -94,9 +95,7 @@ async def test_persistent_5xx_returns_empty_no_raise() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_unknown_ticker_omitted() -> None:
-    respx.get(url__startswith=_QUOTE).mock(
-        return_value=httpx.Response(200, json={"results": []})
-    )
+    respx.get(url__startswith=_QUOTE).mock(return_value=httpx.Response(200, json={"results": []}))
     out = await _fetcher().fetch(["ZZZZ9"])
     assert out == {}
 

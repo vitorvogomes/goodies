@@ -1,4 +1,5 @@
 """Tests for STORY-02-08 — GET /api/v1/portfolio/allocation (atual vs meta)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -8,8 +9,12 @@ from httpx import AsyncClient
 
 
 async def _buy_with_price(
-    api: AsyncClient, headers: dict, sym: str, category: str,
-    qty: float, price: float,
+    api: AsyncClient,
+    headers: dict,
+    sym: str,
+    category: str,
+    qty: float,
+    price: float,
 ) -> None:
     await api.post(
         "/api/v1/asset-operations",
@@ -73,9 +78,7 @@ class TestAllocation:
         assert abs(total_pct - 100.0) < 0.01
 
     @pytest.mark.asyncio
-    async def test_deviation_calc(
-        self, api: AsyncClient, portfolio_user: dict[str, Any]
-    ) -> None:
+    async def test_deviation_calc(self, api: AsyncClient, portfolio_user: dict[str, Any]) -> None:
         """RF at 50% actual vs 50% target → desvio ~0; Ações 50% vs 10% → +40pp."""
         headers = portfolio_user["headers"]
         await _buy_with_price(api, headers, "Flash_CDB", "Renda Fixa", 1.0, 5000.0)
@@ -94,9 +97,7 @@ class TestAllocation:
     ) -> None:
         """Position in a category with no target → pct_meta/desvio null."""
         headers = portfolio_user["headers"]
-        await _buy_with_price(
-            api, headers, "WEIRD1", "Categoria Sem Meta", 10.0, 100.0
-        )
+        await _buy_with_price(api, headers, "WEIRD1", "Categoria Sem Meta", 10.0, 100.0)
         resp = await api.get("/api/v1/portfolio/allocation", headers=headers)
         data = resp.json()
         weird = _cat(data, "Categoria Sem Meta")

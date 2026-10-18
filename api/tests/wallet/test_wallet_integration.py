@@ -4,6 +4,7 @@
 exchange → grava `wallet_positions`; explorer fora → sem linhas, nunca levanta (5xx);
 reconciliação/posições via ASGI. Sem rede.
 """
+
 from __future__ import annotations
 
 import json
@@ -89,7 +90,8 @@ def _mock_all_ok() -> None:
     )
     respx.get(url__startswith=f"{_BTC_BASE}/address").mock(  # Trust, mainchain (ADR-005)
         return_value=httpx.Response(
-            200, json={"chain_stats": {"funded_txo_sum": 25_000_000, "spent_txo_sum": 0}}  # 0.25
+            200,
+            json={"chain_stats": {"funded_txo_sum": 25_000_000, "spent_txo_sum": 0}},  # 0.25
         )
     )
     respx.get(url__startswith="https://api.binance.com/api/v3/time").mock(
@@ -138,9 +140,7 @@ async def test_all_explorers_down_no_rows_no_raise(pool: Any, wallet_user: dict)
     # não deve levantar (fail-soft de ponta a ponta)
     await run_wallet_scan(pool, uid, fetchers=_real_fetchers())
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 0
 
 

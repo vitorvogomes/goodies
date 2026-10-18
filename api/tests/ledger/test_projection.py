@@ -28,17 +28,15 @@ async def test_projection_requires_auth(api):
 
 async def test_projection_30_60_90(api, auth_headers, account):
     # saldo atual = 5000 (recorrente) - 1000 = 4000; receita recorrente mensal = 5000
-    await _post_tx(api, auth_headers, account, "2099-01-01", 5000, "Salário", is_recurring=True)
-    await _post_tx(api, auth_headers, account, "2099-01-02", -1000, "alimentação")
+    await _post_tx(api, auth_headers, account, "2099-01-01", 5000, "Recorrente", is_recurring=True)
+    await _post_tx(api, auth_headers, account, "2099-01-02", -1000, "Alimentação")
     fc = await api.post(
         "/api/v1/fixed-costs",
         json={"name": "Aluguel-proj", "amount": 1500, "due_day": 5, "category": "moradia"},
         headers=auth_headers,
     )
 
-    resp = await api.get(
-        f"/api/v1/cashflow/projection?account_id={account}", headers=auth_headers
-    )
+    resp = await api.get(f"/api/v1/cashflow/projection?account_id={account}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["current_balance"] == 4000.0
@@ -57,15 +55,14 @@ async def test_projection_30_60_90(api, auth_headers, account):
 async def test_projection_income_ignores_recurring_non_income(api, auth_headers, account):
     # review m4→main: receita recorrente = kind='income'. Um resgate recorrente de
     # investimento (positivo, kind=investment) não é receita de caixa projetável.
-    await _post_tx(api, auth_headers, account, "2099-02-01", 3000, "Salário", is_recurring=True)
+    await _post_tx(api, auth_headers, account, "2099-02-01", 3000, "Recorrente", is_recurring=True)
     resp = await api.post(
         "/api/v1/transactions",
         json={
             "account_id": account,
             "date": "2099-02-02",
             "amount": 800,
-            "category": "Resgate-proj",
-            "kind": "investment",
+            "category": "Toro (B3)",
             "is_recurring": True,
         },
         headers=auth_headers,

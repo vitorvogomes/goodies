@@ -1,4 +1,5 @@
 """Tests for STORY-02-17-18 — parsing/import da migração de OPERAÇÕES (CSV)."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -79,9 +80,7 @@ class TestParse:
 
 class TestImport:
     @pytest.mark.asyncio
-    async def test_import_is_idempotent(
-        self, pool: Any, portfolio_user: dict[str, Any]
-    ) -> None:
+    async def test_import_is_idempotent(self, pool: Any, portfolio_user: dict[str, Any]) -> None:
         """Importar duas vezes não duplica (external_id hash)."""
         user_id = portfolio_user["user_id"]
         rows = parse_operations_csv(_CSV)

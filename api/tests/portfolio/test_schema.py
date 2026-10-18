@@ -18,9 +18,7 @@ async def _cleanup_test_data(pool: Any) -> AsyncGenerator[None, None]:
         "DELETE FROM portfolio_targets WHERE user_id IN "
         "(SELECT id FROM users WHERE email LIKE 'test_%_%@test.com')"
     )
-    await pool.execute(
-        "DELETE FROM users WHERE email LIKE 'test_%_%@test.com'"
-    )
+    await pool.execute("DELETE FROM users WHERE email LIKE 'test_%_%@test.com'")
 
 
 @pytest.mark.asyncio
@@ -64,9 +62,7 @@ async def test_asset_operations_columns(pool: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_asset_operations_tipo_constraint(
-    pool: Any, _cleanup_test_data: Any
-) -> None:
+async def test_asset_operations_tipo_constraint(pool: Any, _cleanup_test_data: Any) -> None:
     """tipo column must enforce CHECK constraint."""
     email = f"test_tipo_{uuid.uuid4().hex[:8]}@test.com"
     user_id = await pool.fetchval(
@@ -95,9 +91,7 @@ async def test_asset_operations_tipo_constraint(
 
 
 @pytest.mark.asyncio
-async def test_asset_operations_quantidade_positive(
-    pool: Any, _cleanup_test_data: Any
-) -> None:
+async def test_asset_operations_quantidade_positive(pool: Any, _cleanup_test_data: Any) -> None:
     """quantidade column must enforce positive CHECK constraint."""
     email = f"test_qty_{uuid.uuid4().hex[:8]}@test.com"
     user_id = await pool.fetchval(
@@ -171,8 +165,7 @@ async def test_asset_prices_ticker_pk_upsert(pool: Any) -> None:
     try:
         with pytest.raises(asyncpg.exceptions.UniqueViolationError):
             await pool.execute(
-                "INSERT INTO asset_prices (ticker, price_brl, source) "
-                "VALUES ($1, $2, $3)",
+                "INSERT INTO asset_prices (ticker, price_brl, source) VALUES ($1, $2, $3)",
                 "TEST_PK",
                 20.0,
                 "manual",
@@ -194,9 +187,7 @@ async def test_portfolio_targets_table_exists(pool: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_portfolio_targets_unique_category(
-    pool: Any, _cleanup_test_data: Any
-) -> None:
+async def test_portfolio_targets_unique_category(pool: Any, _cleanup_test_data: Any) -> None:
     """portfolio_targets must enforce UNIQUE(user_id, category)."""
     email = f"test_unique_{uuid.uuid4().hex[:8]}@test.com"
     user_id = await pool.fetchval(

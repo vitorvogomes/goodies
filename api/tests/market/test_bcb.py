@@ -1,4 +1,5 @@
 """BcbFetcher — CDI/IPCA via SGS do BCB. STORY-04-07. Mock respx."""
+
 from __future__ import annotations
 
 from datetime import date

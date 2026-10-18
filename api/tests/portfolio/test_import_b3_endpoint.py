@@ -1,4 +1,5 @@
 """A4 — POST /api/v1/portfolio/import-b3 (octet-stream + dry-run)."""
+
 from __future__ import annotations
 
 import io
@@ -9,8 +10,15 @@ from httpx import AsyncClient
 from openpyxl import Workbook
 
 _NEG_HEADER = (
-    "Data do Negócio", "Tipo de Movimentação", "Mercado", "Prazo/Vencimento",
-    "Instituição", "Código de Negociação", "Quantidade", "Preço", "Valor",
+    "Data do Negócio",
+    "Tipo de Movimentação",
+    "Mercado",
+    "Prazo/Vencimento",
+    "Instituição",
+    "Código de Negociação",
+    "Quantidade",
+    "Preço",
+    "Valor",
 )
 _OCTET = "application/octet-stream"
 
@@ -33,9 +41,7 @@ def _neg_xlsx(rows: list[tuple[Any, ...]]) -> bytes:
 
 async def _count_ops(pool: Any, uid: str) -> int:
     async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT count(*) FROM asset_operations WHERE user_id = $1", uid
-        )
+        return await conn.fetchval("SELECT count(*) FROM asset_operations WHERE user_id = $1", uid)
 
 
 class TestImportB3Endpoint:
@@ -67,9 +73,7 @@ class TestImportB3Endpoint:
         self, api: AsyncClient, pool: Any, portfolio_user: dict
     ) -> None:
         uid, headers = portfolio_user["user_id"], portfolio_user["headers"]
-        data = _neg_xlsx(
-            [("05/06/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 3, 19.46, 58.38)]
-        )
+        data = _neg_xlsx([("05/06/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 3, 19.46, 58.38)])
         h = {**headers, "Content-Type": _OCTET}
 
         # dry-run: prevê, não grava

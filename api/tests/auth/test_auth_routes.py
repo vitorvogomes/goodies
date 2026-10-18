@@ -133,9 +133,7 @@ async def test_refresh_rotates_cookie_and_db_hash(pool, test_user):
             json={"email": test_user["email"], "password": _PASSWORD},
         )
         first_refresh = client.cookies.get("refresh_token")
-        resp = await client.post(
-            "/api/v1/auth/refresh", json={"refresh_token": first_refresh}
-        )
+        resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": first_refresh})
     assert resp.status_code == 200
     # Rotação: novo cookie setado na resposta.
     assert "refresh_token=" in resp.headers.get("set-cookie", "")
@@ -160,13 +158,9 @@ def _token_with_type(secret: str, *, sub: str, token_type: str) -> str:
 
 async def test_me_rejects_token_with_wrong_type(test_user):
     """Token assinado com o segredo de access mas type!=access → 401."""
-    forged = _token_with_type(
-        settings.jwt_secret_key, sub=test_user["id"], token_type="refresh"
-    )
+    forged = _token_with_type(settings.jwt_secret_key, sub=test_user["id"], token_type="refresh")
     async with _client() as client:
-        resp = await client.get(
-            "/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"}
-        )
+        resp = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"})
     assert resp.status_code == 401
 
 

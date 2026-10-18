@@ -1,4 +1,5 @@
 """E2 — refresh_stale: roda só os vencidos, grava heartbeat, coalesce concorrente."""
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -67,9 +68,7 @@ async def test_force_runs_all(pool: Any) -> None:
 async def test_records_error_on_failure(pool: Any) -> None:
     await _clear(pool)
     calls: list[str] = []
-    res = await refresh_stale(
-        pool, now=_NOW, force=True, jobs=[_spec("job_x", calls, fail=True)]
-    )
+    res = await refresh_stale(pool, now=_NOW, force=True, jobs=[_spec("job_x", calls, fail=True)])
     assert res["jobs"]["job_x"] == "error"
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT ok, error FROM job_runs WHERE job = 'job_x'")
@@ -84,9 +83,7 @@ async def test_concurrent_refresh_is_coalesced(pool: Any) -> None:
     held = await pool.acquire()
     try:
         await held.fetchval("SELECT pg_advisory_lock($1)", _LOCK_KEY)
-        res = await refresh_stale(
-            pool, now=_NOW, force=True, jobs=[_spec("job_a", calls)]
-        )
+        res = await refresh_stale(pool, now=_NOW, force=True, jobs=[_spec("job_a", calls)])
         assert res["status"] == "already_running"
         assert calls == []  # nada rodou (lock tomado)
     finally:
@@ -102,9 +99,7 @@ async def test_cron_job_records_heartbeat(pool: Any, monkeypatch: pytest.MonkeyP
 
     await _clear(pool)
     calls: list[str] = []
-    monkeypatch.setattr(
-        "workers.refresh.default_jobs", lambda: [_spec("price_b3", calls)]
-    )
+    monkeypatch.setattr("workers.refresh.default_jobs", lambda: [_spec("price_b3", calls)])
     monkeypatch.setattr("workers.scheduler.get_pool", lambda: pool)
     await scheduler._job_price_b3()
     assert calls == ["price_b3"]

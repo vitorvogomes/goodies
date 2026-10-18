@@ -1,4 +1,5 @@
 """Fixtures dos testes do Wallet Engine (m4)."""
+
 from __future__ import annotations
 
 import uuid
@@ -37,9 +38,7 @@ async def wallet_user(pool: Any) -> AsyncIterator[dict[str, Any]]:
             )
         )
     async with _client() as client:
-        resp = await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": _PASSWORD}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
     headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
     yield {"user_id": uid, "headers": headers}
     async with pool.acquire() as conn:

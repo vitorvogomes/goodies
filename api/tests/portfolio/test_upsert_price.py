@@ -6,6 +6,7 @@ Duas garantias críticas para o Market Engine (m3):
 2. Invalida o cache de XIRR de todo usuário que detém o ticker (ADR-008) — antes a
    invalidação estava só no router do PUT; o worker chamaria upsert_price direto.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -50,9 +51,7 @@ async def test_worker_overwrites_non_manual(pool: Any, portfolio_user: dict) -> 
 @pytest.mark.asyncio
 async def test_worker_inserts_new_ticker(pool: Any, portfolio_user: dict) -> None:
     async with pool.acquire() as conn:
-        result = await service.upsert_price(
-            conn, "NEWX", 12.0, source="brapi", is_manual=False
-        )
+        result = await service.upsert_price(conn, "NEWX", 12.0, source="brapi", is_manual=False)
         row = await _price_row(conn, "NEWX")
     assert float(row["price_brl"]) == 12.0
     assert row["is_manual"] is False
@@ -70,9 +69,7 @@ async def test_manual_always_overwrites_worker(pool: Any, portfolio_user: dict) 
 
 
 @pytest.mark.asyncio
-async def test_manual_brl_edit_preserves_existing_usd(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_manual_brl_edit_preserves_existing_usd(pool: Any, portfolio_user: dict) -> None:
     """Edição manual só de BRL não apaga o price_usd já gravado (ex.: cripto)."""
     async with pool.acquire() as conn:
         await service.upsert_price(
@@ -89,9 +86,7 @@ async def test_manual_brl_edit_preserves_existing_usd(
 
 
 @pytest.mark.asyncio
-async def test_upsert_invalidates_xirr_cache_of_holder(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_upsert_invalidates_xirr_cache_of_holder(pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     cache = PriceCache()
     key = f"xirr:consolidated:{uid}"  # convenção ADR-008
@@ -110,9 +105,7 @@ async def test_upsert_invalidates_xirr_cache_of_holder(
 
 
 @pytest.mark.asyncio
-async def test_upsert_same_price_keeps_xirr_cache(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_upsert_same_price_keeps_xirr_cache(pool: Any, portfolio_user: dict) -> None:
     """Worker re-rodando com o MESMO preço NÃO invalida o XIRR (§debito m3 #3): o cache
     de XIRR (TTL 1h) raramente sobreviveria à cadência cripto (*/2h) se flushasse sempre."""
     uid = portfolio_user["user_id"]
@@ -138,9 +131,7 @@ async def test_upsert_same_price_keeps_xirr_cache(
 
 
 @pytest.mark.asyncio
-async def test_upsert_usd_only_change_keeps_xirr_cache(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_upsert_usd_only_change_keeps_xirr_cache(pool: Any, portfolio_user: dict) -> None:
     """Mudar SÓ price_usd não invalida o XIRR (que é em BRL) — evita churn de cache."""
     uid = portfolio_user["user_id"]
     cache = PriceCache()

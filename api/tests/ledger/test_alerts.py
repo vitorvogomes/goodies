@@ -48,7 +48,12 @@ async def test_overspend_excludes_investment(api: Any, auth_headers: dict, pool:
             await conn.execute(
                 "INSERT INTO transactions (account_id, date, amount, category, kind, "
                 "description, external_id) VALUES ($1,$2,$3,$4,$5,'x',$6)",
-                acc, d, Decimal(amt), cat, kind, ext,
+                acc,
+                d,
+                Decimal(amt),
+                cat,
+                kind,
+                ext,
             )
 
         # pico de investimento no mês atual vs ~0 antes -> alertaria se não filtrasse kind
@@ -60,17 +65,14 @@ async def test_overspend_excludes_investment(api: Any, auth_headers: dict, pool:
             await _tx(_month_back(cur, n), "-10", "ZZViagem", "expense", f"e-{n}")
 
     resp = await api.get("/api/v1/cashflow/alerts", headers=auth_headers)
-    cats = {
-        a["data"]["category"]
-        for a in resp.json()
-        if a["type"] == "category_overspend"
-    }
+    cats = {a["data"]["category"] for a in resp.json() if a["type"] == "category_overspend"}
     assert "ZZBinance" not in cats  # investimento fora do overspend
     assert "ZZViagem" in cats  # consumo dentro
 
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM transactions WHERE account_id = $1", acc)
         await conn.execute("DELETE FROM accounts WHERE id = $1", acc)
+
 
 async def test_overspend_nets_refunds(api: Any, auth_headers: dict, pool: Any) -> None:
     """Estorno (+) numa categoria de consumo ABATE o gasto (mesma convenção da view
@@ -86,7 +88,10 @@ async def test_overspend_nets_refunds(api: Any, auth_headers: dict, pool: Any) -
             await conn.execute(
                 "INSERT INTO transactions (account_id, date, amount, category, kind, "
                 "description, external_id) VALUES ($1,$2,$3,'ZZUber','expense','x',$4)",
-                acc, d, Decimal(amt), ext,
+                acc,
+                d,
+                Decimal(amt),
+                ext,
             )
 
         # mês atual: gasto 100 + estorno 300 → líquido -200 (abaixo da média de 100)
@@ -96,11 +101,7 @@ async def test_overspend_nets_refunds(api: Any, auth_headers: dict, pool: Any) -
             await _tx(_month_back(cur, n), "-100", f"r-{n}")
 
     resp = await api.get("/api/v1/cashflow/alerts", headers=auth_headers)
-    cats = {
-        a["data"]["category"]
-        for a in resp.json()
-        if a["type"] == "category_overspend"
-    }
+    cats = {a["data"]["category"] for a in resp.json() if a["type"] == "category_overspend"}
     assert "ZZUber" not in cats
 
     async with pool.acquire() as conn:

@@ -4,6 +4,7 @@ Corpos rodados direto (sem cron) com fetchers FALSOS — sem rede. Verifica grav
 Postgres (is_manual=False) + Redis, precedência is_manual, idempotência, e a cadência
 do scheduler (sem viajar no tempo).
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -44,9 +45,7 @@ async def _add_op(pool: Any, uid: str, sym: str, cat: str) -> None:
 async def test_b3_worker_writes_postgres_and_redis(pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     await _add_op(pool, uid, "MKT_PETR4", "Ações Nacionais")
-    fake = _FakeFetcher(
-        {"MKT_PETR4": PriceQuote(price_brl=28.5, price_usd=None, source="brapi")}
-    )
+    fake = _FakeFetcher({"MKT_PETR4": PriceQuote(price_brl=28.5, price_usd=None, source="brapi")})
     empty = _FakeFetcher({})
     stats = await run_price_b3(pool, brapi=fake, treasury=empty)
 
@@ -72,9 +71,7 @@ async def test_worker_does_not_overwrite_manual(pool: Any, portfolio_user: dict)
         await service.portfolio_service.upsert_price(
             conn, "MKT_FLASH", 100.0, source="manual", is_manual=True
         )
-    fake = _FakeFetcher(
-        {"MKT_FLASH": PriceQuote(price_brl=999.0, price_usd=None, source="brapi")}
-    )
+    fake = _FakeFetcher({"MKT_FLASH": PriceQuote(price_brl=999.0, price_usd=None, source="brapi")})
     stats = await run_price_b3(pool, brapi=fake, treasury=_FakeFetcher({}))
 
     assert stats["b3"]["skipped"] == 1
@@ -109,18 +106,12 @@ async def test_crypto_worker_writes_usd(pool: Any, portfolio_user: dict) -> None
 async def test_idempotent_rerun_same_state(pool: Any, portfolio_user: dict) -> None:
     uid = portfolio_user["user_id"]
     await _add_op(pool, uid, "MKT_ITSA4", "Ações Nacionais")
-    fake = _FakeFetcher(
-        {"MKT_ITSA4": PriceQuote(price_brl=9.0, price_usd=None, source="brapi")}
-    )
+    fake = _FakeFetcher({"MKT_ITSA4": PriceQuote(price_brl=9.0, price_usd=None, source="brapi")})
     await run_price_b3(pool, brapi=fake, treasury=_FakeFetcher({}))
     await run_price_b3(pool, brapi=fake, treasury=_FakeFetcher({}))  # 2x
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM asset_prices WHERE ticker = 'MKT_ITSA4'"
-        )
-        price = await conn.fetchval(
-            "SELECT price_brl FROM asset_prices WHERE ticker = 'MKT_ITSA4'"
-        )
+        n = await conn.fetchval("SELECT count(*) FROM asset_prices WHERE ticker = 'MKT_ITSA4'")
+        price = await conn.fetchval("SELECT price_brl FROM asset_prices WHERE ticker = 'MKT_ITSA4'")
     assert n == 1  # ON CONFLICT: uma linha só
     assert float(price) == 9.0
     await PriceCache().delete(service.price_cache_key("b3", "MKT_ITSA4"))
@@ -135,9 +126,7 @@ async def test_no_holdings_zero_stats(pool: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_crypto_worker_prices_wallet_only_symbol(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_crypto_worker_prices_wallet_only_symbol(pool: Any, portfolio_user: dict) -> None:
     # cripto que só existe em wallet_positions (sem op) também recebe preço (m4 B3)
     uid = portfolio_user["user_id"]
     async with pool.acquire() as conn:
@@ -196,9 +185,7 @@ class _MappedFakeFetcher(_FakeFetcher):
 
 
 @pytest.mark.asyncio
-async def test_unmapped_only_extras_are_not_a_blackout(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_unmapped_only_extras_are_not_a_blackout(pool: Any, portfolio_user: dict) -> None:
     # review m4→main: só extras SEM mapeamento (ex.: YT-XSOL) e zero cotações não é
     # apagão da fonte — o fetcher nem consultaria a API. Não pode marcar `partial`.
     uid = portfolio_user["user_id"]
@@ -236,9 +223,7 @@ async def test_distinct_symbols_guard_is_fail_soft() -> None:
 
 
 @pytest.mark.asyncio
-async def test_crypto_worker_prices_defi_only_symbol(
-    pool: Any, portfolio_user: dict
-) -> None:
+async def test_crypto_worker_prices_defi_only_symbol(pool: Any, portfolio_user: dict) -> None:
     # ativo que só existe em defi_positions (sem op/wallet) também recebe preço (m4)
     uid = portfolio_user["user_id"]
     async with pool.acquire() as conn:
@@ -247,9 +232,7 @@ async def test_crypto_worker_prices_defi_only_symbol(
             "VALUES ($1, 'MKT_DEFI', 5, true)",
             uid,
         )
-    fake = _FakeFetcher(
-        {"MKT_DEFI": PriceQuote(price_brl=12.0, price_usd=2.0, source="coingecko")}
-    )
+    fake = _FakeFetcher({"MKT_DEFI": PriceQuote(price_brl=12.0, price_usd=2.0, source="coingecko")})
     try:
         stats = await run_price_crypto(pool, fetcher=fake)
         assert stats["updated"] == 1
@@ -285,7 +268,12 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
     scheduler = build_scheduler()
     jobs = {j.id: j for j in scheduler.get_jobs()}
     assert set(jobs) == {
-        "price_b3", "price_crypto", "wallet_scan", "benchmark_daily", "db_backup", "restore_check",
+        "price_b3",
+        "price_crypto",
+        "wallet_scan",
+        "benchmark_daily",
+        "db_backup",
+        "restore_check",
     }
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)

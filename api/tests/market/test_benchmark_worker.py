@@ -1,4 +1,5 @@
 """Worker benchmark_daily — upsert em benchmark_data (m4 04-07)."""
+
 from __future__ import annotations
 
 from datetime import date

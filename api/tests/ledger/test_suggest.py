@@ -1,4 +1,5 @@
 """D — sugestão híbrida de categoria (função pura + endpoint DB-backed)."""
+
 from __future__ import annotations
 
 import datetime
@@ -49,17 +50,25 @@ def test_threshold_filters_weak_match() -> None:
 
 
 @pytest.mark.asyncio
-async def test_suggestions_endpoint(
-    api: Any, auth_headers: dict, account: str, pool: Any
-) -> None:
+async def test_suggestions_endpoint(api: Any, auth_headers: dict, account: str, pool: Any) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
-            _INSERT_TX, account, datetime.date(2026, 1, 1), Decimal("-30"),
-            "Transporte", "PAGAMENTO PIX UBER DO BRASIL TECNOLOGIA", "sug-h1",
+            _INSERT_TX,
+            account,
+            datetime.date(2026, 1, 1),
+            Decimal("-30"),
+            "Transporte",
+            "PAGAMENTO PIX UBER DO BRASIL TECNOLOGIA",
+            "sug-h1",
         )
         await conn.execute(
-            _INSERT_TX, account, datetime.date(2026, 2, 1), Decimal("-25"),
-            "outros", "PAGAMENTO PIX UBER DO BRASIL TECNOLOGIA LTDA", "sug-p1",
+            _INSERT_TX,
+            account,
+            datetime.date(2026, 2, 1),
+            Decimal("-25"),
+            "outros",
+            "PAGAMENTO PIX UBER DO BRASIL TECNOLOGIA LTDA",
+            "sug-p1",
         )
     resp = await api.get("/api/v1/transactions/suggestions", headers=auth_headers)
     assert resp.status_code == 200

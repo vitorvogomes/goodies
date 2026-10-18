@@ -1,4 +1,5 @@
 """E3 — endpoints /api/v1/jobs/status e /api/v1/jobs/refresh."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -77,7 +78,9 @@ class TestJobsStatusHonesty:
         now = datetime.now(UTC)
         # heartbeat diz "rodou agora", mas o run não trouxe nada (fetched=0 em tudo)
         await _seed_with_stats(
-            pool, "wallet_scan", now,
+            pool,
+            "wallet_scan",
+            now,
             {"EtherscanFetcher": {"fetched": 0, "failed": 0, "swept": 0}},
         )
         async with pool.acquire() as conn:
@@ -99,9 +102,7 @@ class TestJobsStatusHonesty:
             assert ws["data_age_seconds"] >= 19 * 3600
         finally:
             async with pool.acquire() as conn:
-                await conn.execute(
-                    "DELETE FROM wallet_positions WHERE wallet_address = '0xtest'"
-                )
+                await conn.execute("DELETE FROM wallet_positions WHERE wallet_address = '0xtest'")
 
     @pytest.mark.asyncio
     async def test_wallet_scan_partial_when_nothing_fetched(
@@ -110,7 +111,9 @@ class TestJobsStatusHonesty:
         await _clear(pool)
         now = datetime.now(UTC)
         await _seed_with_stats(
-            pool, "wallet_scan", now,
+            pool,
+            "wallet_scan",
+            now,
             {
                 "EtherscanFetcher": {"fetched": 0, "failed": 0, "swept": 0},
                 "BinanceFetcher": {"fetched": 0, "failed": 0, "swept": 0},
@@ -130,7 +133,9 @@ class TestJobsStatusHonesty:
         await _clear(pool)
         now = datetime.now(UTC)
         await _seed_with_stats(
-            pool, "price_b3", now,
+            pool,
+            "price_b3",
+            now,
             {
                 "b3": {"symbols": 17, "fetched": 1, "updated": 1, "skipped": 0, "failed": 16},
                 "tesouro": {"symbols": 7, "fetched": 7, "updated": 7, "skipped": 0, "failed": 0},
@@ -148,7 +153,9 @@ class TestJobsStatusHonesty:
         await _clear(pool)
         now = datetime.now(UTC)
         await _seed_with_stats(
-            pool, "price_b3", now,
+            pool,
+            "price_b3",
+            now,
             {
                 "b3": {"symbols": 16, "fetched": 16, "updated": 16, "skipped": 0, "failed": 0},
                 "tesouro": {"symbols": 0, "fetched": 0, "updated": 0, "skipped": 0, "failed": 0},
@@ -156,8 +163,7 @@ class TestJobsStatusHonesty:
         )
         await _seed_with_stats(pool, "price_crypto", now, {}, ok=False)
         by = {
-            j["job"]: j
-            for j in (await api.get("/api/v1/jobs/status", headers=auth_headers)).json()
+            j["job"]: j for j in (await api.get("/api/v1/jobs/status", headers=auth_headers)).json()
         }
         assert by["price_b3"]["status"] == "fresh"  # tesouro symbols=0 não é falha
         assert by["price_crypto"]["status"] == "error"
@@ -170,7 +176,9 @@ class TestJobsStatusHonesty:
         now = datetime.now(UTC)
         # CoinGecko 100% fora: símbolos pedidos, zero cotações (achado C8)
         await _seed_with_stats(
-            pool, "price_crypto", now,
+            pool,
+            "price_crypto",
+            now,
             {"symbols": 9, "fetched": 0, "updated": 0, "skipped": 0, "failed": 9},
         )
         resp = await api.get("/api/v1/jobs/status", headers=auth_headers)

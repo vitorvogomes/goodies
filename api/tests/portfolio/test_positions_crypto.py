@@ -5,6 +5,7 @@ Cripto não tem a granularidade fiel de B3/RF (custo por ativo só parcialmente 
 detalhe por moeda/chain vive nas Carteiras Cripto. A Alocação/Rebalanceamento somam o valor do
 bloco como categoria Cripto. Tickers sintéticos.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -17,7 +18,8 @@ async def _price(conn: Any, ticker: str, brl: float) -> None:
     await conn.execute(
         "INSERT INTO asset_prices (ticker, price_brl, source, is_manual) "
         "VALUES ($1, $2, 'coingecko', false)",
-        ticker, brl,
+        ticker,
+        brl,
     )
 
 
@@ -26,7 +28,11 @@ async def _wallet(conn: Any, uid: str, chain: str, sym: str, qty: float) -> None
         "INSERT INTO wallet_positions "
         "(user_id, chain, wallet_address, asset_symbol, quantity, source, is_manual) "
         "VALUES ($1, $2, $3, $4, $5, 'etherscan', false)",
-        uid, chain, f"addr-{chain}", sym, qty,
+        uid,
+        chain,
+        f"addr-{chain}",
+        sym,
+        qty,
     )
 
 
@@ -34,7 +40,9 @@ async def _defi(conn: Any, uid: str, sym: str, bal: float) -> None:
     await conn.execute(
         "INSERT INTO defi_positions (user_id, protocol, asset_symbol, balance, is_active) "
         "VALUES ($1, 'hylo', $2, $3, true)",
-        uid, sym, bal,
+        uid,
+        sym,
+        bal,
     )
 
 
@@ -42,8 +50,12 @@ async def _b3_buy(api: AsyncClient, headers: dict, sym: str, qty: float, price: 
     await api.post(
         "/api/v1/asset-operations",
         json={
-            "broker": "B3", "asset_symbol": sym, "asset_category": "Ações Nacionais",
-            "tipo": "compra", "quantidade": qty, "valor_unitario": price,
+            "broker": "B3",
+            "asset_symbol": sym,
+            "asset_category": "Ações Nacionais",
+            "tipo": "compra",
+            "quantidade": qty,
+            "valor_unitario": price,
             "data_operacao": "2026-01-02",
         },
         headers=headers,
@@ -62,7 +74,7 @@ class TestCryptoBucket:
             await _price(conn, "TKNA", 100.0)
             await _price(conn, "TKND", 4.0)
             await _wallet(conn, uid, "binance", "TKNA", 2.0)  # 200
-            await _defi(conn, uid, "TKND", 25.0)              # 100
+            await _defi(conn, uid, "TKND", 25.0)  # 100
         resp = await api.get("/api/v1/portfolio/positions", headers=headers)
         assert resp.status_code == 200
         crypto = [p for p in resp.json() if p["asset_category"] == "Cripto"]
@@ -78,9 +90,7 @@ class TestCryptoBucket:
         assert bucket["resultado"] is None
 
     @pytest.mark.asyncio
-    async def test_no_crypto_no_bucket(
-        self, api: AsyncClient, portfolio_user: dict
-    ) -> None:
+    async def test_no_crypto_no_bucket(self, api: AsyncClient, portfolio_user: dict) -> None:
         resp = await api.get("/api/v1/portfolio/positions", headers=portfolio_user["headers"])
         assert resp.status_code == 200
         assert not [p for p in resp.json() if p["asset_category"] == "Cripto"]
@@ -143,9 +153,7 @@ class TestRebalancingCryptoFold:
         async with pool.acquire() as conn:
             await _price(conn, "TKNA", 100.0)
             await _wallet(conn, uid, "ethereum", "TKNA", 0.1)  # 10
-        resp = await api.get(
-            "/api/v1/portfolio/rebalancing?amount=1000", headers=headers
-        )
+        resp = await api.get("/api/v1/portfolio/rebalancing?amount=1000", headers=headers)
         assert resp.status_code == 200
         suggestions = resp.json()["suggestions"]
         assert "Cripto" in suggestions

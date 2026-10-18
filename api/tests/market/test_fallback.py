@@ -3,6 +3,7 @@
 Roda contra Postgres (goodies_test) e Redis reais. Tickers com prefixo MKT_ (limpos
 pela fixture autouse). O caso de Redis indisponível usa um PriceCache numa porta morta.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -48,9 +49,7 @@ async def test_redis_hit_is_fresh(pool: Any) -> None:
     )
     try:
         async with pool.acquire() as conn:
-            out = await service.get_price(
-                conn, "MKT_PETR4", category="Ações Nacionais", now=_NOW
-            )
+            out = await service.get_price(conn, "MKT_PETR4", category="Ações Nacionais", now=_NOW)
         assert out["price_brl"] == 28.5
         assert out["stale"] is False
         assert out["source"] == "brapi"
@@ -82,9 +81,7 @@ async def test_prices_for_tickers_uses_crypto_cache(pool: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_prices_for_tickers_falls_back_to_postgres(pool: Any) -> None:
-    await _insert_price(
-        pool, "MKT_WSOL", source="coingecko", is_manual=False, fetched_at=_NOW
-    )
+    await _insert_price(pool, "MKT_WSOL", source="coingecko", is_manual=False, fetched_at=_NOW)
     async with pool.acquire() as conn:
         out = await service.prices_for_tickers(conn, ["MKT_WSOL"], category="Cripto")
     assert out["MKT_WSOL"][0] == 10.0  # price_brl do Postgres (sem cache)
@@ -174,8 +171,12 @@ async def test_list_user_prices_batches_cache_pg_missing(
     )
     await cache.set(
         service.price_cache_key("b3", "MKT_AAA"),
-        {"price_brl": 99.0, "price_usd": None, "source": "brapi",
-         "fetched_at": "2026-06-06T11:00:00+00:00"},
+        {
+            "price_brl": 99.0,
+            "price_usd": None,
+            "source": "brapi",
+            "fetched_at": "2026-06-06T11:00:00+00:00",
+        },
         300,
     )
     try:
@@ -186,8 +187,13 @@ async def test_list_user_prices_batches_cache_pg_missing(
         assert by["MKT_BBB"]["price_brl"] == 10.0 and by["MKT_BBB"]["stale"] is False
         assert by["MKT_CCC"]["price_brl"] is None and by["MKT_CCC"]["stale"] is True
         assert set(by["MKT_AAA"]) == {
-            "ticker", "price_brl", "price_usd", "source",
-            "is_manual", "stale", "last_updated",
+            "ticker",
+            "price_brl",
+            "price_usd",
+            "source",
+            "is_manual",
+            "stale",
+            "last_updated",
         }
     finally:
         await cache.delete(service.price_cache_key("b3", "MKT_AAA"))
@@ -220,15 +226,18 @@ async def test_cache_aside_write_populates_both(pool: Any) -> None:
 @pytest.mark.asyncio
 async def test_cache_aside_write_respects_manual(pool: Any) -> None:
     # linha manual preexistente → worker não sobrescreve, nem popula Redis
-    await _insert_price(
-        pool, "MKT_MAN", source="manual", is_manual=True, fetched_at=_NOW
-    )
+    await _insert_price(pool, "MKT_MAN", source="manual", is_manual=True, fetched_at=_NOW)
     cache = PriceCache()
     await cache.delete(service.price_cache_key("b3", "MKT_MAN"))
     async with pool.acquire() as conn:
         ok = await service.cache_aside_write(
-            conn, "MKT_MAN", cache_type="b3", price_brl=999.0,
-            price_usd=None, source="brapi", ttl=300,
+            conn,
+            "MKT_MAN",
+            cache_type="b3",
+            price_brl=999.0,
+            price_usd=None,
+            source="brapi",
+            ttl=300,
         )
         row = await conn.fetchrow(
             "SELECT price_brl, is_manual FROM asset_prices WHERE ticker = 'MKT_MAN'"

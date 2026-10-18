@@ -1,4 +1,5 @@
 """Tests for RF pré-fixada valuation (debêntures Flash — STORY-02-17-18)."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -12,9 +13,7 @@ class TestValorAtualPre:
         assert valor_atual_pre(1000.0, 1.78, d, d) == 1000.0
 
     def test_future_before_start_returns_principal(self) -> None:
-        assert valor_atual_pre(
-            1000.0, 1.78, date(2026, 6, 1), date(2026, 5, 1)
-        ) == 1000.0
+        assert valor_atual_pre(1000.0, 1.78, date(2026, 6, 1), date(2026, 5, 1)) == 1000.0
 
     def test_one_year_approx_24pct(self) -> None:
         """1,78%/mês compõe ~24% a.a. (fator mensal sobre dias/30)."""

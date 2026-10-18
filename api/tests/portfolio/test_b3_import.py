@@ -1,4 +1,5 @@
 """Tests for B3 Movimentação parser (STORY-02-17-18, fonte real Toro/B3)."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -16,20 +17,76 @@ from engines.portfolio.b3_import import (
 # Linhas de dados (sem cabeçalho), no layout real da aba "Movimentação".
 # Entrada/Saída | Data | Movimentação | Produto | Instituição | Qtd | Preço | Valor
 _ROWS = [
-    ("Credito", "20/05/2026", "Transferência - Liquidação",
-     "BBAS3 - BANCO DO BRASIL S/A", "SANTANDER", 3, 20.34, 61.02),
-    ("Debito", "21/05/2026", "Transferência - Liquidação",
-     "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS", "SANTANDER", 2, 30.0, 60.0),
-    ("Credito", "08/05/2026", "Compra",
-     "Tesouro IPCA+ 2040", "NU INVESTIMENTOS S.A. - CTVM", 0.1, 1771.82, 177.18),
-    ("Credito", "20/05/2026", "Rendimento",
-     "MXRF11 - MAXI RENDA FDO INV IMOB - FII", "SANTANDER", 44, 0.10, 4.40),
-    ("Credito", "20/05/2026", "Juros Sobre Capital Próprio",
-     "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS", "SANTANDER", 18, 0.31, 4.65),
-    ("Credito", "28/05/2026", "Atualização",
-     "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS", "SANTANDER", 18, "-", "-"),
-    ("Debito", "14/05/2026", "Direitos de Subscrição - Não Exercido",
-     "BTLG12 - BTG PACTUAL", "SANTANDER", 0, "-", "-"),
+    (
+        "Credito",
+        "20/05/2026",
+        "Transferência - Liquidação",
+        "BBAS3 - BANCO DO BRASIL S/A",
+        "SANTANDER",
+        3,
+        20.34,
+        61.02,
+    ),
+    (
+        "Debito",
+        "21/05/2026",
+        "Transferência - Liquidação",
+        "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS",
+        "SANTANDER",
+        2,
+        30.0,
+        60.0,
+    ),
+    (
+        "Credito",
+        "08/05/2026",
+        "Compra",
+        "Tesouro IPCA+ 2040",
+        "NU INVESTIMENTOS S.A. - CTVM",
+        0.1,
+        1771.82,
+        177.18,
+    ),
+    (
+        "Credito",
+        "20/05/2026",
+        "Rendimento",
+        "MXRF11 - MAXI RENDA FDO INV IMOB - FII",
+        "SANTANDER",
+        44,
+        0.10,
+        4.40,
+    ),
+    (
+        "Credito",
+        "20/05/2026",
+        "Juros Sobre Capital Próprio",
+        "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS",
+        "SANTANDER",
+        18,
+        0.31,
+        4.65,
+    ),
+    (
+        "Credito",
+        "28/05/2026",
+        "Atualização",
+        "PETR4 - PETROLEO BRASILEIRO S/A PETROBRAS",
+        "SANTANDER",
+        18,
+        "-",
+        "-",
+    ),
+    (
+        "Debito",
+        "14/05/2026",
+        "Direitos de Subscrição - Não Exercido",
+        "BTLG12 - BTG PACTUAL",
+        "SANTANDER",
+        0,
+        "-",
+        "-",
+    ),
 ]
 
 
@@ -89,16 +146,32 @@ class TestSheetCategories:
 
     def test_movimentacao_map_wins_over_heuristic(self) -> None:
         rows = [
-            ("Credito", "20/05/2026", "Transferência - Liquidação",
-             "XPTO11 - NOVO ETF", "TORO", 1, 100.0, 100.0),
+            (
+                "Credito",
+                "20/05/2026",
+                "Transferência - Liquidação",
+                "XPTO11 - NOVO ETF",
+                "TORO",
+                1,
+                100.0,
+                100.0,
+            ),
         ]
         ops = parse_b3_movimentacao(rows, category_map={"XPTO11": "ETFs"})
         assert ops[0]["asset_category"] == "ETFs"
 
     def test_movimentacao_without_map_uses_heuristic(self) -> None:
         rows = [
-            ("Credito", "20/05/2026", "Transferência - Liquidação",
-             "XPTO11 - NOVO ETF", "TORO", 1, 100.0, 100.0),
+            (
+                "Credito",
+                "20/05/2026",
+                "Transferência - Liquidação",
+                "XPTO11 - NOVO ETF",
+                "TORO",
+                1,
+                100.0,
+                100.0,
+            ),
         ]
         ops = parse_b3_movimentacao(rows)
         assert ops[0]["asset_category"] == "FIIs"  # fallback
@@ -145,9 +218,7 @@ class TestParseMovimentacao:
 
     def test_venda_row(self) -> None:
         ops = parse_b3_movimentacao(_ROWS)
-        petr_venda = next(
-            o for o in ops if o["asset_symbol"] == "PETR4" and o["tipo"] == "venda"
-        )
+        petr_venda = next(o for o in ops if o["asset_symbol"] == "PETR4" and o["tipo"] == "venda")
         assert petr_venda["quantidade"] == 2
 
     def test_tesouro_compra(self) -> None:
@@ -169,8 +240,13 @@ class TestPositionPrices:
     def test_stock_uses_preco_fechamento(self) -> None:
         sheets = {
             "Posição - Ações": [
-                ("Produto", "Código de Negociação", "Quantidade",
-                 "Preço de Fechamento", "Valor Atualizado"),
+                (
+                    "Produto",
+                    "Código de Negociação",
+                    "Quantidade",
+                    "Preço de Fechamento",
+                    "Valor Atualizado",
+                ),
                 ("BBAS3 - BCO BRASIL", "BBAS3", 37, 20.3, 751.1),
                 ("", "", "", "", "Total"),  # linha de total ignorada
             ],
@@ -194,14 +270,50 @@ class TestPositionPrices:
 # Aba "Negociação" (extrato diário/semanal) — trade a trade, na DATA DO NEGÓCIO.
 # Data do Negócio | Tipo | Mercado | Prazo | Instituição | Código | Qtd | Preço | Valor
 _NEG_ROWS = [
-    ("Data do Negócio", "Tipo de Movimentação", "Mercado", "Prazo/Vencimento",
-     "Instituição", "Código de Negociação", "Quantidade", "Preço", "Valor"),  # header
-    ("05/06/2026", "Compra", "Mercado Fracionário", "-",
-     "SANTANDER CORRETORA DE TÍTULOS", "BBAS3F", 3, 19.46, 58.38),
-    ("05/06/2026", "Compra", "Mercado à Vista", "-",
-     "SANTANDER CORRETORA DE TÍTULOS", "GOLD11", 4, 23.22, 92.88),
-    ("04/06/2026", "Venda", "Mercado à Vista", "-",
-     "SANTANDER CORRETORA DE TÍTULOS", "PETR4", 2, 30.0, 60.0),
+    (
+        "Data do Negócio",
+        "Tipo de Movimentação",
+        "Mercado",
+        "Prazo/Vencimento",
+        "Instituição",
+        "Código de Negociação",
+        "Quantidade",
+        "Preço",
+        "Valor",
+    ),  # header
+    (
+        "05/06/2026",
+        "Compra",
+        "Mercado Fracionário",
+        "-",
+        "SANTANDER CORRETORA DE TÍTULOS",
+        "BBAS3F",
+        3,
+        19.46,
+        58.38,
+    ),
+    (
+        "05/06/2026",
+        "Compra",
+        "Mercado à Vista",
+        "-",
+        "SANTANDER CORRETORA DE TÍTULOS",
+        "GOLD11",
+        4,
+        23.22,
+        92.88,
+    ),
+    (
+        "04/06/2026",
+        "Venda",
+        "Mercado à Vista",
+        "-",
+        "SANTANDER CORRETORA DE TÍTULOS",
+        "PETR4",
+        2,
+        30.0,
+        60.0,
+    ),
 ]
 
 
@@ -227,14 +339,12 @@ class TestParseNegociacao:
         assert petr["quantidade"] == 2
 
     def test_category_map_wins_over_heuristic(self) -> None:
-        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO",
-                 "XPTO11", 1, 100.0, 100.0)]
+        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO", "XPTO11", 1, 100.0, 100.0)]
         ops = parse_b3_negociacao(rows, category_map={"XPTO11": "ETFs"})
         assert ops[0]["asset_category"] == "ETFs"
 
     def test_without_map_uses_heuristic(self) -> None:
-        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO",
-                 "XPTO11", 1, 100.0, 100.0)]
+        rows = [("05/06/2026", "Compra", "Fracionário", "-", "TORO", "XPTO11", 1, 100.0, 100.0)]
         ops = parse_b3_negociacao(rows)
         assert ops[0]["asset_category"] == "FIIs"  # fallback do sufixo 11
 
@@ -242,14 +352,35 @@ class TestParseNegociacao:
         """ÂNCORA da armadilha: negociação (data do negócio) vs movimentação
         (data de liquidação D+2) -> external_id DIFERENTE para o mesmo trade.
         O hash NÃO deduplica entre fontes; só a regra de cobertura (A3) protege."""
-        neg = parse_b3_negociacao([
-            ("05/06/2026", "Compra", "Mercado Fracionário", "-", "SANTANDER",
-             "BBAS3F", 3, 19.46, 58.38),
-        ])
-        mov = parse_b3_movimentacao([
-            ("Credito", "09/06/2026", "Transferência - Liquidação",
-             "BBAS3 - BANCO DO BRASIL S/A", "SANTANDER", 3, 19.46, 58.38),
-        ])
+        neg = parse_b3_negociacao(
+            [
+                (
+                    "05/06/2026",
+                    "Compra",
+                    "Mercado Fracionário",
+                    "-",
+                    "SANTANDER",
+                    "BBAS3F",
+                    3,
+                    19.46,
+                    58.38,
+                ),
+            ]
+        )
+        mov = parse_b3_movimentacao(
+            [
+                (
+                    "Credito",
+                    "09/06/2026",
+                    "Transferência - Liquidação",
+                    "BBAS3 - BANCO DO BRASIL S/A",
+                    "SANTANDER",
+                    3,
+                    19.46,
+                    58.38,
+                ),
+            ]
+        )
         assert neg[0]["asset_symbol"] == mov[0]["asset_symbol"] == "BBAS3"
         assert neg[0]["tipo"] == mov[0]["tipo"] == "compra"
         assert neg[0]["external_id"] != mov[0]["external_id"]
@@ -258,15 +389,25 @@ class TestParseNegociacao:
         """openpyxl (data_only) entrega células de data como datetime; datetime é
         subclasse de date e passava cru -> `data_op <= cut` (date) dava TypeError
         no serviço (500) e o isoformat divergia ('T00:00:00'). Achado C1."""
-        rows = [(datetime(2026, 6, 5, 0, 0), "Compra", "Mercado à Vista", "-",
-                 "SANTANDER", "PETR4", 2, 30.0, 60.0)]
+        rows = [
+            (
+                datetime(2026, 6, 5, 0, 0),
+                "Compra",
+                "Mercado à Vista",
+                "-",
+                "SANTANDER",
+                "PETR4",
+                2,
+                30.0,
+                60.0,
+            )
+        ]
         op = parse_b3_negociacao(rows)[0]
         assert type(op["data_operacao"]) is date  # não datetime
         assert op["data_operacao"] == date(2026, 6, 5)
         # mesmo trade com a data como string BR -> MESMO external_id (hash estável)
         str_op = parse_b3_negociacao(
-            [("05/06/2026", "Compra", "Mercado à Vista", "-",
-              "SANTANDER", "PETR4", 2, 30.0, 60.0)]
+            [("05/06/2026", "Compra", "Mercado à Vista", "-", "SANTANDER", "PETR4", 2, 30.0, 60.0)]
         )[0]
         assert op["external_id"] == str_op["external_id"]
 
@@ -274,10 +415,28 @@ class TestParseNegociacao:
         """Dois fills idênticos no mesmo dia (aba trade-a-trade) são operações reais
         distintas; sem sequência o hash colidia e o 2º era descartado. Achado C3."""
         rows = [
-            ("05/06/2026", "Compra", "Mercado à Vista", "-",
-             "SANTANDER", "PETR4", 100, 10.0, 1000.0),
-            ("05/06/2026", "Compra", "Mercado à Vista", "-",
-             "SANTANDER", "PETR4", 100, 10.0, 1000.0),
+            (
+                "05/06/2026",
+                "Compra",
+                "Mercado à Vista",
+                "-",
+                "SANTANDER",
+                "PETR4",
+                100,
+                10.0,
+                1000.0,
+            ),
+            (
+                "05/06/2026",
+                "Compra",
+                "Mercado à Vista",
+                "-",
+                "SANTANDER",
+                "PETR4",
+                100,
+                10.0,
+                1000.0,
+            ),
         ]
         ops = parse_b3_negociacao(rows)
         assert len(ops) == 2

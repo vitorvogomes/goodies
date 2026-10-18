@@ -1,4 +1,5 @@
 """Alertas de vencimento DeFi (30d/7d) — STORY-04-09. Pure fn + endpoint."""
+
 from __future__ import annotations
 
 from datetime import date

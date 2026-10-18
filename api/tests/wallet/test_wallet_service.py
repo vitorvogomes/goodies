@@ -1,4 +1,5 @@
 """upsert_wallet_position — snapshot idempotente (m4 STORY-04-01)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,9 +11,7 @@ from engines.wallet import service
 
 
 @pytest.mark.asyncio
-async def test_upsert_inserts_then_updates_in_place(
-    pool: Any, wallet_user: dict
-) -> None:
+async def test_upsert_inserts_then_updates_in_place(pool: Any, wallet_user: dict) -> None:
     uid = wallet_user["user_id"]
     async with pool.acquire() as conn:
         await service.upsert_wallet_position(
@@ -50,7 +49,5 @@ async def test_distinct_assets_coexist(pool: Any, wallet_user: dict) -> None:
         await service.upsert_wallet_position(
             conn, uid, WalletBalance("arbitrum", "0xabc", "ARB", 50.0, "etherscan")
         )
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 2

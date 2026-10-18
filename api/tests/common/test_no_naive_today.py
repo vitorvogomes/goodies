@@ -1,5 +1,6 @@
 """Story 2.1 (A13) — "hoje" e limites de mês só por `common.dates`: nada de `date.today()`,
 `datetime.now()` sem fuso, `utcnow()`, `CURRENT_DATE` ou `now()::date` no código da api."""
+
 from __future__ import annotations
 
 import re

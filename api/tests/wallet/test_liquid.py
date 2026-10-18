@@ -1,4 +1,5 @@
 """LiquidFetcher — L-BTC + L-USDT, client dedicado (ADR-005). STORY-04-04. Mock respx."""
+
 from __future__ import annotations
 
 import httpx

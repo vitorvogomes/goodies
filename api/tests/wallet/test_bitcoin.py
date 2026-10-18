@@ -1,4 +1,5 @@
 """BitcoinFetcher — BTC mainchain (Trust), client dedicado (ADR-005). Mock respx."""
+
 from __future__ import annotations
 
 import httpx

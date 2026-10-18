@@ -8,8 +8,8 @@ import datetime
 import uuid
 from decimal import Decimal
 
+from engines.ledger.calc import Rule
 from engines.ledger.importer import (
-    MatchRule,
     StatementEntry,
     classify,
     import_statement,
@@ -18,17 +18,22 @@ from engines.ledger.importer import (
     parse_ofx,
 )
 
-# Regras inline (espelham categories.match_patterns após a migration 0009: caixinha
-# = investment net — aplicação E resgate caem em investment; a categoria income
-# 'Resgate' foi neutralizada, então não aparece aqui).
-_RULES = [
-    MatchRule(
-        "Caixinha/RDB Nubank",
-        "investment",
-        ("rdb", "aplicação", "resgate rdb", "nu reserva imediata", "dinheiro guardado"),
-    ),
-    MatchRule("Toro (B3)", "investment", ("toro", "corretora de titulos")),
-]
+
+# Regras inline com direção (Story 2.4/2.5, ADR-015): padrão de investimento vira duas regras —
+# saída → a subcategoria de investimento; entrada → o Resgate correspondente (receita).
+def _rules(category: str, resgate: str, patterns: tuple[str, ...]) -> list[Rule]:
+    out = []
+    for p in patterns:
+        out.append(Rule(p, "saida", f"id:{category}", category, "investment", f"r:{p}:s"))
+        out.append(Rule(p, "entrada", f"id:{resgate}", resgate, "income", f"r:{p}:e"))
+    return out
+
+
+_RULES = _rules(
+    "Caixinha/RDB Nubank",
+    "Resgate Caixinha/RDB Nubank",
+    ("rdb", "aplicação", "resgate rdb", "nu reserva imediata", "dinheiro guardado"),
+) + _rules("Toro (B3)", "Resgate Toro (B3)", ("toro", "corretora de titulos"))
 
 _CSV = """Data,Valor,Identificador,Descrição
 01/01/2026,1000.00,aaa,Salário recebido
@@ -121,14 +126,15 @@ def test_classify_brokerage_deposit_is_investment():
     assert classify(e, _RULES).category == "Toro (B3)"
 
 
-def test_classify_redemption_positive_is_investment_not_income():
-    # "Resgate RDB" é positivo (volta p/ a conta) mas é movimento de investimento.
+def test_classify_redemption_positive_is_resgate_income():
+    # ADR-015: "Resgate RDB" (entrada) é receita na subcategoria de Resgates, não investimento.
     e = StatementEntry("r", datetime.date(2026, 1, 10), Decimal("1000.00"), "Resgate RDB")
-    assert classify(e, _RULES).kind == "investment"
+    assert classify(e, _RULES).kind == "income"
+    assert classify(e, _RULES).category == "Resgate Caixinha/RDB Nubank"
 
 
-def test_classify_caixinha_app_and_redemption_both_investment():
-    # Política caixinha=investment net: aplicação (saída) E resgate (entrada) → investment.
+def test_classify_caixinha_app_is_investment_and_redemption_is_resgate():
+    # Story 2.4: a direção separa aplicação (saída → investimento) de resgate (entrada → Resgates).
     app = StatementEntry(
         "a", datetime.date(2026, 1, 5), Decimal("-500.00"), "Aplicação RDB - Caixinha Turbo"
     )
@@ -137,20 +143,21 @@ def test_classify_caixinha_app_and_redemption_both_investment():
     )
     assert classify(app, _RULES).kind == "investment"
     assert classify(app, _RULES).category == "Caixinha/RDB Nubank"
-    assert classify(redemption, _RULES).kind == "investment"
-    assert classify(redemption, _RULES).category == "Caixinha/RDB Nubank"
+    assert classify(redemption, _RULES).kind == "income"
+    assert classify(redemption, _RULES).category == "Resgate Caixinha/RDB Nubank"
 
 
-def test_classify_nu_reserva_fundo_redemption_is_investment():
-    # Resgate de fundo (Nu Reserva Imediata) NÃO tem 'caixinha'/'rdb' na descrição —
-    # o anchor 'nu reserva imediata' garante investment (não receita) no import futuro.
+def test_classify_nu_reserva_fundo_redemption_is_resgate():
+    # Resgate de fundo (Nu Reserva Imediata) não tem 'caixinha'/'rdb' na descrição — o padrão
+    # 'nu reserva imediata' (entrada) leva ao Resgate da caixinha (receita, ADR-015).
     e = StatementEntry(
         "c",
         datetime.date(2025, 7, 18),
         Decimal("2844.50"),
         "Resgate Fundo - Nu Reserva Imediata - Resp. Ltda  - Caixinha Reserva",
     )
-    assert classify(e, _RULES).kind == "investment"
+    assert classify(e, _RULES).kind == "income"
+    assert classify(e, _RULES).category == "Resgate Caixinha/RDB Nubank"
 
 
 def test_classify_income_and_expense_by_sign():
@@ -277,3 +284,36 @@ def test_source_for_filename():
 
     assert source_for("NU_2026.OFX") == "nubank_ofx"
     assert source_for("extrato.csv") == "nubank_csv"
+
+
+async def test_import_categorizes_through_categorize(pool):
+    """Story 2.5: import grava "a classificar" e a regra vem por categorize() (cause import,
+    pendente de revisão, evento com o lote)."""
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, $2) RETURNING id", "Cat", "bank"
+        )
+        cat = await conn.fetchval("SELECT id FROM categories WHERE key = 'gasto:lazer'")
+        await conn.execute(
+            "INSERT INTO category_rules (pattern, direction, category_id) "
+            "VALUES ('zzcinema', 'saida', $1) ON CONFLICT DO NOTHING",
+            cat,
+        )
+        entries = [
+            StatementEntry(
+                uuid.uuid4().hex, datetime.date(2099, 4, 1), Decimal("-30"), "ZZCINEMA X"
+            ),
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 4, 2), Decimal("-9"), "Algo novo"),
+        ]
+        await import_statement(conn, acc, entries)
+        rows = await conn.fetch(
+            "SELECT t.category, t.category_source, t.review_status, "
+            "(SELECT cause FROM categorization_events e WHERE e.transaction_id = t.id) cause "
+            "FROM transactions t WHERE t.account_id = $1 ORDER BY t.date",
+            acc,
+        )
+        await conn.execute("DELETE FROM category_rules WHERE pattern = 'zzcinema'")
+    assert [tuple(r) for r in rows] == [
+        ("Lazer", "rule", "pending", "import"),
+        ("Saída a classificar", "suggestion", "pending", None),
+    ]

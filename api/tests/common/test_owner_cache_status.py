@@ -1,4 +1,5 @@
 """Story 2.1 — owner único, cache único (com invalidação do XIRR) e MonthStatusPort."""
+
 from __future__ import annotations
 
 from datetime import date

@@ -1,4 +1,5 @@
 """Endpoints de leitura de wallet (positions/reconciliation) — STORY-04-10/04-11."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -17,9 +18,7 @@ async def _scan(pool: Any, uid: str, *balances: WalletBalance) -> None:
             await service.upsert_wallet_position(conn, uid, b)
 
 
-async def _price(
-    pool: Any, ticker: str, price_brl: float, price_usd: float | None = None
-) -> None:
+async def _price(pool: Any, ticker: str, price_brl: float, price_usd: float | None = None) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual) "
@@ -31,9 +30,7 @@ async def _price(
         )
 
 
-async def _op(
-    pool: Any, uid: str, sym: str, tipo: str, qty: float, cat: str = "Cripto"
-) -> None:
+async def _op(pool: Any, uid: str, sym: str, tipo: str, qty: float, cat: str = "Cripto") -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO asset_operations (user_id, broker, asset_symbol, asset_category, "
@@ -86,9 +83,7 @@ async def test_positions_without_price_null_value(
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_delta(
-    api: httpx.AsyncClient, wallet_user: dict, pool: Any
-) -> None:
+async def test_reconciliation_delta(api: httpx.AsyncClient, wallet_user: dict, pool: Any) -> None:
     uid = wallet_user["user_id"]
     # escaneado 1.5 SOL; registrado net = 2 compra - 0.5 venda = 1.5 → delta 0
     await _scan(pool, uid, WalletBalance("solana", "sol1", "MKT_RSOL", 1.5, "solana"))

@@ -5,6 +5,7 @@ argumento explícito > settings.evaluation_date (env EVALUATION_DATE, p/ reprodu
 gate / relatórios 'as-of') > date.today(). Sem ele, o XIRR derivava contra seeds com
 data fixa e o gate não reproduzia.
 """
+
 from __future__ import annotations
 
 from datetime import date

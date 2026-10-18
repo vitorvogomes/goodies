@@ -1,4 +1,5 @@
 """Fixtures dos testes de jobs: cliente httpx (ASGI) + headers autenticados."""
+
 from __future__ import annotations
 
 import uuid
@@ -15,9 +16,7 @@ _PASSWORD = "jobs-test-password"
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    )
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 @pytest_asyncio.fixture
@@ -36,9 +35,7 @@ async def auth_headers(pool: Any) -> AsyncIterator[dict[str, str]]:
             hash_password(_PASSWORD),
         )
     async with _client() as client:
-        resp = await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": _PASSWORD}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
     token = resp.json()["access_token"]
     yield {"Authorization": f"Bearer {token}"}
     async with pool.acquire() as conn:

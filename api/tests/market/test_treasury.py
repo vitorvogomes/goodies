@@ -1,4 +1,5 @@
 """Fetcher Tesouro Direto (Tesouro Transparente CSV) — STORY-03-04. Mockado com respx."""
+
 from __future__ import annotations
 
 import httpx

@@ -1,4 +1,5 @@
 """Tests for portfolio targets (seeding and CRUD)."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,9 +17,7 @@ async def _cleanup_targets(pool: Any) -> None:
             "DELETE FROM portfolio_targets WHERE user_id IN "
             "(SELECT id FROM users WHERE email LIKE 'test_%_%@test.com')"
         )
-        await conn.execute(
-            "DELETE FROM users WHERE email LIKE 'test_%_%@test.com'"
-        )
+        await conn.execute("DELETE FROM users WHERE email LIKE 'test_%_%@test.com'")
 
 
 class TestSeedPortfolioTargets:
@@ -34,8 +33,7 @@ class TestSeedPortfolioTargets:
         email = f"test_seed_{uuid.uuid4().hex[:8]}@test.com"
         async with pool.acquire() as conn:
             user_id = await conn.fetchval(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES ($1, 'test') RETURNING id",
+                "INSERT INTO users (email, password_hash) VALUES ($1, 'test') RETURNING id",
                 email,
             )
 
@@ -53,38 +51,28 @@ class TestSeedPortfolioTargets:
         target_dict = {t["category"]: t["target_pct"] for t in targets}
 
         for expected in PORTFOLIO_TARGETS:
-            assert (
-                expected["category"] in target_dict
-            ), f"Missing category: {expected['category']}"
-            assert (
-                target_dict[expected["category"]]
-                == expected["target_pct"]
-            ), f"Target mismatch for {expected['category']}"
+            assert expected["category"] in target_dict, f"Missing category: {expected['category']}"
+            assert target_dict[expected["category"]] == expected["target_pct"], (
+                f"Target mismatch for {expected['category']}"
+            )
 
     @pytest.mark.asyncio
-    async def test_seed_targets_idempotent(
-        self, pool: Any, _cleanup_targets: None
-    ) -> None:
+    async def test_seed_targets_idempotent(self, pool: Any, _cleanup_targets: None) -> None:
         """Seeding twice should yield same result (idempotent upsert)."""
         from engines.portfolio.targets import seed_targets
 
         email = f"test_idem_{uuid.uuid4().hex[:8]}@test.com"
         async with pool.acquire() as conn:
             user_id = await conn.fetchval(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES ($1, 'test') RETURNING id",
+                "INSERT INTO users (email, password_hash) VALUES ($1, 'test') RETURNING id",
                 email,
             )
 
         rows_1 = await seed_targets(pool, user_id)
         rows_2 = await seed_targets(pool, user_id)
 
-        assert (
-            rows_1 == 6
-        ), f"First seed should affect 6 rows, got {rows_1}"
-        assert (
-            rows_2 == 6
-        ), f"Second seed should affect 6 rows (upsert), got {rows_2}"
+        assert rows_1 == 6, f"First seed should affect 6 rows, got {rows_1}"
+        assert rows_2 == 6, f"Second seed should affect 6 rows (upsert), got {rows_2}"
 
         async with pool.acquire() as conn:
             count = await conn.fetchval(
@@ -95,17 +83,14 @@ class TestSeedPortfolioTargets:
         assert count == 6, "Total rows should still be 6 after second seed"
 
     @pytest.mark.asyncio
-    async def test_targets_sum_100_percent(
-        self, pool: Any, _cleanup_targets: None
-    ) -> None:
+    async def test_targets_sum_100_percent(self, pool: Any, _cleanup_targets: None) -> None:
         """Portfolio targets should sum to exactly 100%."""
         from engines.portfolio.targets import seed_targets
 
         email = f"test_sum_{uuid.uuid4().hex[:8]}@test.com"
         async with pool.acquire() as conn:
             user_id = await conn.fetchval(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES ($1, 'test') RETURNING id",
+                "INSERT INTO users (email, password_hash) VALUES ($1, 'test') RETURNING id",
                 email,
             )
 
@@ -113,25 +98,21 @@ class TestSeedPortfolioTargets:
 
         async with pool.acquire() as conn:
             total = await conn.fetchval(
-                "SELECT SUM(target_pct) FROM portfolio_targets "
-                "WHERE user_id = $1",
+                "SELECT SUM(target_pct) FROM portfolio_targets WHERE user_id = $1",
                 user_id,
             )
 
         assert total == 100.0, f"Targets should sum to 100%, got {total}"
 
     @pytest.mark.asyncio
-    async def test_get_targets_returns_list(
-        self, pool: Any, _cleanup_targets: None
-    ) -> None:
+    async def test_get_targets_returns_list(self, pool: Any, _cleanup_targets: None) -> None:
         """get_targets should return list of target dicts."""
         from engines.portfolio.targets import get_targets, seed_targets
 
         email = f"test_get_{uuid.uuid4().hex[:8]}@test.com"
         async with pool.acquire() as conn:
             user_id = await conn.fetchval(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES ($1, 'test') RETURNING id",
+                "INSERT INTO users (email, password_hash) VALUES ($1, 'test') RETURNING id",
                 email,
             )
 
@@ -146,17 +127,14 @@ class TestSeedPortfolioTargets:
             assert "target_pct" in target, "Each target should have 'target_pct'"
 
     @pytest.mark.asyncio
-    async def test_get_targets_empty_for_new_user(
-        self, pool: Any, _cleanup_targets: None
-    ) -> None:
+    async def test_get_targets_empty_for_new_user(self, pool: Any, _cleanup_targets: None) -> None:
         """get_targets for unseeded user should return empty list."""
         from engines.portfolio.targets import get_targets
 
         email = f"test_empty_{uuid.uuid4().hex[:8]}@test.com"
         async with pool.acquire() as conn:
             user_id = await conn.fetchval(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES ($1, 'test') RETURNING id",
+                "INSERT INTO users (email, password_hash) VALUES ($1, 'test') RETURNING id",
                 email,
             )
 

@@ -1,4 +1,5 @@
 """Tests for DCA (Dollar Cost Averaging) — preço médio ponderado."""
+
 from __future__ import annotations
 
 import pytest
@@ -9,9 +10,7 @@ class TestDCAByAsset:
     """Test GET /api/v1/asset-operations/dca/{asset_symbol}."""
 
     @pytest.mark.asyncio
-    async def test_dca_single_compra(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_single_compra(self, api: AsyncClient, auth_headers: dict) -> None:
         """Single compra: DCA should equal valor_unitario."""
         # Create single compra
         create_resp = await api.post(
@@ -85,9 +84,7 @@ class TestDCAByAsset:
         assert float(data["quantidade_total"]) == 150.0
 
     @pytest.mark.asyncio
-    async def test_dca_ignores_venda(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_ignores_venda(self, api: AsyncClient, auth_headers: dict) -> None:
         """Venda should not affect DCA (not included in calculation)."""
         # Compra 100 @ 25.50
         await api.post(
@@ -129,9 +126,7 @@ class TestDCAByAsset:
         assert float(data["quantidade_total"]) == 100.0
 
     @pytest.mark.asyncio
-    async def test_dca_ignores_dividendo(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_ignores_dividendo(self, api: AsyncClient, auth_headers: dict) -> None:
         """Dividendo should not affect DCA (not a cost basis)."""
         # Compra 100 @ 25.00
         await api.post(
@@ -171,9 +166,7 @@ class TestDCAByAsset:
         assert abs(float(data["preco_medio"]) - 25.00) < 0.01
 
     @pytest.mark.asyncio
-    async def test_dca_ignores_juros(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_ignores_juros(self, api: AsyncClient, auth_headers: dict) -> None:
         """Juros should not affect DCA (interest yield, not cost)."""
         # Aporte 1000 @ 100.00 (RF scenario)
         await api.post(
@@ -213,9 +206,7 @@ class TestDCAByAsset:
         assert abs(float(data["preco_medio"]) - 100.00) < 0.01
 
     @pytest.mark.asyncio
-    async def test_dca_aporte_included(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_aporte_included(self, api: AsyncClient, auth_headers: dict) -> None:
         """Aporte tipo should be included in DCA calculation."""
         # Aporte 1000 @ 100.00
         await api.post(
@@ -257,9 +248,7 @@ class TestDCAByAsset:
         assert float(data["quantidade_total"]) == 1500.0
 
     @pytest.mark.asyncio
-    async def test_dca_ignores_resgate(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_ignores_resgate(self, api: AsyncClient, auth_headers: dict) -> None:
         """Resgate should not affect DCA (exit, opposite of aporte)."""
         # Aporte 1000 @ 100.00
         await api.post(
@@ -300,9 +289,7 @@ class TestDCAByAsset:
         assert float(data["quantidade_total"]) == 1000.0
 
     @pytest.mark.asyncio
-    async def test_dca_not_found_returns_404(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_not_found_returns_404(self, api: AsyncClient, auth_headers: dict) -> None:
         """Asset with no compra/aporte operations returns 404."""
         resp = await api.get(
             "/api/v1/asset-operations/dca/NONEXISTENT",
@@ -315,9 +302,7 @@ class TestDCAAll:
     """Test GET /api/v1/asset-operations/dca (all assets)."""
 
     @pytest.mark.asyncio
-    async def test_dca_all_returns_list(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_all_returns_list(self, api: AsyncClient, auth_headers: dict) -> None:
         """GET /dca returns list of all assets with DCA."""
         # PETR4: 100 @ 25.50
         await api.post(
@@ -365,9 +350,7 @@ class TestDCAAll:
         assert abs(float(petr["preco_medio"]) - 25.50) < 0.01
 
     @pytest.mark.asyncio
-    async def test_dca_all_empty(
-        self, api: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_dca_all_empty(self, api: AsyncClient, auth_headers: dict) -> None:
         """GET /dca with no operations returns empty list."""
         resp = await api.get(
             "/api/v1/asset-operations/dca",

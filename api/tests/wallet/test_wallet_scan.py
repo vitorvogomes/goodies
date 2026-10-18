@@ -1,4 +1,5 @@
 """run_wallet_scan scaffold — agregação fail-soft por fetcher (m4 STORY-04-01)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -44,9 +45,7 @@ async def test_scan_writes_positions(pool: Any, wallet_user: dict) -> None:
     stats = await run_wallet_scan(pool, uid, fetchers=[fake])
     assert stats["_FakeFetcher"] == {"fetched": 2, "failed": 0, "swept": 0}
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 2
 
 
@@ -57,9 +56,7 @@ async def test_scan_idempotent_rerun(pool: Any, wallet_user: dict) -> None:
     await run_wallet_scan(pool, uid, fetchers=[fake])
     await run_wallet_scan(pool, uid, fetchers=[fake])
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 1  # snapshot — não duplica
 
 
@@ -71,9 +68,7 @@ async def test_scan_fail_soft_one_fetcher_down(pool: Any, wallet_user: dict) -> 
     assert stats["_BoomFetcher"] == {"fetched": 0, "failed": 1, "swept": 0}
     assert stats["_FakeFetcher"] == {"fetched": 1, "failed": 0, "swept": 0}
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 1  # o fetcher bom grava mesmo com o outro fora
 
 
@@ -111,9 +106,7 @@ async def test_scan_outage_preserves_snapshot(pool: Any, wallet_user: dict) -> N
     await run_wallet_scan(pool, uid, fetchers=[f])
     await run_wallet_scan(pool, uid, fetchers=[_FakeFetcher([])])  # scan vazio
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 1  # SOL preservado
 
 
@@ -124,9 +117,7 @@ class _SourcedFetcher(_FakeFetcher):
 
 
 @pytest.mark.asyncio
-async def test_scan_complete_empty_sweeps_declared_source(
-    pool: Any, wallet_user: dict
-) -> None:
+async def test_scan_complete_empty_sweeps_declared_source(pool: Any, wallet_user: dict) -> None:
     # Review m4→main: BTC todo vendido → o fetcher escaneia com sucesso e devolve
     # ScanBalances() vazio (complete=True). A posição antiga tem de ser varrida.
     uid = wallet_user["user_id"]
@@ -138,16 +129,12 @@ async def test_scan_complete_empty_sweeps_declared_source(
     stats = await run_wallet_scan(pool, uid, fetchers=[_SourcedFetcher(ScanBalances())])
     assert stats["_SourcedFetcher"] == {"fetched": 0, "failed": 0, "swept": 1}
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 0
 
 
 @pytest.mark.asyncio
-async def test_scan_incomplete_empty_keeps_declared_source(
-    pool: Any, wallet_user: dict
-) -> None:
+async def test_scan_incomplete_empty_keeps_declared_source(pool: Any, wallet_user: dict) -> None:
     # fonte fora (complete=False) com SOURCES declarado → continua sem varrer
     uid = wallet_user["user_id"]
     await run_wallet_scan(
@@ -155,13 +142,9 @@ async def test_scan_incomplete_empty_keeps_declared_source(
         uid,
         fetchers=[_SourcedFetcher([WalletBalance("bitcoin", "bc1", "BTC", 0.1, "bitcoin")])],
     )
-    await run_wallet_scan(
-        pool, uid, fetchers=[_SourcedFetcher(ScanBalances(complete=False))]
-    )
+    await run_wallet_scan(pool, uid, fetchers=[_SourcedFetcher(ScanBalances(complete=False))])
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid
-        )
+        n = await conn.fetchval("SELECT count(*) FROM wallet_positions WHERE user_id = $1", uid)
     assert n == 1
 
 
@@ -188,17 +171,13 @@ async def test_scan_partial_source_outage_preserves_other_source(
     )
     await run_wallet_scan(pool, uid, fetchers=[both])
     # HyperEVM "fora": o fetcher devolve só o spot (source hyperliquid)
-    spot_only = _FakeFetcher(
-        [WalletBalance("hyperliquid", "0xw", "HYPE", 0.00979, "hyperliquid")]
-    )
+    spot_only = _FakeFetcher([WalletBalance("hyperliquid", "0xw", "HYPE", 0.00979, "hyperliquid")])
     stats = await run_wallet_scan(pool, uid, fetchers=[spot_only])
     assert stats["_FakeFetcher"]["swept"] == 0  # nada varrido (source hyperevm intacto)
     async with pool.acquire() as conn:
         chains = sorted(
             r["chain"]
-            for r in await conn.fetch(
-                "SELECT chain FROM wallet_positions WHERE user_id = $1", uid
-            )
+            for r in await conn.fetch("SELECT chain FROM wallet_positions WHERE user_id = $1", uid)
         )
     assert chains == ["hyperevm", "hyperliquid"]  # a posição HyperEVM sobreviveu
 

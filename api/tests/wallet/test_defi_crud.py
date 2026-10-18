@@ -1,4 +1,5 @@
 """CRUD de posições DeFi (entrada manual) — STORY-04-08. Via ASGI."""
+
 from __future__ import annotations
 
 from typing import Any
