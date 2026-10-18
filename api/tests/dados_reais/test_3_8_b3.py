@@ -69,8 +69,9 @@ async def test_arquivos_b3_reais() -> None:
             snapshots = await conn.fetchval(
                 "SELECT count(DISTINCT ref_date) FROM broker_position_snapshots"
             )
-            consolidados = sum(1 for f in preview.files if f.source == "b3_consolidado")
-            assert snapshots == consolidados
+            # o anual e o mensal de dezembro caem na mesma data (31/12)
+            consolidados = {f.period_end for f in preview.files if f.source == "b3_consolidado"}
+            assert snapshots == len(consolidados)
             got = json.loads(
                 json.dumps(
                     await compute_baseline(conn, date.fromisoformat(base["evaluation_date"]))

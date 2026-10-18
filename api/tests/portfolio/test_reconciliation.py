@@ -156,3 +156,40 @@ def test_crypto_float_noise_is_not_divergence() -> None:
     """Revisão do Épico 7: 0,1 + 0,2 em float (duas carteiras) = 0,3 das operações."""
     app, origin = recon._crypto(0.3), recon._crypto(0.1 + 0.2)
     assert app == origin and calc.quantity_status("cripto", app, origin) == "conferido"
+
+
+@pytest.mark.asyncio
+async def test_bonus_fraction_and_subscription_right_are_explained(pool: Any) -> None:
+    """Pedido de 18/10/2026 (P19): a fração da bonificação (o consolidado só mostra ações inteiras
+    até o leilão) e o direito de subscrição (o app não acompanha; some no mês seguinte) não são
+    divergência — viram "conferido" com a nota e saem das pendências do fechamento."""
+    tag = uuid.uuid4().hex[:3].upper()
+    frac = f"ZF{tag}3"
+    base = "ZR" + "".join(chr(65 + int(c, 16)) for c in tag[:2])  # 4 letras, como na B3
+    right = f"{base}12"
+    async with pool.acquire() as conn:
+        owner = await get_owner_id(conn)
+        a_frac = await _op(conn, owner, frac, "Ações Nacionais", "28.26")
+        a_right = await _op(conn, owner, right, "FIIs", "1")
+        await conn.execute(
+            "DELETE FROM asset_operations WHERE asset_symbol = $1", right
+        )  # o app não tem o direito, só o consolidado
+        for asset, qty in ((a_frac, "28"), (a_right, "1")):
+            await conn.execute(
+                "INSERT INTO broker_position_snapshots (ref_date, asset_id, quantity, "
+                "reported_value) VALUES ($1, $2, $3, 1)",
+                REF,
+                asset,
+                Decimal(qty),
+            )
+        try:
+            b3 = await recon.b3_reconciliation(conn, owner, REF)
+            checks = await recon.close_checks(conn, date(2097, 12, 1))
+        finally:
+            await conn.execute("DELETE FROM broker_position_snapshots WHERE ref_date = $1", REF)
+            await conn.execute("DELETE FROM asset_operations WHERE asset_symbol = $1", frac)
+            await conn.execute("DELETE FROM assets WHERE id = ANY($1::uuid[])", [a_frac, a_right])
+    rows = {r.symbol: r for r in b3.rows}
+    assert rows[frac].status == "conferido" and "leilão" in (rows[frac].nota or "")
+    assert rows[right].status == "conferido" and "subscrição" in (rows[right].nota or "")
+    assert checks == []

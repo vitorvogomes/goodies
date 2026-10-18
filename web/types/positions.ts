@@ -115,6 +115,7 @@ export interface ReconRow {
   origin: string | null;
   diff: string | null;
   status: ReconStatus;
+  nota?: string | null; // diferença explicada (fração da bonificação, direito de subscrição)
 }
 
 export interface Reconciliation {

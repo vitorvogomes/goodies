@@ -6,6 +6,7 @@ têm origem: "valor calculado". A conciliação carteira × operações (`net_qu
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -37,6 +38,7 @@ class ReconRow(BaseModel):
     origin: Decimal | None
     diff: Decimal | None
     status: str  # conferido | divergente | valor calculado
+    nota: str | None = None  # a diferença explicada (fração da bonificação, direito de subscrição)
 
 
 class B3Reconciliation(BaseModel):
@@ -104,6 +106,8 @@ async def b3_reconciliation(
         if app == 0 and origin == 0:
             continue
         cls = snap[symbol][0] if symbol in snap else classes[symbol]
+        status = calc.quantity_status(cls, app, origin)
+        nota = _explained(symbol, app, origin) if status == "divergente" else None
         rows.append(
             ReconRow(
                 symbol=symbol,
@@ -111,10 +115,26 @@ async def b3_reconciliation(
                 app=app,
                 origin=origin,
                 diff=app - origin,
-                status=calc.quantity_status(cls, app, origin),
+                status="conferido" if nota else status,
+                nota=nota,
             )
         )
     return B3Reconciliation(ref_date=ref_date, rows=rows)
+
+
+# Direito/recibo de subscrição na B3: 4 letras + 1/2 (ações) ou 12–15 (FIIs) — o app não acompanha
+_SUBSCRIPTION = re.compile(r"[A-Z]{4}(1[2-5]|[12])")
+
+
+def _explained(symbol: str, app: Decimal, origin: Decimal) -> str | None:
+    """Diferenças que não são erro (P19): a fração da bonificação, que o consolidado tira até o
+    leilão vender (o app a mantém até a venda), e o direito de subscrição, que só o consolidado
+    mostra e some no mês seguinte (exercido vira cota; não exercido, expira)."""
+    if origin == origin.to_integral_value() and Decimal(0) < app - origin < Decimal(1):
+        return "fração da bonificação: o consolidado só mostra ações inteiras até o leilão"
+    if app == 0 and origin > 0 and _SUBSCRIPTION.fullmatch(symbol):
+        return "direito de subscrição: o app conta quando vira cota"
+    return None
 
 
 async def wallet_rows(conn: asyncpg.Connection, owner: str) -> list[dict[str, Any]]:

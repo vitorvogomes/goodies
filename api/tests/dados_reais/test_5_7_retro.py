@@ -2,9 +2,10 @@
 protocolo e os saldos da âncora gravados, `close_retro` fecha jul/2024–mai/2026 (23 meses, origin
 retro); a taxa de poupança congelada de cada mês = a lista v2 fixada (gate de dados, ADR-016);
 fev/2025 fica "retroativo divergente" (P8) e é listado; conferidos = jul/2024–jan/2025 (a
-conferência é encadeada: depois do P8 o saldo calculado não bate); os meses com consolidado
-(dez/2024, dez/2025, jan–mai/2026) são valorados por ele, os outros ficam "patrimônio não coberto";
-cripto estimada; rodar de novo não cria versão."""
+conferência é encadeada: depois do P8 o saldo calculado não bate); os meses com consolidado em
+`files/b3/relatorio-consolidado` (desde 18/10/2026 os mensais de set/2024 em diante) são valorados
+por ele, os outros ficam "patrimônio não coberto"; cripto estimada; rodar de novo não cria
+versão."""
 
 from __future__ import annotations
 
@@ -26,7 +27,6 @@ from workers.dbops import alembic_upgrade
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 START, END = date(2024, 7, 1), date(2026, 5, 1)
-CONSOLIDADO = {date(2024, 12, 1), date(2025, 12, 1)} | {date(2026, m, 1) for m in range(1, 6)}
 
 
 async def test_close_retro_base_real() -> None:
@@ -46,6 +46,11 @@ async def test_close_retro_base_real() -> None:
                 await close_retro.run(conn, START, END)
             preview = await ingest_service.preview(conn, [(p.name, p.read_bytes()) for p in files])
             await ingest_service.confirm(conn, preview.batch_id, preview.hash)
+            consolidado = {
+                f.period_end.replace(day=1)
+                for f in preview.files
+                if f.source == "b3_consolidado" and f.period_end is not None
+            }
             await anchor(conn, sorted(FILES_DIR.rglob("*.ofx")), write=True)
             said: list[str] = []
             report = await close_retro.run(conn, START, END, echo=said.append)
@@ -67,7 +72,7 @@ async def test_close_retro_base_real() -> None:
                 else:
                     assert got == Decimal(expected).quantize(Decimal("0.01")), key
                 coverage = json.loads(r["coverage"])
-                if r["month"] in CONSOLIDADO:
+                if r["month"] in consolidado:
                     assert coverage["B3"].startswith("consolidado de "), key
                 else:
                     assert coverage["B3"] == "patrimônio não coberto", key

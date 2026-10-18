@@ -39,7 +39,10 @@ function Table({ label, origin, rows }: { label: string; origin: string; rows: R
         <tbody>
           {rows.map((r) => (
             <tr key={r.symbol} className="border-t border-border">
-              <th scope="row" className="px-4 py-2 text-left font-normal">{r.symbol}</th>
+              <th scope="row" className="px-4 py-2 text-left font-normal">
+                {r.symbol}
+                {r.nota && <span className="block type-caption text-muted-foreground">{r.nota}</span>}
+              </th>
               <td className="px-4 py-2 text-right type-num-table">{qty(r.app)}</td>
               <td className="px-4 py-2 text-right type-num-table">{qty(r.origin)}</td>
               <td className="px-4 py-2 text-right type-num-table">{qty(r.diff)}</td>
