@@ -50,3 +50,15 @@ def patrimony(invested: Decimal, *, accounts: Decimal) -> Decimal:
 
 def investment_result(invested: Decimal, *, contributed: Decimal, income: Decimal) -> Decimal:
     return invested - contributed + income
+
+
+def quantity(ops: Iterable[Mapping[str, Any]]) -> Decimal:
+    """Quantidade líquida: compras e aportes − vendas e resgates."""
+    total = Decimal(0)
+    for op in ops:
+        q = Decimal(str(op["quantidade"]))
+        if op["tipo"] in INFLOW:
+            total += q
+        elif op["tipo"] in OUTFLOW:
+            total -= q
+    return total

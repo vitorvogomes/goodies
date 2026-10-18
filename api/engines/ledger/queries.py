@@ -345,3 +345,15 @@ LAST_DATE_IN_MONTH = """
     WHERE date >= $1::date AND date < ($1::date + interval '1 month')
 """
 ANCHORED_ACCOUNTS = "SELECT id, opening_balance FROM accounts WHERE opening_balance IS NOT NULL"
+INCOME_BY_PAYER = """
+    SELECT coalesce(t.payer, 'sem pagador') AS payer, sum(t.amount) AS total
+    FROM transactions t
+    WHERE t.kind = 'income' AND t.date >= $1::date AND t.date < ($1::date + interval '1 month')
+    GROUP BY 1
+"""
+EXPENSES_BY_CATEGORY = """
+    SELECT t.category_id::text AS category_id, -sum(t.amount) AS total
+    FROM transactions t
+    WHERE t.kind = 'expense' AND t.date >= $1::date AND t.date < ($1::date + interval '1 month')
+    GROUP BY 1
+"""

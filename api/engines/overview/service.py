@@ -1,10 +1,6 @@
-"""Painel principal (Story 4.1 — FR-13): monta os KPIs a partir dos termos de `ledger/calc` e
-`portfolio/calc` (AD-7), nunca de SQL próprio. Cada número sai em `Valued` com `as_of` = a data
-mais antiga das fontes que o geraram.
-
-Transitório (AD-8): até o fechamento (Story 5.2) o `overview` chama direto os construtores de
-`ledger` e `portfolio`; patrimônio e rentabilidade de um mês passado esperam o resumo congelado
-do fechamento (`antes_do_primeiro_fechamento`).
+"""Painel principal (Stories 4.1 e 5.2 — FR-13): os KPIs vêm do resumo do mês de `closing`
+(AD-8), que chama os termos de `ledger/calc` e `portfolio/calc` (AD-7). Cada número sai em `Valued`
+com `as_of` = a data mais antiga das fontes que o geraram.
 """
 
 from __future__ import annotations
@@ -14,99 +10,70 @@ from decimal import Decimal
 
 import asyncpg
 
+from engines.closing import service as closing
 from engines.common.dates import today_brt
 from engines.common.models import Valued
 from engines.common.owner import get_owner_id
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
 from engines.market import service as market_service
-from engines.portfolio import calc as portfolio_calc
 from engines.portfolio import service as portfolio_service
-from engines.portfolio import transit
 
 from .models import Fonte, Painel
-
-_CLOSED = Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
 
 
 def _previous(month: date) -> date:
     return date(month.year - 1, 12, 1) if month.month == 1 else month.replace(month=month.month - 1)
 
 
-async def _month_result(conn: asyncpg.Connection, month: date) -> Valued[Decimal]:
-    found = await ledger_service.month_result_for(conn, month)
-    if found is None:
-        return Valued(unavailable_reason="nao_definido")
-    return Valued(value=found.value, as_of=found.as_of, source="ledger")
-
-
 async def painel(conn: asyncpg.Connection, month: date) -> Painel:
-    today = today_brt()
+    """KPIs do mês pelo resumo de `closing` (AD-8): o mesmo cálculo do fechamento."""
     pending = await ledger_service.pending_review_count(conn)
-    resultado = await _month_result(conn, month)
-    anterior = await _month_result(conn, _previous(month))
-    variacao = (
-        Valued[Decimal](
-            value=resultado.value - anterior.value, as_of=resultado.as_of, source="ledger"
+    summary = await closing.build_month_summary(conn, month)
+    previous = await ledger_service.ledger_month(conn, _previous(month))
+    if summary.ledger_as_of is not None:
+        resultado = Valued[Decimal](
+            value=summary.resultado_mes, as_of=summary.ledger_as_of, source="ledger"
         )
-        if resultado.value is not None and anterior.value is not None
+    else:
+        resultado = Valued[Decimal](unavailable_reason="nao_definido")
+    anterior = (
+        Valued[Decimal](value=previous.resultado, as_of=previous.data_as_of, source="ledger")
+        if previous.has_data
         else Valued[Decimal](unavailable_reason="nao_definido")
     )
-    if month != today.replace(day=1):
-        return Painel(
-            periodo=f"{month:%Y-%m}",
-            resultado_mes=resultado,
-            resultado_mes_anterior=anterior,
-            variacao_resultado_mes=variacao,
-            patrimonio=_CLOSED,
-            resultado_investimentos=_CLOSED,
-            rentabilidade_nominal=_CLOSED,
-            a_revisar=pending,
+    variacao = (
+        Valued[Decimal](
+            value=summary.resultado_mes - previous.resultado,
+            as_of=summary.ledger_as_of,
+            source="ledger",
         )
-    owner = await get_owner_id(conn)
-    snap = await portfolio_service.portfolio_snapshot(conn, owner)
-    accounts = await ledger_service.accounts_balance(conn, today)
-    rails = (await transit.calculate_transit(conn, owner))["rails"]
-    # Caixa em corretora (AD-7): o resíduo positivo de cada trilho (o negativo é cobertura que
-    # falta, não dinheiro). A separação "a caminho" × caixa chega no Épico 7.
-    broker_cash = sum(
-        (Decimal(repr(r["caixa_corretora_brl"])) for r in rails if r["caixa_corretora_brl"] > 0),
-        Decimal(0),
+        if resultado.value is not None and previous.has_data
+        else Valued[Decimal](unavailable_reason="nao_definido")
     )
-    invested = portfolio_calc.invested_value(
-        positions=snap.positions_value, crypto=snap.crypto_value, broker_cash=broker_cash
-    )
-    dates = [d for d in (snap.as_of, accounts.as_of) if d is not None]
+    dates = [d for d in (summary.portfolio_as_of, summary.ledger_as_of) if d is not None]
     as_of = min(dates) if dates else None
-    xirr = (await portfolio_service.calculate_portfolio_xirr(conn, owner)).get("consolidated")
+
+    def portfolio_value(value: Decimal, when: date | None) -> Valued[Decimal]:
+        return Valued[Decimal](
+            value=value, as_of=when, source="portfolio", stale=summary.portfolio_stale
+        )
+
     return Painel(
         periodo=f"{month:%Y-%m}",
         resultado_mes=resultado,
         resultado_mes_anterior=anterior,
         variacao_resultado_mes=variacao,
-        patrimonio=Valued(
-            value=portfolio_calc.patrimony(invested, accounts=accounts.value),
-            as_of=as_of,
-            source="portfolio",
-            stale=snap.stale,
-        ),
-        resultado_investimentos=Valued(
-            value=portfolio_calc.investment_result(
-                invested, contributed=snap.contributed, income=snap.income
-            ),
-            as_of=snap.as_of,
-            source="portfolio",
-            stale=snap.stale,
+        patrimonio=portfolio_value(summary.patrimonio, as_of),
+        resultado_investimentos=portfolio_value(
+            summary.resultado_investimentos, summary.portfolio_as_of
         ),
         rentabilidade_nominal=(
-            Valued(
-                value=Decimal(repr(xirr)) * 100,
-                as_of=snap.as_of,
-                source="portfolio",
-                stale=snap.stale,
+            portfolio_value(summary.rentabilidade, summary.portfolio_as_of)
+            if summary.rentabilidade is not None
+            else Valued[Decimal](
+                unavailable_reason="sem_preco", as_of=summary.portfolio_as_of, source="portfolio"
             )
-            if xirr is not None
-            else Valued(unavailable_reason="sem_preco", as_of=snap.as_of, source="portfolio")
         ),
         a_revisar=pending,
     )

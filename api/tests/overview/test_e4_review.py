@@ -55,6 +55,10 @@ async def test_oldest_scan_ignores_binance(pool: Any) -> None:
             oldest = await wallet_service.oldest_scan(conn)
         finally:
             await conn.execute("DELETE FROM wallet_positions WHERE asset_symbol = 'ZZB'")
+            await conn.execute(
+                "DELETE FROM wallet_position_history h USING assets a "
+                "WHERE a.id = h.asset_id AND a.key = 'crypto:ZZB'"
+            )
             await conn.execute("DELETE FROM assets WHERE key = 'crypto:ZZB'")
     assert oldest is None or (datetime.now(UTC) - oldest).days < 30
 

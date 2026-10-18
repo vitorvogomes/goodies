@@ -35,10 +35,17 @@ from .calc import (
     best_rule,
     chained_check,
     computed_balance,
+    devolucoes,
+    gastos,
+    investido,
+    month_checked,
     month_result,
     opening_balance,
+    resgates,
     savings_rate,
+    work_income,
 )
+from .calc import receitas as calc_receitas
 from .models import (
     DEFAULT_ROLE,
     GROUP_KIND_LABEL,
@@ -1344,8 +1351,7 @@ async def accounts_balance(conn: asyncpg.Connection, until: date) -> DatedAmount
     latest: date | None = None
     for acc in await conn.fetch(queries.ANCHORED_ACCOUNTS):
         moves = [
-            (r["date"], r["amount"])
-            for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, acc["id"])
+            (r["date"], r["amount"]) for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, acc["id"])
         ]
         total += computed_balance(acc["opening_balance"], moves, until)
         dated = [d for d, _ in moves if d <= until]
@@ -1356,3 +1362,58 @@ async def accounts_balance(conn: asyncpg.Connection, until: date) -> DatedAmount
 
 async def pending_review_count(conn: asyncpg.Connection) -> int:
     return int(await conn.fetchval(queries.PENDING_COUNT, None))
+
+
+# --------------------------------------------------------------------------------------------
+# Construtores do mês para o resumo (Story 5.2 — AD-8): termos da AD-7 e as quebras
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LedgerMonth:
+    month: date
+    receitas: Decimal
+    trabalho: Decimal
+    resgates: Decimal
+    devolucoes: Decimal
+    gastos: Decimal
+    investido: Decimal
+    taxa_poupanca: Decimal | None  # fração
+    resultado: Decimal
+    receitas_por_pagador: dict[str, Decimal]
+    gastos_por_categoria: dict[str, Decimal]
+    data_as_of: date | None  # último lançamento do mês
+    has_data: bool
+
+
+async def ledger_month(conn: asyncpg.Connection, month: date) -> LedgerMonth:
+    rows = await queries.month_movements(conn, [month])
+    moves = [Movement(r["amount"], r["kind"], r["role"]) for r in rows]
+    return LedgerMonth(
+        month=month,
+        receitas=calc_receitas(moves),
+        trabalho=work_income(moves),
+        resgates=resgates(moves),
+        devolucoes=devolucoes(moves),
+        gastos=gastos(moves),
+        investido=investido(moves),
+        taxa_poupanca=savings_rate(moves),
+        resultado=month_result(moves),
+        receitas_por_pagador={
+            r["payer"]: r["total"] for r in await conn.fetch(queries.INCOME_BY_PAYER, month)
+        },
+        gastos_por_categoria={
+            r["category_id"]: r["total"]
+            for r in await conn.fetch(queries.EXPENSES_BY_CATEGORY, month)
+        },
+        data_as_of=await conn.fetchval(queries.LAST_DATE_IN_MONTH, month),
+        has_data=bool(rows),
+    )
+
+
+async def pf_month_checked(conn: asyncpg.Connection, month_end: date) -> bool | None:
+    """Saldo PF conferido no fim do mês (AD-7); sem saldo informado → None."""
+    check = await pf_balance_check(conn)
+    if check is None or not check.intervals:
+        return None
+    return month_checked(check.intervals, month_end)

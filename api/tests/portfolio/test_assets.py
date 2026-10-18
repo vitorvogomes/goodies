@@ -68,6 +68,11 @@ async def test_new_operation_and_wallet_token_get_an_asset(pool: Any, portfolio_
             await conn.execute("DELETE FROM asset_operations WHERE asset_symbol = $1", ticker)
             await conn.execute("DELETE FROM wallet_positions WHERE asset_symbol = $1", token)
             await conn.execute(
+                "DELETE FROM wallet_position_history h USING assets a "
+                "WHERE a.id = h.asset_id AND a.key = $1",
+                f"crypto:{token}",
+            )
+            await conn.execute(
                 "DELETE FROM assets WHERE key = ANY($1::text[])",
                 [f"b3:{ticker}", f"crypto:{token}"],
             )

@@ -26,12 +26,11 @@ async def test_current_month(api, auth_headers) -> None:
 
 
 @pytest.mark.asyncio
-async def test_past_month_waits_for_closing(api, auth_headers) -> None:
+async def test_past_month_comes_from_the_month_summary(api, auth_headers) -> None:
+    """Desde a Story 5.2 o Painel lê o mês por `closing`: um mês passado é valorado na data."""
     body = (await api.get(f"{URL}?periodo=2025-01", headers=auth_headers)).json()
-    assert body["resultado_mes"]["value"] is not None or body["resultado_mes"]["unavailable_reason"]
-    for k in ("patrimonio", "resultado_investimentos", "rentabilidade_nominal"):
-        assert body[k]["value"] is None
-        assert body[k]["unavailable_reason"] == "antes_do_primeiro_fechamento"
+    assert body["patrimonio"]["value"] is not None
+    assert body["patrimonio"]["source"] == "portfolio"
 
 
 @pytest.mark.asyncio

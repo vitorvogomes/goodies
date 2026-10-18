@@ -16,6 +16,7 @@ from config import assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.alerts import service as alerts_service
 from engines.alerts.router import router as alerts_router
+from engines.closing.router import router as closing_router
 from engines.common.cache import check_redis
 from engines.common.month_status import AllMonthsOpen, register_month_status
 from engines.ingest import service as ingest_service
@@ -116,6 +117,7 @@ app.include_router(jobs_router)
 app.include_router(alerts_router)
 app.include_router(ingest_router)
 app.include_router(overview_router)
+app.include_router(closing_router)
 
 
 @app.get("/api/v1/health")
