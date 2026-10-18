@@ -55,6 +55,7 @@ for _provider in (
     ingest_service.already_imported_alerts,
     ingest_service.csv_unconfirmed_alerts,
     ingest_service.source_alerts,
+    ledger_service.pending_review_alerts,
 ):
     alerts_service.register_alert_provider(_provider)
 

@@ -25,6 +25,7 @@ import type {
   MonthlySummary,
   Page,
   ReapplyPreview,
+  ReviewList,
   RuleDirection,
   RulePreview,
   Suggestion,
@@ -409,6 +410,35 @@ export function useReapplyRules() {
       apiFetch<{ changed: number }>("/api/v1/ledger/rules/reapply", {
         method: "POST",
         body: JSON.stringify(range),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- v2: Revisão de transações (Story 3.10) ----
+
+/** `lote` = id do lote aplicado, ou "todas" para todas as pendentes. */
+export function useReview(lote: string | null) {
+  return useQuery({
+    queryKey: ["ledger", "review", lote],
+    queryFn: () =>
+      apiFetch<ReviewList>(
+        `/api/v1/ledger/review${lote && lote !== "todas" ? `?lote=${lote}` : ""}`,
+      ),
+    enabled: lote !== null,
+  });
+}
+
+export function useConfirmReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      items: { transaction_id: string; category_id: string }[];
+      lote: string | null;
+    }) =>
+      apiFetch<{ confirmed: number; remaining: number }>("/api/v1/ledger/review/confirm", {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });

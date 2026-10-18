@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 
 import { AlertsBell } from "@/components/alerts/AlertsBell";
+import { ReviewPanel } from "@/components/caixa/ReviewPanel";
 import { PeriodSelector } from "@/components/shell/PeriodSelector";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
@@ -67,6 +68,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-content flex-1 px-page-gutter py-section-gap">
           {children}
         </main>
+        <Suspense>
+          <ReviewPanel />
+        </Suspense>
       </div>
     </div>
   );

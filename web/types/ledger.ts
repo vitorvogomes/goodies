@@ -283,3 +283,33 @@ export interface ReapplyPreview {
   manual_unchanged: number;
   closed_months: number;
 }
+
+// ---- v2: Revisão de transações (Story 3.10) ----
+export type ReviewOrigin = "regra" | "sugestao" | "sem_sugestao" | "manual";
+
+export interface ReviewItem {
+  id: string;
+  date: string;
+  month: string;
+  description: string | null;
+  amount: number;
+  account_name: string;
+  category_id: string;
+  category_label: string;
+  category_kind: string;
+  origin: ReviewOrigin;
+  rule_pattern: string | null;
+}
+
+export interface ReviewMonth {
+  month: string;
+  count: number;
+  entradas: number;
+  saidas: number;
+}
+
+export interface ReviewList {
+  items: ReviewItem[];
+  months: ReviewMonth[];
+  total: number;
+}

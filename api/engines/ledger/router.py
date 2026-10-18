@@ -33,6 +33,9 @@ from .models import (
     ReapplyIn,
     ReapplyPreview,
     ReapplyResult,
+    ReviewConfirmIn,
+    ReviewConfirmOut,
+    ReviewList,
     RulePreviewIn,
     RulePreviewOut,
     RuleRow,
@@ -271,6 +274,27 @@ async def reapply_rules(body: ReapplyIn, user: AuthUser, db: Db) -> ReapplyResul
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_PERIOD) from None
     except ValueError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _INVALID_PERIOD) from None
+
+
+# ---- Revisão de transações (Story 3.10) ----
+
+
+@v2.get("/review", response_model=ReviewList)
+async def review_list(user: AuthUser, db: Db, lote: Uuid | None = None) -> ReviewList:
+    return await service.review_list(db, lote)
+
+
+@v2.post("/review/confirm", response_model=ReviewConfirmOut)
+async def review_confirm(body: ReviewConfirmIn, user: AuthUser, db: Db) -> ReviewConfirmOut:
+    try:
+        return await service.review_confirm(db, body)
+    except service.UncategorizedError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "sem_categoria", "message": "Escolha a categoria ou desmarque a linha."},
+        ) from None
+    except LookupError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND) from None
 
 
 router.include_router(v2)

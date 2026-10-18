@@ -40,10 +40,16 @@ from .models import (
     GroupUpdate,
     ManualTransactionCreate,
     ManualTransactionUpdate,
+    Origin,
     ReapplyChange,
     ReapplyIn,
     ReapplyPreview,
     ReapplyResult,
+    ReviewConfirmIn,
+    ReviewConfirmOut,
+    ReviewItem,
+    ReviewList,
+    ReviewMonth,
     RuleMatch,
     RulePreviewIn,
     RulePreviewOut,
@@ -909,3 +915,104 @@ async def account_holders(conn: asyncpg.Connection) -> dict[str, str]:
     """Titular (pf/mei) de cada conta: a engine `ingest` agrupa o Bloco Fontes por ele."""
     rows = await conn.fetch("SELECT id::text AS id, holder FROM accounts WHERE holder IS NOT NULL")
     return {r["id"]: r["holder"] for r in rows}
+
+
+# --------------------------------------------------------------------------------------------
+# Revisão de transações (Story 3.10 — FR-9, FR-14)
+# --------------------------------------------------------------------------------------------
+
+
+class UncategorizedError(ValueError):
+    """Confirmação com "Entrada/Saída a classificar"."""
+
+
+def _origin(r: asyncpg.Record) -> Origin:
+    if r["is_system"]:
+        return "sem_sugestao"
+    if r["category_source"] == "rule":
+        return "regra"
+    return "sugestao" if r["category_source"] == "suggestion" else "manual"
+
+
+async def review_list(conn: asyncpg.Connection, batch_id: str | None) -> ReviewList:
+    rows = await conn.fetch(queries.REVIEW_ITEMS, batch_id)
+    items = [
+        ReviewItem(
+            id=str(r["id"]),
+            date=r["date"],
+            month=f"{r['date']:%Y-%m}",
+            description=r["description"],
+            amount=r["amount"],
+            account_name=r["account_name"],
+            category_id=str(r["category_id"]),
+            category_label=r["category_label"],
+            category_kind=r["category_kind"],
+            origin=_origin(r),
+            rule_pattern=r["rule_pattern"],
+        )
+        for r in rows
+    ]
+    months: dict[str, list[Decimal]] = {}
+    for r in rows:
+        months.setdefault(f"{r['date']:%Y-%m}", []).append(r["amount"])
+    return ReviewList(
+        items=items,
+        months=[
+            ReviewMonth(
+                month=m,
+                count=len(vals),
+                entradas=sum((v for v in vals if v > 0), Decimal(0)),
+                saidas=sum((v for v in vals if v < 0), Decimal(0)),
+            )
+            for m, vals in sorted(months.items())
+        ],
+        total=len(items),
+    )
+
+
+async def review_confirm(conn: asyncpg.Connection, body: ReviewConfirmIn) -> ReviewConfirmOut:
+    """Marcadas → `confirmed` via categorize() (cause review). Categoria trocada vira `manual`;
+    mantida, guarda a origem (regra/sugestão). "A classificar" não confirma."""
+    chosen = list({c.category_id for c in body.items})
+    if await conn.fetch(queries.SYSTEM_CATEGORIES, chosen):
+        raise UncategorizedError("sem categoria")
+    async with conn.transaction():
+        state = {
+            str(r["id"]): r
+            for r in await conn.fetch(queries.REVIEW_STATE, [c.transaction_id for c in body.items])
+        }
+        changes: list[CategoryChange] = []
+        for c in body.items:
+            current = state.get(c.transaction_id)
+            if current is None:
+                raise LookupError(c.transaction_id)
+            kept = str(current["category_id"]) == c.category_id
+            source: Source = current["category_source"] if kept else "manual"
+            rule = current["category_rule_id"] if kept and source == "rule" else None
+            changes.append(
+                CategoryChange(c.transaction_id, c.category_id, source, str(rule) if rule else None)
+            )
+        await categorize(
+            conn, changes, cause="review", batch_id=body.lote, review_status="confirmed"
+        )
+        remaining = int(await conn.fetchval(queries.PENDING_COUNT, body.lote))
+    return ReviewConfirmOut(confirmed=len(changes), remaining=remaining)
+
+
+async def pending_review_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
+    """Provider: enquanto houver `pending`, "{n} transações a revisar." (ação Revisar)."""
+    n = int(await conn.fetchval(queries.PENDING_COUNT, None))
+    if n == 0:
+        return []
+    return [
+        Alert(
+            key="transacoes_a_revisar",
+            fingerprint=fingerprint(n),
+            severity="aviso",
+            message="1 transação a revisar." if n == 1 else f"{n} transações a revisar.",
+            action=AlertAction(
+                label="Revisar", route="/caixa/transacoes", params={"revisar": "todas"}
+            ),
+            as_of=ctx.today,
+        )
+    ]

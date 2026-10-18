@@ -263,3 +263,27 @@ CONFIRMED_HISTORY = """
       AND coalesce(t.description, '') <> ''
     ORDER BY t.date DESC, t.created_at DESC
 """
+REVIEW_ITEMS = """
+    SELECT t.id, t.date, t.description, t.amount, a.name AS account_name, t.category_id,
+           t.category_source, t.category_rule_id, g.is_system, g.kind AS category_kind,
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label,
+           r.pattern AS rule_pattern
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN category_rules r ON r.id = t.category_rule_id
+    WHERE t.review_status = 'pending' AND ($1::uuid IS NULL OR t.batch_id = $1::uuid)
+    ORDER BY t.date, t.id
+"""
+PENDING_COUNT = """
+    SELECT count(*) FROM transactions
+    WHERE review_status = 'pending' AND ($1::uuid IS NULL OR batch_id = $1::uuid)
+"""
+REVIEW_STATE = """
+    SELECT t.id, t.category_id, t.category_source, t.category_rule_id
+    FROM transactions t WHERE t.id = ANY($1::uuid[])
+"""
+SYSTEM_CATEGORIES = """
+    SELECT c.id FROM categories c JOIN category_groups g ON g.id = c.group_id
+    WHERE g.is_system AND c.id = ANY($1::uuid[])
+"""

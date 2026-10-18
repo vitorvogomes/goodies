@@ -224,3 +224,49 @@ class ReapplyPreview(BaseModel):
 
 class ReapplyResult(BaseModel):
     changed: int
+
+
+# ---- Revisão de transações (Story 3.10) ----
+Origin = Literal["regra", "sugestao", "sem_sugestao", "manual"]
+
+
+class ReviewItem(BaseModel):
+    id: str
+    date: dt.date
+    month: str
+    description: str | None
+    amount: Money
+    account_name: str
+    category_id: str
+    category_label: str
+    category_kind: str
+    origin: Origin
+    rule_pattern: str | None
+
+
+class ReviewMonth(BaseModel):
+    month: str
+    count: int
+    entradas: Money
+    saidas: Money
+
+
+class ReviewList(BaseModel):
+    items: list[ReviewItem]
+    months: list[ReviewMonth]
+    total: int
+
+
+class ReviewChoice(BaseModel):
+    transaction_id: Uuid
+    category_id: Uuid
+
+
+class ReviewConfirmIn(BaseModel):
+    items: list[ReviewChoice] = Field(min_length=1)
+    lote: Uuid | None = None
+
+
+class ReviewConfirmOut(BaseModel):
+    confirmed: int
+    remaining: int
