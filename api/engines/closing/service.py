@@ -934,12 +934,24 @@ async def build_period_summary(conn: asyncpg.Connection, months: list[date]) -> 
     """Soma os termos de fluxo dos meses (cada um pela leitura do mês: snapshot ou ao vivo)."""
     totals = dict.fromkeys(_PERIOD_TERMS, Decimal(0))
     sources: list[MonthSource] = []
+    as_of: list[date] = []
+    stale = False
     for month in sorted(months):
         s = await month_summary(conn, month)
         sources.append(MonthSource(month=month, source=s.source))
+        as_of.append(s.as_of)
+        stale = stale or s.income_stale or s.portfolio_stale
         for term in _PERIOD_TERMS:
             totals[term] += getattr(s, term)
-    return PeriodSummary(months=sources, **totals)
+    work = totals["trabalho"]
+    rate = (
+        ((work - (totals["gastos"] - totals["devolucoes"])) / work * 100).quantize(_CENT)
+        if work > 0
+        else None
+    )  # dos componentes somados, nunca a média das taxas
+    return PeriodSummary(
+        months=sources, as_of=min(as_of, default=None), stale=stale, taxa_poupanca=rate, **totals
+    )
 
 
 async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> PositionsReport:

@@ -178,6 +178,10 @@ class PeriodSummary(BaseModel):
     investido: Money
     resultado_mes: Money
     consumido: Money
+    # Story 9.1: o mais antigo dos meses, o OU dos defasados e a taxa dos componentes somados
+    as_of: date | None = None
+    stale: bool = False
+    taxa_poupanca: Pct | None = None
 
 
 class OnTheWay(BaseModel):

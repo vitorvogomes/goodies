@@ -1965,3 +1965,12 @@ async def budget_facts(conn: asyncpg.Connection, month: date) -> BudgetFacts:
         as_of=max((r["date"] for r in rows), default=None),
         taxa_poupanca=savings_rate(moves),
     )
+
+
+async def category_groups(conn: asyncpg.Connection) -> dict[str, tuple[str, str]]:
+    """Story 9.1: categoria → (id e nome do grupo) — o Histórico compara gastos por grupo."""
+    rows = await conn.fetch(
+        "SELECT c.id::text AS id, g.id::text AS group_id, g.name AS group_name "
+        "FROM categories c JOIN category_groups g ON g.id = c.group_id"
+    )
+    return {r["id"]: (r["group_id"], r["group_name"]) for r in rows}

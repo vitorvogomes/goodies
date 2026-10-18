@@ -10,6 +10,7 @@ from engines.common.dates import MIN_MONTH, parse_periodo, today_brt
 from engines.common.deps import AuthUser, Db
 from engines.planning.models import MonthBudget
 
+from . import history as history_service
 from . import service
 from .checks import run_checks
 from .models import (
@@ -106,10 +107,7 @@ async def month_budget(mes: str, user: AuthUser, db: Db) -> MonthBudget:
     return await service.month_budget(db, _month(mes))
 
 
-@router.get("/positions", response_model=PositionsReport)
-async def positions(
-    user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
-) -> PositionsReport:
+def _period(periodo: str | None, leitura: str) -> str:
     mes = periodo or f"{today_brt():%Y-%m}"
     month = _month(mes)
     if not MIN_MONTH <= month <= today_brt().replace(day=1):  # nem antes da base, nem futuro
@@ -125,4 +123,19 @@ async def positions(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             {"error": "leitura_invalida", "message": "Leitura inválida (mes, tri, ano, inicio)."},
         )
-    return await service.positions(db, mes, leitura)
+    return mes
+
+
+@router.get("/history", response_model=history_service.History)
+async def history(
+    user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
+) -> history_service.History:
+    """Story 9.1: o período da leitura × o anterior × a média 12m."""
+    return await history_service.history(db, _period(periodo, leitura), leitura)
+
+
+@router.get("/positions", response_model=PositionsReport)
+async def positions(
+    user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
+) -> PositionsReport:
+    return await service.positions(db, _period(periodo, leitura), leitura)

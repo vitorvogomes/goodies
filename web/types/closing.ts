@@ -70,3 +70,27 @@ export interface Recovery {
   current: string | null;
   steps: RecoveryStep[];
 }
+
+// Visão geral › Histórico (Story 9.1).
+export interface HistoryRow {
+  key: string;
+  label: string;
+  kind: "money" | "pct";
+  current: number | null;
+  previous: number | null;
+  average: number | null;
+  var_previous: number | null;
+  var_average: number | null;
+}
+
+export interface History {
+  periodo: string;
+  leitura: string;
+  months: { month: string; source: "live" | "snapshot" }[];
+  as_of: string | null;
+  stale: boolean;
+  previous_label: string | null;
+  average_months: number;
+  rows: HistoryRow[];
+  groups: HistoryRow[];
+}

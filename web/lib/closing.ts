@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Checklist, ChecklistItem, MonthState, Recovery, ReopenPreview } from "@/types/closing";
+import type { Checklist, ChecklistItem, History, MonthState, Recovery, ReopenPreview } from "@/types/closing";
 
 export function useMonthStates(de?: string, ate?: string) {
   const qs = new URLSearchParams();
@@ -63,5 +63,13 @@ export function useRecovery() {
   return useQuery({
     queryKey: ["closing", "recovery"],
     queryFn: () => apiFetch<Recovery>("/api/v1/closing/recovery"),
+  });
+}
+
+// Visão geral › Histórico (Story 9.1): período × anterior × média 12m.
+export function useHistory(periodo: string, leitura: string) {
+  return useQuery({
+    queryKey: ["closing", "history", periodo, leitura],
+    queryFn: () => apiFetch<History>(`/api/v1/closing/history?periodo=${periodo}&leitura=${leitura}`),
   });
 }

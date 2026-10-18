@@ -113,6 +113,13 @@ async def test_period_summary_sums_months(pool: Any) -> None:
     assert period.gastos == sum((s.gastos for s in each), D(0))
     assert period.receitas == sum((s.receitas for s in each), D(0))
     assert [(m.month, m.source) for m in period.months] == [(s.month, s.source) for s in each]
+    # Story 9.1: as_of = o mais antigo, stale = OU, taxa dos componentes somados
+    assert period.as_of == min(s.as_of for s in each)
+    assert period.stale == any(s.income_stale or s.portfolio_stale for s in each)
+    work = sum((s.trabalho for s in each), D(0))
+    if work > 0:
+        spent = sum((s.gastos - s.devolucoes for s in each), D(0))
+        assert period.taxa_poupanca == ((work - spent) / work * 100).quantize(D("0.01"))
 
 
 @pytest.mark.asyncio
