@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import { invalidateAfter } from "@/lib/invalidate";
-import type { Checklist, ChecklistItem, History, MonthState, Recovery, ReopenPreview } from "@/types/closing";
+import type { Checklist, ChecklistItem, Growth, History, MonthState, Recovery, ReopenPreview } from "@/types/closing";
 
 export function useMonthStates(de?: string, ate?: string) {
   const qs = new URLSearchParams();
@@ -71,5 +71,13 @@ export function useHistory(periodo: string, leitura: string) {
   return useQuery({
     queryKey: ["closing", "history", periodo, leitura],
     queryFn: () => apiFetch<History>(`/api/v1/closing/history?periodo=${periodo}&leitura=${leitura}`),
+  });
+}
+
+// Crescimento do patrimônio e melhor desempenho (Story 9.2).
+export function useGrowth(periodo: string, leitura: string) {
+  return useQuery({
+    queryKey: ["closing", "growth", periodo, leitura],
+    queryFn: () => apiFetch<Growth>(`/api/v1/closing/growth?periodo=${periodo}&leitura=${leitura}`),
   });
 }

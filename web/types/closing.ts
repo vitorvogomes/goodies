@@ -1,4 +1,6 @@
 // Fechamento de mês (Stories 5.3–5.5).
+import type { Valued } from "@/types/overview";
+
 export type MonthStatus = "aberto" | "fechado" | "ajuste";
 
 export interface MonthState {
@@ -93,4 +95,27 @@ export interface History {
   average_months: number;
   rows: HistoryRow[];
   groups: HistoryRow[];
+}
+
+// Visão geral › Histórico — crescimento do patrimônio (Story 9.2).
+export interface GrowthAsset {
+  symbol: string;
+  cls: string;
+  xirr_mensal: number | null;
+  resultado: number | null;
+}
+
+export interface Growth {
+  periodo: string;
+  leitura: string;
+  available: boolean;
+  reason: "antes_do_primeiro_fechamento" | "patrimonio_nao_coberto" | null;
+  start_value: number | null;
+  end_value: number | null;
+  crescimento: number | null;
+  aporte: number | null;
+  resultado: number | null;
+  classes: { key: string; label: string; xirr_nominal: Valued; resultado: number | null }[];
+  assets: GrowthAsset[];
+  best: GrowthAsset | null;
 }

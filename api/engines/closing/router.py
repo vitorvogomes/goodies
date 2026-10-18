@@ -10,6 +10,7 @@ from engines.common.dates import MIN_MONTH, parse_periodo, today_brt
 from engines.common.deps import AuthUser, Db
 from engines.planning.models import MonthBudget
 
+from . import growth as growth_service
 from . import history as history_service
 from . import service
 from .checks import run_checks
@@ -132,6 +133,14 @@ async def history(
 ) -> history_service.History:
     """Story 9.1: o período da leitura × o anterior × a média 12m."""
     return await history_service.history(db, _period(periodo, leitura), leitura)
+
+
+@router.get("/growth", response_model=growth_service.Growth)
+async def growth(
+    user: AuthUser, db: Db, periodo: str | None = None, leitura: str = "mes"
+) -> growth_service.Growth:
+    """Story 9.2: crescimento do patrimônio = aporte + resultado e o melhor desempenho."""
+    return await growth_service.growth(db, _period(periodo, leitura), leitura)
 
 
 @router.get("/positions", response_model=PositionsReport)
