@@ -27,7 +27,14 @@ from engines.common.dates import parse_periodo
 from engines.common.month_status import month_status
 
 from . import queries
-from .calc import Movement, Rule, best_rule, savings_rate
+from .calc import (
+    BalanceInterval,
+    Movement,
+    Rule,
+    best_rule,
+    chained_check,
+    savings_rate,
+)
 from .models import (
     DEFAULT_ROLE,
     GROUP_KIND_LABEL,
@@ -1095,3 +1102,33 @@ async def create_rule(conn: asyncpg.Connection, body: RuleCreate) -> RuleCreated
         )
     row = next(r for r in await list_rules(conn) if r.id == rule_id)
     return RuleCreated(rule=row, applied=len(result.changed))
+
+
+# --------------------------------------------------------------------------------------------
+# Conferência encadeada da conta PF (Story 3.12 — FR-5)
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass
+class BalanceCheck:
+    account_id: str
+    intervals: list[BalanceInterval]
+
+    @property
+    def latest(self) -> BalanceInterval | None:
+        return self.intervals[-1] if self.intervals else None
+
+
+async def pf_balance_check(conn: asyncpg.Connection) -> BalanceCheck | None:
+    """Intervalos entre os saldos informados da conta PF (`holder = pf`); a do MEI não confere."""
+    account = await conn.fetchrow(queries.PF_ACCOUNT)
+    if account is None:
+        return None
+    reported = [
+        (r["as_of"], r["balance"])
+        for r in await conn.fetch(queries.REPORTED_BALANCES, account["id"])
+    ]
+    movements = [
+        (r["date"], r["amount"]) for r in await conn.fetch(queries.ACCOUNT_MOVEMENTS, account["id"])
+    ]
+    return BalanceCheck(str(account["id"]), chained_check(reported, movements))

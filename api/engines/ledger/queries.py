@@ -304,3 +304,10 @@ CATEGORY_LABEL_BY_ID = """
     SELECT CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END
     FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.id = $1::uuid
 """
+PF_ACCOUNT = (
+    "SELECT id, account_number FROM accounts WHERE holder = 'pf' ORDER BY created_at LIMIT 1"
+)
+REPORTED_BALANCES = """
+    SELECT as_of, balance FROM account_balances WHERE account_id = $1 ORDER BY as_of
+"""
+ACCOUNT_MOVEMENTS = "SELECT date, amount FROM transactions WHERE account_id = $1 ORDER BY date"

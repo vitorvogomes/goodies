@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
+from itertools import pairwise
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -102,3 +103,62 @@ def savings_rate(movements: Sequence[Movement]) -> Decimal | None:
 def month_result(movements: Sequence[Movement]) -> Decimal:
     """Resultado do mês: receitas - gastos - investimento."""
     return receitas(movements) - gastos(movements) - investido(movements)
+
+
+# --------------------------------------------------------------------------------------------
+# Conferência encadeada do saldo da conta PF (Story 3.12 — FR-5, AR14)
+# --------------------------------------------------------------------------------------------
+
+CENT_TOLERANCE = Decimal("0.005")
+
+
+@dataclass(frozen=True)
+class BalanceInterval:
+    """Entre dois saldos informados: anterior + Σ transações de (start, end] = informado."""
+
+    start: date
+    end: date
+    previous: Decimal
+    movement: Decimal
+    reported: Decimal
+
+    @property
+    def expected(self) -> Decimal:
+        return self.previous + self.movement
+
+    @property
+    def difference(self) -> Decimal:
+        return (self.reported - self.expected).quantize(Decimal("0.01"))
+
+    @property
+    def ok(self) -> bool:
+        return abs(self.reported - self.expected) < CENT_TOLERANCE
+
+
+def opening_balance(
+    anchor_reported: Decimal, anchor_date: date, transactions: Sequence[tuple[date, Decimal]]
+) -> Decimal:
+    """Saldo de abertura = saldo informado na âncora − Σ transações até a data da âncora."""
+    return anchor_reported - sum((a for d, a in transactions if d <= anchor_date), Decimal(0))
+
+
+def chained_check(
+    reported: Sequence[tuple[date, Decimal]], transactions: Sequence[tuple[date, Decimal]]
+) -> list[BalanceInterval]:
+    """Um intervalo por par de saldos informados consecutivos; cada um parte do saldo **informado**
+    anterior, então um erro antigo fica isolado no intervalo em que aconteceu."""
+    ordered = sorted(reported)
+    intervals: list[BalanceInterval] = []
+    for (start, previous), (end, current) in pairwise(ordered):
+        movement = sum((a for d, a in transactions if start < d <= end), Decimal(0))
+        intervals.append(BalanceInterval(start, end, previous, movement, current))
+    return intervals
+
+
+def month_checked(intervals: Sequence[BalanceInterval], month_end: date) -> bool:
+    """Mês conferido: vale o primeiro saldo informado com data ≥ fim do mês, desde que todos os
+    intervalos até ele batam (o OFX semanal não precisa terminar no último dia)."""
+    for i, interval in enumerate(intervals):
+        if interval.end >= month_end:
+            return all(x.ok for x in intervals[: i + 1])
+    return False
