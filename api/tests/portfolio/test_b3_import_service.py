@@ -3,6 +3,7 @@
 A regra de cobertura é a defesa contra a dupla contagem trade-vs-liquidação: o hash
 não protege (datas diferentes entre fontes), só a cobertura por proveniência.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -14,8 +15,15 @@ from engines.portfolio import service
 from engines.portfolio.b3_import_service import import_b3_workbook
 
 _NEG_HEADER = (
-    "Data do Negócio", "Tipo de Movimentação", "Mercado", "Prazo/Vencimento",
-    "Instituição", "Código de Negociação", "Quantidade", "Preço", "Valor",
+    "Data do Negócio",
+    "Tipo de Movimentação",
+    "Mercado",
+    "Prazo/Vencimento",
+    "Instituição",
+    "Código de Negociação",
+    "Quantidade",
+    "Preço",
+    "Valor",
 )
 
 
@@ -25,20 +33,21 @@ def _neg_sheet(rows: list[tuple[Any, ...]]) -> dict[str, list[tuple[Any, ...]]]:
 
 async def _count_ops(pool: Any, uid: str) -> int:
     async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT count(*) FROM asset_operations WHERE user_id = $1", uid
-        )
+        return await conn.fetchval("SELECT count(*) FROM asset_operations WHERE user_id = $1", uid)
 
 
-async def _seed_op(
-    pool: Any, uid: str, broker: str, sym: str, cat: str, d: date, ext: str
-) -> None:
+async def _seed_op(pool: Any, uid: str, broker: str, sym: str, cat: str, d: date, ext: str) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO asset_operations (user_id, broker, asset_symbol, "
             "asset_category, tipo, quantidade, valor_unitario, data_operacao, "
             "external_id) VALUES ($1,$2,$3,$4,'compra',1,10.0,$5,$6)",
-            uid, broker, sym, cat, d, ext,
+            uid,
+            broker,
+            sym,
+            cat,
+            d,
+            ext,
         )
 
 
@@ -66,13 +75,20 @@ class TestCoverage:
         maio->junho importa só a cauda de junho; maio vira overlap (sem dobrar)."""
         uid = portfolio_user["user_id"]
         await _seed_op(
-            pool, uid, "Toro/B3", "BBAS3", "Ações Nacionais",
-            date(2026, 5, 20), "legacy-bbas3-mai",
+            pool,
+            uid,
+            "Toro/B3",
+            "BBAS3",
+            "Ações Nacionais",
+            date(2026, 5, 20),
+            "legacy-bbas3-mai",
         )
-        sheets = _neg_sheet([
-            ("15/05/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 2, 19.0, 38.0),
-            ("05/06/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 3, 19.46, 58.38),
-        ])
+        sheets = _neg_sheet(
+            [
+                ("15/05/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 2, 19.0, 38.0),
+                ("05/06/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 3, 19.46, 58.38),
+            ]
+        )
         async with pool.acquire() as conn:
             rep = await import_b3_workbook(conn, uid, sheets, dry_run=False)
         assert rep["imported"] == 1
@@ -103,17 +119,42 @@ class TestCoverage:
         assert r2["imported"] == 0
         assert r2["skipped_duplicate"] == 1
 
+    @pytest.mark.asyncio
+    async def test_records_batch_and_source(self, pool: Any, portfolio_user: dict) -> None:
+        """Story 2.2: operações do arquivo entram num lote `applied` (fonte, corretora, período)."""
+        uid = portfolio_user["user_id"]
+        sheets = _neg_sheet(
+            [
+                ("05/06/2026", "Compra", "Frac", "-", "SANT", "BBAS3F", 3, 19.46, 58.38),
+                ("09/06/2026", "Compra", "Vista", "-", "SANT", "WEGE3", 1, 50.0, 50.0),
+            ]
+        )
+        async with pool.acquire() as conn:
+            await import_b3_workbook(conn, uid, sheets, dry_run=False)
+            rows = await conn.fetch(
+                "SELECT DISTINCT o.source, f.source fs, f.broker, f.period_start, f.period_end, "
+                "b.status FROM asset_operations o JOIN import_batches b ON b.id = o.batch_id "
+                "JOIN import_batch_files f ON f.batch_id = b.id WHERE o.user_id = $1",
+                uid,
+            )
+        assert [tuple(r) for r in rows] == [
+            (
+                "b3_negociacao",
+                "b3_negociacao",
+                "B3-negociacao",
+                date(2026, 6, 5),
+                date(2026, 6, 9),
+                "applied",
+            )
+        ]
+
 
 class TestConsolidado:
     @pytest.mark.asyncio
-    async def test_upserts_prices_respecting_manual(
-        self, pool: Any, portfolio_user: dict
-    ) -> None:
+    async def test_upserts_prices_respecting_manual(self, pool: Any, portfolio_user: dict) -> None:
         uid = portfolio_user["user_id"]
         async with pool.acquire() as conn:
-            await service.upsert_price(
-                conn, "PETR4", 99.99, source="manual", is_manual=True
-            )
+            await service.upsert_price(conn, "PETR4", 99.99, source="manual", is_manual=True)
         sheets = {
             "Posição - Ações": [
                 ("Código de Negociação", "Preço de Fechamento"),
@@ -129,11 +170,7 @@ class TestConsolidado:
         assert rep["prices_upserted"] == 1
         assert rep["prices_skipped_manual"] == 1
         async with pool.acquire() as conn:
-            petr = await conn.fetchval(
-                "SELECT price_brl FROM asset_prices WHERE ticker = 'PETR4'"
-            )
-            bbas = await conn.fetchval(
-                "SELECT price_brl FROM asset_prices WHERE ticker = 'BBAS3'"
-            )
+            petr = await conn.fetchval("SELECT price_brl FROM asset_prices WHERE ticker = 'PETR4'")
+            bbas = await conn.fetchval("SELECT price_brl FROM asset_prices WHERE ticker = 'BBAS3'")
         assert abs(float(petr) - 99.99) < 0.01  # manual preservado
         assert abs(float(bbas) - 20.3) < 0.01

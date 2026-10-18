@@ -27,6 +27,7 @@ from engines.ledger.importer import (
     import_statement,
     parse_account_number,
     parse_statement,
+    source_for,
 )
 
 
@@ -72,7 +73,9 @@ async def run(
                 print("ERRO: informe o account_id (arquivo sem número de conta).")
                 return
 
-            report: ImportReport = await import_statement(conn, target, entries, self_ids)
+            report: ImportReport = await import_statement(
+                conn, target, entries, self_ids, source=source_for(name), file_name=name
+            )
             print(
                 f"importadas: {report.imported}  duplicadas: {report.duplicates}  "
                 f"erros: {report.errors}"

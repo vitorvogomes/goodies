@@ -16,6 +16,9 @@ from decimal import Decimal, InvalidOperation
 
 import asyncpg
 
+from engines.ingest import service as ingest_service
+from engines.ingest.models import BatchFileIn
+
 
 @dataclass(frozen=True)
 class StatementEntry:
@@ -147,11 +150,19 @@ def parse_account_number(content: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def source_for(filename: str) -> str:
+    """Fonte do arquivo para a proveniência (Story 2.2): CSV ou OFX do Nubank."""
+    return "nubank_csv" if filename.lower().endswith(".csv") else "nubank_ofx"
+
+
 async def import_statement(
     conn: asyncpg.Connection,
     account_id: uuid.UUID,
     entries: Sequence[StatementEntry],
     self_identifiers: Sequence[str] = (),
+    *,
+    source: str = "nubank_ofx",
+    file_name: str | None = None,
 ) -> ImportReport:
     """Grava todos os lançamentos com o `kind` classificado (dedup por external_id).
 
@@ -165,13 +176,30 @@ async def import_statement(
     identifiers = [r["account_number"] for r in own] + list(self_identifiers)
     rules = await _load_rules(conn)
     report = ImportReport()
+    # Story 2.2: toda linha vinda de arquivo tem lote. Até o SourceAdapter (Story 3.3), o import v1
+    # registra um lote `applied` com o período do arquivo; sem nenhuma linha nova, o lote é apagado.
+    batch_id = None
+    if entries:
+        batch_id = await ingest_service.record_applied_batch(
+            conn,
+            [
+                BatchFileIn(
+                    source=source,
+                    account_id=str(account_id),
+                    file_name=file_name,
+                    period_start=min(e.date for e in entries),
+                    period_end=max(e.date for e in entries),
+                )
+            ],
+        )
     for entry in entries:
         result = classify(entry, rules, identifiers)
         try:
             inserted = await conn.fetchval(
                 "INSERT INTO transactions "
-                "(account_id, date, amount, category, kind, description, external_id) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7) "
+                "(account_id, date, amount, category, kind, description, external_id, batch_id, "
+                "source) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) "
                 "ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING "
                 "RETURNING id",
                 account_id,
@@ -181,6 +209,8 @@ async def import_statement(
                 result.kind,
                 entry.description,
                 entry.external_id,
+                batch_id,
+                source,
             )
         except (asyncpg.PostgresError, InvalidOperation):
             report.errors += 1
@@ -190,4 +220,10 @@ async def import_statement(
         else:
             report.imported += 1
             report.by_kind[result.kind] = report.by_kind.get(result.kind, 0) + 1
+    if batch_id is not None and report.imported == 0:
+        await conn.execute(
+            "DELETE FROM import_batches WHERE id = $1 AND NOT EXISTS "
+            "(SELECT 1 FROM transactions WHERE batch_id = $1)",
+            batch_id,
+        )
     return report

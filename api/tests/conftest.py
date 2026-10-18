@@ -64,10 +64,29 @@ def _ensure_test_db() -> None:
     asyncio.run(_create_test_db())
 
 
+OWNER_EMAIL = "owner@goodies.test"
+
+
+async def _ensure_owner() -> None:
+    """Dono permanente do banco de teste (Story 2.2): o ledger tem `user_id` NOT NULL com o dono
+    único como padrão, então a suíte precisa de um 1º usuário que nenhum teste apaga."""
+    conn = await asyncpg.connect(TEST_DSN)
+    try:
+        await conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) "
+            "VALUES ($1, 'x', '2000-01-01T00:00:00Z') ON CONFLICT (email) DO NOTHING",
+            OWNER_EMAIL,
+        )
+    finally:
+        await conn.close()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _apply_migrations(_ensure_test_db: None) -> None:
     cfg = Config(str(_API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(_API_DIR / "db" / "migrations"))
+    command.upgrade(cfg, "0001_initial_users")
+    asyncio.run(_ensure_owner())
     command.upgrade(cfg, "head")
 
 

@@ -21,6 +21,8 @@ from typing import Any
 import asyncpg
 
 from engines.common.cache import invalidate_xirr_cache
+from engines.ingest import service as ingest_service
+from engines.ingest.models import BatchFileIn
 from engines.market import service as market_service
 
 from . import service
@@ -36,6 +38,11 @@ _BROKER_BY_TYPE: dict[B3FileType, str] = {
     "movimentacao": "B3-movimentacao",
     "negociacao": "B3-negociacao",
     "consolidado": "B3-consolidado",
+}
+_SOURCE_BY_TYPE: dict[B3FileType, str] = {
+    "movimentacao": "b3_movimentacao",
+    "negociacao": "b3_negociacao",
+    "consolidado": "b3_consolidado",
 }
 _SHEET_BY_TYPE: dict[B3FileType, str] = {
     "movimentacao": "Movimentação",
@@ -170,7 +177,18 @@ async def import_b3_workbook(
         report["skipped_duplicate"] = would_dup
         return report
 
-    result = await import_operations(conn, user_id, kept, broker_default=this_broker)
+    # Story 2.2: as operações do arquivo entram num lote `applied` (fonte + corretora + período).
+    source = _SOURCE_BY_TYPE[ftype]
+    ds = [op["data_operacao"] for op in kept]
+    batch_id = await ingest_service.record_applied_batch(
+        conn,
+        [BatchFileIn(source=source, broker=this_broker, period_start=min(ds), period_end=max(ds))],
+    )
+    result = await import_operations(
+        conn, user_id, kept, broker_default=this_broker, source=source, batch_id=batch_id
+    )
+    if result["imported"] == 0:
+        await conn.execute("DELETE FROM import_batches WHERE id = $1", batch_id)
     report["imported"] = result["imported"]
     report["skipped_duplicate"] = result["skipped"]
     if result["imported"]:

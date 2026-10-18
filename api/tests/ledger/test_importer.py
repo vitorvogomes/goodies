@@ -242,3 +242,38 @@ def test_classify_self_transfer_when_identifier_present():
     assert classify(e, self_identifiers=["FULANO DE TAL"]).kind == "transfer"
     # sem o identificador, cai no default por sinal (receita)
     assert classify(e).kind == "income"
+
+
+async def test_import_statement_records_batch_and_source(pool):
+    """Story 2.2: o import v1 grava lote `applied` (período do arquivo) e `source`; reimport sem
+    linha nova não deixa lote vazio."""
+    async with pool.acquire() as conn:
+        acc = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ($1, $2) RETURNING id", "Lote", "bank"
+        )
+        entries = [
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 3, 1), Decimal("-5"), "Café"),
+            StatementEntry(uuid.uuid4().hex, datetime.date(2099, 3, 9), Decimal("-7"), "Pão"),
+        ]
+        before = await conn.fetchval("SELECT count(*) FROM import_batches")
+        await import_statement(conn, acc, entries, source="nubank_csv", file_name="x.csv")
+        rows = await conn.fetch(
+            "SELECT t.source, f.period_start, f.period_end, b.status FROM transactions t "
+            "JOIN import_batches b ON b.id = t.batch_id "
+            "JOIN import_batch_files f ON f.batch_id = b.id WHERE t.account_id = $1",
+            acc,
+        )
+        mid = await conn.fetchval("SELECT count(*) FROM import_batches")
+        await import_statement(conn, acc, entries, source="nubank_csv", file_name="x.csv")
+        after = await conn.fetchval("SELECT count(*) FROM import_batches")
+    assert {(r["source"], r["period_start"], r["period_end"], r["status"]) for r in rows} == {
+        ("nubank_csv", datetime.date(2099, 3, 1), datetime.date(2099, 3, 9), "applied")
+    }
+    assert mid == before + 1 and after == mid
+
+
+def test_source_for_filename():
+    from engines.ledger.importer import source_for
+
+    assert source_for("NU_2026.OFX") == "nubank_ofx"
+    assert source_for("extrato.csv") == "nubank_csv"

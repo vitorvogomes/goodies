@@ -202,6 +202,9 @@ async def import_operations(
     user_id: str,
     rows: list[dict[str, Any]],
     broker_default: str = "Migração",
+    *,
+    source: str = "manual",
+    batch_id: str | None = None,
 ) -> dict[str, int]:
     """Insere operações idempotentemente (ON CONFLICT external_id DO NOTHING).
 
@@ -214,8 +217,8 @@ async def import_operations(
             """
             INSERT INTO asset_operations
               (user_id, broker, asset_symbol, asset_category, tipo, quantidade,
-               valor_unitario, data_operacao, external_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               valor_unitario, data_operacao, external_id, source, batch_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING
             """,
             user_id,
@@ -227,6 +230,8 @@ async def import_operations(
             row["valor_unitario"],
             row["data_operacao"],
             row["external_id"],
+            source,
+            batch_id,
         )
         # status do asyncpg = "INSERT 0 <n>"; n=1 inseriu, n=0 foi conflito (DO NOTHING).
         # Parse do rowcount (último token) em vez de endswith("1") — frágil p/ n>=10.

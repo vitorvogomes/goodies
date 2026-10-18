@@ -15,7 +15,12 @@ from pydantic import BaseModel
 from auth.dependencies import get_current_user
 from config import settings
 from db.connection import get_db
-from engines.ledger.importer import import_statement, parse_account_number, parse_statement
+from engines.ledger.importer import (
+    import_statement,
+    parse_account_number,
+    parse_statement,
+    source_for,
+)
 
 router = APIRouter(prefix="/api/v1/ledger", tags=["ledger:import"])
 
@@ -80,7 +85,9 @@ async def import_endpoint(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "nenhuma transação reconhecida no arquivo"
         )
 
-    report = await import_statement(db, target, entries, _self_identifiers())
+    report = await import_statement(
+        db, target, entries, _self_identifiers(), source=source_for(filename), file_name=filename
+    )
     return ImportReport(
         parsed=len(entries),
         imported=report.imported,

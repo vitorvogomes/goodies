@@ -130,7 +130,9 @@ async def seed_spec(
     price = value / net if net > 0 and value > 0 else 0.0
     report = {"imported": 0, "skipped": 0}
     if ops:
-        report = await import_operations(conn, user_id, ops, broker_default=spec.broker)
+        report = await import_operations(
+            conn, user_id, ops, broker_default=spec.broker, source="derived"
+        )
     if price > 0:
         await upsert_price(conn, spec.symbol, price, source=_PRICE_SOURCE)
     return {
