@@ -56,6 +56,8 @@ código-fonte (`pythonpath="."`), sem build de wheel. **Sem `requirements*.txt`/
 Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. Dockerfile/CI usam uv.
 
 ## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
+> **Superado em parte pelo ADR-015 (2026-10-17):** resgate passa a ser receita. Seguem valendo: caixinhas/CDB
+> como ativos RF, reclassificação in-place/idempotente, NÃO rodar `reset_ledger.py`, Santander externo.
 Decidido na faxina pré-m3 (2026-06-06). Ver `docs/v1/11_Coerencia_Nubank_Portfolio_pre_m3.md`.
 - **Aplicação E resgate de caixinha são `kind='investment'`** (o resgate volta positivo e neta o
   `total_invested`). Resgate de caixinha **nunca** é `income` — inflaria a taxa de poupança.
@@ -101,6 +103,16 @@ Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-sca
   caixinhas Nubank vêm por outra via, não pelo scan de carteira.
 
 ---
+
+## ADR-014 — v2.0 só em localhost (sem deploy, sem CI)
+Decidido 2026-10-17 (commit d3748a4). Fly.io, Vercel e GitHub Actions removidos. A v2.0 roda só local
+(`docker compose` + `pnpm dev`); nenhum host de nuvem recebe dado financeiro. Backup local diário
+(`pg_dump`, fora do repo). Infra de deploy desenhada do zero na v2.1. Ver spine AD-18.
+
+## ADR-015 — Resgate é receita (reverte o ADR-011 nesse ponto)
+Decidido no PRD v2 (2026-10-17). Resgate de caixinha/RF/corretora é receita, exibido em linha própria e
+reclassificado em todo o histórico (FR-19, migração idempotente). A taxa de poupança usa a **receita do
+trabalho** (sem resgates), então o gate jun/2026 = 55,48% continua válido. Ver spine AD-6/AD-7/AD-16.
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)
 

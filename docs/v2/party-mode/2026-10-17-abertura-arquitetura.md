@@ -139,8 +139,11 @@ evita avisos falsos (SM-C2).
 | Gráfico | chart-1 (verde) | chart-2 (neutro médio) | chart-3 (neutro claro) |
 |---|---|---|---|
 | Patrimônio | patrimônio | — | aplicado |
-| Receitas × consumido | receita do trabalho | consumido | média 12m |
+| Gastos por categoria *(ver nota)* | — | período | anterior; média 12m como marcador |
 | Aporte | realizado | planejado | média 12m |
+
+> **Nota (arquitetura, 2026-10-18):** o EXPERIENCE define o segundo gráfico como "gastos por categoria",
+> não "receitas × consumido"; o mapeamento acima segue o EXPERIENCE.
 
 ## 7. Fica para depois
 

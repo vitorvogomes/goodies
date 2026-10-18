@@ -17,7 +17,7 @@
 | Next.js App Router, RSC, file conventions | `next-best-practices` ⚠ surfaçar via `/story` (não auto-dispara) |
 | Componente / página / UI production-grade | `frontend-design` + `shadcn` (componentes, `components.json`, registry) |
 | Design system: tokens Tailwind v4, paleta, fonts, tipos de chart, UX | `tailwind-design-system` + `ui-ux-pro-max` (+ `better-colors`, `better-typography`) |
-| Tabelas de dados (ordenar, filtrar, paginar, agrupar) | `tanstack-table` (+ `shadcn` data-table) |
+| Tabelas de dados (ordenar, filtrar, paginar, agrupar) | `tanstack-table` (+ `shadcn` data-table) — **atenção:** o projeto usa `@tanstack/react-table` **v9** (compatível com React Compiler); a skill documenta v8, conferir a API v9 |
 | Layout / navegação / hierarquia de informação | `better-layout` |
 | Polimento de UI (raios, alinhamento, profundidade, hit areas) | `better-ui` + `emil-design-eng` |
 | Acessibilidade (contraste, foco, teclado, ARIA) | `better-accessibility` |
