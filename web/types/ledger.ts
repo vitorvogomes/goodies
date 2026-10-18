@@ -240,3 +240,46 @@ export interface CategoryGroupNode {
   transaction_count: number;
   categories: CategoryNode[];
 }
+
+// ---- v2: Ajustes › Regras (Story 2.10) ----
+export type RuleDirection = "entrada" | "saida" | "ambos";
+
+export interface CategoryRule {
+  id: string;
+  pattern: string;
+  direction: RuleDirection;
+  category_id: string;
+  category_label: string;
+  is_active: boolean;
+  origin: string;
+  created_at: string;
+}
+
+export interface RuleMatch {
+  id: string;
+  date: string;
+  description: string | null;
+  amount: number;
+  category_label: string;
+}
+
+export interface RulePreview {
+  total: number;
+  items: RuleMatch[];
+}
+
+export interface ReapplyChange {
+  transaction_id: string;
+  date: string;
+  description: string | null;
+  amount: number;
+  before: string;
+  after: string;
+  rule_pattern: string;
+}
+
+export interface ReapplyPreview {
+  changes: ReapplyChange[];
+  manual_unchanged: number;
+  closed_months: number;
+}

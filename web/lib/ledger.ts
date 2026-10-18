@@ -15,6 +15,7 @@ import type {
   CategoryGroupNode,
   CategoryKind,
   CategoryOption,
+  CategoryRule,
   CategoryUpdate,
   FixedCost,
   FixedCostCreate,
@@ -23,6 +24,9 @@ import type {
   LedgerTransaction,
   MonthlySummary,
   Page,
+  ReapplyPreview,
+  RuleDirection,
+  RulePreview,
   Suggestion,
   Transaction,
   TransactionCreate,
@@ -341,6 +345,71 @@ export function useCategoryMutation() {
           return apiFetch(`${base}/categories/${m.id}`, { method: "DELETE" });
       }
     },
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+// ---- v2: Ajustes › Regras e reaplicação (Story 2.10) ----
+
+export interface RuleUpdateIn {
+  pattern?: string;
+  direction?: RuleDirection;
+  category_id?: string;
+  is_active?: boolean;
+}
+
+export function useRules() {
+  return useQuery({
+    queryKey: ["ledger", "rules"],
+    queryFn: () => apiFetch<CategoryRule[]>("/api/v1/ledger/rules"),
+  });
+}
+
+export function useUpdateRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: RuleUpdateIn }) =>
+      apiFetch<CategoryRule>(`/api/v1/ledger/rules/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "ledger"),
+  });
+}
+
+/** Prévia de uma condição: só lê (POST porque leva o corpo da condição). */
+export function useRulePreview(pattern: string, direction: RuleDirection) {
+  const trimmed = pattern.trim();
+  return useQuery({
+    queryKey: ["ledger", "rule-preview", trimmed.toLowerCase(), direction],
+    queryFn: () =>
+      apiFetch<RulePreview>("/api/v1/ledger/rules/preview", {
+        method: "POST",
+        body: JSON.stringify({ pattern: trimmed, direction }),
+      }),
+    enabled: trimmed.length > 0,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useReapplyPreview() {
+  return useMutation({
+    mutationFn: (range: { de: string; ate: string }) =>
+      apiFetch<ReapplyPreview>("/api/v1/ledger/rules/reapply/preview", {
+        method: "POST",
+        body: JSON.stringify(range),
+      }),
+  });
+}
+
+export function useReapplyRules() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (range: { de: string; ate: string }) =>
+      apiFetch<{ changed: number }>("/api/v1/ledger/rules/reapply", {
+        method: "POST",
+        body: JSON.stringify(range),
+      }),
     onSuccess: () => invalidateAfter(queryClient, "ledger"),
   });
 }

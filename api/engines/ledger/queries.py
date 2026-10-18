@@ -3,6 +3,7 @@
 Outras engines leem transações por `categories.key` (imutável) daqui, nunca pelo nome da categoria
 nem com SQL próprio sobre `transactions`.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -202,3 +203,33 @@ RENAME_TEXT_COLUMNS = (
     "UPDATE transactions SET category = $2 WHERE category_id = $1::uuid",
     "UPDATE fixed_costs SET category = $2 WHERE category_id = $1::uuid",
 )
+
+
+RULES_LIST = """
+    SELECT r.id, r.pattern, r.direction, r.category_id, r.is_active, r.origin, r.created_at,
+           g.name || ' › ' || c.name AS category_label
+    FROM category_rules r JOIN categories c ON c.id = r.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    ORDER BY r.is_active DESC, lower(r.pattern), r.direction
+"""
+RULE_MATCHES = """
+    SELECT t.id, t.date, t.description, t.amount,
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label,
+           count(*) OVER () AS total
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE position(lower($1) IN lower(coalesce(t.description, ''))) > 0
+      AND ($2 = 'ambos' OR ($2 = 'entrada' AND t.amount > 0) OR ($2 = 'saida' AND t.amount < 0))
+    ORDER BY t.date DESC LIMIT 20
+"""
+TX_IN_RANGE = """
+    SELECT t.id, t.date, t.description, t.amount, t.category_id, t.category_source,
+           CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS category_label
+    FROM transactions t JOIN categories c ON c.id = t.category_id
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE t.date >= $1 AND t.date < $2 ORDER BY t.date, t.id
+"""
+CATEGORY_LABELS = """
+    SELECT c.id, CASE WHEN g.is_system THEN c.name ELSE g.name || ' › ' || c.name END AS label
+    FROM categories c JOIN category_groups g ON g.id = c.group_id
+"""

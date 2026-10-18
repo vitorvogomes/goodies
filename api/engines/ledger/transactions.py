@@ -119,7 +119,7 @@ async def _category_id(db: asyncpg.Connection, name: str) -> str:
     if found is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            {"error": "categoria_inexistente", "message": f"Categoria \"{name}\" não existe."},
+            {"error": "categoria_inexistente", "message": f'Categoria "{name}" não existe.'},
         )
     return str(found)
 
@@ -255,9 +255,7 @@ async def create_transaction(
                 body.notes,
             )
         except asyncpg.ForeignKeyViolationError:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente"
-            ) from None
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
         await ledger_service.categorize(
             db,
             [ledger_service.CategoryChange(str(tx_id), category_id, "manual")],
@@ -297,9 +295,7 @@ async def update_transaction(
                 body.notes,
             )
         except asyncpg.ForeignKeyViolationError:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente"
-            ) from None
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
         if row is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "transação não encontrada")
         if category_id is not None:

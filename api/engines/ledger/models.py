@@ -153,3 +153,67 @@ class SubcategoryUpdate(BaseModel):
     group_id: str | None = None
     role: Role | None = None
     is_active: bool | None = None
+
+
+Direction = Literal["entrada", "saida", "ambos"]
+
+
+class RuleRow(BaseModel):
+    id: str
+    pattern: str
+    direction: str
+    category_id: str
+    category_label: str
+    is_active: bool
+    origin: str
+    created_at: dt.datetime
+
+
+class RuleUpdate(BaseModel):
+    pattern: str | None = Field(default=None, max_length=120)
+    direction: Direction | None = None
+    category_id: str | None = None
+    is_active: bool | None = None
+
+
+class RulePreviewIn(BaseModel):
+    pattern: str = Field(min_length=1, max_length=120)
+    direction: Direction
+
+
+class RuleMatch(BaseModel):
+    id: str
+    date: dt.date
+    description: str | None
+    amount: Money
+    category_label: str
+
+
+class RulePreviewOut(BaseModel):
+    total: int
+    items: list[RuleMatch]
+
+
+class ReapplyIn(BaseModel):
+    de: str = Field(pattern=r"^\d{4}-\d{2}$")
+    ate: str = Field(pattern=r"^\d{4}-\d{2}$")
+
+
+class ReapplyChange(BaseModel):
+    transaction_id: str
+    date: dt.date
+    description: str | None
+    amount: Money
+    before: str
+    after: str
+    rule_pattern: str
+
+
+class ReapplyPreview(BaseModel):
+    changes: list[ReapplyChange]
+    manual_unchanged: int
+    closed_months: int
+
+
+class ReapplyResult(BaseModel):
+    changed: int

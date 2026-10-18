@@ -29,6 +29,13 @@ from .models import (
     GroupUpdate,
     ManualTransactionCreate,
     ManualTransactionUpdate,
+    ReapplyIn,
+    ReapplyPreview,
+    ReapplyResult,
+    RulePreviewIn,
+    RulePreviewOut,
+    RuleRow,
+    RuleUpdate,
     SubcategoryCreate,
     SubcategoryUpdate,
     TransactionList,
@@ -204,6 +211,58 @@ async def delete_category(category_id: str, user: AuthUser, db: Db) -> None:
         raise _rule_error(exc) from None
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _BAD_CATEGORY)
+
+
+# ---- Ajustes › Regras e reaplicação (Story 2.10) ----
+_RULE_NOT_FOUND = {"error": "regra_inexistente", "message": "Regra não existe."}
+_BAD_PERIOD = {"error": "periodo_invalido", "message": "O fim do período vem antes do início."}
+
+
+@v2.get("/rules", response_model=list[RuleRow])
+async def list_rules(user: AuthUser, db: Db) -> list[RuleRow]:
+    return await service.list_rules(db)
+
+
+@v2.patch("/rules/{rule_id}", response_model=RuleRow)
+async def update_rule(rule_id: str, body: RuleUpdate, user: AuthUser, db: Db) -> RuleRow:
+    try:
+        row = await service.update_rule(db, rule_id, body)
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "condicao_vazia", "message": "Informe o texto da condição."},
+        ) from None
+    except LookupError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_CATEGORY) from None
+    except service.CategoryRuleError as exc:
+        raise _rule_error(exc) from None
+    if row is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            {"error": "regra_inexistente", "message": "Regra não existe."},
+        )
+    return row
+
+
+@v2.post("/rules/preview", response_model=RulePreviewOut)
+async def preview_rule(body: RulePreviewIn, user: AuthUser, db: Db) -> RulePreviewOut:
+    return await service.preview_rule(db, body)
+
+
+@v2.post("/rules/reapply/preview", response_model=ReapplyPreview)
+async def preview_reapply(body: ReapplyIn, user: AuthUser, db: Db) -> ReapplyPreview:
+    try:
+        return await service.preview_reapply(db, body)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_PERIOD) from None
+
+
+@v2.post("/rules/reapply", response_model=ReapplyResult)
+async def reapply_rules(body: ReapplyIn, user: AuthUser, db: Db) -> ReapplyResult:
+    try:
+        return await service.reapply_rules(db, body)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _BAD_PERIOD) from None
 
 
 router.include_router(v2)

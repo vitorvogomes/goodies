@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Suspense, useState } from "react";
 
+import { ReapplyDiff } from "@/components/ajustes/ReapplyDiff";
 import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
 import { StatusBadge } from "@/components/data/StatusBadge";
@@ -247,6 +248,26 @@ function Panel({ mode }: { mode: "theme-light" | "dark" }) {
           columns={DEMO_COLS}
           getRowId={(d) => d.id}
           renderExpanded={(d) => <span className="type-body-sm">Detalhe de {d.nome}</span>}
+        />
+      </Section>
+
+      <Section title="Prévia de reaplicação (antes × depois)">
+        <ReapplyDiff
+          preview={{
+            changes: [
+              {
+                transaction_id: "r1",
+                date: "2026-10-03",
+                description: "UBER *TRIP",
+                amount: -23.9,
+                before: "Lazer › Lazer",
+                after: "Transporte › Transporte",
+                rule_pattern: "uber",
+              },
+            ],
+            manual_unchanged: 2,
+            closed_months: 1,
+          }}
         />
       </Section>
 

@@ -5,6 +5,7 @@ sugestão: a categoria do histórico cuja descrição é mais parecida. O usuár
 (vira a categoria da transação) e, opcionalmente, salva um match_pattern. Função pura
 e testável; não fabrica nada — só propõe com base no que já foi categorizado à mão.
 """
+
 from __future__ import annotations
 
 from difflib import SequenceMatcher

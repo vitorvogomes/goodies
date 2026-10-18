@@ -15,10 +15,11 @@ from typing import Literal
 import asyncpg
 from pydantic import BaseModel
 
+from engines.common.dates import parse_periodo
 from engines.common.month_status import month_status
 
 from . import queries
-from .calc import Movement, Rule, savings_rate
+from .calc import Movement, Rule, best_rule, savings_rate
 from .models import (
     DEFAULT_ROLE,
     GROUP_KIND_LABEL,
@@ -31,6 +32,15 @@ from .models import (
     GroupUpdate,
     ManualTransactionCreate,
     ManualTransactionUpdate,
+    ReapplyChange,
+    ReapplyIn,
+    ReapplyPreview,
+    ReapplyResult,
+    RuleMatch,
+    RulePreviewIn,
+    RulePreviewOut,
+    RuleRow,
+    RuleUpdate,
     SubcategoryCreate,
     SubcategoryUpdate,
     TransactionList,
@@ -678,3 +688,127 @@ async def delete_category(conn: asyncpg.Connection, category_id: str) -> bool:
         await conn.execute("DELETE FROM category_rules WHERE category_id = $1::uuid", category_id)
         await conn.execute("DELETE FROM categories WHERE id = $1::uuid", category_id)
     return True
+
+
+# --------------------------------------------------------------------------------------------
+# Ajustes › Regras e reaplicação (Story 2.10)
+# --------------------------------------------------------------------------------------------
+
+
+def _rule_row(r: asyncpg.Record) -> RuleRow:
+    return RuleRow(
+        id=str(r["id"]),
+        pattern=r["pattern"],
+        direction=r["direction"],
+        category_id=str(r["category_id"]),
+        category_label=r["category_label"],
+        is_active=r["is_active"],
+        origin=r["origin"],
+        created_at=r["created_at"],
+    )
+
+
+async def list_rules(conn: asyncpg.Connection) -> list[RuleRow]:
+    return [_rule_row(r) for r in await conn.fetch(queries.RULES_LIST)]
+
+
+async def update_rule(conn: asyncpg.Connection, rule_id: str, body: RuleUpdate) -> RuleRow | None:
+    pattern = body.pattern.strip().lower() if body.pattern is not None else None
+    if pattern == "":
+        raise ValueError("padrão vazio")
+    if body.category_id is not None and not await queries.category_exists(conn, body.category_id):
+        raise LookupError("categoria")
+    try:
+        found = await conn.fetchval(
+            "UPDATE category_rules SET pattern = COALESCE($2, pattern), "
+            "direction = COALESCE($3, direction), category_id = COALESCE($4::uuid, category_id), "
+            "is_active = COALESCE($5, is_active) WHERE id = $1::uuid RETURNING id",
+            rule_id,
+            pattern,
+            body.direction,
+            body.category_id,
+            body.is_active,
+        )
+    except asyncpg.UniqueViolationError:
+        raise CategoryRuleError("regra_existente", "Já existe essa regra.") from None
+    if found is None:
+        return None
+    return next(r for r in await list_rules(conn) if r.id == rule_id)
+
+
+async def preview_rule(conn: asyncpg.Connection, body: RulePreviewIn) -> RulePreviewOut:
+    rows = await conn.fetch(queries.RULE_MATCHES, body.pattern.strip(), body.direction)
+    return RulePreviewOut(
+        total=int(rows[0]["total"]) if rows else 0,
+        items=[
+            RuleMatch(
+                id=str(r["id"]),
+                date=r["date"],
+                description=r["description"],
+                amount=r["amount"],
+                category_label=r["category_label"],
+            )
+            for r in rows
+        ],
+    )
+
+
+def _month_range(de: str, ate: str) -> tuple[date, date]:
+    start = parse_periodo(de)
+    last = parse_periodo(ate)
+    if last < start:
+        raise ValueError("período")
+    end = date(last.year + last.month // 12, last.month % 12 + 1, 1)
+    return start, end
+
+
+async def _reapply_plan(
+    conn: asyncpg.Connection, de: str, ate: str
+) -> tuple[ReapplyPreview, list[CategoryChange]]:
+    start, end = _month_range(de, ate)
+    rules = await load_rules(conn)
+    labels = {str(r["id"]): r["label"] for r in await conn.fetch(queries.CATEGORY_LABELS)}
+    changes: list[ReapplyChange] = []
+    plan: list[CategoryChange] = []
+    manual = 0
+    port = month_status()
+    closed: set[date] = set()
+    for t in await conn.fetch(queries.TX_IN_RANGE, start, end):
+        rule = best_rule(t["description"] or "", t["amount"], rules)
+        if rule is None or rule.category_id == str(t["category_id"]):
+            continue
+        if t["category_source"] == "manual":
+            manual += 1
+            continue
+        month = t["date"].replace(day=1)
+        if await port.is_closed(conn, month):
+            closed.add(month)
+        changes.append(
+            ReapplyChange(
+                transaction_id=str(t["id"]),
+                date=t["date"],
+                description=t["description"],
+                amount=t["amount"],
+                before=t["category_label"],
+                after=labels.get(rule.category_id, rule.category_name),
+                rule_pattern=rule.pattern,
+            )
+        )
+        plan.append(CategoryChange(str(t["id"]), rule.category_id, "rule", rule.rule_id))
+    closed_count = sum(1 for c in changes if c.date.replace(day=1) in closed)
+    preview = ReapplyPreview(changes=changes, manual_unchanged=manual, closed_months=closed_count)
+    return preview, plan
+
+
+async def preview_reapply(conn: asyncpg.Connection, body: ReapplyIn) -> ReapplyPreview:
+    preview, _ = await _reapply_plan(conn, body.de, body.ate)
+    return preview
+
+
+async def reapply_rules(conn: asyncpg.Connection, body: ReapplyIn) -> ReapplyResult:
+    """Reaplica as regras ativas ao período: só não-manuais, via categorize() (cause reapply), numa
+    transação; o mês tocado é marcado sujo pelo próprio categorize()."""
+    async with conn.transaction():
+        _, plan = await _reapply_plan(conn, body.de, body.ate)
+        result = await categorize(conn, plan, cause="reapply")
+    return ReapplyResult(changed=len(result.changed))

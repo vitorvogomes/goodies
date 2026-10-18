@@ -129,9 +129,7 @@ async def summary(
         return [_summary(r, rates.get(r["month"])) for r in rows]
 
     first = datetime.date(int(month[:4]), int(month[5:7]), 1)
-    row = await db.fetchrow(
-        _SUMMARY_SELECT + " WHERE month = date_trunc('month', $1::date)", first
-    )
+    row = await db.fetchrow(_SUMMARY_SELECT + " WHERE month = date_trunc('month', $1::date)", first)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "sem dados para o mês informado")
     if float(row["total_income"]) == 0:
