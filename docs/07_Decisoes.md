@@ -373,3 +373,29 @@ Os 55,48% da planilha não são reproduzíveis pela base; o invariante das revis
 cada mês igual à do baseline fixado (jun/2026 = 57,46% na v1; desde a Story 2.6, 56,87% na fórmula v2 fixada em
 `pinned_savings_v2.txt`), salvo deltas esperados listados. Ver
 `.claude/memory/decisions.md`.
+
+---
+
+## ADR-017 — Distribuição do aporte executável: lotes, troco e aportes fixos
+
+**Data:** 2026-10-18  
+**Status:** Aceito (pedido do Vitor, depois da v2.0)
+
+### Decisão
+- O sugerido de cada ativo é o que se compra de fato: B3 (ação, FII, ETF) em cotas inteiras e Tesouro em 0,01 título
+  com a ordem mínima de R$ 30, ao preço de hoje, arredondado à cota mais próxima que cabe na classe
+  (`planning/distribution.Lot`). Renda fixa, caixinhas e cripto seguem ao centavo.
+- O troco das cotas segue a ordem, na posição do início do mês: 1. reserva de emergência até encher; 2. caixinha
+  Turbo até R$ 5 mil (o teto dos 115% do CDI); 3. os objetivos do mais perto de ser concluído (maior % do alvo) ao mais
+  longe — o travado é pulado e o troco segue ao próximo; depois, classes de valor livre; o resto fica sem destino
+  ("fica para o próximo aporte").
+- Aportes fixos do mês (`fixed_contributions`, revisão 0050): o valor que um objetivo ou ativo recebe todo mês (Flash
+  R$ 1.000, caixinha Ana Maria R$ 4.000) é trava padrão da distribuição; a trava gravada no mês vence. Ativo fixo numa
+  classe sem meta por ativo leva a classe ao valor fixo; numa classe com metas, a classe recebe ao menos os fixos dela;
+  ativo fixo de um objetivo (caixinha) vira o fixo do objetivo.
+- "O que falta aplicar" (lista de compras) = o que falta do plano de cada ativo (cotas do plano − as que entraram no
+  mês), reduzido em proporção ao que falta na classe, em cotas inteiras.
+
+### Consequências
+O plano do mês é calculado na posição do início do mês (estável); a lista de compras usa o que já entrou. Metas por
+ativo menores que uma ordem mínima (ex.: Selic com 2% de uma classe de R$ 5 mil) nunca viram compra.

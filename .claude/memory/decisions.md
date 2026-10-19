@@ -121,6 +121,14 @@ reclassificado em todo o histórico (FR-19, migração idempotente). A taxa de p
 trabalho** (sem resgates). O gate de 55,48% foi substituído pelo baseline por mês (ADR-016). Ver spine
 AD-6/AD-7/AD-16.
 
+## ADR-017 — Distribuição do aporte executável (lotes, troco, aportes fixos)
+Decidido 2026-10-18 a pedido do Vitor (ver `docs/07_Decisoes.md`). O sugerido por ativo é compra de fato: B3 em
+cotas inteiras, Tesouro em 0,01 título com mínimo de R$ 30 (`planning/distribution.Lot`); renda fixa, caixinhas e
+cripto ao centavo. Troco das cotas (posição do início do mês): reserva até encher → caixinha Turbo até R$ 5 mil →
+objetivos do mais perto de ser concluído ao mais longe (travado é pulado) → classes livres → sem destino. Aportes fixos (`fixed_contributions`, 0050: Flash R$ 1.000, Ana Maria
+R$ 4.000) são trava padrão do mês; a trava do mês vence. A lista de compras é o que falta do plano dentro do que
+falta na classe.
+
 ## Endereços de wallet (via `.env` — NÃO hardcodar)
 
 > Valores reais ficam SÓ em `.env` (gitignored). Aqui e em todos os docs

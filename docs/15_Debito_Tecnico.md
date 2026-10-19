@@ -32,10 +32,18 @@ endpoint e tipo da exceção antes do fail-soft.
   a B3 (movimentação e consolidado) e o Tesouro.
 - **Trilhos amarram nomes de categoria:** `portfolio/transit.RAILS` e as caixinhas casam por chave
   ou nome de categoria do ledger, que se edita em Ajustes › Categorias. Renomear quebra o trilho
-  em silêncio. Centralizar (setting ou coluna na categoria).
+  em silêncio. Centralizar (setting ou coluna na categoria). Mesma classe: o 2º destino do troco
+  das cotas é a `caixinha:turbo` com teto de R$ 5 mil fixos no código
+  (`planning/distribution_service.TURBO_KEY/TURBO_CAP`).
 - **Jobs em série:** `run_wallet_scan` roda os fetchers um por um numa conexão e `refresh_stale`
   espera a soma dos jobs vencidos. `asyncio.gather` por fonte/job cortaria o tempo do "Atualizar
   tudo". Cron 3×/dia → baixa prioridade.
+- **Crescimento lê o ledger cripto 2×:** `closing/growth._crypto_block` chama `sleeve_cashflows`
+  de novo depois de `closing.service.positions` (o bloco cripto). Passar os fluxos ou o XIRR pela
+  `PositionClass` evita a segunda leitura.
+- **Teto da Turbo × aporte mensal da reserva:** o 2º destino do troco conta só o saldo da Turbo no
+  início do mês; o aporte mensal da reserva não diz em qual caixinha cai, então o teto de R$ 5 mil
+  pode ser passado se ele for todo para a Turbo.
 - **Duplicações pequenas:** `_to_float` em `portfolio/b3_import.py` e `portfolio/migration.py`;
   a assinatura HMAC da Binance copiada em 3 spikes (`scripts/spikes/`) além do `BinanceFetcher`.
 - **`crypto_cost_basis` (migração 0014) sem leitor:** a tabela e `scripts/spikes/
