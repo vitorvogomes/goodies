@@ -265,7 +265,7 @@ function Transacoes() {
     if (selected.size === 0) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (e.key === "Escape" && !el?.closest("input, textarea, select, [role=dialog]")) setSelected(new Set());
+      if (e.key === "Escape" && !el?.closest("input:not([type=checkbox]), textarea, select, [role=dialog]")) setSelected(new Set());
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

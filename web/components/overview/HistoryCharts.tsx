@@ -190,6 +190,7 @@ function Spending({ groups, periodo, clickable }: { groups: HistoryRow[]; period
               dataKey="periodo"
               fill={C1}
               radius={[0, 3, 3, 0]}
+              barSize={14}
               isAnimationActive={false}
               cursor={clickable ? "pointer" : undefined}
               onClick={clickable ? (d) => open((d as unknown as { key: string }).key) : undefined}
