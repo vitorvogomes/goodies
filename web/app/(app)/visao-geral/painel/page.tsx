@@ -4,15 +4,18 @@
 // (Disponível para consumo chega no Épico 6); Patrimônio | Resultado dos investimentos |
 // Rentabilidade nominal × real (7.3, descontado o IPCA). Cada bloco carrega, falha e tenta de novo
 // sozinho; durante a carga, Esqueleto com a geometria final. O Assistente de recuperação (5.8) fica
-// acima de tudo enquanto a base estiver incompleta.
+// acima de tudo enquanto a base estiver incompleta. O Crescimento do patrimônio (9.2) fica logo abaixo
+// dos KPIs de investimento, com o próprio Seletor de leitura.
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { useLeitura } from "@/components/data/ReadingSelector";
 import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { AlertsStrip } from "@/components/overview/AlertsStrip";
 import { AporteSummary } from "@/components/overview/AporteSummary";
 import { FixedCostsSummary } from "@/components/overview/FixedCostsSummary";
+import { GrowthBlock } from "@/components/overview/GrowthBlock";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
 import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
@@ -56,6 +59,7 @@ function Painel() {
   const { periodo } = usePeriodo();
   const painel = usePainel(periodo);
   const budget = useMonthBudget(periodo);
+  const leitura = useLeitura();
 
   if (painel.isError) {
     return (
@@ -164,6 +168,7 @@ function Painel() {
           </>
         )}
       </div>
+      <GrowthBlock periodo={periodo} leitura={leitura} withSelector />
       {/* Resumo do aporte (Épico 8) | Resumo de custos fixos, metade cada (DESIGN › Layout) */}
       <div className="grid gap-card-gap lg:grid-cols-2">
         <AporteSummary periodo={periodo} />

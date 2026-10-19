@@ -419,6 +419,20 @@ def _sum_total(assets: list[PositionAsset]) -> Decimal | None:
     return sum((t for t in totals if t is not None), Decimal(0)) if totals else Decimal(0)
 
 
+async def month_units(conn: asyncpg.Connection, owner: str, month: date) -> dict[str, Decimal]:
+    """As unidades (cotas, ações, títulos) que entraram em cada ativo no mês, por assets.id."""
+    rows = await conn.fetch(
+        "SELECT asset_id::text AS asset_id, sum(quantidade) AS qty FROM asset_operations "
+        "WHERE user_id = $1 AND data_operacao BETWEEN $2 AND $3 AND asset_id IS NOT NULL "
+        "AND tipo = ANY($4::text[]) GROUP BY 1",
+        owner,
+        month,
+        month_end(month),
+        sorted(calc.INFLOW),
+    )
+    return {r["asset_id"]: _dec(r["qty"]) for r in rows if r["qty"]}
+
+
 async def month_contributions(
     conn: asyncpg.Connection, owner: str, month: date
 ) -> tuple[dict[str, Decimal], Decimal]:

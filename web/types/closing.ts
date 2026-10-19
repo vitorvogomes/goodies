@@ -121,6 +121,10 @@ export interface Growth {
     xirr_nominal: Valued;
     resultado: number | null;
     xirr_mensal: number | null; // o XIRR nominal ao mês
+    // bloco cripto: quanto saiu × quanto vale; desde_inicio = sem preço das carteiras no início do período
+    saiu: number | null;
+    vale: number | null;
+    desde_inicio: boolean;
   }[];
   assets: GrowthAsset[];
   best: GrowthAsset | null;

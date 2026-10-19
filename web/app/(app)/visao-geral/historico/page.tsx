@@ -11,7 +11,6 @@ import { CloseDialog } from "@/components/closing/CloseDialog";
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
 import { ReopenDialog } from "@/components/closing/ReopenDialog";
 import { StatusBadge } from "@/components/data/StatusBadge";
-import { GrowthBlock } from "@/components/overview/GrowthBlock";
 import { HistoryCharts } from "@/components/overview/HistoryCharts";
 import { HistoryComparison } from "@/components/overview/HistoryComparison";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,6 @@ export default function HistoricoPage() {
       <div className="space-y-3">
         <ReadingSelector />
         <HistoryComparison periodo={periodo} leitura={leitura} />
-        <GrowthBlock periodo={periodo} leitura={leitura} />
         <HistoryCharts periodo={periodo} leitura={leitura} />
       </div>
       <section aria-labelledby="fechamento-mes" className="space-y-3">

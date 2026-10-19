@@ -70,3 +70,45 @@ async def test_route(api, auth_headers) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is False and body["crescimento"] is None
+
+
+def _crypto(resultado: Decimal | None, xirr_pct: Decimal | None = None) -> Any:
+    from engines.common.models import Valued
+    from engines.portfolio.positions import PositionClass
+
+    return PositionClass(
+        key="cripto",
+        label="Bloco cripto: quanto saiu × quanto vale",
+        is_bucket=True,
+        aplicado=D(1500),
+        valor=D(1200),
+        resultado=resultado,
+        resultado_total=D(-300),
+        assets=[],
+        xirr_nominal=Valued[Decimal](
+            value=xirr_pct, unavailable_reason=None if xirr_pct else "sem_preco"
+        ),
+        xirr_mensal=D("1.00") if xirr_pct else None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_crypto_block_quanto_saiu_x_quanto_vale(monkeypatch) -> None:
+    """Pedido de 18/10/2026: o bloco cripto no Crescimento — resultado = quanto vale − quanto saiu e
+    o XIRR dos fluxos datados do ledger; sem o preço das carteiras no início do período, desde o 1º
+    aporte (marcado); com ele, o do período."""
+
+    async def flows(_conn: Any) -> list[tuple[date, float]]:
+        return [(date(2026, 1, 1), -1000.0), (date(2026, 7, 1), -500.0), (date(2027, 2, 1), -9.0)]
+
+    monkeypatch.setattr(growth_service, "sleeve_cashflows", flows)
+    block = await growth_service._crypto_block(None, _crypto(None), date(2026, 12, 31))
+    assert (block.saiu, block.vale, block.resultado) == (D(1500), D(1200), D(-300))
+    assert block.desde_inicio and block.label == "Cripto (bloco)"
+    assert block.xirr_mensal is not None and block.xirr_mensal < 0  # perdeu: taxa negativa
+    assert block.xirr_nominal.value is not None and block.xirr_nominal.value < block.xirr_mensal
+    period = await growth_service._crypto_block(
+        None, _crypto(D(50), D("12.68")), date(2026, 12, 31)
+    )
+    assert not period.desde_inicio and period.resultado == D(50)
+    assert (period.xirr_nominal.value, period.xirr_mensal) == (D("12.68"), D("1.00"))

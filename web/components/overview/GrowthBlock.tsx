@@ -5,9 +5,12 @@
 // início coberto: "Disponível a partir do primeiro mês fechado na v2." (ou "patrimônio não
 // coberto"). Tudo da API (AD-4). A conta em blocos (início + aporte +
 // resultado = fim), melhor e pior desempenho lado a lado e a rentabilidade das classes e dos ativos
-// na mesma unidade (% a.m.; o % a.a. da classe fica de apoio).
+// na mesma unidade (% a.m.; o % a.a. da classe fica de apoio). O bloco cripto entra como um todo —
+// quanto saiu × quanto vale, com o XIRR dos fluxos do ledger; sem o preço das carteiras no início do
+// período, desde o 1º aporte (marcado). No Painel, com o Seletor de leitura no cabeçalho.
 import type { ReactNode } from "react";
 
+import { ReadingSelector } from "@/components/data/ReadingSelector";
 import { TrendArrow } from "@/components/data/TrendArrow";
 import { Button } from "@/components/ui/button";
 import { useGrowth } from "@/lib/closing";
@@ -62,7 +65,15 @@ function Highlight({ title, asset, good }: { title: string; asset: GrowthAsset; 
   );
 }
 
-export function GrowthBlock({ periodo, leitura }: { periodo: string; leitura: string }) {
+export function GrowthBlock({
+  periodo,
+  leitura,
+  withSelector = false,
+}: {
+  periodo: string;
+  leitura: string;
+  withSelector?: boolean;
+}) {
   const growth = useGrowth(periodo, leitura);
   if (growth.isError && !growth.data) {
     return (
@@ -79,9 +90,12 @@ export function GrowthBlock({ periodo, leitura }: { periodo: string; leitura: st
   return (
     <section aria-labelledby="crescimento" className="space-y-4 rounded-lg border border-border bg-card shadow-card p-card-padding">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="crescimento" className="type-section-title">
-          Crescimento do patrimônio
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 id="crescimento" className="type-section-title">
+            Crescimento do patrimônio
+          </h2>
+          {withSelector && <ReadingSelector />}
+        </div>
         {data.available && data.crescimento !== null && (
           <p className="type-body">
             cresceu <Signed value={data.crescimento} />
@@ -123,7 +137,15 @@ export function GrowthBlock({ periodo, leitura }: { periodo: string; leitura: st
               <tbody className="divide-y divide-border">
                 {data.classes.map((c) => (
                   <tr key={c.key}>
-                    <th scope="row" className="py-1.5 text-left font-normal">{c.label}</th>
+                    <th scope="row" className="py-1.5 text-left font-normal">
+                      {c.label}
+                      {c.saiu !== null && c.vale !== null && (
+                        <span className="block type-caption text-muted-foreground">
+                          saiu {formatBRL(c.saiu)} · vale {formatBRL(c.vale)}
+                          {c.desde_inicio && " · desde o 1º aporte"}
+                        </span>
+                      )}
+                    </th>
                     <td className="py-1.5 text-right type-num-table">
                       {c.xirr_mensal !== null ? (
                         <span className="inline-flex flex-col items-end">

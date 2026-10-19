@@ -161,6 +161,14 @@ export interface DistributionAsset {
   locked: boolean;
   realizado: number;
   pendente: number | null;
+  // Ativo com lote (B3, Tesouro): preço de hoje e unidades inteiras — decimais em texto
+  preco: string | null;
+  unidade: "cota" | "título" | null;
+  unidade_qty: string | null;
+  cotas: string | null; // o plano do mês, em unidades
+  cotas_realizadas: string | null;
+  comprar: number | null; // a comprar agora (R$) — o que falta do plano, dentro do que falta na classe
+  comprar_cotas: string | null;
 }
 
 export interface DistributionClass {
@@ -178,6 +186,10 @@ export interface DistributionClass {
   assets: DistributionAsset[];
   realizado: number;
   pendente: number;
+  troco: number; // o que as cotas inteiras não usaram (foi para a classe de valor livre)
+  recebido_troco: number;
+  comprar: number; // a comprar agora: Σ dos ativos em cotas inteiras, ou o pendente inteiro
+  comprar_troco: number; // pendente que não compra cota inteira agora
 }
 
 export interface DistributionGoal {
@@ -221,6 +233,8 @@ export interface Distribution {
   has_targets: boolean;
   unassigned: number;
   andamento: Andamento;
+  troco: number;
+  troco_destino: string[];
 }
 
 // Resumo do aporte no Painel (Story 8.8).

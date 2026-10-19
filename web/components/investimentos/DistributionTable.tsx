@@ -8,19 +8,24 @@
 // trava é gravada no mês e o resto redistribui pela API, com o total = planejado.
 // Story 8.7: realizado e pendente por linha, o Andamento do mês (Barra de progresso) e o rodapé de
 // conciliação — objetivos + classes · + na corretora, ainda não aplicado (sem classe) · = total do mês.
+// Por lote (pedido de 18/10/2026): o plano de cada ativo da B3/Tesouro vem em unidades inteiras ao preço
+// de hoje (o troco vai para a classe de valor livre); "O que falta aplicar" é a lista de compras — o que
+// falta do plano, dentro do que falta na classe —, e cada linha mostra alocação × meta, preço, plano,
+// realizado e falta, em R$ e em cotas.
 import { ChevronRightIcon, LockIcon } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 
 import { ProgressBar } from "@/components/data/ProgressBar";
+import { AllocationCell } from "@/components/investimentos/AllocationCell";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatMonth, formatPercent, formatPP, normalizeMoneyInput } from "@/lib/format";
+import { fmtQty, formatBRL, formatMonth, formatPercent, normalizeMoneyInput } from "@/lib/format";
 import { useDistribution, useSetLock } from "@/lib/planning";
 import { cn } from "@/lib/utils";
-import type { Distribution, DistributionGoal } from "@/types/planning";
+import type { Distribution, DistributionAsset, DistributionGoal } from "@/types/planning";
 
 type Lock = (key: string, valor: string | null, onError?: () => void) => void;
 
@@ -171,6 +176,78 @@ function Goals({
   );
 }
 
+// Unidades em texto da API ("10", "0.03") → "10 cotas" · "0,03 título".
+function unitsText(qty: string, unidade: DistributionAsset["unidade"]): string {
+  const n = Number(qty);
+  const shown = fmtQty(n);
+  if (unidade === "título") return `${shown} título`;
+  return `${shown} ${n === 1 ? "cota" : "cotas"}`;
+}
+
+function priceText(a: DistributionAsset): string | null {
+  if (a.preco == null) return null;
+  return `${formatBRL(Number(a.preco))}/${a.unidade === "título" ? "título" : "cota"}`;
+}
+
+// O que falta aplicar no mês (pedido de 18/10/2026): a lista de compras — objetivos e classes de valor
+// livre em R$, ativos com lote em unidades inteiras × preço de hoje. Vem pronta da API.
+function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
+  type Item = { key: string; what: string; how: string | null; value: number };
+  const items: Item[] = [];
+  for (const g of data.goals) {
+    if (g.pendente > 0) items.push({ key: `goal:${g.id}`, what: g.name, how: "objetivo", value: g.pendente });
+  }
+  for (const c of data.classes) {
+    const lotted = c.assets.filter((a) => a.comprar_cotas != null);
+    if (lotted.length) {
+      for (const a of lotted) {
+        if (!a.comprar || !a.comprar_cotas) continue;
+        items.push({
+          key: `asset:${a.id}`,
+          what: a.label,
+          how: `${unitsText(a.comprar_cotas, a.unidade)} × ${formatBRL(Number(a.preco ?? 0))}`,
+          value: a.comprar,
+        });
+      }
+    } else if (c.comprar > 0) {
+      items.push({ key: `class:${c.cls}`, what: c.label, how: "valor livre", value: c.comprar });
+    }
+  }
+  const total = items.reduce((sum, i) => sum + i.value, 0);
+  const leftover = data.classes.filter((c) => c.comprar_troco > 0);
+  return (
+    <section aria-labelledby="a-aplicar" className="space-y-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id="a-aplicar" className="type-label">
+          O que falta aplicar em {formatMonth(periodo)}
+        </h3>
+        {items.length > 0 && <span className="type-num-body">{formatBRL(total)}</span>}
+      </div>
+      {items.length === 0 ? (
+        <p className="type-body-sm text-muted-foreground">Nada pendente: o plano do mês está aplicado.</p>
+      ) : (
+        <ul className="divide-y divide-border type-body-sm">
+          {items.map((i) => (
+            <li key={i.key} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5">
+              <span>
+                <span className="font-medium type-num-table">{i.what}</span>
+                {i.how && <span className="text-muted-foreground"> · {i.how}</span>}
+              </span>
+              <span className="type-num-table">{formatBRL(i.value)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {leftover.length > 0 && (
+        <p className="type-caption text-muted-foreground">
+          {leftover.map((c) => `${formatBRL(c.comprar_troco)} de ${c.label}`).join(" · ")} não{" "}
+          {leftover.length === 1 ? "compra" : "compram"} uma cota inteira agora: fica para o próximo aporte.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function Classes({
   data,
   readOnly,
@@ -182,7 +259,10 @@ function Classes({
   busy: boolean;
   onLock: Lock;
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  // as classes com divisão por ativo começam abertas: o plano é por ativo
+  const [open, setOpen] = useState<Set<string>>(
+    () => new Set(data.classes.filter((c) => c.assets.some((a) => a.sugerido != null)).map((c) => c.cls)),
+  );
   const toggle = (cls: string) =>
     setOpen((cur) => {
       const next = new Set(cur);
@@ -190,6 +270,8 @@ function Classes({
       else next.add(cls);
       return next;
     });
+  const head = "px-3 py-2 text-right font-medium";
+  const cell = "px-3 py-2 text-right type-num-table align-top";
   return (
     <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
@@ -197,13 +279,11 @@ function Classes({
         <thead className="bg-muted text-muted-foreground">
           <tr>
             <th scope="col" className="px-4 py-2 text-left font-medium">Classe / ativo</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Meta</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Atual</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Desvio</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Banda</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Sugerido</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Realizado</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Pendente</th>
+            <th scope="col" className={head}>Alocação × meta</th>
+            <th scope="col" className={head}>Preço</th>
+            <th scope="col" className={head}>Plano do mês</th>
+            <th scope="col" className={head}>Realizado</th>
+            <th scope="col" className={head}>Falta</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -212,7 +292,7 @@ function Classes({
             return (
               <Fragment key={c.cls}>
                 <tr className="font-semibold">
-                  <th scope="row" className="px-4 py-2 text-left">
+                  <th scope="row" className="px-4 py-2 text-left align-top">
                     <button
                       type="button"
                       aria-expanded={open.has(c.cls)}
@@ -225,56 +305,110 @@ function Classes({
                       )}
                       {c.label}
                     </button>
+                    {c.floor_only && (
+                      <span className="ml-2">
+                        <StatusBadge tooltip="acima da banda: só o piso">piso</StatusBadge>
+                      </span>
+                    )}
                   </th>
-                  <td className="px-4 py-2 text-right type-num-table">{formatPercent(c.meta)}</td>
-                  <td className="px-4 py-2 text-right type-num-table">{formatPercent(c.atual)}</td>
-                  <td className={cn("px-4 py-2 text-right type-num-table", c.out_of_band && "text-warning")}>{formatPP(c.desvio)}</td>
-                  <td className="px-4 py-2 text-right type-num-table">± {String(c.banda).replace(".", ",")} p.p.</td>
-                  <td className="px-4 py-2 text-right type-num-table">
-                    <span className="inline-flex items-center gap-1">
-                      {c.floor_only && <StatusBadge tooltip="acima da banda: só o piso">piso</StatusBadge>}
-                      <LockCell
-                        key={`${c.cls}-${c.sugerido}-${c.locked}`}
-                        lockKey={`class:${c.cls}`}
-                        label={c.label}
-                        value={c.sugerido}
-                        locked={c.locked}
-                        readOnly={readOnly}
-                        busy={busy}
-                        onLock={onLock}
-                      />
-                    </span>
+                  <td className={cn(cell, "font-normal")}>
+                    <AllocationCell alocacao={c.atual} meta={c.meta} banda={c.banda} desvio={c.desvio} fora={c.out_of_band} />
                   </td>
-                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.realizado)}</td>
-                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.pendente)}</td>
+                  <td className={cell} />
+                  <td className={cell}>
+                    <LockCell
+                      key={`${c.cls}-${c.sugerido}-${c.locked}`}
+                      lockKey={`class:${c.cls}`}
+                      label={c.label}
+                      value={c.sugerido}
+                      locked={c.locked}
+                      readOnly={readOnly}
+                      busy={busy}
+                      onLock={onLock}
+                    />
+                    {c.troco > 0 && (
+                      <span className="block type-caption font-normal text-muted-foreground">
+                        troco {formatBRL(c.troco)} → {data.troco_destino.join(", ") || "sem destino"}
+                      </span>
+                    )}
+                    {c.recebido_troco > 0 && (
+                      <span className="block type-caption font-normal text-muted-foreground">
+                        + {formatBRL(c.recebido_troco)} de troco das cotas
+                      </span>
+                    )}
+                  </td>
+                  <td className={cell}>{formatBRL(c.realizado)}</td>
+                  <td className={cell}>
+                    <Falta pendente={c.pendente} comprar={c.comprar} />
+                  </td>
                 </tr>
                 {open.has(c.cls) &&
                   c.assets.map((a) => (
                     <tr key={a.id} className="text-muted-foreground">
-                      <th scope="row" className="py-1.5 pr-4 pl-10 text-left font-normal">
-                        <span className="type-num-table">{a.label}</span>
+                      <th scope="row" className="py-1.5 pr-3 pl-10 text-left align-top font-normal">
+                        <span className="type-num-table text-foreground">{a.label}</span>
                       </th>
-                      <td className="px-4 py-1.5 text-right type-num-table">{a.meta != null ? formatPercent(a.meta) : "—"}</td>
-                      <td className="px-4 py-1.5 text-right type-num-table">{formatPercent(a.atual)}</td>
-                      <td colSpan={2} />
-                      <td className="px-4 py-1.5 text-right">
-                        {a.sugerido != null ? (
-                          <LockCell
-                            key={`${a.id}-${a.sugerido}-${a.locked}`}
-                            lockKey={`asset:${a.id}`}
-                            label={a.label}
-                            value={a.sugerido}
-                            locked={a.locked}
-                            readOnly={readOnly}
-                            busy={busy}
-                            onLock={onLock}
-                          />
+                      <td className={cn(cell, "py-1.5")}>
+                        <AllocationCell alocacao={a.atual} meta={a.meta} banda={null} desvio={null} fora={false} compact />
+                      </td>
+                      <td className={cn(cell, "py-1.5")}>{priceText(a) ?? "—"}</td>
+                      <td className={cn(cell, "py-1.5")}>
+                        {a.sugerido != null && (a.sugerido > 0 || a.locked) ? (
+                          <>
+                            <LockCell
+                              key={`${a.id}-${a.sugerido}-${a.locked}`}
+                              lockKey={`asset:${a.id}`}
+                              label={a.label}
+                              value={a.sugerido}
+                              locked={a.locked}
+                              readOnly={readOnly}
+                              busy={busy}
+                              onLock={onLock}
+                            />
+                            {a.cotas != null && Number(a.cotas) > 0 && (
+                              <span className="block type-caption">{unitsText(a.cotas, a.unidade)}</span>
+                            )}
+                          </>
+                        ) : a.sugerido != null && !readOnly ? (
+                          <ZeroPlan label={a.label}>
+                            <LockCell
+                              lockKey={`asset:${a.id}`}
+                              label={a.label}
+                              value={0}
+                              locked={false}
+                              readOnly={readOnly}
+                              busy={busy}
+                              onLock={onLock}
+                            />
+                          </ZeroPlan>
                         ) : (
                           "—"
                         )}
                       </td>
-                      <td className="px-4 py-1.5 text-right type-num-table">{formatBRL(a.realizado)}</td>
-                      <td className="px-4 py-1.5 text-right type-num-table">{a.pendente != null ? formatBRL(a.pendente) : "—"}</td>
+                      <td className={cn(cell, "py-1.5")}>
+                        {formatBRL(a.realizado)}
+                        {a.cotas_realizadas != null && Number(a.cotas_realizadas) > 0 && (
+                          <span className="block type-caption">{unitsText(a.cotas_realizadas, a.unidade)}</span>
+                        )}
+                      </td>
+                      <td className={cn(cell, "py-1.5")}>
+                        {a.comprar_cotas != null ? (
+                          Number(a.comprar_cotas) > 0 ? (
+                            <span className="text-foreground">
+                              {unitsText(a.comprar_cotas, a.unidade)}
+                              <span className="block type-caption text-muted-foreground">{formatBRL(a.comprar ?? 0)}</span>
+                            </span>
+                          ) : a.pendente != null && a.pendente < 0 ? (
+                            <span className="type-caption">acima do plano {formatBRL(-a.pendente)}</span>
+                          ) : (
+                            "—"
+                          )
+                        ) : a.pendente != null && a.pendente !== 0 ? (
+                          <Falta pendente={a.pendente} comprar={Math.max(a.pendente, 0)} />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                     </tr>
                   ))}
               </Fragment>
@@ -287,6 +421,29 @@ function Classes({
   );
 }
 
+// Ativo sem nada no plano: "—", e um clique abre o campo para travar um valor nele (Story 8.6).
+function ZeroPlan({ label, children }: { label: string; children: ReactNode }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      aria-label={`Definir um valor para ${label}`}
+      title="Definir um valor (trava)"
+      className="rounded px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+      onClick={() => setEditing(true)}
+    >
+      —
+    </button>
+  );
+}
+
+// O que falta na linha: o a comprar (R$) ou, quando o realizado passou do plano, quanto passou.
+function Falta({ pendente, comprar }: { pendente: number; comprar: number }) {
+  if (pendente < 0) return <span className="type-caption font-normal text-muted-foreground">acima do plano {formatBRL(-pendente)}</span>;
+  return <>{formatBRL(comprar)}</>;
+}
+
 // Rodapé de conciliação (Story 8.7): os números vêm prontos da API.
 function Reconciliation({ data }: { data: Distribution }) {
   const a = data.andamento;
@@ -294,7 +451,7 @@ function Reconciliation({ data }: { data: Distribution }) {
   return (
     <tfoot className="border-t border-foreground">
       <tr>
-        <th scope="row" colSpan={5} className="px-4 py-2 text-left font-normal">
+        <th scope="row" colSpan={3} className="px-4 py-2 text-left font-normal">
           Objetivos + classes · realizado em ativo
         </th>
         <td className={cell}>{formatBRL(a.sugerido_linhas)}</td>
@@ -302,7 +459,7 @@ function Reconciliation({ data }: { data: Distribution }) {
         <td className={cell}>{formatBRL(a.pendente_linhas)}</td>
       </tr>
       <tr className="text-muted-foreground">
-        <th scope="row" colSpan={5} className="px-4 py-2 text-left font-normal">
+        <th scope="row" colSpan={3} className="px-4 py-2 text-left font-normal">
           Na corretora, ainda não aplicado · sem classe
         </th>
         <td className={cell}>—</td>
@@ -310,7 +467,7 @@ function Reconciliation({ data }: { data: Distribution }) {
         <td className={cell}>−{formatBRL(a.a_caminho)}</td>
       </tr>
       <tr className="font-semibold">
-        <th scope="row" colSpan={5} className="px-4 py-2 text-left">
+        <th scope="row" colSpan={3} className="px-4 py-2 text-left">
           Total do mês
         </th>
         <td className={cell}>{formatBRL(a.planned)}</td>
@@ -407,6 +564,7 @@ export function DistributionTable({
         </p>
       )}
       <Andamento data={data} periodo={periodo} />
+      {!readOnly && <ToBuy data={data} periodo={periodo} />}
       <Goals data={data} readOnly={readOnly} busy={setLock.isPending} onLock={onLock} />
       {data.has_targets ? (
         <>

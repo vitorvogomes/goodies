@@ -8,6 +8,7 @@ início" parte do zero."""
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -19,8 +20,11 @@ from engines.common.dates import add_months, month_end, resolve_period, today_br
 from engines.common.models import Valued
 from engines.common.money import Money, Pct
 from engines.common.owner import get_owner_id
-from engines.portfolio.positions import GOALS_BLOCK
+from engines.portfolio import calc as portfolio_calc
+from engines.portfolio.crypto_sleeve import sleeve_cashflows
+from engines.portfolio.positions import GOALS_BLOCK, PositionClass
 from engines.portfolio.valuation import valuation_as_of
+from engines.portfolio.xirr import xirr
 
 from . import service
 
@@ -34,6 +38,11 @@ class ClassReturn(BaseModel):
     xirr_nominal: Valued[Decimal]
     resultado: Money | None
     xirr_mensal: Pct | None = None  # o XIRR nominal ao mês (a mesma unidade dos ativos)
+    # Bloco cripto: quanto saiu (ledger) × quanto vale (carteiras). Sem o preço histórico das
+    # carteiras no início do período, o resultado e o XIRR são desde o 1º aporte (`desde_inicio`).
+    saiu: Money | None = None
+    vale: Money | None = None
+    desde_inicio: bool = False
 
 
 class AssetReturn(BaseModel):
@@ -85,6 +94,39 @@ async def _state(conn: asyncpg.Connection, month: date) -> tuple[_State | None, 
     return _State(v.invested, v.contributed), None
 
 
+async def _crypto_block(conn: asyncpg.Connection, c: PositionClass, as_of: date) -> ClassReturn:
+    """O bloco cripto como um todo: resultado = quanto vale − quanto saiu, e o XIRR dos fluxos
+    datados do ledger (saída < 0, volta > 0) com o valor de hoje — nunca um custo por ativo. No
+    período, quando o início tem o preço das carteiras; senão, desde o 1º aporte."""
+    since_start = c.resultado is None
+    flows = [(d, a) for d, a in await sleeve_cashflows(conn) if d <= as_of]
+    rate = xirr([*flows, (as_of, float(c.valor))]) if flows and c.valor > 0 else math.nan
+    annual = None if math.isnan(rate) else Decimal(repr(rate * 100)).quantize(_CENT)
+    monthly = (
+        None
+        if math.isnan(rate)
+        else (Decimal(repr(portfolio_calc.monthly_rate(rate))) * 100).quantize(_CENT)
+    )
+    if not since_start and c.xirr_nominal.value is not None:  # o XIRR do período, quando há
+        annual = c.xirr_nominal.value
+        monthly = c.xirr_mensal
+    return ClassReturn(
+        key=c.key,
+        label="Cripto (bloco)",
+        xirr_nominal=Valued[Decimal](
+            value=annual,
+            as_of=as_of,
+            source="xirr" if annual is not None else None,
+            unavailable_reason=None if annual is not None else "sem_preco",
+        ),
+        resultado=c.resultado_total if since_start else c.resultado,
+        xirr_mensal=monthly,
+        saiu=c.aplicado,
+        vale=c.valor,
+        desde_inicio=since_start,
+    )
+
+
 async def growth(conn: asyncpg.Connection, periodo: str, leitura: str) -> Growth:
     months = resolve_period(periodo, leitura)
     report = await service.positions(conn, periodo, leitura)
@@ -98,7 +140,9 @@ async def growth(conn: asyncpg.Connection, periodo: str, leitura: str) -> Growth
     best = max(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if ranked else None
     worst = min(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if len(ranked) > 1 else None
     class_returns = [
-        ClassReturn(
+        await _crypto_block(conn, c, report.as_of)
+        if c.is_bucket
+        else ClassReturn(
             key=c.key,
             label=c.label,
             xirr_nominal=c.xirr_nominal,
