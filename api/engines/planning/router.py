@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
-from . import distribution_service, goals, service, summary, targets
+from . import distribution_service, fixed, goals, service, summary, targets
 from .models import AporteIn, DividasIn, MonthPlanOut
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
@@ -129,6 +129,31 @@ async def save_targets(body: targets.TargetsIn, user: AuthUser, db: Db) -> targe
                 "errors": [e.model_dump(mode="json") for e in exc.errors],
             },
         ) from None
+
+
+# ---- Aportes fixos do mês (pedido de 18/10/2026) ----
+
+
+@router.get("/fixed-contributions", response_model=fixed.FixedOut)
+async def list_fixed(user: AuthUser, db: Db) -> fixed.FixedOut:
+    return await fixed.list_fixed(db)
+
+
+@router.put("/fixed-contributions", response_model=fixed.FixedOut)
+async def save_fixed(body: fixed.FixedIn, user: AuthUser, db: Db) -> fixed.FixedOut:
+    try:
+        return await fixed.save_fixed(db, body)
+    except LookupError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            {"error": "linha_inexistente", "message": "Objetivo ou ativo inexistente."},
+        ) from None
+
+
+@router.delete("/fixed-contributions/{key}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_fixed(key: str, user: AuthUser, db: Db) -> None:
+    if not await fixed.delete_fixed(db, key):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, {"error": "nao_encontrado"})
 
 
 # ---- Travas da distribuição (Story 8.6) ----

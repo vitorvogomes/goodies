@@ -3,12 +3,14 @@
 // Ajustes › Metas (Story 8.2 — FR-35, UX-DR43): classe → ativo, com % da meta, banda (p.p.) e piso
 // (R$) por classe. Cada nível precisa somar 100%: quem confere é a API (`POST
 // /api/v1/planning/targets/preview` — o navegador não soma); senão "Soma em {x}%. Ajuste para 100%."
-// e Salvar fica desabilitado. Salvar grava a versão das metas a partir do mês atual.
+// e Salvar fica desabilitado. Salvar grava a versão das metas a partir do mês atual. Abaixo, os aportes
+// fixos do mês (o que um objetivo ou ativo recebe todo mês no mesmo valor).
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { SAVE_FAILED } from "@/components/forms/SideForm";
+import { FixedContributions } from "@/components/investimentos/FixedContributions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, normalizeMoneyInput } from "@/lib/format";
@@ -209,50 +211,56 @@ export default function MetasPage() {
   if (editing) return <Editor key="editor" data={data} onDone={() => setEditing(false)} />;
   if (!data.defined) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
-        <p className="type-body text-muted-foreground">Nenhuma meta. Sem metas, a distribuição do aporte não tem base.</p>
-        <Button onClick={() => setEditing(true)}>Definir metas</Button>
+      <div className="space-y-section-gap">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card shadow-card p-card-padding">
+          <p className="type-body text-muted-foreground">Nenhuma meta. Sem metas, a distribuição do aporte não tem base.</p>
+          <Button onClick={() => setEditing(true)}>Definir metas</Button>
+        </div>
+        <FixedContributions />
       </div>
     );
   }
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="type-caption text-muted-foreground">
-          {data.valid_from ? `vigentes desde ${formatDate(data.valid_from)}` : null}
-        </span>
-        <Button onClick={() => setEditing(true)}>Editar metas</Button>
+    <div className="space-y-section-gap">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="type-caption text-muted-foreground">
+            {data.valid_from ? `vigentes desde ${formatDate(data.valid_from)}` : null}
+          </span>
+          <Button onClick={() => setEditing(true)}>Editar metas</Button>
+        </div>
+        <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
+          <table className="w-full type-body-sm">
+            <caption className="sr-only">Metas de alocação</caption>
+            <thead className="bg-muted text-muted-foreground">
+              <tr>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Classe</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Meta</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Banda</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Piso</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Por ativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.classes.map((c) => {
+                const withTarget = c.assets.filter((a) => a.pct > 0);
+                return (
+                  <tr key={c.cls} className="border-t border-border">
+                    <th scope="row" className="px-4 py-2 text-left font-normal">{c.label}</th>
+                    <td className="px-4 py-2 text-right type-num-table">{text(c.pct)}%</td>
+                    <td className="px-4 py-2 text-right type-num-table">± {text(c.band_pp)} p.p.</td>
+                    <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.floor)}</td>
+                    <td className="px-4 py-2 type-caption text-muted-foreground">
+                      {withTarget.length ? withTarget.map((a) => `${a.label} ${text(a.pct)}%`).join(" · ") : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-        <table className="w-full type-body-sm">
-          <caption className="sr-only">Metas de alocação</caption>
-          <thead className="bg-muted text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-4 py-2 text-left font-medium">Classe</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Meta</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Banda</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Piso</th>
-              <th scope="col" className="px-4 py-2 text-left font-medium">Por ativo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.classes.map((c) => {
-              const withTarget = c.assets.filter((a) => a.pct > 0);
-              return (
-                <tr key={c.cls} className="border-t border-border">
-                  <th scope="row" className="px-4 py-2 text-left font-normal">{c.label}</th>
-                  <td className="px-4 py-2 text-right type-num-table">{text(c.pct)}%</td>
-                  <td className="px-4 py-2 text-right type-num-table">± {text(c.band_pp)} p.p.</td>
-                  <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.floor)}</td>
-                  <td className="px-4 py-2 type-caption text-muted-foreground">
-                    {withTarget.length ? withTarget.map((a) => `${a.label} ${text(a.pct)}%`).join(" · ") : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <FixedContributions />
     </div>
   );
 }

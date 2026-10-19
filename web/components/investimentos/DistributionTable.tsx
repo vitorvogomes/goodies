@@ -142,6 +142,11 @@ function Goals({
             <tr key={g.id}>
               <th scope="row" className="px-4 py-2 text-left font-normal">
                 {g.name}
+                {g.fixo && (
+                  <span className="ml-2">
+                    <StatusBadge tooltip="Aporte fixo do mês (Ajustes › Metas)">fixo</StatusBadge>
+                  </span>
+                )}
                 <span className="block type-caption text-muted-foreground">{goalNote(g)}</span>
               </th>
               <td className="px-4 py-2 text-right type-num-table">
@@ -195,7 +200,8 @@ function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
   type Item = { key: string; what: string; how: string | null; value: number };
   const items: Item[] = [];
   for (const g of data.goals) {
-    if (g.pendente > 0) items.push({ key: `goal:${g.id}`, what: g.name, how: "objetivo", value: g.pendente });
+    if (g.pendente > 0)
+      items.push({ key: `goal:${g.id}`, what: g.name, how: g.fixo ? "aporte fixo" : "objetivo", value: g.pendente });
   }
   for (const c of data.classes) {
     const lotted = c.assets.filter((a) => a.comprar_cotas != null);
@@ -210,7 +216,13 @@ function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
         });
       }
     } else if (c.comprar > 0) {
-      items.push({ key: `class:${c.cls}`, what: c.label, how: "valor livre", value: c.comprar });
+      const fixedAsset = c.fixo ? c.assets.find((a) => a.fixo) : undefined;
+      items.push({
+        key: `class:${c.cls}`,
+        what: fixedAsset ? fixedAsset.label : c.label,
+        how: fixedAsset ? "aporte fixo" : "valor livre",
+        value: c.comprar,
+      });
     }
   }
   const total = items.reduce((sum, i) => sum + i.value, 0);
@@ -237,6 +249,12 @@ function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
             </li>
           ))}
         </ul>
+      )}
+      {data.unassigned > 0 && (
+        <p className="type-caption text-muted-foreground">
+          {formatBRL(data.unassigned)} do planejado sem destino (troco das cotas, sem classe de valor livre): fica para o
+          próximo aporte.
+        </p>
       )}
       {leftover.length > 0 && (
         <p className="type-caption text-muted-foreground">
@@ -310,6 +328,11 @@ function Classes({
                         <StatusBadge tooltip="acima da banda: só o piso">piso</StatusBadge>
                       </span>
                     )}
+                    {c.fixo && (
+                      <span className="ml-2">
+                        <StatusBadge tooltip="A classe recebe os aportes fixos dos ativos dela (Ajustes › Metas)">fixo</StatusBadge>
+                      </span>
+                    )}
                   </th>
                   <td className={cn(cell, "font-normal")}>
                     <AllocationCell alocacao={c.atual} meta={c.meta} banda={c.banda} desvio={c.desvio} fora={c.out_of_band} />
@@ -347,6 +370,11 @@ function Classes({
                     <tr key={a.id} className="text-muted-foreground">
                       <th scope="row" className="py-1.5 pr-3 pl-10 text-left align-top font-normal">
                         <span className="type-num-table text-foreground">{a.label}</span>
+                        {a.fixo && (
+                          <span className="ml-2">
+                            <StatusBadge tooltip="Aporte fixo do mês (Ajustes › Metas)">fixo</StatusBadge>
+                          </span>
+                        )}
                       </th>
                       <td className={cn(cell, "py-1.5")}>
                         <AllocationCell alocacao={a.atual} meta={a.meta} banda={null} desvio={null} fora={false} compact />

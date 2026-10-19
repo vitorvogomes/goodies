@@ -9,6 +9,7 @@ import { invalidateAfter } from "@/lib/invalidate";
 import type {
   AporteSummary,
   Distribution,
+  FixedContributions,
   Goal,
   GoalIn,
   GoalsOut,
@@ -114,6 +115,36 @@ export function useSaveTargets() {
   return useMutation({
     mutationFn: (body: TargetsIn) =>
       apiFetch<TargetsOut>("/api/v1/planning/targets", { method: "PUT", body: JSON.stringify(body) }),
+    onSuccess: () => invalidateAfter(queryClient, "planning"),
+  });
+}
+
+// ---- Aportes fixos do mês (pedido de 18/10/2026) ----
+
+export function useFixedContributions() {
+  return useQuery({
+    queryKey: ["planning", "fixed-contributions"],
+    queryFn: () => apiFetch<FixedContributions>("/api/v1/planning/fixed-contributions"),
+  });
+}
+
+export function useSaveFixedContribution() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { key: string; amount: string }) =>
+      apiFetch<FixedContributions>("/api/v1/planning/fixed-contributions", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateAfter(queryClient, "planning"),
+  });
+}
+
+export function useDeleteFixedContribution() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) =>
+      apiFetch<void>(`/api/v1/planning/fixed-contributions/${key}`, { method: "DELETE" }),
     onSuccess: () => invalidateAfter(queryClient, "planning"),
   });
 }

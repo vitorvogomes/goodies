@@ -372,6 +372,10 @@ def _assets(
         for a in c.assets
     ]
     if not with_target:
+        # sem meta por ativo a classe não divide; só o ativo travado (aporte fixo) tem valor
+        for line in lines:
+            if line.locked:
+                line.sugerido = locks[f"asset:{line.id}"].quantize(_CENT)
         return lines, _ZERO
     raw: dict[str, Decimal] = {}
     for a in c.assets:

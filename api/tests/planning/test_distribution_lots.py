@@ -148,3 +148,25 @@ def test_lot_by_asset_kind() -> None:
     assert lot_for("b3:X", None) is None  # sem preço, sem lote
     assert units(tesouro_lot(D("3233.78")), 3) == D("0.03")
     assert units(Lot(D(10)), 10) == D(10)
+
+
+def test_fixed_asset_in_a_class_without_asset_targets() -> None:
+    # a Flash fixa em R$ 1.000: a classe recebe só isso (sem meta por ativo) e o resto vai às outras
+    rf = ClassState(
+        "renda_fixa",
+        "Renda Fixa",
+        D(8000),
+        D(45),
+        D(10),
+        D(0),
+        (AssetState("flash", "Flash", D(7800), None), AssetState("cdb", "CDB", D(200), None)),
+    )
+    d = distribute(
+        D(3000), [], [rf, _fiis()], {"asset:flash": D(1000), "class:renda_fixa": D(1000)}
+    )
+    line = _by(d)["renda_fixa"]
+    assert line.sugerido == D("1000.00") and line.locked
+    assert {a.id: a.sugerido for a in line.assets} == {"flash": D("1000.00"), "cdb": None}
+    # sem classe livre para o troco das cotas dos FIIs: fica sem destino, e o total fecha
+    fiis = _by(d)["fiis"]
+    assert fiis.sugerido + line.sugerido + d.unassigned == D(3000)

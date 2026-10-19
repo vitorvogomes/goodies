@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -17,6 +18,7 @@ from engines.common.owner import get_owner_id
 from engines.portfolio.positions import GOALS_BLOCK, month_units
 
 from . import allocation, goals, targets
+from . import fixed as fixed_service
 from . import progress as progress_service
 from .distribution import (
     AssetState,
@@ -45,6 +47,7 @@ class AssetOut(BaseModel):
     atual: Pct
     sugerido: Money | None
     locked: bool
+    fixo: bool = False  # aporte fixo do mês (trava padrão; a do próprio mês vence)
     realizado: Money = Decimal(0)  # Story 8.7: só o que virou ativo no mês
     pendente: Money | None = None  # sugerido − realizado
     # Ativo com lote (B3, Tesouro): o preço de hoje, a unidade e o sugerido em unidades inteiras
@@ -72,6 +75,7 @@ class ClassOut(BaseModel):
     out_of_band: bool
     locked: bool
     assets: list[AssetOut]
+    fixo: bool = False  # o valor da classe é o dos aportes fixos dos ativos dela
     realizado: Money = Decimal(0)
     pendente: Money = Decimal(0)
     troco: Money = Decimal(0)  # o que as cotas inteiras não usaram (foi para a classe livre)
@@ -94,6 +98,7 @@ class GoalOut(BaseModel):
     locked: bool
     realizado: Money = Decimal(0)
     pendente: Money = Decimal(0)
+    fixo: bool = False
 
 
 class Andamento(BaseModel):
@@ -166,7 +171,14 @@ async def preview(
     plan = await month_plan(conn, month)
     defined = planned is not None or plan.aporte_planejado is not None
     amount = planned if planned is not None else (plan.aporte_planejado or Decimal(0))
-    locks = locks if locks is not None else await month_locks(conn, month)
+    month_travas = locks if locks is not None else await month_locks(conn, month)
+    # aportes fixos: travas padrão de todo mês; a trava do próprio mês vence
+    fixed = {
+        k: v
+        for k, v in (await fixed_service.month_fixed(conn, month)).items()
+        if k not in month_travas
+    }
+    locks = {**fixed, **month_travas}
 
     goal_list = (await goals.list_goals(conn)).goals
     # a base é a posição antes do aporte do mês: o que entrou no mês sai dos valores, senão a
@@ -236,6 +248,31 @@ async def preview(
                 ],
             )
         )
+    # ativo fixo ainda sem posição entra na classe dele com valor zero (a primeira compra)
+    held = {a.id for st in states for a in st.assets}
+    missing = [k.split(":", 1)[1] for k in fixed if k.startswith("asset:")]
+    missing = [i for i in missing if i not in held]
+    if missing:
+        rows = await conn.fetch(
+            "SELECT id::text AS id, key, name, class FROM assets WHERE id = ANY($1::uuid[])",
+            missing,
+        )
+        for r in rows:
+            keys[r["id"]] = r["key"]
+            for i, st in enumerate(states):
+                if st.cls == r["class"]:
+                    extra = AssetState(
+                        id=r["id"], label=r["name"], value=Decimal(0), target_pct=None
+                    )
+                    states[i] = replace(st, assets=[*st.assets, extra])
+    # ativo fixo numa classe sem meta por ativo: a classe recebe só os fixos dela
+    fixed_classes: set[str] = set()
+    for st in states:
+        own_fixed = [f"asset:{a.id}" for a in st.assets if f"asset:{a.id}" in fixed]
+        if own_fixed and not any((a.target_pct or 0) > 0 for a in st.assets):
+            if f"class:{st.cls}" not in month_travas:
+                locks[f"class:{st.cls}"] = sum((fixed[k] for k in own_fixed), Decimal(0))
+                fixed_classes.add(st.cls)
     d = distribute(amount, needs, states, locks)
     progress = {g.id: g.progress for g in goal_list}
     sugerido = {f"goal:{g.id}": g.sugerido for g in d.goals}
@@ -274,6 +311,7 @@ async def preview(
         done = units_done.get(a.id, Decimal(0))
         return AssetOut(
             **vars(a),
+            fixo=f"asset:{a.id}" in fixed,
             realizado=real,
             pendente=pend,
             unidade=_UNIT.get(prefix) if lot is not None else None,
@@ -291,6 +329,7 @@ async def preview(
                 **{**vars(g), "progress": progress.get(g.id, Decimal(0))},
                 realizado=line(f"goal:{g.id}")[0],
                 pendente=line(f"goal:{g.id}")[1],
+                fixo=f"goal:{g.id}" in fixed,
             )
             for g in d.goals
         ],
@@ -302,6 +341,7 @@ async def preview(
                 pendente=line(f"class:{c.cls}")[1],
                 comprar=to_buy[c.cls][1],
                 comprar_troco=to_buy[c.cls][2],
+                fixo=c.cls in fixed_classes,
             )
             for c in d.classes
         ],

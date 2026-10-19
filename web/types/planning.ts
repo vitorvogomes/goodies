@@ -159,6 +159,7 @@ export interface DistributionAsset {
   atual: number;
   sugerido: number | null;
   locked: boolean;
+  fixo: boolean; // aporte fixo do mês (trava padrão)
   realizado: number;
   pendente: number | null;
   // Ativo com lote (B3, Tesouro): preço de hoje e unidades inteiras — decimais em texto
@@ -190,6 +191,7 @@ export interface DistributionClass {
   recebido_troco: number;
   comprar: number; // a comprar agora: Σ dos ativos em cotas inteiras, ou o pendente inteiro
   comprar_troco: number; // pendente que não compra cota inteira agora
+  fixo: boolean; // o valor da classe é o dos aportes fixos dela
 }
 
 export interface DistributionGoal {
@@ -205,6 +207,7 @@ export interface DistributionGoal {
   locked: boolean;
   realizado: number;
   pendente: number;
+  fixo: boolean;
 }
 
 export interface Andamento {
@@ -246,4 +249,18 @@ export interface AporteSummary {
   andamento: Andamento;
   fora_da_banda: number;
   a_caminho: { broker: string; value: number; import_from: string | null }[];
+}
+
+// Aportes fixos do mês (pedido de 18/10/2026): `goal:<id>` | `asset:<id>` → valor de todo mês.
+export interface FixedContribution {
+  id: string;
+  key: string;
+  label: string;
+  amount: number;
+  valid_from: string;
+}
+
+export interface FixedContributions {
+  items: FixedContribution[];
+  options: { key: string; label: string; group: string }[];
 }
