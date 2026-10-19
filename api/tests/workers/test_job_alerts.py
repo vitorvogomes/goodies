@@ -12,7 +12,7 @@ import pytest
 from engines.common.alerts import AlertContext
 from engines.common.month_status import AllMonthsOpen
 from workers import refresh
-from workers.job_alerts import job_alerts
+from workers.job_alerts import BRT, job_alerts
 
 
 def _ctx() -> AlertContext:
@@ -74,7 +74,9 @@ async def test_failed_backup_after_catch_up(pool: Any, saved_runs: None, monkeyp
     backup = [a for a in alerts if a.key == "job:db_backup"]
     assert (
         backup
-        and backup[0].message == f"Backup do banco falhou em {now - timedelta(minutes=1):%d/%m/%Y}."
+        # a data é a de Brasília (perto da meia-noite o dia UTC já virou)
+        and backup[0].message
+        == f"Backup do banco falhou em {(now - timedelta(minutes=1)).astimezone(BRT):%d/%m/%Y}."
     )
     assert backup[0].action.label == "Ver atualização"
 
