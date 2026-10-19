@@ -4,10 +4,11 @@
 // "Grupo › Subcategoria", origem da categoria, pagador e conta; a linha expandida mostra fonte,
 // lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual). Filtros por
 // trecho da descrição, tipo, categoria, origem e pagador (como Operações); descrição, pagador e a
-// condição da regra se editam na linha expandida (pedido de 18/10/2026).
+// condição da regra se editam na linha expandida (pedido de 18/10/2026). Linhas selecionáveis com a
+// soma das selecionadas numa barra fixa (clique, Shift+clique, X, Ctrl/⌘+A, Esc limpa).
 import { PlusIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { BalanceCandidates } from "@/components/caixa/BalanceCandidates";
@@ -198,6 +199,37 @@ function FilterBar({
   );
 }
 
+// Barra fixa com a soma das linhas selecionadas (pedido de 18/10/2026).
+function SelectionBar({ items, onClear }: { items: LedgerTransaction[]; onClear: () => void }) {
+  if (items.length === 0) return null;
+  const entradas = items.filter((t) => t.amount > 0).reduce((n, t) => n + t.amount, 0);
+  const saidas = items.filter((t) => t.amount < 0).reduce((n, t) => n + t.amount, 0);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-card px-4 py-2 type-body-sm shadow-card"
+    >
+      <span className="font-semibold">
+        {items.length} {items.length === 1 ? "selecionada" : "selecionadas"}
+      </span>
+      <span>
+        entradas <span className="type-num-table text-positive">{formatBRL(entradas)}</span>
+      </span>
+      <span>
+        saídas <span className="type-num-table text-negative">{formatBRL(saidas)}</span>
+      </span>
+      <span>
+        saldo <span className="type-num-table font-semibold">{formatBRL(entradas + saidas)}</span>
+      </span>
+      <button type="button" className="text-positive underline" onClick={onClear}>
+        Limpar (Esc)
+      </button>
+      <span className="type-caption text-muted-foreground">Shift+clique: intervalo · X: marcar · Ctrl/⌘+A: todas</span>
+    </div>
+  );
+}
+
 function Transacoes() {
   const { periodo } = usePeriodo();
   // Ação "Ver transações" do aviso de saldo divergente: ?conferencia=<início>_<fim> (Story 3.13).
@@ -227,6 +259,17 @@ function Transacoes() {
     (options.data ?? []).filter((o) => o.group_key === groupFilter).map((o) => o.id),
   );
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  // Esc limpa a seleção de qualquer lugar da página (menos de dentro de um campo)
+  useEffect(() => {
+    if (selected.size === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key === "Escape" && !el?.closest("input, textarea, select, [role=dialog]")) setSelected(new Set());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected.size]);
   const q = normalize(useDebounced(filters.q.trim()));
   const linked = categoryFilter
     ? (txs.data?.items ?? EMPTY).filter((t) => t.category_id === categoryFilter)
@@ -434,9 +477,14 @@ function Transacoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SelectionBar
+        items={shown.filter((t) => selected.has(t.id))}
+        onClear={() => setSelected(new Set())}
+      />
       <DataTable
       tableId="caixa-transacoes"
       filterable={false}
+      selection={{ selected, onChange: setSelected }}
       caption={`Transações de ${formatMonth(periodo)}`}
       data={shown}
       columns={columns}

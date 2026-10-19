@@ -9,6 +9,7 @@
 // Custos e receitas) × recebidas; o que falta receber dá um disponível à parte (a conta não muda).
 import { type ReactNode, useState } from "react";
 
+import { TrendArrow } from "@/components/data/TrendArrow";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, normalizeMoneyInput } from "@/lib/format";
 import { useSetDividas } from "@/lib/planning";
@@ -61,7 +62,7 @@ function Row({
           negative && "text-negative",
         )}
       >
-        {negative && <span aria-hidden>▼ </span>}
+        {negative && <TrendArrow up={false} />}
         {value}
       </td>
     </tr>

@@ -58,6 +58,10 @@ async def test_growth_from_snapshots(pool) -> None:
     assert rates == sorted(rates, reverse=True)
     if rates:
         assert feb.best is not None and feb.best.xirr_mensal == rates[0]
+        if len([r for r in rates if r is not None]) > 1:
+            assert feb.worst is not None and feb.worst.xirr_mensal == min(
+                r for r in rates if r is not None
+            )
 
 
 @pytest.mark.asyncio

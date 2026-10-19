@@ -41,7 +41,13 @@ export function ProgressBar({
           {legend.aCaminho && (
             <li className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-2.5 rounded-sm border border-input" style={HATCH} />
-              A caminho <span className="type-num-table text-foreground">{legend.aCaminho}</span>
+              <span
+                className="underline decoration-dotted underline-offset-4"
+                title="Do que saiu da conta neste mês, o que ainda não virou ativo. O caixa total da corretora (Conciliação) inclui também proventos e sobras de meses anteriores."
+              >
+                Na corretora, não aplicado
+              </span>{" "}
+              <span className="type-num-table text-foreground">{legend.aCaminho}</span>
             </li>
           )}
           <li className="inline-flex items-center gap-1.5">

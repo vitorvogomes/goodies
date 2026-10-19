@@ -199,6 +199,20 @@ async def test_period_return_nominal_and_real(pool: Any) -> None:
         )
         try:
             waiting = await closing.period_return(conn, feb)
+            # Posições (pedido de 18/10/2026): sem o IPCA do mês, estima com o último publicado
+            jan_had = await conn.fetchval(
+                "SELECT value FROM benchmark_data WHERE series = 'IPCA' AND ref_date = '2025-01-01'"
+            )
+            if jan_had is None:
+                await conn.execute(
+                    "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                    "VALUES ('IPCA', '2025-01-01', 0.16, 'teste')"
+                )
+            estimated = await closing.period_return(conn, feb, estimate_ipca=True)
+            if jan_had is None:
+                await conn.execute(
+                    "DELETE FROM benchmark_data WHERE series = 'IPCA' AND ref_date = '2025-01-01'"
+                )
             await conn.execute(
                 "INSERT INTO benchmark_data (series, ref_date, value, source) "
                 "VALUES ('IPCA', '2025-02-01', 1.31, 'teste')"
@@ -218,6 +232,9 @@ async def test_period_return_nominal_and_real(pool: Any) -> None:
             await _drop(conn, t)
     nominal, real = waiting.by_class["acoes_br"]
     assert nominal.value is not None and real.unavailable_reason == "aguardando_ipca"
+    est_nominal, est_real = estimated.by_class["acoes_br"]
+    assert est_nominal.value == nominal.value and est_real.value is not None
+    assert estimated.ipca_ate is not None and estimated.ipca_ate < date(2025, 2, 28)
     nominal2, real2 = with_ipca.by_class["acoes_br"]
     assert nominal2.value == nominal.value and real2.value is not None
     assert real2.value < nominal2.value  # descontou a inflação

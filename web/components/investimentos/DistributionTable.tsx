@@ -7,7 +7,7 @@
 // Story 8.6: o sugerido se edita (Enter trava, cadeado no slot de anotação; clicar destrava); a
 // trava é gravada no mês e o resto redistribui pela API, com o total = planejado.
 // Story 8.7: realizado e pendente por linha, o Andamento do mês (Barra de progresso) e o rodapé de
-// conciliação — objetivos + classes · + a caminho, ainda sem classe · = total do mês.
+// conciliação — objetivos + classes · + na corretora, ainda não aplicado (sem classe) · = total do mês.
 import { ChevronRightIcon, LockIcon } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useState } from "react";
@@ -303,7 +303,7 @@ function Reconciliation({ data }: { data: Distribution }) {
       </tr>
       <tr className="text-muted-foreground">
         <th scope="row" colSpan={5} className="px-4 py-2 text-left font-normal">
-          A caminho · ainda sem classe
+          Na corretora, ainda não aplicado · sem classe
         </th>
         <td className={cell}>—</td>
         <td className={cell}>+{formatBRL(a.a_caminho)}</td>
@@ -330,13 +330,13 @@ function Andamento({ data, periodo }: { data: Distribution; periodo: string }) {
       </h3>
       <p className="type-body-sm">
         Realizado <span className="type-num-body">{formatBRL(a.realizado)}</span> · dos quais{" "}
-        <span className="type-num-body">{formatBRL(a.a_caminho)}</span> a caminho · pendente{" "}
+        <span className="type-num-body">{formatBRL(a.a_caminho)}</span> na corretora, ainda não aplicados · pendente{" "}
         <span className="type-num-body">{formatBRL(a.pendente)}</span> de{" "}
         <span className="type-num-body">{formatBRL(a.planned)}</span>
         {a.pct_realizado != null && <> · {formatPercent(a.pct_realizado)} realizado</>}
       </p>
       <ProgressBar
-        label={`Realizado em ativo ${formatPercent(a.pct_em_ativo)} e a caminho ${formatPercent(a.pct_a_caminho)} do planejado`}
+        label={`Realizado em ativo ${formatPercent(a.pct_em_ativo)} e na corretora, não aplicado, ${formatPercent(a.pct_a_caminho)} do planejado`}
         solid={a.pct_em_ativo}
         hatched={a.pct_a_caminho}
         legend={{ realizado: formatBRL(a.em_ativo), aCaminho: formatBRL(a.a_caminho), pendente: formatBRL(a.pendente) }}
@@ -417,7 +417,7 @@ export function DistributionTable({
               <>
                 {" "}
                 Σ pendente das linhas {formatBRL(data.andamento.pendente_linhas)} = pendente total{" "}
-                {formatBRL(data.andamento.pendente)} + a caminho, ainda sem classe, {formatBRL(data.andamento.a_caminho)}.
+                {formatBRL(data.andamento.pendente)} + na corretora, ainda não aplicado, {formatBRL(data.andamento.a_caminho)}.
               </>
             )}
           </p>

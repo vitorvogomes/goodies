@@ -3,8 +3,8 @@
 // Os três gráficos do Histórico (Story 9.3 — FR-34, AR25, UX-DR42; DESIGN › chart-net-worth,
 // chart-spending, chart-contribution): patrimônio (linha 2px chart-1, aplicado tracejado chart-3,
 // grade só horizontal, sem área, lacuna onde o patrimônio não é coberto), gastos por grupo (barras
-// horizontais: período chart-2 preenchido, anterior só contorno chart-3, média 12m como marcador,
-// rótulo direto; clicar abre as transações do grupo) e aporte planejado × realizado (barras
+// horizontais no estilo do aporte — pedido de 18/10/2026: período chart-1 (o verde), anterior chart-2
+// mais fina, média 12m como marcador tracejado, rótulo direto; clicar abre as transações do grupo) e aporte planejado × realizado (barras
 // agrupadas, média 12m do realizado como marcador chart-3). Cada um com "Ver como tabela". Eixos em
 // moeda completa, sem animação; as séries se distinguem também por estilo e legenda.
 import { useRouter } from "next/navigation";
@@ -150,7 +150,9 @@ function NetWorth({ points }: { points: SeriesPoint[] }) {
 // Média 12m de cada grupo: um traço vertical no fim do valor (marcador, não barra).
 function AverageMarker(props: { x?: number; y?: number; width?: number; height?: number }) {
   const { x = 0, y = 0, width = 0, height = 0 } = props;
-  return <line x1={x + width} x2={x + width} y1={y - 2} y2={y + height + 2} stroke={C3} strokeWidth={2} />;
+  return (
+    <line x1={x + width} x2={x + width} y1={y - 6} y2={y + height + 6} stroke={C3} strokeWidth={2} strokeDasharray="2 2" />
+  );
 }
 
 // O clique abre as transações do grupo — Caixa › Transações é de um mês: só na leitura "mês" a
@@ -176,24 +178,25 @@ function Spending({ groups, periodo, clickable }: { groups: HistoryRow[]; period
         />
       }
     >
-      <div style={{ height: Math.max(160, data.length * 44) }} role="img" aria-label="Gastos por grupo: período, anterior e média 12m">
+      <div style={{ height: Math.max(180, data.length * 52) }} role="img" aria-label="Gastos por grupo: período, anterior e média 12m">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 120, bottom: 4, left: 16 }} barGap={2}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 120, bottom: 4, left: 16 }} barGap={3} barCategoryGap="22%">
             <CartesianGrid horizontal={false} stroke="var(--color-border)" />
             <XAxis type="number" tick={AXIS} tickFormatter={(v: number) => formatBRL(v)} />
             <YAxis type="category" dataKey="grupo" tick={AXIS} width={140} />
-            <Tooltip formatter={(v) => money(Number(v))} isAnimationActive={false} />
+            <Tooltip formatter={(v) => money(Number(v))} cursor={{ fill: "var(--color-muted)" }} isAnimationActive={false} />
             <Bar
               name="Período"
               dataKey="periodo"
-              fill={C2}
+              fill={C1}
+              radius={[0, 3, 3, 0]}
               isAnimationActive={false}
               cursor={clickable ? "pointer" : undefined}
               onClick={clickable ? (d) => open((d as unknown as { key: string }).key) : undefined}
             >
               <LabelList dataKey="periodo" position="right" formatter={(v) => money(Number(v))} style={AXIS} />
             </Bar>
-            <Bar name="Anterior" dataKey="anterior" fill="transparent" stroke={C3} strokeWidth={1} isAnimationActive={false} />
+            <Bar name="Anterior" dataKey="anterior" fill={C2} radius={[0, 3, 3, 0]} barSize={8} isAnimationActive={false} />
             <Bar name="Média 12m" dataKey="media" fill="transparent" shape={AverageMarker} isAnimationActive={false} legendType="line" />
           </BarChart>
         </ResponsiveContainer>
@@ -201,15 +204,15 @@ function Spending({ groups, periodo, clickable }: { groups: HistoryRow[]; period
       {/* legenda própria: anterior (só contorno) e média (marcador) não têm cor de preenchimento */}
       <ul className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-muted-foreground">
         <li className="inline-flex items-center gap-1.5">
-          <span aria-hidden className="h-2.5 w-4 rounded-sm" style={{ background: C2 }} />
+          <span aria-hidden className="h-2.5 w-4 rounded-sm" style={{ background: C1 }} />
           Período
         </li>
         <li className="inline-flex items-center gap-1.5">
-          <span aria-hidden className="h-2.5 w-4 rounded-sm border" style={{ borderColor: C3 }} />
+          <span aria-hidden className="h-1.5 w-4 rounded-sm" style={{ background: C2 }} />
           Anterior
         </li>
         <li className="inline-flex items-center gap-1.5">
-          <span aria-hidden className="h-3 w-0.5" style={{ background: C3 }} />
+          <span aria-hidden className="h-3 w-0 border-l-2 border-dashed" style={{ borderColor: C3 }} />
           Média 12m
         </li>
       </ul>

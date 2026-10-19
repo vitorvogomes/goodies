@@ -89,6 +89,7 @@ function Painel() {
         {data ? (
           <KpiCard
             label="Resultado do mês"
+            help="Receitas − gastos − investimentos do mês: quanto o saldo das contas variou. Não é o saldo da conta (esse fica em Fontes › Nubank PF)."
             valued={data.resultado_mes}
             format={formatSignedBRL}
             signed
@@ -101,6 +102,7 @@ function Painel() {
         {budget.data ? (
           <KpiCard
             label="Disponível para consumo"
+            help="Receita do trabalho + resgates − custos fixos − aporte planejado − dívidas: quanto dá para gastar no mês sem furar o plano. O restante é o disponível − o já consumido."
             valued={budget.data.disponivel}
             format={formatSignedBRL}
             signed
@@ -118,18 +120,21 @@ function Painel() {
           <>
             <KpiCard
               label="Patrimônio"
+            help="Valor de hoje de tudo que você tem investido (B3, Tesouro, renda fixa, debêntures, cripto) + o caixa parado na corretora."
               valued={data.patrimonio}
               format={formatBRL}
               href="/investimentos/posicoes"
             />
             <KpiCard
               label="Resultado dos investimentos"
+            help="Patrimônio − o que você aplicou líquido (aportes − resgates), somados os proventos: o ganho ou a perda dos investimentos desde o início."
               valued={data.resultado_investimentos}
               format={formatSignedBRL}
               signed
             />
             <KpiCard
               label="Rentabilidade nominal"
+            help="XIRR desde o início: a taxa anual que iguala cada aporte, na data dele, ao valor de hoje — pondera quanto tempo cada real ficou investido."
               valued={data.rentabilidade_nominal}
               format={(v) => formatPercent(v)}
               suffix="a.a."
@@ -138,6 +143,7 @@ function Painel() {
             />
             <KpiCard
               label="Rentabilidade real"
+            help="A rentabilidade nominal descontada a inflação (IPCA) do mesmo período: o ganho acima da inflação."
               valued={data.rentabilidade_real}
               format={(v) => formatPercent(v)}
               suffix="a.a."

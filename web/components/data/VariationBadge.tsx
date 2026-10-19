@@ -1,6 +1,7 @@
 // Selo de variação (Story 9.1 — DESIGN › variation-badge, UX-DR15): seta + sinal + valor, em
 // tint; zero = "0,00%" neutro. A cor diz se a variação é boa: gasto que sobe é ruim (`good="down"`).
 // O valor chega pronto da API (% sobre a referência, ou p.p. para taxas).
+import { TrendArrow } from "@/components/data/TrendArrow";
 import { cn } from "@/lib/utils";
 
 export function VariationBadge({
@@ -30,7 +31,7 @@ export function VariationBadge({
         better ? "bg-positive-tint text-positive" : "bg-negative-tint text-negative",
       )}
     >
-      <span aria-hidden>{up ? "▲" : "▼"}</span>
+      <TrendArrow up={up} className="mr-0" />
       {up ? "+" : "−"}
       {text}
       {unit === "%" ? "%" : " p.p."}

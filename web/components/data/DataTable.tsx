@@ -76,6 +76,7 @@ export function DataTable<T extends RowData>({
   caption,
   empty,
   filterable = true,
+  selection,
 }: {
   tableId: string;
   data: T[];
@@ -88,6 +89,12 @@ export function DataTable<T extends RowData>({
   empty?: ReactNode;
   /** false: a página tem os próprios filtros (ex.: Caixa › Transações). */
   filterable?: boolean;
+  /** Seleção de linhas (caixa à esquerda): clique, Shift+clique para o intervalo, X na linha
+   * focada, Ctrl/⌘+A na tabela para todas as visíveis. A página guarda o conjunto. */
+  selection?: {
+    selected: ReadonlySet<string>;
+    onChange: (next: Set<string>) => void;
+  };
 }) {
   // A tabela só renderiza no cliente (depois do gate de sessão), então ler o navegador no
   // inicializador não gera diferença de hidratação.
@@ -194,12 +201,40 @@ export function DataTable<T extends RowData>({
     return () => observer.disconnect();
   }, [measure]);
 
+  // a âncora do Shift+clique (a última linha marcada à mão)
+  const anchor = useRef<string | null>(null);
+  function selectRow(id: string, shift: boolean) {
+    if (!selection) return;
+    const ids = table.getRowModel().rows.map((r) => r.id);
+    const next = new Set(selection.selected);
+    const on = !selection.selected.has(id);
+    if (shift && anchor.current && ids.includes(anchor.current)) {
+      const [a, b] = [ids.indexOf(anchor.current), ids.indexOf(id)].sort((x, y) => x - y);
+      for (const rid of ids.slice(a, b + 1)) {
+        if (on) next.add(rid);
+        else next.delete(rid);
+      }
+    } else if (on) next.add(id);
+    else next.delete(id);
+    anchor.current = id;
+    selection.onChange(next);
+  }
+  function selectAll() {
+    if (!selection) return;
+    const ids = table.getRowModel().rows.map((r) => r.id);
+    const all = ids.length > 0 && ids.every((rid) => selection.selected.has(rid));
+    selection.onChange(all ? new Set() : new Set(ids));
+  }
+
   function onRowKey(e: KeyboardEvent<HTMLTableRowElement>, id: string) {
     // Só a própria linha: teclas de um controle dentro dela (ou de um portal dele) não navegam.
     if (e.target !== e.currentTarget) return;
     const rows = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>("tr[data-row]") ?? []);
     const i = rows.indexOf(e.currentTarget);
-    if (e.key === "ArrowRight" && renderExpanded) toggle(id, true);
+    if (selection && (e.key === "x" || e.key === "X")) selectRow(id, e.shiftKey);
+    else if (selection && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") selectAll();
+    else if (selection && e.key === "Escape" && selection.selected.size > 0) selection.onChange(new Set());
+    else if (e.key === "ArrowRight" && renderExpanded) toggle(id, true);
     else if (e.key === "ArrowLeft" && renderExpanded) toggle(id, false);
     else if (e.key === "ArrowDown") rows[i + 1]?.focus();
     else if (e.key === "ArrowUp") rows[i - 1]?.focus();
@@ -208,7 +243,10 @@ export function DataTable<T extends RowData>({
     e.preventDefault();
   }
 
-  const colSpan = visible.length + (renderExpanded ? 1 : 0);
+  const colSpan = visible.length + (renderExpanded ? 1 : 0) + (selection ? 1 : 0);
+  // a 1ª coluna de dados fica grudada depois da seleção e do botão de detalhes
+  const lead =
+    selection && renderExpanded ? "left-16" : selection || renderExpanded ? "left-8" : "left-0";
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -272,8 +310,26 @@ export function DataTable<T extends RowData>({
             <thead className="bg-muted">
               {table.getHeaderGroups().map((group) => (
                 <tr key={group.id}>
+                  {selection && (
+                    <th scope="col" className="sticky left-0 z-10 w-8 bg-muted pl-3">
+                      <input
+                        type="checkbox"
+                        aria-label="Selecionar todas as linhas visíveis"
+                        checked={
+                          table.getRowModel().rows.length > 0 &&
+                          table.getRowModel().rows.every((r) => selection.selected.has(r.id))
+                        }
+                        onChange={selectAll}
+                        className="size-4 accent-primary align-middle"
+                      />
+                    </th>
+                  )}
                   {renderExpanded && (
-                    <th scope="col" className="sticky left-0 z-10 w-8 bg-muted" aria-label="Detalhes" />
+                    <th
+                      scope="col"
+                      className={cn("sticky z-10 w-8 bg-muted", selection ? "left-8" : "left-0")}
+                      aria-label="Detalhes"
+                    />
                   )}
                   {group.headers.map((header, idx) => {
                     const col = byId.get(header.column.id);
@@ -296,7 +352,7 @@ export function DataTable<T extends RowData>({
                           col?.numeric || col?.actions ? "text-right" : "text-left",
                           col?.actions && "w-px",
                           idx === 0 && "sticky z-10 bg-muted",
-                          idx === 0 && (renderExpanded ? "left-8" : "left-0"),
+                          idx === 0 && lead,
                         )}
                       >
                         {col?.actions ? (
@@ -339,12 +395,35 @@ export function DataTable<T extends RowData>({
                     tabIndex={0}
                     aria-expanded={renderExpanded ? open : undefined}
                     onKeyDown={(e) => onRowKey(e, row.id)}
-                    className="group border-t border-border align-top hover:bg-row-highlight focus-visible:bg-row-highlight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                    aria-selected={selection ? selection.selected.has(row.id) : undefined}
+                    className="group border-t border-border align-top hover:bg-row-highlight focus-visible:bg-row-highlight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring aria-selected:bg-row-highlight"
                   >
+                    {selection && (
+                      <td
+                        className={cn(
+                          "sticky left-0 w-8 bg-card pl-3 group-hover:bg-row-highlight group-focus-visible:bg-row-highlight group-aria-selected:bg-row-highlight",
+                          cellPad,
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          tabIndex={-1}
+                          aria-label="Selecionar linha"
+                          checked={selection.selected.has(row.id)}
+                          onChange={() => undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectRow(row.id, e.shiftKey);
+                          }}
+                          className="size-4 accent-primary align-middle"
+                        />
+                      </td>
+                    )}
                     {renderExpanded && (
                       <td
                         className={cn(
-                          "sticky left-0 w-8 bg-card px-2 group-hover:bg-row-highlight group-focus-visible:bg-row-highlight",
+                          "sticky w-8 bg-card px-2 group-hover:bg-row-highlight group-focus-visible:bg-row-highlight group-aria-selected:bg-row-highlight",
+                          selection ? "left-8" : "left-0",
                           cellPad,
                         )}
                       >
@@ -374,8 +453,8 @@ export function DataTable<T extends RowData>({
                             col?.numeric && "text-right whitespace-nowrap type-num-table",
                             col?.actions && "w-px text-right whitespace-nowrap",
                             idx === 0 &&
-                              "sticky bg-card group-hover:bg-row-highlight group-focus-visible:bg-row-highlight",
-                            idx === 0 && (renderExpanded ? "left-8" : "left-0"),
+                              "sticky bg-card group-hover:bg-row-highlight group-focus-visible:bg-row-highlight group-aria-selected:bg-row-highlight",
+                            idx === 0 && lead,
                             col?.className,
                           )}
                         >
@@ -386,6 +465,7 @@ export function DataTable<T extends RowData>({
                   </tr>,
                   open && renderExpanded ? (
                     <tr key={`${row.id}-detail`} className="bg-row-highlight">
+                      {selection && <td />}
                       <td />
                       <td colSpan={visible.length} className="px-3 py-3">
                         {renderExpanded(row.original)}

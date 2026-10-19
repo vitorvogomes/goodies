@@ -1,7 +1,7 @@
 "use client";
 
 // Resumo do aporte (Stories 8.4 e 8.8 — DESIGN › contribution-summary, UX-DR34): o planejado,
-// "Realizado R$ {total} · dos quais R$ {a caminho} a caminho", a Barra de progresso, o a caminho por
+// "Realizado R$ {total} · dos quais R$ {a caminho} na corretora, ainda não aplicados", a Barra de progresso, o a caminho por
 // corretora ("importe o relatório B3 a partir de dd/mm/aaaa"), "{n} classes fora da banda" → Ver
 // aportes e o % realizado com o Carimbo de data. Sem planejado, "Defina o aporte planejado de
 // {mês} para ver a distribuição." leva ao campo com foco. O cabeçalho leva a Aportes. Tudo da API.
@@ -52,10 +52,10 @@ export function AporteSummary({ periodo }: { periodo: string }) {
           </p>
           <p className="type-body-sm">
             Realizado <span className="type-num-body">{formatBRL(a.realizado)}</span> · dos quais{" "}
-            <span className="type-num-body">{formatBRL(a.a_caminho)}</span> a caminho
+            <span className="type-num-body">{formatBRL(a.a_caminho)}</span> na corretora, ainda não aplicados
           </p>
           <ProgressBar
-            label={`Realizado em ativo ${formatPercent(a.pct_em_ativo)} e a caminho ${formatPercent(a.pct_a_caminho)} do planejado`}
+            label={`Realizado em ativo ${formatPercent(a.pct_em_ativo)} e na corretora, não aplicado, ${formatPercent(a.pct_a_caminho)} do planejado`}
             solid={a.pct_em_ativo}
             hatched={a.pct_a_caminho}
             legend={{ realizado: formatBRL(a.em_ativo), aCaminho: formatBRL(a.a_caminho), pendente: formatBRL(a.pendente) }}

@@ -115,9 +115,16 @@ export interface Growth {
   crescimento: number | null;
   aporte: number | null;
   resultado: number | null;
-  classes: { key: string; label: string; xirr_nominal: Valued; resultado: number | null }[];
+  classes: {
+    key: string;
+    label: string;
+    xirr_nominal: Valued;
+    resultado: number | null;
+    xirr_mensal: number | null; // o XIRR nominal ao mês
+  }[];
   assets: GrowthAsset[];
   best: GrowthAsset | null;
+  worst: GrowthAsset | null;
 }
 
 // Séries dos gráficos do Histórico (Story 9.3).

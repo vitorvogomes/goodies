@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { DateStamp } from "@/components/data/DateStamp";
+import { TrendArrow } from "@/components/data/TrendArrow";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Valued } from "@/types/overview";
@@ -25,6 +26,7 @@ export function KpiCard({
   suffix,
   support,
   href,
+  help,
 }: {
   label: string;
   valued: Valued;
@@ -33,13 +35,27 @@ export function KpiCard({
   suffix?: string;
   support?: ReactNode;
   href?: string;
+  /** O que o número é e como é calculado (dica no rótulo). */
+  help?: string;
 }) {
   const v = valued.value;
   const tone = signed && v !== null ? (v > 0 ? "text-positive" : v < 0 ? "text-negative" : "") : "";
-  const arrow = signed && v !== null && v !== 0 ? (v > 0 ? "▲ " : "▼ ") : "";
+  const arrow = signed && v !== null && v !== 0 ? <TrendArrow up={v > 0} /> : null;
   const body = (
     <>
-      <p className="type-label text-muted-foreground">{label}</p>
+      {help ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p className="type-label w-fit text-muted-foreground underline decoration-dotted underline-offset-4">
+              {label}
+              <span className="sr-only">: {help}</span>
+            </p>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-72">{help}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <p className="type-label text-muted-foreground">{label}</p>
+      )}
       {v === null && valued.unavailable_reason === "fora_do_resumo" ? (
         <Tooltip>
           <TooltipTrigger asChild>

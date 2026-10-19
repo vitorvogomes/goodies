@@ -92,7 +92,8 @@ class Settings(BaseSettings):
         # sufixo de vencimento — o fetcher tira o `-NNNN` antes do lookup, então uma
         # rolagem de maturidade (hyUSD-2703) ainda casa. YT-xSOL fica sem fonte (yield token).
         "XSOL": "hylo-leveraged-sol",  # xSOL — Hylo Leveraged SOL
-        "PT SUSDAI": "susdai",  # PT sUSDai (Pendle) ~ subjacente sUSDai (id API = susdai)
+        # PT sUSDai (Pendle) fica sem fonte: o PT vale menos que o sUSDai até o vencimento (o
+        # CoinGecko cotava o subjacente) — preço manual em US$ em Ajustes › Preços manuais.
         "HYUSD": "hylo-usd",  # hyUSD (Hylo) — stablecoin ~US$1 (qualquer vencimento)
         "SHYUSD": "hylo-usd",  # sHYUSD = hyUSD stakeado ~US$1 (qualquer vencimento)
     }

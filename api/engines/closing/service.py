@@ -965,7 +965,7 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
     classes = await positions_service.positions_period(conn, owner, start, end, set_aside=linked)
     await planning_allocation.apply_allocation(conn, classes, end)
     if leitura == "inicio":
-        ret = await period_return(conn, months)  # desde jul/2024: o valor de jun/2024 não existe
+        ret = await period_return(conn, months, estimate_ipca=True)  # desde jul/2024: sem jun/2024
         summary = await month_summary(conn, end)
         if summary.rentabilidade is not None:  # consolidado desde o início (o XIRR de sempre)
             real = await real_since_start(conn, summary.rentabilidade, end)  # o mesmo do Painel
@@ -976,7 +976,7 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
                 real.as_of,
             )
     else:
-        ret = await period_return(conn, months)
+        ret = await period_return(conn, months, estimate_ipca=True)
     for c in classes:
         if c.key in ret.by_class:
             c.xirr_nominal, c.xirr_real = ret.by_class[c.key]
@@ -1059,12 +1059,31 @@ async def _class_values_at(
     return values, estimated
 
 
-async def _ipca(conn: asyncpg.Connection, months: list[date]) -> tuple[Decimal | None, date | None]:
+async def _ipca(
+    conn: asyncpg.Connection, months: list[date], *, estimate: bool = False
+) -> tuple[Decimal | None, date | None]:
     """IPCA efetivo dos meses (fator) e o Carimbo: o fim do último mês usado; faltando o do último
-    → fator None e o fim do último mês publicado (o que se espera)."""
+    → fator None e o fim do último mês publicado (o que se espera). `estimate` (só leitura, nunca
+    no fechamento): o mês que falta usa o último IPCA publicado — o Carimbo segue o publicado."""
     from engines.market import service as market_service
 
     found = await market_service.ipca_monthly(conn, months[0], months[-1])
+    if estimate and found and any(m not in found for m in months):
+        latest = max(found)
+        published_end = month_end(latest)
+        filled = [found.get(m, found[latest]) for m in months]
+        return portfolio_calc.ipca_factor(filled), published_end
+    if estimate and not found and any(m not in found for m in months):
+        last_row = await conn.fetchrow(
+            "SELECT ref_date, value FROM benchmark_data WHERE series = 'IPCA' "
+            "AND ref_date <= $1 ORDER BY ref_date DESC LIMIT 1",
+            months[-1],
+        )
+        if last_row is not None:
+            return (
+                portfolio_calc.ipca_factor(Decimal(last_row["value"]) for _ in months),
+                month_end(last_row["ref_date"]),
+            )
     if any(m not in found for m in months):
         published = await conn.fetchval(
             "SELECT max(ref_date) FROM benchmark_data WHERE series = 'IPCA'"
@@ -1153,9 +1172,13 @@ async def _month_return(
     )
 
 
-async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodReturn:
+async def period_return(
+    conn: asyncpg.Connection, months: list[date], *, estimate_ipca: bool = False
+) -> PeriodReturn:
     """XIRR do período: valor no fim do mês anterior (snapshot ou valoração), os fluxos líquidos
-    datados de cada mês (snapshot ou ao vivo) e o valor no fim; o real desconta o IPCA efetivo."""
+    datados de cada mês (snapshot ou ao vivo) e o valor no fim; o real desconta o IPCA efetivo.
+    `estimate_ipca` (Posições, pedido de 18/10/2026): sem o IPCA do último mês, usa o último
+    publicado em vez de "aguardando IPCA" — o Carimbo `ipca_ate` diz até quando é oficial."""
     found = await _class_values_at(conn, add_months(months[0], -1))
     if found is None:
         return _unavailable_return("antes_do_primeiro_fechamento")
@@ -1172,7 +1195,7 @@ async def period_return(conn: asyncpg.Connection, months: list[date]) -> PeriodR
         end_estimated = s.coverage.get("cripto") == CRYPTO_ESTIMATED
     if end_estimated:  # o fim do bloco cripto pelo aplicado: o retorno seria fabricado
         estimated = estimated | {"cripto"}
-    ipca, last = await _ipca(conn, months)
+    ipca, last = await _ipca(conn, months, estimate=estimate_ipca)
     return _returns(
         start, months[0] - timedelta(days=1), flows, end, end_day, ipca, last, estimated
     )

@@ -33,6 +33,7 @@ class ClassReturn(BaseModel):
     label: str
     xirr_nominal: Valued[Decimal]
     resultado: Money | None
+    xirr_mensal: Pct | None = None  # o XIRR nominal ao mês (a mesma unidade dos ativos)
 
 
 class AssetReturn(BaseModel):
@@ -55,6 +56,7 @@ class Growth(BaseModel):
     classes: list[ClassReturn]
     assets: list[AssetReturn]
     best: AssetReturn | None  # o ativo de melhor desempenho (maior % a.m. no período)
+    worst: AssetReturn | None = None  # o de pior desempenho (pedido de 18/10/2026)
 
 
 @dataclass(frozen=True)
@@ -94,8 +96,15 @@ async def growth(conn: asyncpg.Connection, periodo: str, leitura: str) -> Growth
     ]
     ranked = [a for a in assets if a.xirr_mensal is not None]
     best = max(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if ranked else None
+    worst = min(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if len(ranked) > 1 else None
     class_returns = [
-        ClassReturn(key=c.key, label=c.label, xirr_nominal=c.xirr_nominal, resultado=c.resultado)
+        ClassReturn(
+            key=c.key,
+            label=c.label,
+            xirr_nominal=c.xirr_nominal,
+            resultado=c.resultado,
+            xirr_mensal=c.xirr_mensal,
+        )
         for c in classes
     ]
     end, end_reason = await _state(conn, months[-1])
@@ -124,4 +133,5 @@ async def growth(conn: asyncpg.Connection, periodo: str, leitura: str) -> Growth
         classes=class_returns,
         assets=sorted(ranked, key=lambda a: -(a.xirr_mensal or Decimal(0))),
         best=best,
+        worst=worst,
     )

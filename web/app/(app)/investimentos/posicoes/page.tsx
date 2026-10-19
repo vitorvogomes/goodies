@@ -16,6 +16,7 @@ import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
 import { AllocationCell } from "@/components/investimentos/AllocationCell";
 import { OperationsBlock } from "@/components/investimentos/OperationsBlock";
 import { StatusBadge } from "@/components/data/StatusBadge";
+import { TrendArrow } from "@/components/data/TrendArrow";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -44,7 +45,7 @@ function Result({ value }: { value: number | null }) {
   if (value === null) return <span className="text-muted-foreground">—</span>;
   return (
     <span className={cn("whitespace-nowrap", value > 0 && "text-positive", value < 0 && "text-negative")}>
-      {value !== 0 && <span aria-hidden>{value > 0 ? "▲ " : "▼ "}</span>}
+      {value !== 0 && <TrendArrow up={value > 0} />}
       {formatSignedBRL(value)}
     </span>
   );
@@ -56,16 +57,23 @@ function Rate({
   monthly = null,
   short = false,
   ipcaNote,
+  periodo,
 }: {
   v: Valued;
   monthly?: number | null;
   short?: boolean; // mês/trimestre: o % a.m. vem primeiro (anualizar um mês exagera)
   ipcaNote: string;
+  periodo?: string; // XIRR real: IPCA anterior ao fim do período = estimado com o último publicado
 }) {
   if (v.value !== null) {
     const annual = `${formatPercent(v.value)} a.a.`;
     const month = monthly !== null ? `${formatPercent(monthly)} a.m.` : null;
-    const [main, sub] = short && month ? [month, `≈ ${annual}`] : [annual, month && `≈ ${month}`];
+    const estimated = periodo && v.source === "ipca" && v.as_of && v.as_of.slice(0, 7) < periodo;
+    const [main, sub] = estimated
+      ? [annual, `IPCA até ${formatMonth(v.as_of!.slice(0, 7))} · estimado`]
+      : short && month
+        ? [month, `≈ ${annual}`]
+        : [annual, month && `≈ ${month}`];
     return (
       <span className="inline-flex flex-col items-end whitespace-nowrap">
         <span>{main}</span>
@@ -187,7 +195,10 @@ function Posicoes() {
                   <HeaderHelp label="XIRR" help={XIRR_HELP} />
                 </th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">
-                  <HeaderHelp label="XIRR real" help="O XIRR descontado o IPCA do período (o ganho acima da inflação)." />
+                  <HeaderHelp
+                    label="XIRR real"
+                    help="O XIRR descontado o IPCA do período (o ganho acima da inflação). Enquanto o IPCA do último mês não sai (IBGE, por volta do dia 10), usa o último publicado e marca “estimado”; recalcula quando o oficial sai."
+                  />
                 </th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">
                   <HeaderHelp
@@ -237,7 +248,7 @@ function Posicoes() {
                       <Rate v={c.xirr_nominal} monthly={c.xirr_mensal} short={short} ipcaNote={note} />
                     </td>
                     <td className="px-3 py-2 text-right type-num-table">
-                      <Rate v={c.xirr_real} ipcaNote={note} />
+                      <Rate v={c.xirr_real} ipcaNote={note} periodo={periodo} />
                     </td>
                     <td className="px-3 py-2 text-right type-num-table">
                       <AllocationCell alocacao={c.alocacao} meta={c.meta} banda={c.banda} desvio={c.desvio_pp} fora={c.fora_banda} />
@@ -321,7 +332,7 @@ function Posicoes() {
                   <Rate v={data.xirr_nominal} monthly={data.xirr_mensal} short={short} ipcaNote={note} />
                 </td>
                 <td className="px-3 py-2 text-right type-num-table">
-                  <Rate v={data.xirr_real} ipcaNote={note} />
+                  <Rate v={data.xirr_real} ipcaNote={note} periodo={periodo} />
                 </td>
                 <td />
               </tr>
