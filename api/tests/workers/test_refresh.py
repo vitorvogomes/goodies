@@ -256,3 +256,30 @@ def test_backup_jobs_are_not_forceable() -> None:
     specs = {s.name: s for s in default_jobs()}
     assert specs["db_backup"].forceable is False
     assert specs["restore_check"].forceable is False
+
+
+@pytest.mark.asyncio
+async def test_cron_and_catch_up_never_run_the_same_job_together(pool: Any) -> None:
+    """Review final: o cron (run_named_job → run_and_record) e o catch-up (refresh_stale)
+    dividem o lock por job — o segundo a chegar não roda o job de novo."""
+    import asyncio
+
+    from workers.refresh import run_and_record
+
+    await _clear(pool)
+    started, release = asyncio.Event(), asyncio.Event()
+    calls: list[str] = []
+
+    async def slow(_pool: Any) -> dict[str, Any]:
+        calls.append("cron")
+        started.set()
+        await release.wait()
+        return {"fetched": 1}
+
+    cron = asyncio.create_task(run_and_record(pool, JobSpec("job_lock", slow, 3600), _NOW))
+    await started.wait()
+    res = await refresh_stale(pool, now=_NOW, force=True, jobs=[_spec("job_lock", calls)])
+    release.set()
+    assert await cron is True
+    assert res["jobs"] == {"job_lock": "already_running"}
+    assert calls == ["cron"]

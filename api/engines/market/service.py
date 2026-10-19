@@ -25,6 +25,7 @@ from engines.common.assets import (
     TREASURY_CATEGORIES,
 )
 from engines.common.cache import cache
+from engines.common.dates import today_brt
 from engines.common.models import Valued
 
 _TTL_BY_TYPE = {
@@ -500,7 +501,7 @@ async def price_as_of(conn: asyncpg.Connection, ticker: str, day: date) -> Value
 
 
 # --------------------------------------------------------------------------------------------
-# Preço manual em dólar (pedido de 18/10/2026): o token cripto sem cotação se informa em US$
+# Preço manual em dólar: o token cripto sem cotação se informa em US$
 # --------------------------------------------------------------------------------------------
 
 MANUAL_USD = "manual_usd"  # `source` do preço manual informado em dólar
@@ -534,9 +535,16 @@ async def set_manual_usd(
     )
 
 
+_HISTORY_OF_DAY = (
+    "SELECT ref_date, price_brl, price_usd FROM asset_price_history "
+    "WHERE ticker = $1 AND ref_date = ($2::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date"
+)
+
+
 async def refresh_manual_usd(conn: asyncpg.Connection) -> int:
     """Refaz o R$ dos preços manuais em dólar pela cotação atual (a data informada fica). Roda
-    depois do preço cripto. Quantos foram refeitos."""
+    depois do preço cripto. O histórico guarda cada dia com a cotação do dia: o dia informado
+    fica como estava e o R$ novo vale a partir de hoje. Quantos foram refeitos."""
     fx = await usd_brl(conn)
     if fx is None:
         return 0
@@ -545,14 +553,40 @@ async def refresh_manual_usd(conn: asyncpg.Connection) -> int:
         "WHERE is_manual AND source = $1 AND price_usd IS NOT NULL",
         MANUAL_USD,
     )
-    for r in rows:
-        await upsert_price(
-            conn,
-            r["ticker"],
-            (Decimal(r["price_usd"]) * fx).quantize(Decimal("0.00000001")),
-            price_usd=float(r["price_usd"]),
-            source=MANUAL_USD,
-            is_manual=True,
-            as_of=r["fetched_at"],
-        )
+    today = today_brt()
+    async with conn.transaction():
+        for r in rows:
+            informed = await conn.fetchrow(_HISTORY_OF_DAY, r["ticker"], r["fetched_at"])
+            brl = (Decimal(r["price_usd"]) * fx).quantize(Decimal("0.00000001"))
+            await upsert_price(
+                conn,
+                r["ticker"],
+                brl,
+                price_usd=float(r["price_usd"]),
+                source=MANUAL_USD,
+                is_manual=True,
+                as_of=r["fetched_at"],
+            )
+            # O trigger regravou o dia informado com a cotação de agora: ele volta ao que era.
+            if informed is not None:
+                await conn.execute(
+                    "UPDATE asset_price_history SET price_brl = $3, price_usd = $4 "
+                    "WHERE ticker = $1 AND ref_date = $2",
+                    r["ticker"],
+                    informed["ref_date"],
+                    informed["price_brl"],
+                    informed["price_usd"],
+                )
+            await conn.execute(
+                "INSERT INTO asset_price_history "
+                "(ticker, ref_date, price_brl, price_usd, source, is_manual) "
+                "VALUES ($1, $2, $3, $4, $5, true) ON CONFLICT (ticker, ref_date) DO UPDATE SET "
+                "price_brl = EXCLUDED.price_brl, price_usd = EXCLUDED.price_usd, "
+                "source = EXCLUDED.source, is_manual = EXCLUDED.is_manual",
+                r["ticker"],
+                today,
+                brl,
+                r["price_usd"],
+                MANUAL_USD,
+            )
     return len(rows)

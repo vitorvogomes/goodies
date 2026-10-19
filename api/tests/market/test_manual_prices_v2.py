@@ -4,10 +4,13 @@ recusado com "{Ativo} tem preço de mercado automático."."""
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
+
+from engines.common.dates import today_brt
 
 
 @pytest.mark.asyncio
@@ -62,7 +65,7 @@ async def test_manual_with_date_and_listing(api: Any, pool: Any, portfolio_user:
 
 @pytest.mark.asyncio
 async def test_manual_price_in_dollars(api: Any, pool: Any, portfolio_user: dict) -> None:
-    """Pedido de 18/10/2026: o token cripto sem cotação se informa em dólar (como nas carteiras);
+    """O token cripto sem cotação se informa em dólar (como nas carteiras);
     o R$ sai da cotação do dólar (USDT/USDC) e é refeito quando ela muda — a data informada fica."""
     from engines.market import service
 
@@ -99,6 +102,16 @@ async def test_manual_price_in_dollars(api: Any, pool: Any, portfolio_user: dict
             )
         assert row["price_brl"] == Decimal("5.61") and row["is_manual"]
         assert str(row["d"]) == "2026-10-01"
+        # O histórico guarda cada dia na cotação do dia: o informado não muda; hoje é o novo.
+        async with pool.acquire() as conn:
+            history = {
+                h["ref_date"]: h["price_brl"]
+                for h in await conn.fetch(
+                    "SELECT ref_date, price_brl FROM asset_price_history WHERE ticker = 'ZZUSD'"
+                )
+            }
+        assert history[date(2026, 10, 1)] == Decimal("5.508")
+        assert history[today_brt()] == Decimal("5.61")
         neither = await api.post("/api/v1/market/prices/ZZUSD", json={}, headers=headers)
         assert neither.status_code == 422
     finally:

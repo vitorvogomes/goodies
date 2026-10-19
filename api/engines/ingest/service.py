@@ -593,8 +593,11 @@ async def undo(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:
         for hook in sorted(_on_undo, key=lambda h: -_undo_layers.get(h, 0)):
             await hook(conn, batch_id)
         months: set[date] = set()
+        after_commit: list[Callable[[], Awaitable[None]]] = []
         for adapter in await _batch_adapters(conn, batch_id):
-            months |= await adapter.undo(conn, batch_id)
+            undone = await adapter.undo(conn, batch_id)
+            months |= undone.months
+            after_commit.extend(undone.after_commit)
         await conn.execute(queries.DELETE_FILES, batch_id)
         await conn.execute(queries.MARK_UNDONE, batch_id)
         port = month_status()
@@ -602,4 +605,6 @@ async def undo(conn: asyncpg.Connection, batch_id: str) -> UndoPreview:
             await port.mark_dirty(conn, month)
         owner = await get_owner_id(conn)
     await invalidate_xirr_cache(owner)
+    for effect in after_commit:
+        await effect()
     return preview

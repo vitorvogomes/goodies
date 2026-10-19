@@ -134,8 +134,8 @@ _history_cache: dict[str, Any] = {}
 
 async def suggestion_history(conn: asyncpg.Connection) -> list[HistoryItem]:
     """Confirmadas, da mais recente para a mais antiga, sem repetir (tokens, categoria, sinal).
-    Guardado enquanto a versão (confirmadas + último evento de categorização) não muda: um lote com
-    vários arquivos não relê e retokeniza o histórico a cada arquivo."""
+    Guardado enquanto a versão (`HISTORY_VERSION`) não muda: um lote com vários arquivos não relê
+    e retokeniza o histórico a cada arquivo."""
     version = tuple(await conn.fetchrow(ledger_queries.HISTORY_VERSION))
     if _history_cache.get("version") == version:
         cached: list[HistoryItem] = _history_cache["items"]

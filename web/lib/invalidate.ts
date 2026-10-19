@@ -3,8 +3,8 @@ import type { QueryClient } from "@tanstack/react-query";
 
 const DEPENDENTS = ["planning", "portfolio", "closing", "alerts", "overview"] as const;
 
-export function invalidateAfter(queryClient: QueryClient, engine: string): Promise<void[]> {
+export function invalidateAfter(queryClient: QueryClient, ...engines: string[]): Promise<void[]> {
   return Promise.all(
-    [engine, ...DEPENDENTS].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+    [...new Set([...engines, ...DEPENDENTS])].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
   );
 }

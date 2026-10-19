@@ -85,6 +85,13 @@ class Applied:
         return self.inserted > 0 or self.wrote_other
 
 
+@dataclass
+class Undone:
+    months: set[date] = field(default_factory=set)  # meses tocados (mark_dirty)
+    # Efeitos fora do banco (cache de preço), rodados só depois do commit.
+    after_commit: list[Callable[[], Awaitable[None]]] = field(default_factory=list)
+
+
 class PlanError(ValueError):
     """Arquivo reconhecido mas inválido (sem lançamentos, conta não cadastrada...)."""
 
@@ -110,6 +117,6 @@ class SourceAdapter(Protocol):
         """O que o desfazer removeria (transações, operações, categorizações, regras...)."""
         ...
 
-    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
+    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> Undone:
         """Remove os fatos do lote e devolve os meses tocados."""
         ...

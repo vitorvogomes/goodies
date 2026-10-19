@@ -167,3 +167,47 @@ def test_no_category_update_outside_categorize() -> None:
             if pattern.search(f.read_text()):
                 offenders.append(rel)
     assert offenders == []
+
+
+@pytest.mark.asyncio
+async def test_role_change_marks_the_months_of_its_transactions(pool: Any) -> None:
+    """Review final: o papel entra ao vivo na poupança e no orçamento; mudar o papel de uma
+    subcategoria (consumo → dívida) passa as transações dela pelo categorize (mês sujo)."""
+    from engines.ledger.models import SubcategoryUpdate
+
+    spy, previous = _Spy(), month_status()
+    register_month_status(spy)
+    try:
+        async with pool.acquire() as conn, conn.transaction():
+            group = await conn.fetchval(
+                "SELECT id FROM category_groups WHERE kind = 'expense' AND NOT is_system LIMIT 1"
+            )
+            cid = str(
+                await conn.fetchval(
+                    "INSERT INTO categories (name, kind, group_id, role, key) VALUES ($1, "
+                    "'expense', $2, 'consumo', $3) RETURNING id",
+                    f"Papel {uuid.uuid4().hex[:6]}",
+                    group,
+                    f"custom:{uuid.uuid4().hex[:12]}",
+                )
+            )
+            tx = await _tx(conn, when=date(2099, 5, 9))
+            await service.categorize(conn, [CategoryChange(tx, cid, "manual")], cause="inline_edit")
+            spy.dirty.clear()
+            await service.update_category(conn, cid, SubcategoryUpdate())
+            untouched = list(spy.dirty)
+            node = await service.update_category(conn, cid, SubcategoryUpdate(role="divida"))
+            moved = await conn.fetchval(
+                "SELECT count(*) FROM categorization_events WHERE transaction_id = $1 "
+                "AND cause = 'move'",
+                tx,
+            )
+            raise _Rollback
+    except _Rollback:
+        pass
+    finally:
+        register_month_status(previous)
+    assert untouched == []  # sem mudança de papel, nada a refazer
+    assert node is not None and node.role == "divida"
+    assert spy.dirty == [date(2099, 5, 1)]
+    assert moved == 1

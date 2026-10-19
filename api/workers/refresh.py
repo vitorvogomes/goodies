@@ -28,6 +28,7 @@ from workers.rf_cdi import run_rf_cdi
 from workers.wallet_workers import _default_fetchers, resolve_owner_id, run_wallet_scan
 
 _LOCK_KEY = 0x60D1E5  # chave fixa do advisory lock do refresh on-demand
+_JOB_LOCK_NS = 0x60D1  # namespace do lock por job (par de chaves: namespace, hashtext(job))
 
 
 @dataclass(frozen=True)
@@ -232,25 +233,34 @@ async def _record(
 
 async def run_and_record(
     pool: asyncpg.Pool, spec: JobSpec, now: datetime, conn: asyncpg.Connection | None = None
-) -> bool:
+) -> bool | None:
     """Roda um job (fail-soft) e grava o heartbeat em job_runs. Usado pelo catch-up e
-    pelo cron — assim /jobs/status enxerga os dois caminhos. Devolve ok."""
-    ok = True
-    error: str | None = None
-    stats: dict[str, Any] = {}
-    try:
-        stats = await spec.run(pool)
-    except Exception as exc:  # fail-soft: um job não derruba os outros
-        ok, error = False, f"{type(exc).__name__}: {exc}"
-    if conn is not None:
-        await _record(conn, spec.name, now, ok, error, stats)
-    else:
-        async with pool.acquire() as own:
-            await _record(own, spec.name, now, ok, error, stats)
-    return ok
+    pelo cron — assim /jobs/status enxerga os dois caminhos. Devolve ok; None quando o mesmo
+    job já está rodando pelo outro caminho (lock por job: cron e catch-up nunca o rodam juntos,
+    o que dobraria a cota da BRAPI ou o pg_dump)."""
+    async with pool.acquire() as lock_conn:
+        got = await lock_conn.fetchval(
+            "SELECT pg_try_advisory_lock($1, hashtext($2))", _JOB_LOCK_NS, spec.name
+        )
+        if not got:
+            return None
+        try:
+            ok = True
+            error: str | None = None
+            stats: dict[str, Any] = {}
+            try:
+                stats = await spec.run(pool)
+            except Exception as exc:  # fail-soft: um job não derruba os outros
+                ok, error = False, f"{type(exc).__name__}: {exc}"
+            await _record(conn or lock_conn, spec.name, now, ok, error, stats)
+            return ok
+        finally:
+            await lock_conn.fetchval(
+                "SELECT pg_advisory_unlock($1, hashtext($2))", _JOB_LOCK_NS, spec.name
+            )
 
 
-async def run_named_job(pool: asyncpg.Pool, name: str, now: datetime) -> bool:
+async def run_named_job(pool: asyncpg.Pool, name: str, now: datetime) -> bool | None:
     """Roda o JobSpec `name` de `default_jobs()` gravando o heartbeat (entrada do cron)."""
     spec = next(s for s in default_jobs() if s.name == name)
     if spec.cron_run is not None:
@@ -288,7 +298,7 @@ async def refresh_stale(
                     results[spec.name] = "fresh"
                     continue
                 ok = await run_and_record(pool, spec, now, lock_conn)
-                results[spec.name] = "ok" if ok else "error"
+                results[spec.name] = "already_running" if ok is None else "ok" if ok else "error"
             return {"status": "ran", "jobs": results}
         finally:
             await lock_conn.fetchval("SELECT pg_advisory_unlock($1)", _LOCK_KEY)

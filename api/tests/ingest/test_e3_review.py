@@ -221,8 +221,9 @@ async def test_malformed_batch_id_and_replan_drops_previous(api, auth_headers, a
 
 
 @pytest.mark.asyncio
-async def test_undo_consolidado_restores_previous_price(api, auth_headers, pool):
+async def test_undo_consolidado_restores_previous_price(api, auth_headers, pool, monkeypatch):
     import main  # noqa: F401
+    from engines.market import service as market_service
 
     t = f"ZE{uuid.uuid4().hex[:2].upper()}3"
     try:
@@ -243,8 +244,26 @@ async def test_undo_consolidado_restores_previous_price(api, auth_headers, pool)
             await api.post(f"{URL}/batches/{last['batch_id']}/undo/preview", headers=auth_headers)
         ).json()
         assert pv["prices"] == 1
+        # O cache só se invalida com o preço de volta já commitado (uma leitura concorrente
+        # que recacheie vê o preço anterior, não o desfeito).
+        seen: list[float] = []
+        real = market_service.invalidate_price_cache
+
+        async def spy(ticker: str) -> None:
+            async with pool.acquire() as other:
+                seen.append(
+                    float(
+                        await other.fetchval(
+                            "SELECT price_brl FROM asset_prices WHERE ticker = $1", ticker
+                        )
+                    )
+                )
+            await real(ticker)
+
+        monkeypatch.setattr(market_service, "invalidate_price_cache", spy)
         r = await api.post(f"{URL}/batches/{last['batch_id']}/undo", headers=auth_headers)
         assert r.status_code == 200, r.text
+        assert seen == [10.0]
         async with pool.acquire() as conn:
             assert (
                 float(
@@ -252,6 +271,14 @@ async def test_undo_consolidado_restores_previous_price(api, auth_headers, pool)
                 )
                 == 10.0
             )
+            # O dia do consolidado desfeito sai do histórico; o anterior fica.
+            history = {
+                r["ref_date"]: float(r["price_brl"])
+                for r in await conn.fetch(
+                    "SELECT ref_date, price_brl FROM asset_price_history WHERE ticker = $1", t
+                )
+            }
+            assert history == {date(2099, 8, 31): 10.0}
     finally:
         async with pool.acquire() as conn:
             batches = [
@@ -269,6 +296,7 @@ async def test_undo_consolidado_restores_previous_price(api, auth_headers, pool)
             )
             await conn.execute("DELETE FROM import_batches WHERE id = ANY($1::uuid[])", batches)
             await conn.execute("DELETE FROM asset_prices WHERE ticker = $1", t)
+            await conn.execute("DELETE FROM asset_price_history WHERE ticker = $1", t)
             await conn.execute("DELETE FROM assets WHERE key = $1", f"b3:{t}")
 
 

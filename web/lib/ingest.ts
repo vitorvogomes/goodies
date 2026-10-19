@@ -50,12 +50,7 @@ export function useConfirmImport() {
         body: JSON.stringify(body),
       }),
     onSuccess: async () => {
-      await invalidateAfter(queryClient, "ingest");
-      await invalidateAfter(queryClient, "ledger");
-      // telas v1 ainda leem estas chaves
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
-      await queryClient.invalidateQueries({ queryKey: ["market"] });
+      await invalidateAfter(queryClient, "ingest", "ledger", "market");
     },
   });
 }
@@ -85,10 +80,8 @@ export function useUndoBatch() {
     mutationFn: (batchId: string) =>
       apiFetch<UndoPreview>(`/api/v1/ingest/batches/${batchId}/undo`, { method: "POST" }),
     onSuccess: async () => {
-      await invalidateAfter(queryClient, "ingest");
-      await invalidateAfter(queryClient, "ledger");
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      // desfazer um consolidado B3 também devolve o preço anterior
+      await invalidateAfter(queryClient, "ingest", "ledger", "market");
     },
   });
 }

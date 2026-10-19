@@ -26,7 +26,7 @@ import asyncpg
 
 from engines.common.assets import CLASS_BY_CATEGORY, AssetCategory
 from engines.common.owner import get_owner_id
-from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError
+from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError, Undone
 from engines.market import service as market_service
 
 from .b3_import import (
@@ -162,6 +162,11 @@ _BATCH_PRICE_TICKERS = """
     SELECT DISTINCT a.price_ref FROM broker_position_snapshots s
     JOIN assets a ON a.id = s.asset_id
     JOIN asset_prices p ON p.ticker = a.price_ref AND p.source = 'b3' AND NOT p.is_manual
+    WHERE s.batch_id = $1::uuid AND a.price_ref IS NOT NULL
+"""
+_BATCH_PRICE_DAYS = """
+    SELECT DISTINCT a.price_ref, s.ref_date FROM broker_position_snapshots s
+    JOIN assets a ON a.id = s.asset_id
     WHERE s.batch_id = $1::uuid AND a.price_ref IS NOT NULL
 """
 _PREVIOUS_SNAPSHOT = """
@@ -412,7 +417,7 @@ class B3Adapter:
             "prices": len(await conn.fetch(_BATCH_PRICE_TICKERS, batch_id)),
         }
 
-    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
+    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> Undone:
         months = {
             r["m"]
             for r in await conn.fetch(
@@ -421,7 +426,9 @@ class B3Adapter:
                 batch_id,
             )
         }
-        # Preço do consolidado desfeito volta ao do consolidado anterior (valor/quantidade).
+        # Preço do consolidado desfeito volta ao do consolidado anterior (valor/quantidade); o
+        # cache só se invalida depois do commit, como no apply.
+        restored: list[str] = []
         for r in await conn.fetch(_BATCH_PRICE_TICKERS, batch_id):
             previous = await conn.fetchrow(_PREVIOUS_SNAPSHOT, r["price_ref"], batch_id)
             if previous is not None:
@@ -433,11 +440,19 @@ class B3Adapter:
                     is_manual=False,
                     as_of=_price_day(previous["ref_date"]),
                 )
-                await market_service.invalidate_price_cache(r["price_ref"])
+                restored.append(r["price_ref"])
+        # O dia do consolidado desfeito sai do histórico (price_as_of não pode mais achá-lo).
+        for r in await conn.fetch(_BATCH_PRICE_DAYS, batch_id):
+            await conn.execute(
+                "DELETE FROM asset_price_history WHERE ticker = $1 AND ref_date = $2 "
+                "AND source = 'b3' AND NOT is_manual",
+                r["price_ref"],
+                r["ref_date"],
+            )
         await conn.execute(
             "DELETE FROM broker_position_snapshots WHERE batch_id = $1::uuid", batch_id
         )
         await conn.execute(
             "DELETE FROM asset_operations WHERE batch_id = $1::uuid AND NOT protected", batch_id
         )
-        return months
+        return Undone(months=months, after_commit=[_invalidate(t) for t in restored])

@@ -350,7 +350,7 @@ def match_fixed_costs(
 
 
 # --------------------------------------------------------------------------------------------
-# Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026): o planejado × recebido
+# Receitas esperadas (Ajustes › Custos e receitas): o planejado × recebido
 # --------------------------------------------------------------------------------------------
 
 INCOME_RECEIVED_SHARE = Decimal("0.99")  # recebeu 99% ou mais: recebido (tarifa, centavos)

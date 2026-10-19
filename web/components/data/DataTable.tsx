@@ -231,7 +231,7 @@ export function DataTable<T extends RowData>({
     if (e.target !== e.currentTarget) return;
     const rows = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>("tr[data-row]") ?? []);
     const i = rows.indexOf(e.currentTarget);
-    if (selection && (e.key === "x" || e.key === "X")) selectRow(id, e.shiftKey);
+    if (selection && e.key.toLowerCase() === "x" && !e.ctrlKey && !e.metaKey && !e.altKey) selectRow(id, e.shiftKey);
     else if (selection && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") selectAll();
     else if (selection && e.key === "Escape" && selection.selected.size > 0) selection.onChange(new Set());
     else if (e.key === "ArrowRight" && renderExpanded) toggle(id, true);

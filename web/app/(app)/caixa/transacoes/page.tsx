@@ -4,7 +4,7 @@
 // "Grupo › Subcategoria", origem da categoria, pagador e conta; a linha expandida mostra fonte,
 // lote e regra aplicada; a categoria se corrige na linha (categorize, origem manual). Filtros por
 // trecho da descrição, tipo, categoria, origem e pagador (como Operações); descrição, pagador e a
-// condição da regra se editam na linha expandida (pedido de 18/10/2026). Linhas selecionáveis com a
+// condição da regra se editam na linha expandida. Linhas selecionáveis com a
 // soma das selecionadas numa barra fixa (clique, Shift+clique, X, Ctrl/⌘+A, Esc limpa).
 import { PlusIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -199,7 +199,7 @@ function FilterBar({
   );
 }
 
-// Barra fixa com a soma das linhas selecionadas (pedido de 18/10/2026).
+// Barra fixa com a soma das linhas selecionadas.
 function SelectionBar({ items, onClear }: { items: LedgerTransaction[]; onClear: () => void }) {
   if (items.length === 0) return null;
   const entradas = items.filter((t) => t.amount > 0).reduce((n, t) => n + t.amount, 0);
@@ -260,6 +260,12 @@ function Transacoes() {
   );
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  // a seleção é do mês: trocar o período começa sem nada selecionado
+  const [selectedIn, setSelectedIn] = useState(periodo);
+  if (selectedIn !== periodo) {
+    setSelectedIn(periodo);
+    setSelected(new Set());
+  }
   // Esc limpa a seleção de qualquer lugar da página (menos de dentro de um campo)
   useEffect(() => {
     if (selected.size === 0) return;

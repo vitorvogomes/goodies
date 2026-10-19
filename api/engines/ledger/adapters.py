@@ -16,7 +16,7 @@ from datetime import date
 import asyncpg
 
 from config import settings
-from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError
+from engines.ingest.protocol import Applied, FilePlan, ParsedFile, PlanError, Undone
 from engines.ledger import queries as ledger_queries
 from engines.ledger import service as ledger_service
 
@@ -205,7 +205,7 @@ class NubankStatementAdapter:
         row = await conn.fetchrow(ledger_queries.UNDO_COUNTS, batch_id)
         return {k: int(row[k]) for k in ("transactions", "categorizations", "rules", "balances")}
 
-    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> set[date]:
+    async def undo(self, conn: asyncpg.Connection, batch_id: str) -> Undone:
         """Sai do lote: as regras criadas nele (as transações de fora que elas categorizaram voltam
         por categorize() sem elas, pendentes), os saldos informados (a âncora da PF é recalculada se
         estava entre eles) e as transações (com as categorizações, FK cascade)."""
@@ -226,4 +226,4 @@ class NubankStatementAdapter:
         # Depois de tirar as transações do lote: a âncora nova não pode contar com elas.
         for r in anchored:
             await ledger_service.recompute_anchor(conn, r["account_id"])
-        return months
+        return Undone(months=months)

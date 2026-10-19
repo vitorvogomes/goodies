@@ -575,8 +575,8 @@ async def create_manual(conn: asyncpg.Connection, body: ManualTransactionCreate)
 async def update_transaction(
     conn: asyncpg.Connection, tx_id: str, body: ManualTransactionUpdate
 ) -> TransactionRow | None:
-    """Manual muda tudo; importada só a categoria, a descrição e o pagador (Story 2.8; descrição e
-    pagador a pedido do Vitor em 18/10/2026 — valor, data e conta seguem os do extrato)."""
+    """Manual muda tudo; importada só a categoria, a descrição e o pagador (Story 2.8) — valor,
+    data e conta seguem os do extrato."""
     if body.category_id is not None and not await queries.category_exists(conn, body.category_id):
         raise LookupError("categoria")
     if body.amount is not None and body.amount == 0:
@@ -816,25 +816,28 @@ async def update_category(
                 target["id"],
                 kind,
             )
-            if kind != current.kind:
-                txs = await conn.fetch(
-                    "SELECT id, category_source, category_rule_id FROM transactions "
-                    "WHERE category_id = $1::uuid",
-                    category_id,
-                )
-                await categorize(
-                    conn,
-                    [
-                        CategoryChange(
-                            str(t["id"]),
-                            category_id,
-                            t["category_source"],
-                            str(t["category_rule_id"]) if t["category_rule_id"] else None,
-                        )
-                        for t in txs
-                    ],
-                    cause="move",
-                )
+        # Tipo ou papel novo muda as contas dos meses das transações dela (o papel entra ao vivo
+        # na poupança e no orçamento): passam pelo categorize, que copia o kind, marca os meses
+        # fechados como sujos e roda os hooks.
+        if kind != current.kind or role != current.role:
+            txs = await conn.fetch(
+                "SELECT id, category_source, category_rule_id FROM transactions "
+                "WHERE category_id = $1::uuid",
+                category_id,
+            )
+            await categorize(
+                conn,
+                [
+                    CategoryChange(
+                        str(t["id"]),
+                        category_id,
+                        t["category_source"],
+                        str(t["category_rule_id"]) if t["category_rule_id"] else None,
+                    )
+                    for t in txs
+                ],
+                cause="move",
+            )
         return await _category_row(conn, category_id)
 
 
@@ -1892,7 +1895,7 @@ class BudgetFacts:
     by_category: dict[tuple[str, str], tuple[Decimal, int]]
     as_of: date | None
     taxa_poupanca: Decimal | None  # fração
-    # pedido de 18/10/2026: todos os grupos de gasto (com os fixos e as dívidas de cada um) e o
+    # todos os grupos de gasto (com os fixos e as dívidas de cada um) e o
     # investimento do mês por categoria (não é custo)
     expense_groups: list[str] = field(default_factory=list)
     fixed_by_group: dict[str, Decimal] = field(default_factory=dict)

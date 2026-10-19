@@ -331,9 +331,16 @@ ANCHORS_IN_BATCH = """
     JOIN account_balances b ON b.account_id = a.id AND b.as_of = a.opening_balance_date
     WHERE b.batch_id = $1::uuid
 """
+# Muda com o que muda o histórico de sugestões: o banco, as confirmadas (quantas e as
+# descrições), o último evento de categorização e as categorias arquivadas.
 HISTORY_VERSION = """
-    SELECT (SELECT count(*) FROM transactions WHERE review_status = 'confirmed'),
-           (SELECT max(created_at) FROM categorization_events)
+    SELECT current_database(),
+           (SELECT count(*) FROM transactions WHERE review_status = 'confirmed'),
+           (SELECT sum(hashtext(coalesce(description, ''))) FROM transactions
+            WHERE review_status = 'confirmed'),
+           (SELECT max(created_at) FROM categorization_events),
+           (SELECT md5(coalesce(string_agg(id::text, ',' ORDER BY id), '')) FROM categories
+            WHERE NOT is_active)
 """
 LAST_DATE_IN_MONTH = """
     SELECT max(date) FROM transactions

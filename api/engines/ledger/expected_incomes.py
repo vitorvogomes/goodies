@@ -1,4 +1,4 @@
-"""Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026): o cadastro (nome, valor,
+"""Receitas esperadas (Ajustes › Custos e receitas): o cadastro (nome, valor,
 dia, pagador, vigência; "só neste mês" = vigência de um mês) e o recebido de cada uma no mês,
 derivado na leitura das entradas do trabalho (`calc.match_expected_incomes`) — nada gravado."""
 
