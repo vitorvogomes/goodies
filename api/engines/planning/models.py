@@ -41,7 +41,7 @@ class ConsumedGroup(BaseModel):
     pct: Pct
     count: int
     subcategories: list[ConsumedSub]
-    # pedido de 18/10/2026: o que o grupo pagou em custo fixo e em dívida (fora do consumido)
+    # o que o grupo pagou em custo fixo e em dívida (fora do consumido)
     fixos: Money = Decimal(0)
     dividas: Money = Decimal(0)
 
@@ -83,7 +83,7 @@ class MonthBudget(BaseModel):
     grupos_total: Money  # Σ dos grupos (consumido antes das devoluções); base dos %
     # False: mês fechado antes do orçamento existir — só os totais congelados, sem o detalhe
     detalhe: bool = True
-    # pedido de 18/10/2026 (fora dos termos do golden): o investimento do mês por categoria (não é
+    # fora dos termos do golden: o investimento do mês por categoria (não é
     # custo), o aporte planejado − realizado e as receitas esperadas × recebidas; o a receber entra
     # num disponível à parte
     investido_por_categoria: list[ConsumedSub] = Field(default_factory=list)

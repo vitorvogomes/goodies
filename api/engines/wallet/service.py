@@ -327,7 +327,7 @@ async def positions_as_of(conn: asyncpg.Connection, day: date) -> list[dict[str,
 
 async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, str]]:
     """Precondição do fechamento (Story 5.3): sem scan de cripto no último dia do mês, o bloco é
-    estimado — pede "fechar mesmo assim". Pedido de 18/10/2026: sem cripto até o fim do mês, nada;
+    estimado — pede "fechar mesmo assim". Sem cripto até o fim do mês, nada;
     antes do primeiro scan das carteiras (o histórico não é recuperável), o bloco vale o aplicado e
     o aviso é só informativo; depois, o aviso diz de que dia são as quantidades usadas."""
     from engines.common.dates import month_end, month_label

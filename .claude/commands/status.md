@@ -12,6 +12,9 @@ Leia `PROGRESS.md` (v2) e retorne:
 5. **Gate do marco** — o bloco "Gate marco k" do `PROGRESS.md`
 6. **Bloqueadores** — stories `[!]`
 
+Com as 78 stories `[x]` (v2.0 concluída), diga isso e mostre no lugar da próxima story: os gates pendentes do
+`PROGRESS.md` (hoje só o m4, nas métricas de uso) e as pendências abertas de `docs/v2/PENDENCIAS-VITOR.md`.
+
 Formato:
 ```
 Marco: 1 — Ritual confiável (Épicos 1–5)

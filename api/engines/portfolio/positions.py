@@ -61,7 +61,7 @@ class PositionAsset(BaseModel):
     valor: Valued[Decimal]  # "preço de dd/mm/aaaa" = as_of + stale; sem preço → sem_preco
     resultado: Money | None
     manual: bool = False
-    # pedido de 18/10/2026: o resultado desde o primeiro aporte (valor − aplicado + proventos), ao
+    # o resultado desde o primeiro aporte (valor − aplicado + proventos), ao
     # lado do resultado do período; no bloco cripto, None por ativo (custo por ativo não existe)
     resultado_total: Money | None = None
     valor_usd: Money | None = None  # cripto: o valor em dólar (como nas carteiras)

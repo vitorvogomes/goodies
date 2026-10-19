@@ -1,6 +1,7 @@
 # Pendências para o Vitor — v2.0
 
-Coisas que precisam de você. A implementação dos épicos segue sem parar; resolvemos esta lista no final.
+Coisas que precisam de você. **Estado em 18/10/2026:** todas resolvidas menos a P15 (SM-1 conta desde 18/10/2026; o
+gate m4 roda a partir de 17/11/2026, com o extrato de novembro importado pelo Hub para a SM-5).
 Cada item diz o que é, por que ficou para você e o que eu recomendo.
 
 | # | Desde | Pendência | Por que é sua | Recomendação |

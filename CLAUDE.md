@@ -1,7 +1,12 @@
 # Goodies — CLAUDE.md
 
 Plataforma pessoal de controle financeiro. Usuário único: Vitor.
-Referências completas: `docs/project-context.md` | backlog v2: `docs/v2/planning/epics.md` (v1 em `docs/v1/`)
+Referências: spine `docs/v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md` | backlog v2:
+`docs/v2/planning/epics.md` | pendências do Vitor: `docs/v2/PENDENCIAS-VITOR.md` (histórico da v1 em `docs/v1/`)
+
+**Estado (18/10/2026):** v2.0 implementada — 78/78 stories, gates m1–m3 PASS. O m4 só espera as métricas de uso
+(SM-1 ≥ 30 dias desde 18/10/2026, a partir de 17/11/2026; SM-5 com o 1º extrato pelo Hub) — rodar `/gate m4` depois.
+Trabalho novo agora é ajuste/análise pedido no dia a dia: TDD do mesmo jeito, commit local, `PROGRESS.md` no log.
 
 ---
 
@@ -44,7 +49,7 @@ Roteamento autoritativo em `.claude/memory/skills.md` (área→skill + matriz mi
 Para SQL use `supabase-postgres-best-practices` (só o conteúdo Postgres). **Nunca** use skills de Supabase para
 auth/JWT/login (é JWT custom no FastAPI — ADR-006), supabase-js/RLS/Edge Functions ou migrations (são **Alembic**).
 
-Lacunas sem skill (Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD):
+Lacunas sem skill (Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR):
 seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
 
 ---
@@ -121,7 +126,7 @@ NUNCA retornar HTTP 5xx por falha de API externa.
 Todos os marcos exigem: suíte verde com cobertura ≥ 80%, `pnpm test/lint/build`, `GET /api/v1/health` → 200 com
 postgres+redis, banco em `head` e **nenhum teste `dados_reais` pulado**. Gate de dados permanente:
 **taxa de poupança de cada mês = a do baseline fixado** (desde a Story 2.6, a fórmula v2 de `ledger/calc` fixada em
-`api/tests/dados_reais/pinned_savings_v2.txt`: jun/2026 = 56,87%, era 57,46% na v1; os 55,48% da planilha não são
+`api/tests/dados_reais/pinned_savings_v2.txt` — que aponta para a lista no `BACKUP_DIR/baseline`: jun/2026 = 56,87%, era 57,46% na v1; os 55,48% da planilha não são
 reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015).
 
 | Marco | Épicos | Gate (`/gate mK`) |

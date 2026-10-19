@@ -1010,7 +1010,7 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
 
 def _monthly_pct(annual: Valued[Decimal]) -> Decimal | None:
     """XIRR % a.a. → o equivalente % a.m. ((1 + a)^(1/12) − 1): o mesmo rendimento, sem o efeito
-    de anualizar um mês bom (pedido de 18/10/2026: o XIRR "parecia exagerado")."""
+    de anualizar um mês bom."""
     if annual.value is None:
         return None
     monthly = portfolio_calc.monthly_rate(float(annual.value) / 100)
@@ -1177,7 +1177,7 @@ async def period_return(
 ) -> PeriodReturn:
     """XIRR do período: valor no fim do mês anterior (snapshot ou valoração), os fluxos líquidos
     datados de cada mês (snapshot ou ao vivo) e o valor no fim; o real desconta o IPCA efetivo.
-    `estimate_ipca` (Posições, pedido de 18/10/2026): sem o IPCA do último mês, usa o último
+    `estimate_ipca` (Posições): sem o IPCA do último mês, usa o último
     publicado em vez de "aguardando IPCA" — o Carimbo `ipca_ate` diz até quando é oficial."""
     found = await _class_values_at(conn, add_months(months[0], -1))
     if found is None:

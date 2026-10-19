@@ -6,7 +6,7 @@
 // dd/mm/aaaa" com ponto de aviso; sem preço: "—" + "sem preço"; preço manual: Selo "manual".
 // XIRR nominal × real do período por classe e consolidado; por ativo, % a.m. (Story 7.3).
 // Alocação × meta ± banda e desvio em p.p. (Story 8.3); os ativos de objetivos no bloco "Objetivos",
-// fora da base da alocação mas no patrimônio. Pedido de 18/10/2026: resultado total (desde o primeiro
+// fora da base da alocação mas no patrimônio. Resultado total (desde o primeiro
 // aporte) ao lado do resultado do período, XIRR com o equivalente ao mês e a explicação, a régua da
 // banda e o cripto também em US$.
 import { ChevronRightIcon } from "lucide-react";

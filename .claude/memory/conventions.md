@@ -24,7 +24,8 @@ Invariantes completos no spine: `docs/v2/planning/architecture/architecture-good
 ### Engines e camadas (AD-1)
 
 `common` ← `market`/`ingest`/`jobs` ← `ledger`/`wallet` ← `portfolio` ← `planning` ← `closing` ← `alerts` ←
-`overview`. Engine só importa engine de camada **menor**; engine baixa recebe o que precisa de cima por registro
+`overview` (`jobs` é a camada dos jobs — no código, `api/workers/`, rotas em `/api/v1/jobs`). Engine só importa
+engine de camada **menor**; engine baixa recebe o que precisa de cima por registro
 feito em `main.py`. `api/workers/` e `main.py` são a casca; nenhuma engine os importa.
 Movimentos obrigatórios da AD-1 (enums → `common`, `PriceCache` → `common.cache`...) acontecem na primeira
 story que toca o módulo; **atribuição explícita de um movimento a uma story vence essa regra**.
@@ -99,20 +100,21 @@ from decimal import Decimal
 
 def test_taxa_poupanca_junho_2026() -> None:
     rate = savings_rate(work_income=Decimal("..."), expenses=Decimal("..."), refunds=Decimal("..."))
-    assert rate.quantize(Decimal("0.0001")) == Decimal("0.5548")
+    assert rate.quantize(Decimal("0.0001")) == PINNED["2026-06"]  # baseline por mês (ADR-016)
 ```
 
 ### Banco e migrações (AD-16, AD-18)
 
 - Alembic em `api/db/migrations/versions/NNNN_snake_name.py` (revision = nome do arquivo); modelo e backfill na
-  mesma revisão, SQL idempotente; cada revisão de dado com teste de invariantes (55,48%, contagens, zero órfãs,
+  mesma revisão, SQL idempotente; cada revisão de dado com teste de invariantes (poupança por mês = baseline fixado, contagens, zero órfãs,
   deltas esperados).
 - **Backup antes de toda migração** (`pg_dump` em `BACKUP_DIR`). Nunca `docker compose down -v`.
 - Tabelas novas com `user_id` NOT NULL (`common.owner.get_owner_id`). Enums persistidos = `text` + `CHECK`.
 
 ## TypeScript (web/)
 
-- **Linting:** `pnpm lint` (ESLint); **testes:** Vitest só em utilitários puros (`format`, período)
+- **Linting:** `pnpm lint` (ESLint); **testes:** Vitest em utilitários puros (`format`, período) e nos guardas
+  estáticos (`web/tests/`: no raw color, estados vazios de Ajustes)
 - **Imports:** path aliases (`@/components/...`)
 - **Componentes:** PascalCase, um por arquivo; primitivos shadcn em `web/components/ui/` (`shadcn init -b radix`;
   o new-york no CLI 4 é o preset Vega → `style: "radix-vega"` no `components.json`; nunca `init -d`),
@@ -125,7 +127,7 @@ def test_taxa_poupanca_junho_2026() -> None:
   `formatBRL()`/`formatPercent()` de `@/lib/format` (só formatam — nunca somam)
 - **Cores:** só tokens do DESIGN.md (`app/globals.css`, `@theme inline`), claro e escuro; nunca hex em componente.
   O teste "no raw color" (`pnpm test`) barra hex/`rgb()`/`hsl()`/`oklch()` e classe de paleta fora do
-  `globals.css`; a lista de exceções v1 do teste só diminui
+  `globals.css`, sem lista de exceções (zerada na Story 10.6)
 - **Theme-showcase:** toda story que cria componente o acrescenta ao `/dev/tema`
   (`web/app/dev/tema/page.tsx`), em todos os estados, claro e escuro lado a lado
 - **Tipografia em classe:** `type-page-title`, `type-section-title`, `type-body(-sm)`, `type-label`,

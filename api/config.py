@@ -51,10 +51,6 @@ class Settings(BaseSettings):
     # interna" (fora do caixa). Vazio = sem detecção. Definir no .env (PII).
     ledger_self_identifiers: str = ""
 
-    # Valoração pós-fixada (pré-m3): CDI anual de referência (fração) p/ caixinhas/CDB
-    # do Nubank (engines.portfolio.rf_cdi). Provisório — o m5 importa a série do BCB.
-    cdi_anual: float = 0.1065
-
     # Data de avaliação única (§3.1): "hoje" do XIRR/valoração. Vazio/ausente → data
     # corrente. Fixar via env EVALUATION_DATE=YYYY-MM-DD p/ reproduzir o gate ou gerar
     # relatórios "as-of" determinísticos (service + workers + validate_xirr + seeds).

@@ -1,6 +1,6 @@
 """Renda fixa pelo CDI real (Story 7.4 — FR-23): o valor de caixinhas e CDBs com %CDI cadastrado
 no ativo (`assets.valuation = 'cdi'`, `assets.pct_cdi`) sobre o CDI diário publicado pelo BCB
-(`benchmark_data`, Story 7.2) — nunca uma taxa fixa (`settings.cdi_anual` não entra).
+(`benchmark_data`, Story 7.2) — nunca uma taxa fixa.
 
 Cada aporte rende Π(1 + CDI do dia × %CDI) pelos dias úteis de CDI publicado desde a data dele até a
 data pedida; o resgate sai pelo valor que renderia (a aproximação de sempre, desprezível com pouco

@@ -16,7 +16,8 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool   # postgres 
 - Todas as stories do marco `[x]` no `PROGRESS.md`.
 
 **m1 — Ritual confiável:**
-- Poupança de jun/2026 = 55,48% (teste `dados_reais`), contagens iguais, zero órfãs e só os deltas esperados no script
+- Poupança de cada mês = a lista v2 fixada (`pinned_savings_v2.txt`, ADR-016; jun/2026 = 56,87%) nos testes
+  `dados_reais`, contagens iguais, zero órfãs e só os deltas esperados no script
   de comparação mês × categoria.
 - Invariantes contra o baseline da Story 1.3: XIRR consolidado/por ativo, caixinhas, aplicado Flash = baseline (R$ 16.000,00: 16 integralizações de jul/2025 a out/2026).
 - UJ-1 executada no app: importar → revisar → conta PF "conferido". UJ-5: meses de jun/2026 até o anterior fechados.
@@ -31,5 +32,6 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool   # postgres 
 - SM-1 iniciada (`metricas --sm1-inicio`).
 
 **m4 — Histórico e ajustes completos:**
-- `python -m scripts.ops.metricas` mostra SM-1 ≥ 30 dias seguidos; SM-2, SM-3 e SM-5 na meta.
+- `python -m scripts.ops.metricas` mostra SM-1 ≥ 30 dias seguidos; SM-2, SM-3 e SM-5 na meta. (Em 18/10/2026 SM-2
+  e SM-3 já estavam na meta; SM-1 conta desde 18/10/2026 e SM-5 espera o 1º extrato importado pelo Hub.)
 - Nenhuma rota v1 sem substituto; lista de exceção do "no raw color" vazia.

@@ -2,8 +2,8 @@
 
 // Barra lateral (DESIGN.md › sidebar, EXPERIENCE › Information Architecture): as 4 áreas e o botão
 // Importar fixo. Item ativo = área da rota. Abaixo de 1024px empilha acima do conteúdo. A partir de
-// 1024px recolhe para uma faixa de ícones (pedido do Vitor em 18/10/2026: ganhar espaço para as
-// tabelas) — a escolha fica lembrada no navegador.
+// 1024px recolhe para uma faixa de ícones (mais espaço para as tabelas) — a escolha fica lembrada
+// no navegador.
 import {
   LayoutDashboardIcon,
   type LucideIcon,

@@ -5,7 +5,7 @@
 // pagador; Dívidas do mês é input inline (Enter grava, Esc reverte, anuncia o disponível novo);
 // disponível ou restante negativo em vermelho com "−" e ▼ e a nota; abaixo, o consumo financiado
 // por resgate (dividido em por objetivo × por resgate da carteira — Story 8.1) e o restante sem os
-// resgates. Pedido de 18/10/2026: o aporte planejado × realizado e as receitas esperadas (Ajustes ›
+// resgates. Abaixo, o aporte planejado × realizado e as receitas esperadas (Ajustes ›
 // Custos e receitas) × recebidas; o que falta receber dá um disponível à parte (a conta não muda).
 import { type ReactNode, useState } from "react";
 

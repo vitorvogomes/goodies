@@ -1,7 +1,7 @@
 # Skills — Roteamento por story / milestone
 
 > **Fonte autoritativa de roteamento de skills.** O comando `/story` consulta este
-> arquivo (+ o frontmatter `skills:` da story) para anunciar e invocar as skills certas.
+> arquivo para anunciar e invocar as skills certas.
 > Skills só disparam de forma confiável quando **surfaçadas explicitamente** — não
 > confie no auto-trigger sozinho (ver guardrails no fim).
 
@@ -27,27 +27,9 @@
 | Testes de frontend (componentes, hooks, utils) | `vitest-testing` |
 | Procurar skill para uma lacuna | `find-skills` (critério: fonte oficial ou ≥1K installs; auditar antes) |
 | Logs (structlog), Sentry, métricas, tracing | `python-observability` |
-| Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR, CI/CD | **sem skill** → `decisions.md` + `conventions.md` + TDD/`systematic-debugging` |
+| Redis cache, worker APScheduler, fetcher httpx, scipy/XIRR | **sem skill** → `decisions.md` + `conventions.md` + TDD/`systematic-debugging` |
 
-## B) Matriz milestone → skills
-
-> Cobre as ~90 stories que existem só como linha no `PROGRESS.md`. Quando uma story
-> vira arquivo em `docs/v1/06_Stories/`, ela recebe o frontmatter `skills:` (seção C).
-
-| Milestone | Skills que devem ser acionadas | Lacunas (sem skill → conventions/decisions) |
-|---|---|---|
-| **m0** Foundation | tdd, api-design-principles, supabase-postgres-best-practices, supabase¹, next-best-practices, frontend-design, ui-ux-pro-max, systematic-debugging | Redis conn |
-| **m1** Ledger | tdd, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max, next-best-practices, systematic-debugging | migração CSV |
-| **m2** Portfolio | tdd, systematic-debugging, supabase-postgres-best-practices, api-design-principles, frontend-design, ui-ux-pro-max | XIRR/scipy, migração CSV |
-| **m3** Market | tdd, api-design-principles, systematic-debugging, frontend-design, ui-ux-pro-max | Redis cache, fetcher httpx, worker APScheduler |
-| **m4** Broker | tdd, systematic-debugging, frontend-design, ui-ux-pro-max | fetcher, worker; **Liquid = ADR-005 (client dedicado)** |
-| **m5** Analytics | tdd, systematic-debugging, api-design-principles, supabase-postgres-best-practices, frontend-design, ui-ux-pro-max | projeção/anuidade scipy |
-| **m6** Observability | **python-observability**, tdd, systematic-debugging, api-design-principles | rate limiting (slowapi) |
-| **m7** Frontend | next-best-practices, frontend-design, ui-ux-pro-max, tdd, systematic-debugging | — |
-
-¹ `supabase` em m0 **só** para contexto de conexão Postgres — **nunca** auth (ver guardrails).
-
-### B2) Goodies v2 — épico → skills (usado pelo `/story`)
+## B) Goodies v2 — épico → skills (usado pelo `/story`)
 
 | Épico v2 (`docs/v2/planning/epics.md`) | Skills |
 |---|---|
@@ -64,14 +46,10 @@
 
 Lacunas sem skill (Redis, APScheduler, fetcher httpx, scipy/XIRR): seguir `decisions.md` + `conventions.md` + TDD.
 
-## C) Frontmatter `skills:` nas stories
+## C) Skills por story
 
-Toda story em `docs/v1/06_Stories/STORY-*.md` declara, ao lado de `tags:`:
-```yaml
-skills: [test-driven-development, <skill-de-área>]
-skills_evitar: [supabase]   # só onde há risco de misfire (ex.: auth)
-```
-`/story` lê esse bloco; se ausente, deriva da matriz (B) pelo milestone da story.
+As stories da v2 vivem em `docs/v2/planning/epics.md` (sem arquivo próprio): `/story` usa a tabela B pelo épico.
+Trabalho novo fora do backlog (ajuste pedido no dia a dia) escolhe pela tabela A.
 
 ## D) Built-in (não precisa instalar)
 - Review de PR/diff → comando `/code-review` + agente `code-reviewer` (nativos).
@@ -107,7 +85,7 @@ Candidatos avaliados e **não instalados** (sem fonte de bom fit no registry):
 
 Para instalar mesmo assim: `npx skills find "<termo>"` e validar a fonte antes.
 
-## D) Instalação de skills (layout do repo)
+## G) Instalação de skills (layout do repo)
 
 - Skills vivem **só** em `.claude/skills/<nome>/` (diretórios reais, versionados). A pasta
   `.agents/` foi removida em 2026-10-17 — não recriar.

@@ -1,6 +1,6 @@
 """Story 7.4 — renda fixa pelo CDI real: cada aporte rende o %CDI do ativo sobre o CDI diário
 publicado (benchmark_data) até a data; depois do último CDI não rende ("CDI até"); dia útil sem CDI
-publicado usa o mais próximo e marca estimado. `settings.cdi_anual` não entra."""
+publicado usa o mais próximo e marca estimado."""
 
 from __future__ import annotations
 

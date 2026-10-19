@@ -4,7 +4,7 @@
 // (a lista vem da API), com valor + data editáveis na linha — Enter grava, Esc reverte. O preço é
 // gravado pelo `market` com is_manual (nunca expira; o worker não sobrescreve); ativo com cotação
 // automática é recusado com "{Ativo} tem preço de mercado automático.". Token cripto: o preço se
-// informa em US$ (como nas carteiras) e o R$ segue a cotação do dólar (pedido de 18/10/2026).
+// informa em US$ (como nas carteiras) e o R$ segue a cotação do dólar.
 import { useState } from "react";
 import { toast } from "sonner";
 

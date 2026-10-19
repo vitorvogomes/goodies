@@ -475,7 +475,7 @@ async def close_checks(conn: asyncpg.Connection, month: date) -> list[dict[str, 
     has = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM broker_position_snapshots WHERE ref_date = $1)", end
     )
-    # pedido de 18/10/2026: sem posição na B3 no fim do mês, não há o que o consolidado conferir
+    # sem posição na B3 no fim do mês, não há o que o consolidado conferir
     held = await conn.fetchval(
         "SELECT EXISTS (SELECT 1 FROM (SELECT asset_symbol, sum(CASE WHEN tipo IN "
         "('compra', 'aporte') THEN quantidade WHEN tipo IN ('venda', 'resgate') THEN -quantidade "

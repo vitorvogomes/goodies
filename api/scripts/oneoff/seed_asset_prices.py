@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed manual asset prices from docs/Utils/posicao.json. Idempotent (upsert).
+"""Seed manual asset prices from docs/v1/Utils/posicao.json. Idempotent (upsert).
 
 Em m2 nao ha Market Engine: a valoracao de posicoes usa o ultimo preco manual.
 Este script popula asset_prices com os valores disponiveis no snapshot da carteira:
@@ -21,7 +21,7 @@ from config import settings
 from db.connection import close_pool, get_pool, init_pool
 from engines.portfolio.service import upsert_price
 
-_POSICAO = Path(__file__).resolve().parents[3] / "docs" / "Utils" / "posicao.json"
+_POSICAO = Path(__file__).resolve().parents[3] / "docs" / "v1" / "Utils" / "posicao.json"
 
 
 def _manual_prices() -> list[tuple[str, float]]:

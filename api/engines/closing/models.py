@@ -204,5 +204,5 @@ class PositionsReport(BaseModel):
     xirr_nominal: Valued[Decimal]  # consolidado do período, % a.a.
     xirr_real: Valued[Decimal]  # descontado o IPCA do período; sem o IPCA do último mês: aguardando
     ipca_ate: date | None  # último mês com IPCA publicado
-    resultado_total: Money = Decimal(0)  # desde o primeiro aporte (pedido de 18/10/2026)
+    resultado_total: Money = Decimal(0)  # desde o primeiro aporte
     xirr_mensal: Pct | None = None  # o XIRR nominal consolidado ao mês

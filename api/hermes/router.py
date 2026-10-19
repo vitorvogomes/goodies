@@ -87,7 +87,7 @@ async def _insert(
             body.description,
         )
     except asyncpg.ForeignKeyViolationError:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "conta inexistente") from None
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "conta inexistente") from None
     return HermesResult(
         id=str(row["id"]),
         date=row["date"].isoformat(),

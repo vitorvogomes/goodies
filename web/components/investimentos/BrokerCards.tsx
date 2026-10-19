@@ -5,7 +5,7 @@
 // de dd/mm/aaaa", fora do patrimônio), com o Carimbo de data do relatório. "Saldo que vejo na
 // corretora" (valor + data) grava a conferência; calculado × informado, diferença > R$ 1,00 =
 // Selo "divergente". Só a corretora (B3) guarda caixa; nos outros trilhos o resíduo é diferença de
-// conciliação, fora do patrimônio (pedido de 18/10/2026). Os números vêm da API.
+// conciliação, fora do patrimônio. Os números vêm da API.
 import { useState } from "react";
 import { toast } from "sonner";
 

@@ -48,8 +48,9 @@
 - `LBTC_ASSET_ID` e `LUSDT_ASSET_ID` são constantes **públicas** da Liquid Network, mas
   por escolha do Vitor são **env-managed** (`${...}` nos arquivos, valor só no `.env`) —
   mesmo tratamento dos endereços. Ver ADR-005.
-- O m4 adicionou 6 fetchers de wallet. Todos os endereços (`WALLET_RABBY_ADDRESS`,
-  `WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_SIDESWAP_ADDRESS`, `WALLET_TRUST_BTC_ADDRESS`) e
+- Os fetchers de wallet leem endereços do `.env`. Todos os endereços (`WALLET_RABBY_ADDRESS`,
+  `WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_SIDESWAP_ADDRESS`, `WALLET_TRUST_BTC_ADDRESS`,
+  `WALLET_NEOBANKLESS_ADDRESS` — o depósito Neobankless, lido pelo scan Solana) e
   as URLs de RPC/base (`SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `BTC_BASE_URL`,
   `LIQUID_BASE_URL`) são `.env`-managed — mesma tier das API keys.
 - **SideSwap** é confidencial (entrada manual): só o **endereço** é env-managed; não há
@@ -57,7 +58,7 @@
 
 ## 6. Dados financeiros
 
-- `docs/Utils/posicao.json` contém posições reais (mantido por escolha do dono).
+- `docs/v1/Utils/posicao.json` contém posições reais (mantido por escolha do dono).
   Se o repo for tornado público, revisar antes: posições/saldos são sensíveis.
 - Logs: `structlog` — **nunca** logar valores financeiros em texto plano (CLAUDE.md).
 

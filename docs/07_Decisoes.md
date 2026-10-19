@@ -10,6 +10,9 @@ tags: [goodies, adr, decisoes, arquitetura]
 
 > Registro formal de decisões técnicas relevantes.
 > Uma decisão aqui = não precisa ser re-discutida na implementação.
+> Na v2, os invariantes de arquitetura (AD-1..AD-19) estão no
+> [ARCHITECTURE-SPINE](v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md); onde um ADR
+> abaixo descreve a v1, a nota **Na v2** diz o que vale hoje.
 
 ---
 
@@ -270,6 +273,9 @@ A planilha tratava resgates de caixinha Nubank como receita, inflando a taxa de 
 ### Decisão
 - **Aplicação E resgate de caixinha são `kind='investment'`** (o resgate volta positivo e neta o `total_invested`) — nunca `income`.
 - Caixinhas/CDB Nubank viram ativos `asset_category='Renda Fixa'` (registro config-driven em `engines/portfolio/caixinhas.py`), valorados por `rf_cdi.py` com `settings.cdi_anual` (provisório até m5/BCB; `is_manual=true`, worker não sobrescreve — ADR-004).
+- **Na v2:** as operações das caixinhas vêm das transações (Story 7.5; a escolha manual em `transaction_caixinha`
+  vence) e o valor é `portfolio/rf.cdi_value` sobre o CDI diário publicado (`benchmark_data`, Story 7.4), com os saldos
+  informados em Ajustes › Preços manuais como âncora (`rf_balance_anchors`, 0047). A constante `cdi_anual` saiu.
 - **Santander = conta externa:** `income/Extra` do Santander conta como receita externa, não transferência interna.
 
 ### Consequências
@@ -287,11 +293,13 @@ O m3 automatizou preços (BRAPI/CoinGecko/Tesouro) com workers APScheduler, reus
 
 ### Decisão
 - **Preços sob `/api/v1/market/*`** (contrato Pydantic `PriceOut`); o antigo `PUT /portfolio/prices` foi **removido**.
-- **`portfolio.service.upsert_price` é o chokepoint único de escrita**, com precedência **`is_manual`** (worker nunca sobrescreve manual) e invalidação do cache de XIRR (ADR-008) + cache Redis de preço dentro do fluxo. `is_manual=true` ⇒ nunca `stale`.
+- **`market.service.upsert_price` é o chokepoint único de escrita** (na v1 ficava em `portfolio.service`), com precedência **`is_manual`** (worker nunca sobrescreve manual) e invalidação do cache de XIRR (ADR-008) + cache Redis de preço dentro do fluxo. `is_manual=true` ⇒ nunca `stale`.
 - **Free-tier (cadência diária B3/Tesouro):** BRAPI grátis = 1.000 req/mês (1 ativo/req) → `price_b3` 1×/dia útil 19h; **Tesouro via Tesouro Transparente CSV** (open data, sem WAF). `ttl_b3=ttl_tesouro=26h`.
 
 ### Consequências
 - `EVALUATION_DATE` única threada por service + seeds + validador. **Cripto/Binance só via cron (m4).** Ver `docs/v1/12_Gate_M3_Market.md`.
+- **Na v2:** o token cripto sem cotação tem preço manual em US$ (`source='manual_usd'`); o R$ segue a cotação do dólar
+  (USDT/USDC) a cada `price_crypto`, e o histórico guarda cada dia na cotação do dia.
 
 ---
 
@@ -309,9 +317,13 @@ O m4 escaneia carteiras cripto on-chain + Binance (6 fetchers) gravando `wallet_
 - **Posições manuais** (`is_manual=true`, p/ Liquid confidencial): o sweep nunca as apaga e elas nunca ficam `stale`; editáveis inline na UI (upsert).
 - **Valoração manual/DeFi** reusa o preço do m3 via aliases em `coingecko_ids` (chave UPPER). **Id da API CoinGecko ≠ slug do site** (`susdai`, não `staked-usdai`); YT-xSOL fica sem fonte (decisão).
 - **Reconciliação é só cripto** (`reconcile` filtra `asset_operations` por `CRYPTO_CATEGORIES`); B3 e caixinhas Nubank vêm por outra via.
+- **Na v2:** Investimentos › Conciliação confere o consolidado B3 (quantidade e valor por ativo, com as notas
+  explicadas de bonificação e direito de subscrição) e as carteiras (Story 7.9). Nos trilhos do Nubank, só a corretora
+  (B3) guarda caixa esperando virar ativo (`transit.Rail.holds_cash`); Tesouro, RF Nubank e Flash mostram o resíduo
+  como diferença de conciliação.
 
 ### Consequências
-- Débito conhecido (ver `docs/15_Debito_Tecnico.md`): aliases DeFi carregam sufixo de vencimento; manual+escaneado do mesmo ativo pode contar dobrado; valoração de wallet/DeFi ignora a camada de cache do m3.
+- Débito conhecido na época (ver `docs/v1/15_Debito_Tecnico-v1.md`): aliases DeFi carregam sufixo de vencimento; manual+escaneado do mesmo ativo pode contar dobrado; valoração de wallet/DeFi ignora a camada de cache do m3.
 
 ---
 
@@ -338,8 +350,8 @@ Supabase, Upstash, Fly e Vercel não são usados; `DATABASE_URL`/`REDIS_URL` só
 
 ### Decisão
 Resgate de caixinha/RF/corretora é receita, exibido em linha própria e reclassificado em todo o histórico (FR-19,
-migração idempotente). A taxa de poupança usa a **receita do trabalho** (sem resgates), então o gate
-jun/2026 = 55,48% continua válido.
+migração idempotente). A taxa de poupança usa a **receita do trabalho** (sem resgates). (O gate de 55,48% citado
+aqui foi substituído pelo baseline por mês do ADR-016.)
 
 ### Consequências
 O ADR-011 fica substituído nesse ponto. Ver spine AD-6/AD-7/AD-16.
@@ -361,9 +373,3 @@ Os 55,48% da planilha não são reproduzíveis pela base; o invariante das revis
 cada mês igual à do baseline fixado (jun/2026 = 57,46% na v1; desde a Story 2.6, 56,87% na fórmula v2 fixada em
 `pinned_savings_v2.txt`), salvo deltas esperados listados. Ver
 `.claude/memory/decisions.md`.
-
----
-
-*→ [[02_Arquitetura]]*
-*→ [[01_PRD]]*
-*→ [[00_Sistema/MOCs/MOC_Vitor.html]]*

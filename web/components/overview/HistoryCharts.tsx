@@ -3,7 +3,7 @@
 // Os três gráficos do Histórico (Story 9.3 — FR-34, AR25, UX-DR42; DESIGN › chart-net-worth,
 // chart-spending, chart-contribution): patrimônio (linha 2px chart-1, aplicado tracejado chart-3,
 // grade só horizontal, sem área, lacuna onde o patrimônio não é coberto), gastos por grupo (barras
-// horizontais no estilo do aporte — pedido de 18/10/2026: período chart-1 (o verde), anterior chart-2
+// horizontais no estilo do aporte: período chart-1 (o verde), anterior chart-2
 // mais fina, média 12m como marcador tracejado, rótulo direto; clicar abre as transações do grupo) e aporte planejado × realizado (barras
 // agrupadas, média 12m do realizado como marcador chart-3). Cada um com "Ver como tabela". Eixos em
 // moeda completa, sem animação; as séries se distinguem também por estilo e legenda.

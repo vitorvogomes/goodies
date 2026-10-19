@@ -1,6 +1,6 @@
 "use client";
 
-// Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026): o planejamento das receitas
+// Receitas esperadas (Ajustes › Custos e receitas): o planejamento das receitas
 // do mês — salário, pagamentos a receber. O recebido sai das entradas do trabalho do pagador no mês
 // (Caixa › Orçamento mostra planejado × recebido e o disponível com o que falta receber).
 import { useRef, useState } from "react";

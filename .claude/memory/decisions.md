@@ -6,7 +6,7 @@
 ---
 
 ## ADR-001 — Stack (LOCKED)
-FastAPI + Next.js 16 + Supabase (Postgres 15) + Redis (Upstash).
+FastAPI + Next.js 16 + Postgres 15 + Redis 7 (os dois no `docker compose` local).
 **Emenda 2026-10-17:** Fly.io e Vercel removidos (workflow, `fly.toml`, `DEPLOY.md`). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1. Postgres 15 e Redis 7 rodam no `docker compose` local (ADR-014); Supabase e Upstash não são usados.
 **Não mudar sem ADR aprovado.** (Frontend atualizado de Next 14 → 16 / React 19 / Tailwind v4 por ADR-009.)
 
@@ -18,10 +18,12 @@ FastAPI + Next.js 16 + Supabase (Postgres 15) + Redis (Upstash).
 
 ## ADR-003 — APScheduler (não Celery)
 Workers de preço e alertas rodam no mesmo processo FastAPI via APScheduler.
-Inicializados no `startup` event. Workers devem ser **idempotentes**.
+Inicializados no `lifespan` do FastAPI (`main.py`). Workers devem ser **idempotentes**.
 
 ## ADR-004 — Dados manuais nunca bloqueam
-Ativos sem API (Flash Debênture, CDB, DeFi): `is_manual=True` em `asset_prices`.
+Ativos sem fonte de mercado nem valoração pelo app (DeFi, token sem cotação): `is_manual=True` em `asset_prices`.
+Na v2 a debênture vale pelo fator mensal (Story 7.6) e a RF pelo CDI publicado + saldos informados (Story 7.4,
+`rf_balance_anchors`) — `assets.valuation` diz qual; todo valor sai como `Valued` com `as_of`.
 Fallback: Redis → Postgres (`asset_prices`) → manual.
 Retorno quando sem dado: `{"value": null, "stale": true, "last_updated": null}` — NUNCA 5xx.
 
@@ -53,7 +55,7 @@ sem `tailwind.config.ts`); middleware → `proxy.ts`; React Compiler on. Ver `do
 `pyproject.toml` é a **fonte única** (runtime em `[project.dependencies]`, ferramentas em
 `[dependency-groups].dev`); `uv.lock` fixa versões. `[tool.uv] package=false` → app roda do
 código-fonte (`pythonpath="."`), sem build de wheel. **Sem `requirements*.txt`/`pip`.**
-Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. Dockerfile/CI usam uv.
+Rodar: `uv sync` (instala), `uv run <ruff|mypy|pytest|uvicorn|alembic>`. O Dockerfile usa uv (não há CI).
 
 ## ADR-011 — Caixinha/RDB Nubank = investment net (não receita); Santander externo
 > **Superado em parte pelo ADR-015 (2026-10-17):** resgate passa a ser receita. Seguem valendo: caixinhas/CDB
@@ -65,18 +67,18 @@ Decidido na faxina pré-m3 (2026-06-06). Ver `docs/v1/11_Coerencia_Nubank_Portfo
   **NÃO rodar `api/scripts/oneoff/reset_ledger.py`** no banco curado — apagaria a curadoria. A migration
   `0009` cuida só das regras de import **futuro**.
 - Caixinhas/CDB Nubank são ativos `asset_category='Renda Fixa'` (registro config-driven em
-  `engines/portfolio/caixinhas.py`; **Reserva** já listada, `enabled=False` até criar). Valoração
-  pós-fixada via `rf_cdi.py` com `settings.cdi_anual` (env `CDI_ANUAL`, provisório até o m5/BCB) —
-  cobre o ADR-004 (`is_manual=true`, worker m3 não sobrescreve).
+  `engines/portfolio/caixinhas.py`). **Na v2:** as operações vêm das transações (Story 7.5; a escolha
+  em `transaction_caixinha` vence) e o valor é `portfolio/rf.cdi_value` sobre o CDI diário publicado
+  (`benchmark_data`), ancorado nos saldos informados (`rf_balance_anchors`, 0047). Sem constante de CDI.
 - **Santander = conta externa:** Pix do próprio nome vindos do Santander (~R$32k em `income/Extra`)
   contam como receita/despesa externa — **não** transferência interna (decisão reafirmada).
 
 ## ADR-012 — Market Engine (m3): endpoints, precedência de preço, fontes free-tier
-Decidido no m3 (2026-06-06). Ver `docs/v1/12_Gate_M3_Market.md` + `docs/15_Debito_Tecnico.md`.
+Decidido no m3 (2026-06-06). Ver `docs/v1/12_Gate_M3_Market.md`.
 - **Preços sob `/api/v1/market/*`** (não `/portfolio`). `POST /market/prices/{ticker}` (manual),
   `GET /market/prices[/{ticker}]` (leitura via fallback). O antigo `PUT /portfolio/prices` foi
   **removido**. Contrato Pydantic (`PriceOut`) — superfície nova do m3.
-- **`portfolio.service.upsert_price` é o chokepoint único de escrita de preço.** Precedência
+- **`market.service.upsert_price` é o chokepoint único de escrita de preço.** Precedência
   **`is_manual`**: worker (`is_manual=false`) NUNCA sobrescreve linha manual (Flash/RF/caixinhas/
   DeFi — sem fonte de mercado); manual sempre vence. Invalida o cache de XIRR (ADR-008) **e** o
   cache Redis de preço dentro do fluxo de escrita. `is_manual=true` ⇒ preço nunca fica `stale`.
@@ -86,6 +88,8 @@ Decidido no m3 (2026-06-06). Ver `docs/v1/12_Gate_M3_Market.md` + `docs/15_Debit
   Cloudflare (403 headless) e o brapi v2/treasury é Pro-only. CoinGecko demo = 10k/mês (*/2h).
   `ttl_b3=ttl_tesouro=26h` p/ o preço do dia não aparecer "desatualizado". `EVALUATION_DATE` (§3.1)
   threada a data de avaliação única. **Cripto/Binance só via cron — m4.**
+- **Na v2:** token cripto sem cotação tem preço manual em US$ (`source='manual_usd'`); o R$ segue a cotação
+  do dólar (USDT/USDC) a cada `price_crypto` e o histórico guarda cada dia na cotação do dia.
 
 ## ADR-013 — Wallet scan (m4): fontes, `source` p/ sweep, valoração manual/DeFi
 Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-scan-config`/`m4-hype-on-hyperliquid`.
@@ -101,6 +105,8 @@ Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-sca
   **id da API CoinGecko ≠ slug do site** (`susdai`, não `staked-usdai`); YT-xSOL sem fonte (decisão).
 - **Reconciliação é só cripto** (`reconcile` filtra `asset_operations` por `CRYPTO_CATEGORIES`); B3 e
   caixinhas Nubank vêm por outra via, não pelo scan de carteira.
+- **Na v2:** Conciliação confere o consolidado B3 + as carteiras (Story 7.9). Só o trilho "B3 (corretoras)"
+  guarda caixa (`transit.Rail.holds_cash`); Tesouro, RF Nubank e Flash mostram diferença de conciliação.
 
 ---
 
@@ -112,7 +118,8 @@ Decidido 2026-10-17 (commit d3748a4). Fly.io, Vercel e GitHub Actions removidos.
 ## ADR-015 — Resgate é receita (reverte o ADR-011 nesse ponto)
 Decidido no PRD v2 (2026-10-17). Resgate de caixinha/RF/corretora é receita, exibido em linha própria e
 reclassificado em todo o histórico (FR-19, migração idempotente). A taxa de poupança usa a **receita do
-trabalho** (sem resgates), então o gate jun/2026 = 55,48% continua válido. Ver spine AD-6/AD-7/AD-16.
+trabalho** (sem resgates). O gate de 55,48% foi substituído pelo baseline por mês (ADR-016). Ver spine
+AD-6/AD-7/AD-16.
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)
 

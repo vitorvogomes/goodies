@@ -16,7 +16,7 @@ cd web && pnpm test && pnpm lint
 Relate:
 1. Total de testes: passando, falhando e **pulados** (diga quais `dados_reais` foram pulados e por quê)
 2. Cobertura por engine (`common`, `ingest`, `ledger`, `wallet`, `portfolio`, `planning`, `closing`, `alerts`,
-   `overview`, `market`, `jobs`) e `workers/`
+   `overview`, `market`) e `workers/` (os jobs)
 3. Arquivos abaixo de 80%
 4. Erros de mypy (`--strict` nos pacotes tocados pela story)
 

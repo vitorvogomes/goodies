@@ -1,6 +1,6 @@
 "use client";
 
-// Alocação × meta ± banda numa célula só (pedido de 18/10/2026: desvio e bandas mais didáticos): a
+// Alocação × meta ± banda numa célula só: a
 // régua mostra a faixa aceita (meta ± banda) e onde a alocação está; o texto diz quanto falta ou
 // sobra em p.p. e se está dentro da banda. Números da API (Story 8.3); a régua só posiciona.
 import { formatPercent, formatPP } from "@/lib/format";

@@ -322,7 +322,7 @@ export function useBalanceCandidates(range: { start: string; end: string } | nul
   });
 }
 
-// ---- Receitas esperadas (Ajustes › Custos e receitas, pedido de 18/10/2026) ----
+// ---- Receitas esperadas (Ajustes › Custos e receitas) ----
 
 export interface ExpectedIncome {
   id: string;

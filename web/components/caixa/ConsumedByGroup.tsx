@@ -2,7 +2,7 @@
 
 // Consumido por grupo (Story 6.6 — EXPERIENCE › Caixa › Orçamento): grupo → subcategoria com o % do
 // consumido (sem os custos fixos casados nem as dívidas); rodapé com os gastos brutos e as deduções.
-// Percentuais e totais vêm da API; abaixo, o rodapé do orçamento (6.7). Pedido de 18/10/2026: todos
+// Percentuais e totais vêm da API; abaixo, o rodapé do orçamento (6.7). Todos
 // os grupos de gasto, com os custos fixos pagos de cada um ao lado, e o investimento do mês por
 // categoria — que aparece na análise do mês, mas não é custo.
 import { ChevronRightIcon } from "lucide-react";

@@ -32,7 +32,7 @@ class Rail:
     ledger_keys: tuple[str, ...]  # `categories.key` do ledger (kind=investment) — Story 2.3
     asset_categories: tuple[str, ...]  # categorias em asset_operations
     asset_brokers: tuple[str, ...] | None  # None = qualquer broker
-    # pedido de 18/10/2026: só a corretora guarda dinheiro esperando virar ativo; nos outros
+    # só a corretora guarda dinheiro esperando virar ativo; nos outros
     # trilhos a aplicação vira ativo na hora e o resíduo é diferença de conciliação
     holds_cash: bool = False
 

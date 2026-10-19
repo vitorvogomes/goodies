@@ -8,14 +8,14 @@
 
 **Regras de todo o backlog:** desenvolver contra `goodies_dev`; o banco real só migra por `scripts.ops.migrar`; commits locais (push é manual).
 
-**Datas-alvo:** em aberto — preencher depois de medir o ritmo real nas primeiras stories.
+**Estado (18/10/2026):** 78/78 stories [x]; gates m1, m2 e m3 PASS; o m4 só falta nas métricas de uso (SM-1 ≥ 30 dias desde 18/10/2026 — a partir de 17/11/2026 — e SM-5 com o primeiro extrato importado pelo Hub). Pendências do Vitor: `docs/v2/PENDENCIAS-VITOR.md` (só a P15 aberta).
 
-| Marco | Épicos | Stories | Data-alvo |
+| Marco | Épicos | Stories | Gate |
 |---|---|---|---|
-| Marco 1 — Ritual confiável | 1, 2, 3, 4, 5 | 44 | — |
-| Marco 2 — Caixa e orçamento | 6 | 8 | — |
-| Marco 3 — Investimentos e aportes | 7, 8 | 17 | ✅ 2026-10-18 |
-| Marco 4 — Histórico e ajustes completos | 9, 10 | 9 | — |
+| Marco 1 — Ritual confiável | 1, 2, 3, 4, 5 | 44 | ✅ PASS 2026-10-18 |
+| Marco 2 — Caixa e orçamento | 6 | 8 | ✅ PASS 2026-10-18 |
+| Marco 3 — Investimentos e aportes | 7, 8 | 17 | ✅ PASS 2026-10-18 |
+| Marco 4 — Histórico e ajustes completos | 9, 10 | 9 | ⏳ só métricas de uso (SM-1, SM-5) — a partir de 17/11/2026 |
 
 ---
 
@@ -94,7 +94,7 @@
 
 **Gate marco 1 (`/gate m1`):**
 - `GET /api/v1/health` → 200 com postgres e redis; `scripts.ops.migrar` em `head`.
-- Testes `dados_reais` verdes e **nenhum pulado**: poupança de cada mês = baseline (jun/2026 = 57,46%, ADR-016), contagens, zero órfãs, deltas esperados, invariantes de caixinhas/debêntures/XIRR contra o baseline da Story 1.3.
+- Testes `dados_reais` verdes e **nenhum pulado**: poupança de cada mês = lista v2 fixada (jun/2026 = 56,87%; a v1 dava 57,46% — ADR-016), contagens, zero órfãs, deltas esperados, invariantes de caixinhas/debêntures/XIRR contra o baseline da Story 1.3.
 - UJ-1 de ponta a ponta (importar → revisar → saldo PF conferido) e UJ-5 (jun/2026 → mês anterior fechados pelo Assistente).
 - Jul/2024–mai/2026 fechados em bloco (`close_retro`).
 
@@ -118,7 +118,7 @@
 **Gate marco 2 (`/gate m2`):**
 - Golden tests do orçamento verdes a partir de `tests/fixtures/mockup_out2026.json` (consumido R$ 6.912,37; disponível R$ 8.405,59; financiado R$ 2.994,77).
 - Poupança por mês = baseline (ADR-016) e deltas dos meses com Repasse conferidos.
-- **SM-1 parcial começa:** `metricas --sm1-inicio <data>` registrado (tarefas de caixa sem a planilha).
+- **SM-1 parcial:** `metricas --sm1-inicio <data>` (registrado em 18/10/2026 — P15).
 
 ---
 
@@ -154,7 +154,7 @@
 **Gate marco 3 (`/gate m3`):**
 - XIRR consolidado igual ao baseline da Story 1.3, salvo correção explicada; conciliação B3 e carteiras dentro das tolerâncias da AD-13.
 - Distribuição do aporte fecha ao centavo (golden 2.200 = 1.700 + 500).
-- **SM-1 começa:** `metricas --sm1-inicio <data>`; recomendado `refechar --completar` geral.
+- **SM-1:** `metricas --sm1-inicio <data>` (registrado em 18/10/2026); recomendado `refechar --completar` geral.
 
 ---
 
@@ -263,3 +263,4 @@
 | 2026-10-18 | m4 | Épico 10: 10.6 | Telas v1 apagadas com redirect para a aba v2 (tabela rota v1 → substituto em docs/v2/stories/10.6-fim-das-telas-v1.md; nenhuma sem substituto; /portfolio/history → bloco Operações em Posições, GET /api/v1/portfolio/operations com total por operação). Saíram ui.tsx, Money.tsx, TabPlaceholder, "Telas da v1" do nav, o selo v1 de dev/tema, libs/hooks/tipos só da v1; no-raw-color sem exceção. API: rotas legadas sem uso no web nem no Hermes removidas (/transactions, /categories, /fixed-costs, /cashflow*, /ledger/import, /asset-operations*, /portfolio/xirr|positions|allocation|rebalancing|income|ir-*|crypto-sleeve|import-b3|transit) com o código que só elas usavam; testes de serviço chamam os serviços direto. Revisão 0045 aplicada com backup (pre-0045): saem transactions.category, fixed_costs.category e categories.match_patterns (guarda: custo fixo sem subcategoria ou padrão sem regra param a revisão; fixed_costs.category_id obrigatório; INSERT sem category_id cai em a classificar pelo sinal); invariante dados_reais mês × categoria, custos fixos, poupança e regras iguais, ida e volta idempotente. Escritores do texto (import, manual, categorize, renome, custo fixo, Hermes, oneoffs) passaram ao category_id. Smoke: redirects, Operações com filtros, 10 telas sem falha, lançar/editar/apagar transação e CRUD de categoria. P27. |
 | 2026-10-18 | m4 | Épico 10: review | Code review f93083e..HEAD aplicado: SM-5 com denominador = transações novas do Hub (lote não legado), inclusive as sem categoria; SM-6 só conta mudança de categoria; SM-C1 só correção depois da confirmação; limites e semanas das métricas em BRT; SM-3 mostra as carteiras conferidas hoje; uma conta PF só (409 na segunda) e o formulário de Contas não grava PF em conta sem tipo; preço unitário manual e da lista de Operações em Decimal até 8 casas (abaixo de 1 centavo não zera); sem "Próxima" com o scheduler desligado; link do fechamento para Ajustes › Atualização; filtro de Operações com debounce e lista anterior até a nova chegar. |
 | 2026-10-18 | m4 | Épico 10 fechado + gate m4 | Review da2b4cd. Commits 8dbc006, 1933b94, 6369641, eef027b, 17fa6b4, 8dcdb6d. Gate m4 = **FAIL** só nas métricas de uso, que dependem do Vitor e de tempo: SM-1 = 0 dias (iniciada em 18/10/2026; meta ≥ 30 — P15), SM-2 = 7 de 23 meses fechados com saldo PF conferido (P8, P12), SM-3 = 4 de 7 meses com consolidado B3 dentro da tolerância (16 sem consolidado; carteiras 9 de 9 hoje — P19), SM-5 sem dado (nenhum import pelo Hub ainda; a base inteira está no lote legado). PASS no resto: suíte 93,82% sem nenhum dados_reais pulado, mypy, pnpm test/lint/build, health 200 com postgres+redis, banco no head (0045), todas as stories [x], nenhuma rota v1 sem substituto (docs/v2/stories/10.6-fim-das-telas-v1.md), no raw color sem exceções. |
+| 2026-10-18 | — | Review geral 9750317..HEAD + faxina | Goal trocado (m4 fora: depende só de uso). Condições verificadas: 78/78 [x], m1–m3 PASS, suíte sem dados_reais pulado, web test/lint/build, banco no head (0049), health 200. Review (10 achados; aplicados com teste): desfazer consolidado B3 tira o dia desfeito do `asset_price_history` e invalida o cache só depois do commit (protocolo `undo` → `Undone` com `after_commit`); mudar o papel de uma subcategoria passa as transações pelo `categorize` (meses fechados ficam sujos); preço manual em US$ não regrava o dia informado com a cotação de hoje (o dia novo vale a partir de hoje); lock por job no `run_and_record` (cron e catch-up nunca rodam o mesmo job juntos); versão do cache de sugestões inclui descrições, categorias arquivadas e o banco; X com Ctrl/⌘/Alt não seleciona e a seleção zera ao trocar o mês; import/desfazer invalidam uma vez só (chaves v1 mortas saíram). Não aplicado: troca de sinal de transação manual (o kind segue a categoria, como na criação); leituras repetidas do histórico no fechamento → débito. Faxina: `CDI_ANUAL`, `ENV`, `API_HOST`, `API_PORT` (sem leitor) saíram do config/.env/.env.example; notas "pedido de 18/10/2026" fora dos comentários; `docs/project-context.md`, `docs/Utils/` e o débito da v1 arquivados em `docs/v1/`; `scripts/update_b3_portfolio.sh` (fluxo manual da v1) removido; README, CLAUDE.md, LOCAL_DEV, ADRs (notas "Na v2"), `.claude/memory` e `/gate`/`/test`/`/status` atualizados; `docs/15_Debito_Tecnico.md` novo, só com o aberto da v2. |

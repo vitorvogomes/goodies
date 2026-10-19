@@ -76,11 +76,11 @@ A URL da API já tem default `http://localhost:8000` (`lib/api.ts`). Só defina 
 > `web/.env` antigo apontando p/ outra porta, ex.: `:8001`), **reinicie o `pnpm dev`** — senão
 > o browser continua chamando o valor velho e o login falha com "Não foi possível conectar".
 
-Abra `http://localhost:3000/login`, entre com o admin seedado → cai em `/dashboard`.
+Abra `http://localhost:3000/login`, entre com o admin seedado → cai em `/visao-geral/painel`.
 
 ---
 
-## Validar o m0
+## Validar a stack
 
 **App no ar (não precisa de uv):**
 ```bash
@@ -98,14 +98,12 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/auth/me
 Rodam contra o Postgres/Redis do compose (expostos em `localhost:5432` / `localhost:6379`).
 ```bash
 cd ~/projects/goodies/api
-uv run pytest tests/ -v
-uv run pytest tests/ --cov=engines --cov-report=term-missing
+DADOS_REAIS_REQUIRED=1 uv run pytest tests/ -q -rs --cov   # fail_under 80 no pyproject
 uv run ruff check .
-MYPYPATH=. uv run mypy main.py config.py health.py db/connection.py \
-  engines/market/cache.py auth/security.py auth/dependencies.py auth/router.py
+uv run mypy engines workers hermes auth db config.py main.py
 
 # Frontend
-cd ~/projects/goodies/web && pnpm lint && pnpm build
+cd ~/projects/goodies/web && pnpm test && pnpm lint && pnpm build
 ```
 
 ---

@@ -26,8 +26,8 @@ class PricesResponse(BaseModel):
 
 
 class SetPriceRequest(BaseModel):
-    """Corpo do POST manual de preço: em R$ ou, no token cripto, em US$ (pedido de 18/10/2026 — o
-    R$ sai da cotação do dólar e é refeito quando ela muda)."""
+    """Corpo do POST manual de preço: em R$ ou, no token cripto, em US$ (o R$ sai
+    da cotação do dólar e é refeito quando ela muda)."""
 
     price_brl: Decimal | None = Field(default=None, ge=0)  # unitário, até 8 casas
     price_usd: Decimal | None = Field(default=None, ge=0)

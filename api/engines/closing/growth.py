@@ -56,7 +56,7 @@ class Growth(BaseModel):
     classes: list[ClassReturn]
     assets: list[AssetReturn]
     best: AssetReturn | None  # o ativo de melhor desempenho (maior % a.m. no período)
-    worst: AssetReturn | None = None  # o de pior desempenho (pedido de 18/10/2026)
+    worst: AssetReturn | None = None  # o de pior desempenho (menor % a.m.)
 
 
 @dataclass(frozen=True)

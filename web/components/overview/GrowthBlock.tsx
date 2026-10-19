@@ -3,7 +3,7 @@
 // Crescimento do patrimônio (Story 9.2 — FR-22, FR-34): crescimento = aporte + resultado no
 // período, a rentabilidade por classe e por ativo e o ativo de melhor desempenho em destaque. Sem o
 // início coberto: "Disponível a partir do primeiro mês fechado na v2." (ou "patrimônio não
-// coberto"). Tudo da API (AD-4). Pedido de 18/10/2026: a conta em blocos (início + aporte +
+// coberto"). Tudo da API (AD-4). A conta em blocos (início + aporte +
 // resultado = fim), melhor e pior desempenho lado a lado e a rentabilidade das classes e dos ativos
 // na mesma unidade (% a.m.; o % a.a. da classe fica de apoio).
 import type { ReactNode } from "react";

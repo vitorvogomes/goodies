@@ -123,7 +123,7 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal:
 
 
 def _groups(facts: ledger_service.BudgetFacts, total: Decimal) -> list[ConsumedGroup]:
-    """Todos os grupos de gasto (pedido de 18/10/2026: o grupo só de custo fixo também aparece),
+    """Todos os grupos de gasto (o grupo só de custo fixo também aparece),
     do maior consumido para o menor; os fixos e as dívidas de cada grupo ao lado."""
     groups: dict[str, list[tuple[str, Decimal, int]]] = {
         g: [] for g in (*facts.expense_groups, *facts.fixed_by_group, *facts.debt_by_group)
