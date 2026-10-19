@@ -165,7 +165,6 @@ export interface DistributionAsset {
   // Ativo com lote (B3, Tesouro): preço de hoje e unidades inteiras — decimais em texto
   preco: string | null;
   unidade: "cota" | "título" | null;
-  unidade_qty: string | null;
   cotas: string | null; // o plano do mês, em unidades
   cotas_realizadas: string | null;
   comprar: number | null; // a comprar agora (R$) — o que falta do plano, dentro do que falta na classe
@@ -208,6 +207,7 @@ export interface DistributionGoal {
   realizado: number;
   pendente: number;
   fixo: boolean;
+  recebido_troco: number; // troco das cotas (já no sugerido)
 }
 
 export interface Andamento {

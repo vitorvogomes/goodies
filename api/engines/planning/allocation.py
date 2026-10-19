@@ -64,7 +64,7 @@ def _num(value: Decimal) -> str:
 
 
 async def allocation_alerts(conn: asyncpg.Connection, ctx: AlertContext) -> list[Alert]:
-    """"{Classe} em {x,xx}%, meta {y,yy}% ± {b} p.p." (Ver aportes) para a classe fora da banda."""
+    """ "{Classe} em {x,xx}%, meta {y,yy}% ± {b} p.p." (Ver aportes) para a classe fora da banda."""
     month = ctx.today.replace(day=1)
     labels = dict(targets.CLASS_LABELS)
     out: list[Alert] = []

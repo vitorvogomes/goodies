@@ -11,8 +11,10 @@ positions, locks)`, pura, em ordem fixa:
    classe sem meta por ativo não divide.
 5. **Lotes**: ativo com `Lot` (B3: cota inteira; Tesouro: 0,01 título com ordem mínima de R$ 30) só
    recebe o que se compra de fato — o valor vira cotas inteiras, arredondadas à mais próxima
-   enquanto cabem na classe. O troco das classes vai às classes de valor livre (sem lote) que não
-   estão acima da banda, pelo déficit; sem nenhuma, fica sem destino.
+   enquanto cabem na classe. O troco das classes segue os destinos em ordem (`troco_sinks`: a
+   reserva até encher, a caixinha Turbo até o teto dela, o objetivo mais perto de ser concluído —
+   objetivo travado não recebe); o que sobrar vai às classes de valor livre (sem lote) que não estão
+   acima da banda, pelo déficit; sem nenhuma, fica sem destino.
 
 Travas (`locks`, FR-30): `goal:<id>`, `class:<classe>`, `asset:<id>` entram fixas; o resto segue a
 mesma regra. Nunca sugere venda. Cada nível fecha ao centavo pelo maior resto.
@@ -81,6 +83,15 @@ def tesouro_lot(price: Decimal) -> Lot:
 
 
 @dataclass(frozen=True)
+class TrocoSink:
+    """Um destino do troco das cotas: um objetivo, até `capacity` (None = até completar o alvo)."""
+
+    goal_id: str
+    label: str
+    capacity: Decimal | None = None
+
+
+@dataclass(frozen=True)
 class AssetState:
     id: str
     label: str
@@ -110,7 +121,6 @@ class AssetLine:
     sugerido: Decimal | None  # None = classe sem meta por ativo
     locked: bool = False
     preco: Decimal | None = None  # preço de 1 unidade (ativo com lote)
-    unidade_qty: Decimal | None = None  # o incremento em unidades (1 cota; 0,01 título)
     cotas: Decimal | None = None  # unidades sugeridas (ativo com lote, sem trava)
 
 
@@ -129,7 +139,7 @@ class ClassLine:
     locked: bool = False
     assets: list[AssetLine] = field(default_factory=list)
     troco: Decimal = _ZERO  # o que as cotas inteiras dos ativos não usaram (sai da classe)
-    recebido_troco: Decimal = _ZERO  # troco de outras classes recebido (classe de valor livre)
+    recebido_troco: Decimal = _ZERO  # troco das cotas recebido (classe de valor livre)
 
 
 @dataclass
@@ -143,6 +153,7 @@ class GoalLine:
     monthly: Decimal  # o que falta por mês ("R$ 350/mês para chegar em jul/2027")
     sugerido: Decimal
     locked: bool = False
+    recebido_troco: Decimal = _ZERO  # troco das cotas recebido (já somado no sugerido)
 
 
 @dataclass
@@ -154,8 +165,8 @@ class Distribution:
     locks_total: Decimal  # Σ das travas (FR-30: acima do planejado → aviso)
     has_targets: bool  # sem metas, a distribuição das classes não tem base
     unassigned: Decimal = _ZERO  # sobra sem destino (tudo travado ou sem classes)
-    troco: Decimal = _ZERO  # Σ do troco das cotas, levado às classes de valor livre
-    troco_destino: list[str] = field(default_factory=list)  # rótulos das classes que o recebem
+    troco: Decimal = _ZERO  # Σ do troco das cotas que teve destino (objetivos e classes livres)
+    troco_destino: list[str] = field(default_factory=list)  # rótulos dos destinos, na ordem
 
 
 def round_cents(raw: Mapping[str, Decimal], total: Decimal) -> dict[str, Decimal]:
@@ -191,6 +202,7 @@ def distribute(
     goals: Sequence[GoalNeed],
     classes: Sequence[ClassState],
     locks: Mapping[str, Decimal] | None = None,
+    troco_sinks: Sequence[TrocoSink] = (),
 ) -> Distribution:
     locks = dict(locks or {})
     remaining = planned
@@ -304,7 +316,22 @@ def distribute(
         )
     troco_total = sum((line.troco for line in class_lines), _ZERO)
     destino: list[str] = []
-    if troco_total > 0:
+    left_troco = troco_total
+    needs_by_id = {g.id: g for g in goals}
+    for sink in troco_sinks:
+        goal_line = next((x for x in goal_lines if x.id == sink.goal_id), None)
+        need = needs_by_id.get(sink.goal_id)
+        if left_troco <= 0 or goal_line is None or need is None or goal_line.locked:
+            continue
+        room = sink.capacity if sink.capacity is not None else need.missing - goal_line.sugerido
+        gain = min(left_troco, max(_ZERO, room)).quantize(_CENT, rounding=ROUND_DOWN)
+        if gain <= 0:
+            continue
+        goal_line.sugerido += gain
+        goal_line.recebido_troco += gain
+        left_troco -= gain
+        destino.append(sink.label)
+    if left_troco > 0:
         sinks = [
             (c, line)
             for c, line in zip(classes, class_lines, strict=True)
@@ -320,8 +347,8 @@ def distribute(
                 for c, line in sinks
             }
             share = round_cents(
-                _fill(troco_total, sink_deficits, {c.cls: c.target_pct for c, _ in sinks}),
-                troco_total,
+                _fill(left_troco, sink_deficits, {c.cls: c.target_pct for c, _ in sinks}),
+                left_troco,
             )
             for c, line in sinks:
                 gain = share.get(c.cls, _ZERO)
@@ -331,8 +358,10 @@ def distribute(
                 line.sugerido += gain
                 line.assets, _ = _assets(c, line.sugerido, locks)
                 destino.append(c.label)
+            left_troco = _ZERO
         else:
-            unassigned += troco_total
+            unassigned += left_troco  # o troco sem destino
+    placed_troco = troco_total - max(left_troco, _ZERO)
     return Distribution(
         planned=planned,
         goals=goal_lines,
@@ -341,7 +370,7 @@ def distribute(
         locks_total=sum(locks.values(), _ZERO),
         has_targets=has_targets,
         unassigned=unassigned,
-        troco=troco_total if destino else _ZERO,
+        troco=placed_troco,
         troco_destino=destino,
     )
 
@@ -367,7 +396,6 @@ def _assets(
             sugerido=None,
             locked=f"asset:{a.id}" in locks,
             preco=a.lot.price if a.lot is not None else None,
-            unidade_qty=a.lot.qty if a.lot is not None else None,
         )
         for a in c.assets
     ]

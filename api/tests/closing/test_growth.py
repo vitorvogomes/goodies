@@ -112,3 +112,10 @@ async def test_crypto_block_quanto_saiu_x_quanto_vale(monkeypatch) -> None:
     )
     assert not period.desde_inicio and period.resultado == D(50)
     assert (period.xirr_nominal.value, period.xirr_mensal) == (D("12.68"), D("1.00"))
+    assert period.saiu is None  # quanto saiu × vale é desde o início: fora do período
+    # review: período com o início precificado e sem XIRR do período → sem taxa (nunca a do início)
+    bare = await growth_service._crypto_block(None, _crypto(D(50)), date(2026, 12, 31))
+    assert bare.resultado == D(50) and bare.xirr_mensal is None and bare.xirr_nominal.value is None
+    # desde o início: a leitura inteira é desde o 1º aporte (sem a marca)
+    whole = await growth_service._crypto_block(None, _crypto(D(-300)), date(2026, 12, 31), "inicio")
+    assert whole.resultado == D(-300) and not whole.desde_inicio and whole.xirr_mensal is not None

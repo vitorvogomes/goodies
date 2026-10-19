@@ -94,11 +94,22 @@ async def _state(conn: asyncpg.Connection, month: date) -> tuple[_State | None, 
     return _State(v.invested, v.contributed), None
 
 
-async def _crypto_block(conn: asyncpg.Connection, c: PositionClass, as_of: date) -> ClassReturn:
+async def _crypto_block(
+    conn: asyncpg.Connection, c: PositionClass, as_of: date, leitura: str = "mes"
+) -> ClassReturn:
     """O bloco cripto como um todo: resultado = quanto vale − quanto saiu, e o XIRR dos fluxos
     datados do ledger (saída < 0, volta > 0) com o valor de hoje — nunca um custo por ativo. No
-    período, quando o início tem o preço das carteiras; senão, desde o 1º aporte."""
-    since_start = c.resultado is None
+    período, quando o início tem o preço das carteiras (o XIRR do período, se houver — nunca o desde
+    o início ao lado do resultado do período); senão, desde o 1º aporte, com quanto saiu e vale."""
+    since_start = c.resultado is None or leitura == "inicio"
+    if not since_start:
+        return ClassReturn(
+            key=c.key,
+            label="Cripto (bloco)",
+            xirr_nominal=c.xirr_nominal,
+            resultado=c.resultado,
+            xirr_mensal=c.xirr_mensal,
+        )
     flows = [(d, a) for d, a in await sleeve_cashflows(conn) if d <= as_of]
     rate = xirr([*flows, (as_of, float(c.valor))]) if flows and c.valor > 0 else math.nan
     annual = None if math.isnan(rate) else Decimal(repr(rate * 100)).quantize(_CENT)
@@ -107,9 +118,6 @@ async def _crypto_block(conn: asyncpg.Connection, c: PositionClass, as_of: date)
         if math.isnan(rate)
         else (Decimal(repr(portfolio_calc.monthly_rate(rate))) * 100).quantize(_CENT)
     )
-    if not since_start and c.xirr_nominal.value is not None:  # o XIRR do período, quando há
-        annual = c.xirr_nominal.value
-        monthly = c.xirr_mensal
     return ClassReturn(
         key=c.key,
         label="Cripto (bloco)",
@@ -119,11 +127,11 @@ async def _crypto_block(conn: asyncpg.Connection, c: PositionClass, as_of: date)
             source="xirr" if annual is not None else None,
             unavailable_reason=None if annual is not None else "sem_preco",
         ),
-        resultado=c.resultado_total if since_start else c.resultado,
+        resultado=c.resultado_total,
         xirr_mensal=monthly,
         saiu=c.aplicado,
         vale=c.valor,
-        desde_inicio=since_start,
+        desde_inicio=leitura != "inicio",
     )
 
 
@@ -140,7 +148,7 @@ async def growth(conn: asyncpg.Connection, periodo: str, leitura: str) -> Growth
     best = max(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if ranked else None
     worst = min(ranked, key=lambda a: a.xirr_mensal or Decimal(0)) if len(ranked) > 1 else None
     class_returns = [
-        await _crypto_block(conn, c, report.as_of)
+        await _crypto_block(conn, c, report.as_of, leitura)
         if c.is_bucket
         else ClassReturn(
             key=c.key,

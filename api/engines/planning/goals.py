@@ -251,7 +251,7 @@ async def link(conn: asyncpg.Connection, goal_id: str, asset_id: str) -> None:
 
 
 async def dismiss(conn: asyncpg.Connection, asset_id: str) -> None:
-    """"Não é objetivo": a caixinha deixa de ser sugerida."""
+    """ "Não é objetivo": a caixinha deixa de ser sugerida."""
     await conn.execute(
         "INSERT INTO goal_assets (asset_id, goal_id, status) VALUES ($1::uuid, NULL, 'dismissed') "
         "ON CONFLICT (asset_id) DO UPDATE SET goal_id = NULL, status = 'dismissed', "

@@ -22,12 +22,15 @@ from . import fixed as fixed_service
 from . import progress as progress_service
 from .distribution import (
     AssetState,
+    ClassLine,
     ClassState,
     GoalNeed,
     Lot,
+    TrocoSink,
     buy_units,
     distribute,
     months_until,
+    round_cents,
     tesouro_lot,
     units,
 )
@@ -53,7 +56,6 @@ class AssetOut(BaseModel):
     # Ativo com lote (B3, Tesouro): o preço de hoje, a unidade e o sugerido em unidades inteiras
     preco: Decimal | None = None
     unidade: str | None = None  # "cota" (B3) | "título" (Tesouro, em centésimos)
-    unidade_qty: Decimal | None = None
     cotas: Decimal | None = None  # o plano do mês (na posição do início do mês)
     cotas_realizadas: Decimal | None = None  # o que entrou no mês, em unidades
     # A comprar: o pendente da classe dividido de novo pela posição de agora (o que já entrou no
@@ -78,7 +80,9 @@ class ClassOut(BaseModel):
     fixo: bool = False  # o valor da classe é o dos aportes fixos dos ativos dela
     realizado: Money = Decimal(0)
     pendente: Money = Decimal(0)
-    troco: Money = Decimal(0)  # o que as cotas inteiras não usaram (foi para a classe livre)
+    troco: Money = Decimal(
+        0
+    )  # o que as cotas inteiras não usaram (sai da classe: ver troco_destino)
     recebido_troco: Money = Decimal(0)
     # A comprar no mês: Σ dos ativos (cotas inteiras) ou, sem divisão por ativo, o pendente inteiro
     comprar: Money = Decimal(0)
@@ -99,6 +103,7 @@ class GoalOut(BaseModel):
     realizado: Money = Decimal(0)
     pendente: Money = Decimal(0)
     fixo: bool = False
+    recebido_troco: Money = Decimal(0)  # troco das cotas (já no sugerido)
 
 
 class Andamento(BaseModel):
@@ -131,11 +136,70 @@ class DistributionOut(BaseModel):
     has_targets: bool
     unassigned: Money
     andamento: Andamento
-    troco: Money = Decimal(0)  # Σ do troco das cotas levado às classes de valor livre
+    troco: Money = Decimal(0)  # Σ do troco das cotas que teve destino (objetivos e classes livres)
     troco_destino: list[str] = Field(default_factory=list)
 
 
 _UNIT = {"b3": "cota", "td": "título"}
+# A caixinha Turbo (na reserva) rende 115% do CDI até R$ 5 mil (P28): o 2º destino do troco.
+TURBO_KEY = "caixinha:turbo"
+TURBO_CAP = Decimal(5000)
+
+
+def troco_sinks(
+    needs: list[GoalNeed], turbo: tuple[str, str, Decimal] | None = None
+) -> list[TrocoSink]:
+    """A ordem do troco das cotas (pedido de 18/10/2026), na posição do início do mês (estável a
+    cada depósito): 1. a reserva de emergência até encher; 2. a caixinha Turbo da reserva até o teto
+    dela (`turbo` = objetivo, rótulo, valor no início do mês); 3. os objetivos do mais perto de ser
+    concluído (maior % do alvo) ao mais longe — o travado é pulado e o troco segue ao próximo."""
+    sinks: list[TrocoSink] = []
+    reserve = next((g for g in needs if g.kind == "reserva"), None)
+    if reserve is not None:
+        sinks.append(TrocoSink(reserve.id, reserve.name))
+        if turbo is not None and turbo[0] == reserve.id:
+            sinks.append(TrocoSink(reserve.id, turbo[1], max(Decimal(0), TURBO_CAP - turbo[2])))
+    open_goals = [g for g in needs if g.kind != "reserva" and g.target > 0 and g.missing > 0]
+    open_goals.sort(key=lambda g: (-(g.current / g.target), g.missing))
+    sinks.extend(TrocoSink(g.id, g.name) for g in open_goals)
+    return sinks
+
+
+def buy_list(
+    cl: ClassLine,
+    pending: Decimal,
+    lots: dict[str, Lot],
+    units_done: dict[str, Decimal],
+    realized: dict[str, Decimal],
+) -> tuple[dict[str, int], dict[str, Decimal], Decimal, Decimal]:
+    """A lista de compras de uma classe: (incrementos por ativo com lote, R$ por ativo sem lote,
+    total a comprar, troco que não compra cota inteira). Com lote, as cotas do plano menos as que
+    entraram no mês (travado/fixo: o R$ que falta); sem lote, o R$ que falta — tudo dentro do que
+    falta na classe. Sem plano por ativo, o pendente da classe inteiro."""
+    wanted: dict[str, tuple[Lot, Decimal]] = {}
+    free_left: dict[str, Decimal] = {}
+    for al in cl.assets:
+        if al.sugerido is None or al.sugerido <= 0:
+            continue
+        real = realized.get(al.id, Decimal(0))
+        if al.id in lots and al.cotas is not None:
+            missing_units = max(Decimal(0), al.cotas - units_done.get(al.id, Decimal(0)))
+            wanted[al.id] = (lots[al.id], missing_units * lots[al.id].price)
+        elif al.id in lots:
+            wanted[al.id] = (lots[al.id], max(Decimal(0), al.sugerido - real))
+        else:
+            free_left[al.id] = max(Decimal(0), al.sugerido - real)
+    if not wanted and not free_left:
+        return {}, {}, pending, Decimal(0)
+    free_total = sum(free_left.values(), Decimal(0))
+    if free_total > pending:  # o que falta na classe manda: reduz em proporção
+        free_left = round_cents(
+            {k: v * pending / free_total for k, v in free_left.items()}, pending
+        )
+        free_total = pending
+    n = buy_units(wanted, pending - free_total) if wanted else {}
+    cost = sum((lots[k].cost(v) for k, v in n.items()), Decimal(0))
+    return n, free_left, cost + free_total, pending - cost - free_total
 
 
 def lot_for(key: str | None, price: Decimal | None) -> Lot | None:
@@ -248,6 +312,15 @@ async def preview(
                 ],
             )
         )
+    # ativo fixo de um objetivo (uma caixinha): o valor fixo é do objetivo
+    linked = await goals.linked_assets(conn)
+    for k in [k for k in fixed if k.startswith("asset:") and k.split(":", 1)[1] in linked]:
+        value = fixed.pop(k)
+        locks.pop(k, None)
+        goal_key = f"goal:{linked[k.split(':', 1)[1]]}"
+        if goal_key not in month_travas:
+            fixed[goal_key] = fixed.get(goal_key, Decimal(0)) + value
+            locks[goal_key] = fixed[goal_key]
     # ativo fixo ainda sem posição entra na classe dele com valor zero (a primeira compra)
     held = {a.id for st in states for a in st.assets}
     missing = [k.split(":", 1)[1] for k in fixed if k.startswith("asset:")]
@@ -265,15 +338,41 @@ async def preview(
                         id=r["id"], label=r["name"], value=Decimal(0), target_pct=None
                     )
                     states[i] = replace(st, assets=[*st.assets, extra])
+
+    def own_fixed(st: ClassState) -> Decimal:
+        return sum((fixed.get(f"asset:{a.id}", Decimal(0)) for a in st.assets), Decimal(0))
+
     # ativo fixo numa classe sem meta por ativo: a classe recebe só os fixos dela
     fixed_classes: set[str] = set()
     for st in states:
-        own_fixed = [f"asset:{a.id}" for a in st.assets if f"asset:{a.id}" in fixed]
-        if own_fixed and not any((a.target_pct or 0) > 0 for a in st.assets):
+        if own_fixed(st) > 0 and not any((a.target_pct or 0) > 0 for a in st.assets):
             if f"class:{st.cls}" not in month_travas:
-                locks[f"class:{st.cls}"] = sum((fixed[k] for k in own_fixed), Decimal(0))
+                locks[f"class:{st.cls}"] = own_fixed(st)
                 fixed_classes.add(st.cls)
-    d = distribute(amount, needs, states, locks)
+    turbo_row = await conn.fetchrow(
+        "SELECT a.id::text AS id, a.name, a.key FROM assets a WHERE a.key = $1", TURBO_KEY
+    )
+    turbo = None
+    if turbo_row is not None and turbo_row["id"] in linked:
+        goal_assets = {a.asset_id: a for g in goal_list for a in g.assets}
+        now = goal_assets.get(turbo_row["id"])
+        turbo = (
+            linked[turbo_row["id"]],
+            goals.asset_label(turbo_row["key"], turbo_row["name"]),
+            before(now.valor or Decimal(0) if now else Decimal(0), f"asset:{turbo_row['id']}"),
+        )
+    sinks = troco_sinks(needs, turbo)
+    d = distribute(amount, needs, states, locks, sinks)
+    # numa classe com metas por ativo, os fixos dos ativos dela cabem no valor da classe
+    short = {
+        f"class:{st.cls}": own_fixed(st)
+        for st, cl in zip(states, d.classes, strict=True)
+        if own_fixed(st) > cl.sugerido and f"class:{st.cls}" not in locks
+    }
+    if short:
+        locks.update(short)
+        fixed_classes.update(k.split(":", 1)[1] for k in short)
+        d = distribute(amount, needs, states, locks, sinks)
     progress = {g.id: g.progress for g in goal_list}
     sugerido = {f"goal:{g.id}": g.sugerido for g in d.goals}
     sugerido.update({f"class:{c.cls}": c.sugerido for c in d.classes})
@@ -282,25 +381,23 @@ async def preview(
     def line(key: str) -> tuple[Decimal, Decimal]:
         return done.lines.get(key, (Decimal(0), sugerido.get(key, Decimal(0))))
 
-    # A lista de compras: o que falta do plano de cada ativo (cotas do plano − as que entraram no
-    # mês), dentro do que falta na classe; sem plano por ativo, o pendente da classe inteiro
-    to_buy: dict[str, tuple[dict[str, int], Decimal, Decimal]] = {}
-    for cl in d.classes:
-        pending = max(Decimal(0), line(f"class:{cl.cls}")[1])
-        wanted = {
-            al.id: (
-                lots[al.id],
-                max(Decimal(0), al.cotas - units_done.get(al.id, Decimal(0))) * lots[al.id].price,
-            )
-            for al in cl.assets
-            if al.cotas is not None and al.id in lots
-        }
-        if wanted:
-            n = buy_units(wanted, pending)
-            cost = sum((lots[k].cost(v) for k, v in n.items()), Decimal(0))
-            to_buy[cl.cls] = (n, cost, pending - cost)
-        else:
-            to_buy[cl.cls] = ({}, pending, Decimal(0))
+    # A lista de compras: o que falta do plano de cada ativo — com lote, as cotas do plano menos as
+    # que entraram no mês (travado/fixo: o R$ que falta), em cotas inteiras; sem lote, o R$ que
+    # falta — dentro do que falta na classe. Sem plano por ativo, o pendente da classe inteiro.
+    to_buy = {
+        cl.cls: buy_list(
+            cl,
+            max(Decimal(0), line(f"class:{cl.cls}")[1]),
+            lots,
+            units_done,
+            {
+                k.split(":", 1)[1]: v
+                for k, v in month_done.by_line.items()
+                if k.startswith("asset:")
+            },
+        )
+        for cl in d.classes
+    }
 
     def asset_line(a: Any, cls: str) -> AssetOut:
         real = month_done.by_line.get(f"asset:{a.id}", Decimal(0))
@@ -308,6 +405,7 @@ async def preview(
         lot = lots.get(a.id)
         prefix = (keys.get(a.id) or "").split(":", 1)[0]
         n = to_buy[cls][0].get(a.id)
+        free = to_buy[cls][1].get(a.id)
         done = units_done.get(a.id, Decimal(0))
         return AssetOut(
             **vars(a),
@@ -316,7 +414,7 @@ async def preview(
             pendente=pend,
             unidade=_UNIT.get(prefix) if lot is not None else None,
             cotas_realizadas=done.quantize(lot.qty) if lot is not None else None,
-            comprar=lot.cost(n) if lot is not None and n is not None else None,
+            comprar=lot.cost(n) if lot is not None and n is not None else free,
             comprar_cotas=units(lot, n) if lot is not None and n is not None else None,
         )
 
@@ -339,8 +437,8 @@ async def preview(
                 assets=[asset_line(a, c.cls) for a in c.assets],
                 realizado=line(f"class:{c.cls}")[0],
                 pendente=line(f"class:{c.cls}")[1],
-                comprar=to_buy[c.cls][1],
-                comprar_troco=to_buy[c.cls][2],
+                comprar=to_buy[c.cls][2],
+                comprar_troco=to_buy[c.cls][3],
                 fixo=c.cls in fixed_classes,
             )
             for c in d.classes

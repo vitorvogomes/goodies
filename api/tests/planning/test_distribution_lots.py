@@ -170,3 +170,84 @@ def test_fixed_asset_in_a_class_without_asset_targets() -> None:
     # sem classe livre para o troco das cotas dos FIIs: fica sem destino, e o total fecha
     fiis = _by(d)["fiis"]
     assert fiis.sugerido + line.sugerido + d.unassigned == D(3000)
+
+
+def test_change_goes_reserve_then_turbo_then_closest_goal() -> None:
+    """Pedido de 18/10/2026: o troco das cotas vai à reserva até encher, à caixinha Turbo até o teto
+    dela e ao objetivo mais perto de ser concluído; objetivo travado (aporte fixo) não recebe."""
+    from engines.planning.distribution import GoalNeed, TrocoSink
+
+    fiis = _fiis()  # R$ 40 em FIIs não compram cota inteira: tudo vira troco
+    reserve = GoalNeed("res", "Reserva", "reserva", D(1000), D(990), 12)  # falta R$ 10
+    trip = GoalNeed("trip", "Viagem", "objetivo", D(1000), D(900), 10)
+    sinks = [
+        TrocoSink("res", "Reserva"),
+        TrocoSink("res", "Caixinha Turbo", D(15)),
+        TrocoSink("trip", "Viagem"),
+    ]
+    d = distribute(D("41.67"), [reserve, trip], [fiis], {"goal:trip": D(0)}, sinks)
+    goals = {g.id: g for g in d.goals}
+    # reserva: o mensal (10 ÷ 12 = 0,83) + o resto até encher; Turbo: R$ 15; a viagem travada não
+    assert goals["res"].recebido_troco == D("24.17") and goals["res"].sugerido == D("25.00")
+    assert goals["trip"].sugerido == D(0) and goals["trip"].recebido_troco == D(0)
+    assert d.troco_destino == ["Reserva", "Caixinha Turbo"] and d.troco == D("24.17")
+    assert d.unassigned == D("16.67")  # sem classe livre: o resto fica sem destino
+    # destravada, a viagem leva o que sobrou
+    d = distribute(D("41.67"), [reserve, trip], [fiis], {}, sinks)
+    goals = {g.id: g for g in d.goals}
+    assert d.troco_destino[-1] == "Viagem" and d.unassigned == D(0)
+    total = sum(g.sugerido for g in d.goals) + sum(c.sugerido for c in d.classes)
+    assert total == D("41.67")
+
+
+def test_troco_sinks_order() -> None:
+    """Na posição do início do mês: reserva, a Turbo dela até R$ 5 mil, e os objetivos do mais perto
+    de ser concluído ao mais longe (o concluído não entra)."""
+    from engines.planning.distribution import GoalNeed
+    from engines.planning.distribution_service import troco_sinks
+
+    needs = [
+        GoalNeed("res", "Reserva", "reserva", D(25000), D(9000), 12),
+        GoalNeed("a", "A", "objetivo", D(20000), D(14000), 9),
+        GoalNeed("b", "B", "objetivo", D(50000), D(4000), 12),
+        GoalNeed("done", "Done", "objetivo", D(100), D(100), 1),
+    ]
+    sinks = troco_sinks(needs, ("res", "Caixinha Turbo", D(1200)))
+    assert [(s.goal_id, s.label, s.capacity) for s in sinks] == [
+        ("res", "Reserva", None),
+        ("res", "Caixinha Turbo", D(3800)),
+        ("a", "A", None),  # 70% do alvo
+        ("b", "B", None),  # 8%: o próximo, se o primeiro estiver travado
+    ]
+    assert troco_sinks(needs, ("outro", "Caixinha Turbo", D(0)))[1].goal_id == "a"
+
+
+def test_buy_list_keeps_locked_and_free_assets_of_a_lotted_class() -> None:
+    """Review: na classe com cotas, o ativo travado/fixo (sem cotas do plano) e o ativo de valor
+    livre entram na lista — antes viravam "troco que não compra cota inteira"."""
+    from engines.planning.distribution import AssetLine, ClassLine
+    from engines.planning.distribution_service import buy_list
+
+    def asset(aid: str, sug: str, cotas: str | None = None, locked: bool = False) -> AssetLine:
+        return AssetLine(aid, aid, D(10), D(10), D(sug), locked, cotas=D(cotas) if cotas else None)
+
+    cl = ClassLine(
+        "acoes_br",
+        "Ações",
+        D(10),
+        D(10),
+        D(0),
+        D(3),
+        D(0),
+        D(500),
+        False,
+        assets=[asset("petr", "119.36", "2"), asset("itsa", "100", locked=True), asset("rf", "50")],
+    )
+    lots = {"petr": Lot(D("59.68")), "itsa": Lot(D("15.43"))}
+    n, free, total, troco = buy_list(cl, D(500), lots, {}, {})
+    assert n == {"petr": 2, "itsa": 6}  # ITSA4 fixo em R$ 100 → 6 cotas inteiras (R$ 92,58)
+    assert free == {"rf": D(50)}
+    assert total == D("119.36") + D("92.58") + D(50) and troco == D(500) - total
+    # o que já entrou no mês sai da lista (cotas no plano; R$ no travado e no livre)
+    n, free, *_ = buy_list(cl, D(200), lots, {"petr": D(2)}, {"itsa": D(100), "rf": D(20)})
+    assert n == {"petr": 0, "itsa": 0} and free == {"rf": D(30)}

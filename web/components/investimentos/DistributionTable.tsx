@@ -9,7 +9,7 @@
 // Story 8.7: realizado e pendente por linha, o Andamento do mês (Barra de progresso) e o rodapé de
 // conciliação — objetivos + classes · + na corretora, ainda não aplicado (sem classe) · = total do mês.
 // Por lote (pedido de 18/10/2026): o plano de cada ativo da B3/Tesouro vem em unidades inteiras ao preço
-// de hoje (o troco vai para a classe de valor livre); "O que falta aplicar" é a lista de compras — o que
+// de hoje (o troco vai à reserva, à caixinha Turbo e ao objetivo mais perto de ser concluído); "O que falta aplicar" é a lista de compras — o que
 // falta do plano, dentro do que falta na classe —, e cada linha mostra alocação × meta, preço, plano,
 // realizado e falta, em R$ e em cotas.
 import { ChevronRightIcon, LockIcon } from "lucide-react";
@@ -170,6 +170,11 @@ function Goals({
                   busy={busy}
                   onLock={onLock}
                 />
+                {g.recebido_troco > 0 && (
+                  <span className="block type-caption text-muted-foreground">
+                    + {formatBRL(g.recebido_troco)} de troco das cotas
+                  </span>
+                )}
               </td>
               <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.realizado)}</td>
               <td className="px-4 py-2 text-right type-num-table">{formatBRL(g.pendente)}</td>
@@ -204,25 +209,22 @@ function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
       items.push({ key: `goal:${g.id}`, what: g.name, how: g.fixo ? "aporte fixo" : "objetivo", value: g.pendente });
   }
   for (const c of data.classes) {
-    const lotted = c.assets.filter((a) => a.comprar_cotas != null);
-    if (lotted.length) {
-      for (const a of lotted) {
-        if (!a.comprar || !a.comprar_cotas) continue;
+    const buying = c.assets.filter((a) => (a.comprar ?? 0) > 0);
+    if (c.assets.some((a) => a.comprar != null)) {
+      for (const a of buying) {
         items.push({
           key: `asset:${a.id}`,
           what: a.label,
-          how: `${unitsText(a.comprar_cotas, a.unidade)} × ${formatBRL(Number(a.preco ?? 0))}`,
-          value: a.comprar,
+          how: a.comprar_cotas
+            ? `${unitsText(a.comprar_cotas, a.unidade)} × ${formatBRL(Number(a.preco ?? 0))}`
+            : a.fixo
+              ? "aporte fixo"
+              : "valor livre",
+          value: a.comprar ?? 0,
         });
       }
     } else if (c.comprar > 0) {
-      const fixedAsset = c.fixo ? c.assets.find((a) => a.fixo) : undefined;
-      items.push({
-        key: `class:${c.cls}`,
-        what: fixedAsset ? fixedAsset.label : c.label,
-        how: fixedAsset ? "aporte fixo" : "valor livre",
-        value: c.comprar,
-      });
+      items.push({ key: `class:${c.cls}`, what: c.label, how: "valor livre", value: c.comprar });
     }
   }
   const total = items.reduce((sum, i) => sum + i.value, 0);
@@ -252,7 +254,7 @@ function ToBuy({ data, periodo }: { data: Distribution; periodo: string }) {
       )}
       {data.unassigned > 0 && (
         <p className="type-caption text-muted-foreground">
-          {formatBRL(data.unassigned)} do planejado sem destino (troco das cotas, sem classe de valor livre): fica para o
+          {formatBRL(data.unassigned)} do planejado sem destino (troco das cotas que nenhum objetivo ou classe recebe): fica para o
           próximo aporte.
         </p>
       )}

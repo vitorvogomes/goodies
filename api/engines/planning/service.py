@@ -166,9 +166,7 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
     as_of = facts.as_of
     # Story 8.1: resgate de ativo vinculado a objetivo financia primeiro (por objetivo)
     linked = await goals.linked_assets(conn)
-    goal_names = {
-        str(r["id"]): r["name"] for r in await conn.fetch("SELECT id, name FROM goals")
-    }
+    goal_names = {str(r["id"]): r["name"] for r in await conn.fetch("SELECT id, name FROM goals")}
     por_objetivo, por_carteira = calc.financiado_split(
         b.consumo_financiado,
         sum((x for _, _, x, asset in facts.resgates_itens if asset in linked), Decimal(0)),

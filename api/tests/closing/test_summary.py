@@ -110,7 +110,7 @@ async def test_frozen_month_gets_real_return_once_ipca_is_out(pool) -> None:
             await conn.execute(
                 "INSERT INTO month_summary_totals (month, version, as_of, rentabilidade_mes, "
                 "unavailable) VALUES ($1, 1, '2097-01-31', 12, "
-                "'{\"rentabilidade_mes_real\": \"aguardando_ipca\"}')",
+                '\'{"rentabilidade_mes_real": "aguardando_ipca"}\')',
                 month,
             )
             waiting = await closing.month_summary(conn, month)
