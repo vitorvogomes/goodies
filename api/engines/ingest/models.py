@@ -113,6 +113,7 @@ class SourceRow(BaseModel):
     balance_status: Literal["conferido", "divergente"] | None = None  # só a conta PF
     balance_as_of: date | None = None
     balance_difference: Money | None = None
+    balance: Money | None = None  # o saldo da conta PF no extrato daquela data
 
 
 # ---- Histórico de imports e desfazer (Story 3.14) ----

@@ -435,6 +435,7 @@ async def sources(
                 balance_status=balance.get("status"),
                 balance_as_of=balance.get("as_of"),
                 balance_difference=balance.get("difference"),
+                balance=balance.get("balance"),
             )
         )
     return rows

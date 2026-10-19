@@ -1254,9 +1254,21 @@ async def source_balances(conn: asyncpg.Connection) -> dict[str, dict[str, Any]]
     divergent = [i for i in check.intervals if not i.ok]
     if divergent:
         d = divergent[-1]
-        return {"nubank_pf": {"status": "divergente", "as_of": d.end, "difference": d.difference}}
+        return {
+            "nubank_pf": {
+                "status": "divergente",
+                "as_of": d.end,
+                "difference": d.difference,
+                "balance": d.reported,
+            }
+        }
     return {
-        "nubank_pf": {"status": "conferido", "as_of": check.latest.end, "difference": Decimal(0)}
+        "nubank_pf": {
+            "status": "conferido",
+            "as_of": check.latest.end,
+            "difference": Decimal(0),
+            "balance": check.latest.reported,
+        }
     }
 
 

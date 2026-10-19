@@ -43,6 +43,7 @@ export interface SourceRow {
   balance_status: "conferido" | "divergente" | null;
   balance_as_of: string | null;
   balance_difference: number | null;
+  balance?: number | null; // o saldo da conta PF no extrato daquela data
 }
 
 // ---- Histórico de imports e desfazer (Story 3.14) ----

@@ -1,6 +1,7 @@
 // Bloco Fontes (DESIGN.md › sources-block, Stories 3.9 e 3.13): uma linha por fonte de arquivo com
 // tipo e "até dd/mm/aaaa" derivado só dos lotes aplicados/legado; fonte atrasada (FR-3) ganha ponto
-// de aviso. A conta PF mostra o saldo "conferido" ou "divergente · R$ x"; o MEI não confere.
+// de aviso. A conta PF mostra o saldo da conta no extrato e "conferido" ou "divergente · R$ x"; o
+// MEI não confere.
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { formatBRL, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,11 @@ export function SourcesBlock({
               </span>
             </td>
             <td className="px-4 py-1.5 whitespace-nowrap">
+              {s.balance != null && (
+                <span className="mr-2 type-num-table" aria-label={`Saldo da conta: ${formatBRL(s.balance)}`}>
+                  {formatBRL(s.balance)}
+                </span>
+              )}
               {s.balance_status === "conferido" && s.balance_as_of && (
                 <StatusBadge tooltip={`Saldo do extrato bate ao centavo até ${formatDate(s.balance_as_of)}.`}>
                   conferido · {formatDate(s.balance_as_of)}

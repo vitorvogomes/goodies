@@ -72,6 +72,7 @@ async def test_conferido(api, auth_headers, pf_account, pool) -> None:
     rows = (await api.get("/api/v1/ingest/sources", headers=auth_headers)).json()
     pf = next(r for r in rows if r["key"] == "nubank_pf")
     assert (pf["balance_status"], pf["balance_as_of"]) == ("conferido", "2099-02-28")
+    assert pf["balance"] == 80.0  # o saldo da conta no extrato (pedido de 18/10/2026)
 
 
 @pytest.mark.asyncio
