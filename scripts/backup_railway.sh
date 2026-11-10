@@ -2,9 +2,11 @@
 # Cópia do backup do Railway para fora do Railway (ADR-018). Rodar à mão, ex.: 1x/semana.
 #
 #   scripts/backup_railway.sh           # baixa o dump diário mais novo de /backups (serviço api)
-#   scripts/backup_railway.sh --novo    # faz um dump na hora (scripts.ops.backup) e baixa esse
+#   scripts/backup_railway.sh --novo    # faz um dump na hora (scripts.ops.backup), baixa e o apaga do
+#                                       # volume (fica em pre-migracao/, fora da retenção)
 #
-# Pré-requisitos: `railway login` + `railway link` no projeto goodies; docker (valida com pg_restore 15).
+# Pré-requisitos: `railway login` + `railway link` no projeto goodies, chave SSH registrada no Railway
+# (`railway ssh keys github`) e docker (valida com pg_restore 15).
 # Destino: $BACKUP_DIR/railway/ (BACKUP_DIR lido do .env pelo nome). Se existir a chave age em
 # ~/.config/goodies/backup.key, o arquivo fica só cifrado (.dump.age).
 # Nada aqui imprime conteúdo do banco, DSN ou segredo: só nomes de arquivo, tamanhos e contagens.
@@ -22,7 +24,9 @@ mkdir -p "$dest_dir"
 
 remote() { railway ssh -s "$SERVICE" -- sh -c "$1" 2>/dev/null | tr -d '\r'; }
 
+novo=false
 if [[ "${1:-}" == "--novo" ]]; then
+  novo=true
   echo "dump novo no Railway..."
   remote 'cd /app && python -m scripts.ops.backup --tag externo >/dev/null 2>&1 && echo ok' | grep -q '^ok$' \
     || { echo "FALHOU: backup remoto" >&2; exit 1; }
@@ -44,6 +48,7 @@ if [[ -z "$remote_sha" || "$remote_sha" != "$local_sha" ]]; then
   rm -f "$local_file.tmp"; echo "FALHOU: sha256 não confere" >&2; exit 1
 fi
 mv "$local_file.tmp" "$local_file"
+if $novo; then remote "rm -f '$remote_file'" >/dev/null; fi
 
 items="$(docker run --rm -i postgres:15-alpine pg_restore --list < "$local_file" 2>/dev/null | grep -cv '^;' || true)"
 if [[ "${items:-0}" -le 0 ]]; then
