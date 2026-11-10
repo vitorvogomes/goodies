@@ -11,14 +11,16 @@ from auth.security import hash_password
 
 
 async def upsert_admin(dsn: str, email: str, password: str) -> None:
-    """Cria o admin ou troca a senha dele (idempotente por e-mail)."""
+    """Cria o admin ou troca a senha dele (idempotente por e-mail). Trocar a senha encerra as
+    sessões: o refresh token gravado deixa de valer."""
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute(
             """
             INSERT INTO users (email, password_hash)
             VALUES ($1, $2)
-            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+            ON CONFLICT (email) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash, refresh_token_hash = NULL
             """,
             email,
             hash_password(password),

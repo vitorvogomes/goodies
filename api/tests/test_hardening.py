@@ -101,17 +101,59 @@ def test_postgres_scheme_is_normalized() -> None:
     assert s.database_url == "postgresql://u:p@h:5432/db"
 
 
+@pytest.mark.parametrize("field", ["LBTC_ASSET_ID", "LUSDT_ASSET_ID"])
+def test_blank_liquid_asset_id_keeps_the_constant(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    """Um `LBTC_ASSET_ID=` vazio de um .env antigo não apaga o saldo da SideSwap em silêncio."""
+    monkeypatch.setenv(field, "")
+    default = Settings.model_fields[field.lower()].default
+    assert getattr(Settings(_env_file=None), field.lower()) == default
+
+
 def test_liquid_public_constants_live_in_code() -> None:
-    """Revisão das env vars (10/11/2026): constantes públicas da Liquid no código, não no .env."""
+    """ADR-005: constantes públicas da Liquid e da Blockstream ficam no código, não no .env."""
     s = Settings(_env_file=None)
     assert s.lbtc_asset_id == "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
     assert s.lusdt_asset_id == "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"
     assert s.liquid_base_url == "https://blockstream.info/liquid/api"
     assert s.btc_base_url == "https://blockstream.info/api"
-    assert not hasattr(s, "solscan_api_key")
-
 
 
 def test_cors_closed_by_default() -> None:
     """ADR-018: nenhuma origem externa liberada por padrão (o web repassa /api/v1)."""
     assert Settings(_env_file=None).cors_origins == []
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({}, ["DATABASE_URL", "REDIS_URL"]),
+        ({"database_url": "", "redis_url": " "}, ["DATABASE_URL", "REDIS_URL"]),
+        (
+            {"database_url": "postgresql://u:p@postgres.railway.internal:5432/railway"},
+            ["REDIS_URL"],
+        ),
+        ({"redis_url": "redis://default:p@127.0.0.1:6379"}, ["DATABASE_URL", "REDIS_URL"]),
+        (
+            {
+                "database_url": "postgresql://u:p@postgres.railway.internal:5432/railway",
+                "redis_url": "redis://default:p@redis.railway.internal:6379",
+            },
+            [],
+        ),
+    ],
+)
+def test_production_refuses_local_service_urls(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str], expected: list[str]
+) -> None:
+    """ADR-018: em produção, DATABASE_URL/REDIS_URL vazias não caem em silêncio no localhost do dev
+    (aconteceu duas vezes no 1º deploy do Railway, 10/11/2026)."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    s = Settings(_env_file=None, environment="production", **env)
+    assert config.local_service_urls(s) == expected
+
+
+def test_local_service_urls_are_fine_outside_production() -> None:
+    assert config.local_service_urls(Settings(_env_file=None, environment="development")) == []

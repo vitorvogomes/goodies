@@ -7,6 +7,7 @@ abaixo. Sem `.env` (ex.: dentro do container), valem as env vars do ambiente.
 from datetime import date
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -171,6 +172,14 @@ class Settings(BaseSettings):
             return None
         return v
 
+    @field_validator("lbtc_asset_id", "lusdt_asset_id", mode="before")
+    @classmethod
+    def _blank_asset_id(cls, v: object, info: ValidationInfo) -> object:
+        # ADR-005: constante pública; um `LBTC_ASSET_ID=` vazio de .env antigo não a apaga.
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return cls.model_fields[info.field_name or ""].default
+        return v
+
     @field_validator("database_url", "redis_url", mode="before")
     @classmethod
     def _fallback_urls(cls, v: object, info: ValidationInfo) -> object:
@@ -215,6 +224,18 @@ def api_docs_urls(environment: str) -> dict[str, str | None]:
     if environment == "production":
         return {"docs_url": None, "redoc_url": None, "openapi_url": None}
     return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def local_service_urls(s: Settings) -> list[str]:
+    """ADR-018: em produção, DATABASE_URL/REDIS_URL vazias (referência do Railway que não resolveu)
+    cairiam no localhost do dev. Devolve só o NOME das variáveis — a URL traz a senha."""
+    if s.environment != "production":
+        return []
+    urls = {"DATABASE_URL": s.database_url, "REDIS_URL": s.redis_url}
+    return [name for name, url in urls.items() if urlsplit(url).hostname in _LOCAL_HOSTS]
 
 
 def assert_secure(s: Settings) -> None:

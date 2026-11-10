@@ -104,6 +104,36 @@ async def test_startup_bootstraps_empty_db_to_head_with_owner_seeds(
         await conn.close()
 
 
+@pytest.mark.asyncio
+async def test_startup_resumes_bootstrap_stuck_before_admin(
+    empty_db: str, backup_root: Path
+) -> None:
+    """A 1ª subida parou depois da 0001 (o admin falhou): a próxima retoma o bootstrap em vez de ir
+    ao head sem usuário (a 0016 recusaria e a api não subiria nunca mais)."""
+    dbops.alembic_upgrade(empty_db, "0001_initial_users")  # o bootstrap até 10/11/2026 parava aqui
+    decision = await dbops.startup_gate(empty_db, auto_migrate=True, admin=_ADMIN)
+    assert decision.ok, decision.message
+    assert await dbops.current_revision(empty_db) == dbops.head_revision()
+    conn = await asyncpg.connect(empty_db)
+    try:
+        assert await conn.fetchval("SELECT count(*) FROM users") == 1
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_startup_stuck_before_admin_without_admin_is_refused(
+    empty_db: str, backup_root: Path
+) -> None:
+    dbops.alembic_upgrade(empty_db, dbops.BOOTSTRAP_REVISION)
+    touched: list[str] = []
+    decision = await dbops.startup_gate(
+        empty_db, auto_migrate=True, upgrade=lambda dsn, rev: touched.append(rev), admin=None
+    )
+    assert not decision.ok and "ADMIN_PASSWORD" in decision.message
+    assert touched == []
+
+
 def test_admin_credentials_from_env() -> None:
     assert dbops.admin_from_env({}) is None
     assert dbops.admin_from_env({"ADMIN_EMAIL": "a@b.c", "ADMIN_PASSWORD": " "}) is None

@@ -188,7 +188,7 @@ async def test_refresh_cookie_is_lax_and_not_secure_in_localhost(test_user):
 
 async def test_cors_allows_no_external_origin():
     # ADR-018: o browser só fala com a origem do web (rewrite /api/v1) em dev e produção; a api não
-    # libera origem externa nenhuma — nem o antigo localhost:3000 (AD-18 da v2.0).
+    # libera origem externa nenhuma.
     async with _client() as client:
         for origin in ("http://localhost:3000", "http://192.168.0.10:3000", "https://x.example"):
             res = await client.options(

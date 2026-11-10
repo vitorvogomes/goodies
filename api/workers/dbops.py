@@ -7,8 +7,9 @@
   verdes (nenhum pulado) e backup feito na hora; qualquer etapa falhando, não migra.
 - `startup_gate`: decisão da subida do container (`AUTO_MIGRATE=false` → banco fora do `head`
   não sobe). Com `AUTO_MIGRATE=true` (produção, ADR-018), banco vazio faz o bootstrap
-  `0001_initial_users` → admin → `head`: a 0016 exige um usuário e as sementes por usuário das
-  migrações (grupos, categorias, regras, metas de classe) caem nele.
+  `0002_refresh_token_hash` → admin → `head`: a 0016 exige um usuário e as sementes por usuário
+  das migrações (grupos, categorias, regras, metas de classe) caem nele. Banco parado antes do
+  admin (a 1ª subida caiu no meio) retoma o bootstrap.
 """
 
 from __future__ import annotations
@@ -28,8 +29,11 @@ from workers.backup import REPO_ROOT, make_pre_migration_backup
 
 API_DIR = Path(__file__).resolve().parents[1]
 MIGRAR_HINT = "rode `python -m scripts.ops.migrar`"
-# Banco vazio sobe até aqui, ganha o admin e só então vai ao head (a 0016 exige um usuário).
-BOOTSTRAP_REVISION = "0001_initial_users"
+# Banco vazio sobe até aqui, ganha o admin e só então vai ao head (a 0016 exige um usuário). A 0002
+# traz `users.refresh_token_hash`, que o upsert do admin zera.
+BOOTSTRAP_REVISION = "0002_refresh_token_hash"
+# Onde uma 1ª subida que caiu antes do admin pode ter parado.
+_BOOTSTRAP_RESUMABLE = (None, "0001_initial_users", BOOTSTRAP_REVISION)
 
 
 class MigrationRefused(RuntimeError):
@@ -106,12 +110,12 @@ async def startup_gate(
         return StartupDecision(
             False, f"banco em {current or 'vazio'}, código em {head}: {MIGRAR_HINT}"
         )
-    if current is None:
+    if current in _BOOTSTRAP_RESUMABLE:
         if admin is None:
             return StartupDecision(
                 False,
-                "banco vazio: defina ADMIN_EMAIL e ADMIN_PASSWORD para o bootstrap "
-                "(só na 1ª subida; apague depois)",
+                f"banco {'vazio' if current is None else 'parado na ' + current}: defina "
+                "ADMIN_EMAIL e ADMIN_PASSWORD para o bootstrap (só lidos com banco vazio)",
             )
         await make_pre_migration_backup(dsn, f"pre-{head}")
         upgrade(dsn, BOOTSTRAP_REVISION)

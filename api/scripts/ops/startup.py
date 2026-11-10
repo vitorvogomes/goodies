@@ -1,10 +1,11 @@
 """Subida do container da api (Story 1.2 — AD-18).
 
+0. Em produção, recusa `DATABASE_URL`/`REDIS_URL` vazias ou em localhost (ADR-018).
 1. Confere `BACKUP_DIR` (recusa pasta sincronizada com a nuvem ou dentro do repo).
 2. `AUTO_MIGRATE=false` (padrão): banco fora do `head` → não sobe e manda rodar
    `scripts.ops.migrar`.
    `AUTO_MIGRATE=true`: backup → `alembic upgrade head`.
-   Banco vazio com `AUTO_MIGRATE=true` (ADR-018): bootstrap `0001` → admin de
+   Banco vazio com `AUTO_MIGRATE=true` (ADR-018): bootstrap `0002` → admin de
    `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `head`.
 3. Sobe o uvicorn **sem** `--reload` (este serviço aponta para o banco real), em
    `API_HOST`/`PORT` (o Railway injeta `PORT`).
@@ -16,7 +17,7 @@ import asyncio
 import os
 import sys
 
-from config import Settings, settings
+from config import Settings, local_service_urls, settings
 from workers.backup import BackupDirError, backup_dir
 from workers.dbops import admin_from_env, startup_gate
 
@@ -26,6 +27,13 @@ def uvicorn_argv(s: Settings) -> list[str]:
 
 
 def main() -> None:
+    if missing := local_service_urls(settings):
+        print(
+            f"api não sobe: em produção {', '.join(missing)} vazia(s) ou em localhost — confira a "
+            "referência ${{Serviço.VAR}} nas variáveis do Railway",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     try:
         backup_dir()
     except BackupDirError as exc:
