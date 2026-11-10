@@ -464,7 +464,7 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
 - **Rule:**
   - Produção no Railway: Postgres 15 (`postgres-ssl:15`), Redis 7, `api` e `web`. Só o `web` tem domínio público;
     ele repassa `/api/v1/*` para a api pela rede privada (`API_INTERNAL_URL`). Api, Postgres e Redis sem domínio
-    nem TCP proxy público (o TCP proxy só liga durante uma carga/cópia de banco).
+    nem acesso público; da máquina local, só por túnel (`railway connect`).
   - Dev: `docker compose` (postgres 15, redis 7, api) + `pnpm dev`, portas só em `127.0.0.1`.
   - Api com 1 réplica, sem dormir; APScheduler no processo; catch-up ao abrir o app; Binance só via cron.
   - Produção migra na subida (`AUTO_MIGRATE=true`): backup na hora → `alembic upgrade head`; banco vazio faz o

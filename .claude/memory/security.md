@@ -63,8 +63,8 @@
 - O `.env` local é só de desenvolvimento. Para levar chaves de mercado e endereços ao Railway, o
   Vitor cola pelo Raw Editor do serviço; o agente não lê nem repassa valores.
 - `ADMIN_EMAIL`/`ADMIN_PASSWORD` só existem na 1ª subida da api (bootstrap) e são apagados depois.
-- Postgres e Redis sem domínio/TCP proxy público; ligar o TCP proxy só durante uma carga ou cópia
-  de banco e desligar em seguida.
+- Postgres e Redis sem acesso público ("Add Public Access" desligado); acesso da máquina local
+  só por túnel (`railway connect Postgres --tunnel-only`).
 - Logs do Railway seguem a regra de sempre: nada de valor financeiro, DSN ou segredo.
 
 ## 7. Dados financeiros

@@ -27,12 +27,15 @@ Projeto **goodies**, ambiente `production`. Crie os serviços nesta ordem.
 
 ### 1.1 Postgres
 
-1. **+ New → Database → PostgreSQL**.
-2. **Antes de gravar qualquer dado:** Settings → Source → Image = `ghcr.io/railwayapp-templates/postgres-ssl:15`
-   e redeploy. O template novo vem em versão mais nova; a imagem da api tem `pg_dump` **15**, que não faz backup de
-   servidor 16+. Trocar de major com dados exige o fluxo de upgrade do Railway.
-3. Settings → Networking: **sem** TCP proxy público.
-4. Backups nativos do Railway (aba Backups), se o plano tiver: ligar.
+1. **+ New → Database → PostgreSQL**. O template já sobe e inicializa o volume com a versão dele (18 em nov/2026).
+2. Settings → Source → Image = `ghcr.io/railwayapp-templates/postgres-ssl:15`. A imagem da api tem `pg_dump` **15**,
+   que não faz backup de servidor 16+, e o Postgres não volta de versão.
+3. **Recriar o volume vazio** (enquanto não houver dado): anotar o Mount Path do volume (no template,
+   `/var/lib/postgresql/data`) → Delete Volume → anexar um volume novo no **mesmo** Mount Path → Redeploy. O log deve
+   terminar em `database system is ready to accept connections`. As variáveis do serviço (`PGDATA`,
+   `POSTGRES_PASSWORD`, `DATABASE_URL`) ficam como estão.
+4. Settings → Networking: **não** clicar em "Add Public Access". Basta o `postgres.railway.internal`.
+5. Os backups nativos (aba Backups) são do plano Pro. Sem eles, valem os backups da §4 (volume da api + cópia local).
 
 ### 1.2 Redis
 
@@ -53,7 +56,7 @@ Projeto **goodies**, ambiente `production`. Crie os serviços nesta ordem.
 | Deploy → Replicas | **1** (APScheduler no processo; 2 réplicas = crons em dobro) |
 | Deploy → Serverless (App Sleeping) | **desligado** (dormindo, os crons não rodam) |
 | Networking | **sem** domínio público |
-| Volumes | **+ Volume** montado em `/backups` |
+| Volumes | **+ Volume** montado em `/backups` (com volume o Railway trava a api em 1 réplica, que é o que se quer) |
 
 Variáveis (Variables). As referências `${{…}}` são digitadas literalmente, e o Railway resolve:
 
@@ -137,7 +140,7 @@ Depois de gerar o domínio, volte à api e preencha `CORS_ORIGINS`.
 | `db_backup` | volume `/backups` (30 diários + 12 mensais) | 13:00 BRT e no catch-up |
 | pré-migração | `/backups/pre-migracao` (nunca apagado) | toda subida que migra |
 | `restore_check` | banco descartável `goodies_restore_check` | dia 1, 13:30 BRT |
-| nativo do Railway | painel do Postgres | conforme o plano |
+| nativo do Railway | painel do Postgres | só no plano Pro |
 | **cópia fora do Railway** | `$BACKUP_DIR/railway/` nesta máquina | à mão, ~1×/semana |
 
 Cópia fora do Railway (precisa de `railway login` + `railway link` no projeto e de docker):
@@ -153,14 +156,15 @@ O script baixa por `railway ssh` (em base64), confere o sha256 dos dois lados e 
 ## 5. Restaurar o banco de produção
 
 1. api: Settings → Replicas = 0 (ou remover o deploy ativo), para nada escrever no banco.
-2. Postgres: ligar o TCP proxy **temporariamente** e pegar a `DATABASE_PUBLIC_URL` pelo painel. Não colar no chat:
-   exportar no próprio terminal.
-3. Restaurar com o cliente 15, sem `psql` no host:
+2. Abrir um túnel sem expor o banco: `railway connect Postgres --tunnel-only` (num terminal à parte). Ele mostra a
+   porta local; usuário, senha e banco estão nas variáveis do serviço Postgres (`PGUSER`, `PGPASSWORD`,
+   `PGDATABASE`). Exporte o DSN no seu terminal como `DSN_TUNEL` — nunca colar no chat.
+3. Restaurar com o cliente 15, sem `psql` no host (a rede `host` deixa o container alcançar o túnel local):
    ```bash
-   docker run --rm -i -e DSN="$DATABASE_PUBLIC_URL" postgres:15-alpine \
+   docker run --rm -i --network host -e DSN="$DSN_TUNEL" postgres:15-alpine \
      sh -c 'pg_restore --clean --if-exists --no-owner --no-privileges -d "$DSN"' < arquivo.dump
    ```
-4. Desligar o TCP proxy, voltar a api para 1 réplica e conferir: health, login e contagens na tela.
+4. Fechar o túnel, voltar a api para 1 réplica e conferir health, login e contagens na tela.
 
 ## 6. Próxima etapa: dump curado da máquina de casa
 
@@ -190,5 +194,6 @@ O dump de casa (§6) resolve tudo isso.
 | login entra e volta para `/login` | browser falando com a api por outro domínio | `NEXT_PUBLIC_API_URL` precisa estar vazio no **build** do web |
 | api não conecta pela rede privada (ambiente antigo, só IPv6) | uvicorn escutando em `0.0.0.0` | `API_HOST=::` na api |
 | `db_backup` falha com erro de versão do `pg_dump` | Postgres do Railway não é 15 | §1.1 passo 2 |
+| Postgres em loop: `This image runs PostgreSQL 15 but the data directory holds major version 18` | volume inicializado pelo template antes da troca de imagem | §1.1 passo 3 (só sem dado; com dado, voltar para a 18) |
 | api não sobe: `banco vazio: defina ADMIN_EMAIL…` | 1ª subida sem credenciais do admin | §2 |
 | build do web com Node < 24 | Railpack não pegou `engines.node` | `RAILPACK_NODE_VERSION=24` no web |
