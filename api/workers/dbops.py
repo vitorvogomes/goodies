@@ -6,14 +6,16 @@
 - `migrar`: o único caminho que migra o banco real — branch `main` limpa, testes `dados_reais`
   verdes (nenhum pulado) e backup feito na hora; qualquer etapa falhando, não migra.
 - `startup_gate`: decisão da subida do container (`AUTO_MIGRATE=false` → banco fora do `head`
-  não sobe).
+  não sobe). Com `AUTO_MIGRATE=true` (produção, ADR-018), banco vazio faz o bootstrap
+  `0001_initial_users` → admin → `head`: a 0016 exige um usuário e as sementes por usuário das
+  migrações (grupos, categorias, regras, metas de classe) caem nele.
 """
 
 from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,10 +23,13 @@ import asyncpg
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from auth.admin import upsert_admin
 from workers.backup import REPO_ROOT, make_pre_migration_backup
 
 API_DIR = Path(__file__).resolve().parents[1]
 MIGRAR_HINT = "rode `python -m scripts.ops.migrar`"
+# Banco vazio sobe até aqui, ganha o admin e só então vai ao head (a 0016 exige um usuário).
+BOOTSTRAP_REVISION = "0001_initial_users"
 
 
 class MigrationRefused(RuntimeError):
@@ -63,8 +68,35 @@ class StartupDecision:
     message: str
 
 
+@dataclass(frozen=True)
+class AdminCredentials:
+    email: str
+    password: str
+
+    def __repr__(self) -> str:  # nunca a senha em log/traceback
+        return f"AdminCredentials(email={self.email!r}, password=***)"
+
+
+def admin_from_env(env: Mapping[str, str] = os.environ) -> AdminCredentials | None:
+    """`ADMIN_EMAIL`/`ADMIN_PASSWORD` do ambiente (só na 1ª subida); vazio conta como ausente."""
+    email = env.get("ADMIN_EMAIL", "").strip()
+    password = env.get("ADMIN_PASSWORD", "")
+    if not email or not password.strip():
+        return None
+    return AdminCredentials(email, password)
+
+
+async def _seed_admin(dsn: str, admin: AdminCredentials) -> None:
+    await upsert_admin(dsn, admin.email, admin.password)
+
+
 async def startup_gate(
-    dsn: str, *, auto_migrate: bool, upgrade: Callable[[str], None] | None = None
+    dsn: str,
+    *,
+    auto_migrate: bool,
+    upgrade: Callable[[str, str], None] = alembic_upgrade,
+    admin: AdminCredentials | None = None,
+    seed_admin: Callable[[str, AdminCredentials], Awaitable[None]] = _seed_admin,
 ) -> StartupDecision:
     head = head_revision()
     current = await current_revision(dsn)
@@ -74,8 +106,20 @@ async def startup_gate(
         return StartupDecision(
             False, f"banco em {current or 'vazio'}, código em {head}: {MIGRAR_HINT}"
         )
+    if current is None:
+        if admin is None:
+            return StartupDecision(
+                False,
+                "banco vazio: defina ADMIN_EMAIL e ADMIN_PASSWORD para o bootstrap "
+                "(só na 1ª subida; apague depois)",
+            )
+        await make_pre_migration_backup(dsn, f"pre-{head}")
+        upgrade(dsn, BOOTSTRAP_REVISION)
+        await seed_admin(dsn, admin)
+        upgrade(dsn, "head")
+        return StartupDecision(True, f"bootstrap: banco vazio → admin → {head}, com backup antes")
     await make_pre_migration_backup(dsn, f"pre-{head}")
-    (upgrade or alembic_upgrade)(dsn)
+    upgrade(dsn, "head")
     return StartupDecision(True, f"migrado para {head} com backup antes")
 
 

@@ -77,3 +77,25 @@ def test_placeholder_or_short_secrets_are_refused(secret: str) -> None:
     assert insecure_secrets(s) == ["jwt_secret_key"]
     with pytest.raises(RuntimeError):
         config.assert_secure(s)
+
+
+def test_api_docs_off_in_production() -> None:
+    """ADR-018: a api não publica /docs, /redoc nem o schema em produção."""
+    assert config.api_docs_urls("production") == {
+        "docs_url": None,
+        "redoc_url": None,
+        "openapi_url": None,
+    }
+    assert config.api_docs_urls("development") == {
+        "docs_url": "/docs",
+        "redoc_url": "/redoc",
+        "openapi_url": "/openapi.json",
+    }
+
+
+def test_postgres_scheme_is_normalized() -> None:
+    """ADR-018: `postgres://` (alguns provedores) vira `postgresql://` (exigido pelo env.py)."""
+    s = Settings(_env_file=None, database_url="postgres://u:p@h:5432/db")
+    assert s.database_url == "postgresql://u:p@h:5432/db"
+    s = Settings(_env_file=None, database_url="postgresql://u:p@h:5432/db")
+    assert s.database_url == "postgresql://u:p@h:5432/db"

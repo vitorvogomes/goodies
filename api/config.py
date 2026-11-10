@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     version: str = "0.1.0"
     cors_origins: list[str] = ["http://localhost:3000"]
+    # ADR-018: o Railway injeta PORT; API_HOST="::" se a rede privada exigir IPv6 (ambiente legado).
+    api_host: str = "0.0.0.0"
+    port: int = 8000
     database_url: str = _DEV_DATABASE_URL
     redis_url: str = _DEV_REDIS_URL
     # Story 1.6: o Hermes fica desligado na v2.0 (router não montado); código intocado até a v2.1.
@@ -172,6 +175,9 @@ class Settings(BaseSettings):
         # .env de dev pode trazer DATABASE_URL=/REDIS_URL= (vazio) → serviços locais do compose.
         if v is None or (isinstance(v, str) and not v.strip()):
             return _DEV_DATABASE_URL if info.field_name == "database_url" else _DEV_REDIS_URL
+        # ADR-018: `postgres://` (alguns provedores) → `postgresql://` (o env.py do Alembic exige).
+        if info.field_name == "database_url" and isinstance(v, str) and v.startswith("postgres://"):
+            return "postgresql://" + v.removeprefix("postgres://")
         return v
 
     @field_validator(
@@ -200,6 +206,13 @@ def insecure_secrets(s: Settings) -> list[str]:
         if str(getattr(s, name)).startswith(_PUBLIC_PREFIXES)
         or len(str(getattr(s, name))) < _MIN_SECRET_LEN
     ]
+
+
+def api_docs_urls(environment: str) -> dict[str, str | None]:
+    """ADR-018: em produção a api não publica /docs, /redoc nem o schema OpenAPI."""
+    if environment == "production":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
 
 
 def assert_secure(s: Settings) -> None:

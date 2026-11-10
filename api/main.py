@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth.router import router as auth_router
-from config import assert_secure, settings
+from config import api_docs_urls, assert_secure, settings
 from db.connection import check_postgres, close_pool, init_pool
 from engines.alerts import service as alerts_service
 from engines.alerts.router import router as alerts_router
@@ -128,7 +128,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await close_pool()
 
 
-app = FastAPI(title="Goodies API", version=settings.version, lifespan=lifespan)
+_docs = api_docs_urls(settings.environment)  # ADR-018: sem /docs em produção
+app = FastAPI(
+    title="Goodies API",
+    version=settings.version,
+    lifespan=lifespan,
+    docs_url=_docs["docs_url"],
+    redoc_url=_docs["redoc_url"],
+    openapi_url=_docs["openapi_url"],
+)
 
 app.add_middleware(
     CORSMiddleware,

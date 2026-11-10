@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import asyncpg
 import pytest
 
 from config import settings
@@ -44,18 +45,71 @@ async def test_startup_refuses_db_behind_head_without_auto_migrate(empty_db: str
     assert "python -m scripts.ops.migrar" in decision.message
 
 
+_ADMIN = dbops.AdminCredentials("admin@goodies.test", "s" * 24)
+
+
 @pytest.mark.asyncio
 async def test_startup_auto_migrate_backs_up_before_upgrade(
     empty_db: str, backup_root: Path
 ) -> None:
     calls: list[str] = []
 
-    def fake_upgrade(dsn: str) -> None:
+    def fake_upgrade(dsn: str, target: str) -> None:
         pre = list((backup_root / backup.PRE_MIGRATION_SUBDIR).iterdir())
-        calls.append(f"upgrade com {len(pre)} backup")
+        calls.append(f"upgrade {target} com {len(pre)} backup")
 
-    decision = await dbops.startup_gate(empty_db, auto_migrate=True, upgrade=fake_upgrade)
-    assert decision.ok and calls == ["upgrade com 1 backup"]
+    async def fake_seed(dsn: str, admin: dbops.AdminCredentials) -> None:
+        calls.append(f"admin {admin.email}")
+
+    decision = await dbops.startup_gate(
+        empty_db, auto_migrate=True, upgrade=fake_upgrade, admin=_ADMIN, seed_admin=fake_seed
+    )
+    assert decision.ok
+    # ADR-018: banco vazio → 0001 → admin → head (a 0016 exige um usuário).
+    assert calls == [
+        f"upgrade {dbops.BOOTSTRAP_REVISION} com 1 backup",
+        "admin admin@goodies.test",
+        "upgrade head com 1 backup",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_startup_refuses_empty_db_without_admin(empty_db: str, backup_root: Path) -> None:
+    touched: list[str] = []
+    decision = await dbops.startup_gate(
+        empty_db, auto_migrate=True, upgrade=lambda dsn, rev: touched.append(rev), admin=None
+    )
+    assert not decision.ok
+    assert "ADMIN_EMAIL" in decision.message and "ADMIN_PASSWORD" in decision.message
+    assert touched == []
+
+
+@pytest.mark.asyncio
+async def test_startup_bootstraps_empty_db_to_head_with_owner_seeds(
+    empty_db: str, backup_root: Path
+) -> None:
+    """Alembic de verdade: as sementes por usuário das migrações caem no admin."""
+    decision = await dbops.startup_gate(empty_db, auto_migrate=True, admin=_ADMIN)
+    assert decision.ok, decision.message
+    assert await dbops.current_revision(empty_db) == dbops.head_revision()
+    conn = await asyncpg.connect(empty_db)
+    try:
+        owner = await conn.fetchval("SELECT id FROM users WHERE email = $1", _ADMIN.email)
+        assert owner is not None
+        assert await conn.fetchval("SELECT count(*) FROM users") == 1
+        for table in ("category_groups", "categories", "category_rules", "portfolio_targets"):
+            mine = await conn.fetchval(f"SELECT count(*) FROM {table} WHERE user_id = $1", owner)
+            assert mine > 0, table
+    finally:
+        await conn.close()
+
+
+def test_admin_credentials_from_env() -> None:
+    assert dbops.admin_from_env({}) is None
+    assert dbops.admin_from_env({"ADMIN_EMAIL": "a@b.c", "ADMIN_PASSWORD": " "}) is None
+    assert dbops.admin_from_env({"ADMIN_EMAIL": "a@b.c", "ADMIN_PASSWORD": "pw"}) == (
+        dbops.AdminCredentials("a@b.c", "pw")
+    )
 
 
 @pytest.mark.asyncio

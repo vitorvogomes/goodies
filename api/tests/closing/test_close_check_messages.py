@@ -44,7 +44,10 @@ async def test_b3_position_without_consolidado_explains(pool: Any) -> None:
 async def test_crypto_check_before_first_scan_is_info(pool: Any) -> None:
     async with pool.acquire() as conn:
         first = await conn.fetchval("SELECT min(ref_date) FROM wallet_position_history")
-        account = await conn.fetchval("SELECT id FROM accounts LIMIT 1")
+        # Conta própria do teste: num goodies_test recém-criado ainda não há nenhuma.
+        account = await conn.fetchval(
+            "INSERT INTO accounts (name, type) VALUES ('zz conta cripto', 'bank') RETURNING id"
+        )
         tx = await conn.fetchval(
             "INSERT INTO transactions (account_id, date, amount, category_id, kind, description) "
             "VALUES ($1, '1991-03-05', -100, (SELECT id FROM categories "
@@ -56,6 +59,7 @@ async def test_crypto_check_before_first_scan_is_info(pool: Any) -> None:
             none = await wallet.close_checks(conn, date(1990, 1, 1))  # sem cripto ainda
         finally:
             await conn.execute("DELETE FROM transactions WHERE id = $1", tx)
+            await conn.execute("DELETE FROM accounts WHERE id = $1", account)
     assert none == []
     assert [c["kind"] for c in before] == ["info"]
     assert "aplicado" in before[0]["message"]
