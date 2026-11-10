@@ -2,9 +2,9 @@
 
 ADR-005 / CLAUDE.md: a Liquid é uma sidechain CONFIDENCIAL e distinta da mainchain
 Bitcoin. É **proibido** reutilizar qualquer fetcher de Bitcoin mainchain. Este client é
-dedicado e usa `LIQUID_BASE_URL` = `https://blockstream.info/liquid/api` (NÃO `/btc/api`)
+dedicado e usa `settings.liquid_base_url` = `https://blockstream.info/liquid/api` (NÃO `/btc/api`)
 + `WALLET_SIDESWAP_ADDRESS` (endereço de recebimento do SideSwap) + os asset ids públicos
-da Liquid: `LBTC_ASSET_ID` (L-BTC) e `LUSDT_ASSET_ID` (USDt na Liquid).
+da Liquid: `settings.lbtc_asset_id` (L-BTC) e `settings.lusdt_asset_id` (USDt), fixos no código.
 
 Esplora API: `GET {base}/address/{addr}/utxo` → lista de UTXOs `[{txid, vout, status,
 value, asset}]`. A Liquid é multi-asset: soma `value` (sats) por asset, **somente** dos
@@ -48,7 +48,7 @@ class LiquidFetcher:
     ) -> None:
         base = base_url if base_url is not None else settings.liquid_base_url
         self._base = base.rstrip("/")
-        # asset_id -> símbolo; descarta ids vazios (asset não configurado no .env).
+        # asset_id -> símbolo; descarta ids vazios (asset sobrescrito com vazio pelo ambiente).
         raw = (
             assets
             if assets is not None

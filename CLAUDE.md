@@ -100,10 +100,10 @@ Regressão: XIRR consolidado, por classe e por ativo = baseline da Story 1.3 (`E
 ## Liquid Network (ADR-005)
 
 ```python
-import os
-LIQUID_BASE_URL = os.environ["LIQUID_BASE_URL"]   # https://blockstream.info/liquid/api — NÃO /btc/api
-LBTC_ASSET_ID   = os.environ["LBTC_ASSET_ID"]     # constante pública L-BTC — valor em .env (ADR-005)
-LUSDT_ASSET_ID  = os.environ["LUSDT_ASSET_ID"]    # constante pública L-USDT (Liquid é multi-asset)
+# api/config.py — constantes PÚBLICAS da rede, no código (não no .env, desde 10/11/2026)
+settings.liquid_base_url  # https://blockstream.info/liquid/api — NÃO /btc/api
+settings.lbtc_asset_id    # 6f0279e9…526d — L-BTC
+settings.lusdt_asset_id   # ce091c99…7bd2 — USDt na Liquid (Liquid é multi-asset)
 ```
 Client dedicado em `api/engines/market/fetchers/wallets/liquid.py` (multi-asset: L-BTC + L-USDT).
 Proibido reutilizar fetcher Bitcoin mainchain. Endereço SideSwap é confidencial → entrada manual.

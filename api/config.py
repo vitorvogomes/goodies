@@ -32,7 +32,9 @@ class Settings(BaseSettings):
 
     environment: str = "development"
     version: str = "0.1.0"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # ADR-018: o browser só fala com a origem do web, que repassa /api/v1 à api (dev e produção);
+    # nenhuma origem externa é liberada. CORS_ORIGINS (lista JSON) só se outra origem precisar.
+    cors_origins: list[str] = []
     # ADR-018: o Railway injeta PORT; API_HOST="::" se a rede privada exigir IPv6 (ambiente legado).
     api_host: str = "0.0.0.0"
     port: int = 8000
@@ -124,7 +126,6 @@ class Settings(BaseSettings):
     # Chaves/endereços vêm do .env (PII/segredos — gitignored; placeholders no .env.example).
     # Vazios caem em defaults; os fetchers de wallet ficam no-op sem credencial.
     etherscan_api_key: str = ""  # ETH/ARB/HYPE — https://etherscan.io (V2 multichain)
-    solscan_api_key: str = ""  # SOL/SPL — https://solscan.io
     binance_api_key: str = ""  # Binance spot+earn — CRON ONLY, assinado HMAC-SHA256
     binance_api_secret: str = ""
     wallet_rabby_address: str = ""  # Rabby — ETH/ARB/PENDLE (Etherscan) + HYPE (L1 spot + HyperEVM)
@@ -142,10 +143,11 @@ class Settings(BaseSettings):
     # SolanaFetcher escaneia Phantom + Neobankless juntos (mesmo source=solana → 1 sweep).
     wallet_neobankless_address: str = ""
     wallet_sideswap_address: str = ""  # SideSwap — recebimento Liquid (L-BTC + USDT)
-    # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api).
+    # Liquid Network (ADR-005): client DEDICADO; base .../liquid/api (NÃO /btc/api). URL e asset ids
+    # são constantes PÚBLICAS da rede — ficam no código (decisão de 10/11/2026), não no .env.
     liquid_base_url: str = "https://blockstream.info/liquid/api"
-    lbtc_asset_id: str = ""  # constante pública L-BTC (64 hex) — valor no .env
-    lusdt_asset_id: str = ""  # asset id público do USDt na Liquid (64 hex) — valor no .env
+    lbtc_asset_id: str = "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"  # L-BTC
+    lusdt_asset_id: str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"  # USDt
     # Bitcoin mainchain (Trust) — ADR-005: client SEPARADO do Liquid (NÃO /liquid/api).
     wallet_trust_btc_address: str = ""  # Trust — endereço BTC mainchain (bc1q...)
     btc_base_url: str = "https://blockstream.info/api"

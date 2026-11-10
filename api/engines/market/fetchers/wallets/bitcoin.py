@@ -2,7 +2,7 @@
 
 ADR-005: a mainchain Bitcoin e a Liquid são redes DISTINTAS, com clients SEPARADOS — este
 fetcher NÃO compartilha nada com o `LiquidFetcher`. Usa o esplora público da Blockstream na
-mainchain: base `BTC_BASE_URL` = `https://blockstream.info/api` (NÃO `/liquid/api`) +
+mainchain: base `settings.btc_base_url` = `https://blockstream.info/api` (NÃO `/liquid/api`) +
 `WALLET_TRUST_BTC_ADDRESS` (endereço bc1q... da Trust).
 
 Esplora API: `GET {base}/address/{addr}` → `{chain_stats: {funded_txo_sum, spent_txo_sum},

@@ -144,7 +144,7 @@ Implementar `fetchers/wallets/liquid.py` como cliente dedicado, sem reutilizar n
 
 ### Consequências
 - Endereço Liquid (`${WALLET_SIDESWAP_ADDRESS}` — wallet SideSwap; renomeado de `WALLET_LIQUID_ADDRESS` no m4) é validado como endereço Liquid, não Bitcoin.
-- Liquid é **multi-asset**: o fetcher lê L-BTC (`${LBTC_ASSET_ID}`) **e** L-USDT (`${LUSDT_ASSET_ID}`) do mesmo endereço. L-BTC = 1:1 BTC, L-USDT = 1:1 USDt (via CoinGecko).
+- Liquid é **multi-asset**: o fetcher lê L-BTC (`settings.lbtc_asset_id`) **e** L-USDT (`settings.lusdt_asset_id`, constantes públicas em `api/config.py` desde 10/11/2026) do mesmo endereço. L-BTC = 1:1 BTC, L-USDT = 1:1 USDt (via CoinGecko).
 - O endereço SideSwap é **confidencial** (blinded): o esplora público devolve 0 UTXOs → **entrada manual** (`is_manual`, ver ADR-013).
 
 ---

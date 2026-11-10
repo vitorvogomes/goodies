@@ -30,7 +30,7 @@ Retorno quando sem dado: `{"value": null, "stale": true, "last_updated": null}` 
 
 ## ADR-005 — Liquid Network: client dedicado
 Base URL: `https://blockstream.info/liquid/api` (NÃO `/btc/api`)
-Asset IDs: `${LBTC_ASSET_ID}` (L-BTC) + `${LUSDT_ASSET_ID}` (L-USDT) — Liquid é multi-asset.
+Asset IDs: `settings.lbtc_asset_id` (L-BTC) + `settings.lusdt_asset_id` (L-USDT), constantes públicas em `config.py` — Liquid é multi-asset.
 **Proibido reutilizar qualquer código do fetcher Bitcoin mainchain.**
 
 ## ADR-006 — Auth JWT no FastAPI (não Supabase Auth)
@@ -154,8 +154,8 @@ falta na classe.
 | Liquid (L-BTC + L-USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` — confidencial → entrada manual |
 | BTC (mainchain) | Trust | `${WALLET_TRUST_BTC_ADDRESS}` |
 
-Config não-endereço (também `.env`): `LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQUID_BASE_URL`,
-`BTC_BASE_URL`, `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`/`_SECRET`.
+Config não-endereço no `.env`: `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`/`_SECRET`.
+No código (`config.py`, constantes públicas): asset ids da Liquid e URLs base da Blockstream (desde 10/11/2026).
 
 ## TTLs de cache Redis
 

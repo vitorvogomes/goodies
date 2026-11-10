@@ -99,3 +99,19 @@ def test_postgres_scheme_is_normalized() -> None:
     assert s.database_url == "postgresql://u:p@h:5432/db"
     s = Settings(_env_file=None, database_url="postgresql://u:p@h:5432/db")
     assert s.database_url == "postgresql://u:p@h:5432/db"
+
+
+def test_liquid_public_constants_live_in_code() -> None:
+    """Revisão das env vars (10/11/2026): constantes públicas da Liquid no código, não no .env."""
+    s = Settings(_env_file=None)
+    assert s.lbtc_asset_id == "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
+    assert s.lusdt_asset_id == "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"
+    assert s.liquid_base_url == "https://blockstream.info/liquid/api"
+    assert s.btc_base_url == "https://blockstream.info/api"
+    assert not hasattr(s, "solscan_api_key")
+
+
+
+def test_cors_closed_by_default() -> None:
+    """ADR-018: nenhuma origem externa liberada por padrão (o web repassa /api/v1)."""
+    assert Settings(_env_file=None).cors_origins == []

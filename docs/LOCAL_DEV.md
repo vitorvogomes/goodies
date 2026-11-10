@@ -4,7 +4,7 @@
 Aqui a stack de dev (Postgres + Redis + **API**) sobe via `docker compose` na porta **8000** e o front (Next.js)
 roda no host.
 
-> `DISCORD_WEBHOOK_URL` é da v2.1 — deixe o placeholder. `BACKUP_DIR` aponta para um diretório fora do
+> O `.env` guarda só segredo, PII e o que muda por ambiente; o resto tem padrão em `api/config.py`. `BACKUP_DIR` aponta para um diretório fora do
 > repositório e fora de pasta sincronizada com a nuvem. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front
 > aponta para `http://localhost:8000`.
 
@@ -56,7 +56,8 @@ fora do `head` não sobe e a mensagem manda rodar `python -m scripts.ops.migrar`
 ### 2. Migrations + admin (primeira vez / quando o schema mudar)
 
 > **Banco vazio (instalação nova):** não rode `alembic upgrade head` direto — a 0016 exige um usuário. Suba a api
-> com `AUTO_MIGRATE=true` e `ADMIN_EMAIL`/`ADMIN_PASSWORD` no ambiente: a subida faz backup → `0001_initial_users` →
+> com `AUTO_MIGRATE=true` e `ADMIN_EMAIL`/`ADMIN_PASSWORD` na linha de comando (não no `.env`), por exemplo
+> `cd api && AUTO_MIGRATE=true ADMIN_EMAIL=… ADMIN_PASSWORD=… uv run python -m scripts.ops.startup`: a subida faz backup → `0001_initial_users` →
 > admin → `head` (mesmo caminho da produção). Depois tire `ADMIN_PASSWORD` do ambiente.
 ```bash
 cd api && uv run python -m scripts.ops.migrar        # main limpa + dados_reais verdes + backup → upgrade
@@ -72,13 +73,10 @@ Em outro terminal:
 cd ~/projects/goodies/web
 pnpm dev                                # http://localhost:3000
 ```
-A URL da API já tem default `http://localhost:8000` (`lib/api.ts`). Só defina outra se precisar
-— em `web/.env.local` (tem precedência sobre `web/.env`):
-`echo 'NEXT_PUBLIC_API_URL=http://localhost:8000' > .env.local`.
-
-> ⚠️ `NEXT_PUBLIC_*` é **inlined no boot** do `pnpm dev`. Se trocar a URL da API (ou tiver um
-> `web/.env` antigo apontando p/ outra porta, ex.: `:8001`), **reinicie o `pnpm dev`** — senão
-> o browser continua chamando o valor velho e o login falha com "Não foi possível conectar".
+Nenhuma variável é necessária. O browser chama sempre a própria origem (`/api/v1/...`) e o Next repassa à
+api em `http://127.0.0.1:8000` (rewrite em `next.config.ts`, igual à produção — ADR-018). Para apontar para outra
+api, defina `API_INTERNAL_URL` em `web/.env.local` e **reinicie o `pnpm dev`** (o destino é lido na subida).
+Uma `NEXT_PUBLIC_API_URL` antiga em `web/.env*` não tem mais efeito: pode apagar.
 
 Abra `http://localhost:3000/login`, entre com o admin seedado → cai em `/visao-geral/painel`.
 

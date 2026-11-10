@@ -9,7 +9,7 @@ internet ──HTTPS──▶ web (Next.js, único domínio público *.up.railwa
                       ▼
                     api (FastAPI + APScheduler, 1 réplica, sem domínio público, volume /backups)
                       ├──▶ Postgres 15  (postgres-ssl:15, sem TCP proxy)
-                      └──▶ Redis 7      (sem domínio público)
+                      └──▶ Redis 8      (template; sem domínio público)
 ```
 
 Por que um domínio só: o cookie `refresh_token` (httpOnly) é criado pela api e o `web/proxy.ts` precisa enxergá-lo.
@@ -30,16 +30,18 @@ Projeto **goodies**, ambiente `production`. Crie os serviços nesta ordem.
 1. **+ New → Database → PostgreSQL**. O template já sobe e inicializa o volume com a versão dele (18 em nov/2026).
 2. Settings → Source → Image = `ghcr.io/railwayapp-templates/postgres-ssl:15`. A imagem da api tem `pg_dump` **15**,
    que não faz backup de servidor 16+, e o Postgres não volta de versão.
-3. **Recriar o volume vazio** (enquanto não houver dado): anotar o Mount Path do volume (no template,
-   `/var/lib/postgresql/data`) → Delete Volume → anexar um volume novo no **mesmo** Mount Path → Redeploy. O log deve
-   terminar em `database system is ready to accept connections`. As variáveis do serviço (`PGDATA`,
-   `POSTGRES_PASSWORD`, `DATABASE_URL`) ficam como estão.
+3. **Zerar o volume** (só enquanto não houver dado): clicar no volume do Postgres → Settings → **Wipe Volume**. O
+   Railway não deixa apagar o volume de um banco ("Delete Volume" fica bloqueado), mas o wipe apaga os dados da 18 e
+   dispara um deploy que inicializa tudo de novo com a 15. O log deve mostrar `starting PostgreSQL 15.x` e
+   `database system is ready to accept connections`. As variáveis do serviço ficam como estão.
 4. Settings → Networking: **não** clicar em "Add Public Access". Basta o `postgres.railway.internal`.
 5. Os backups nativos (aba Backups) são do plano Pro. Sem eles, valem os backups da §4 (volume da api + cópia local).
 
 ### 1.2 Redis
 
-**+ New → Database → Redis**. Sem domínio público. É só cache (o app cai para o Postgres).
+**+ New → Database → Redis**. Sem domínio público. É só cache (o app cai para o Postgres). O template vem com o
+Redis 8 (8.2 em nov/2026), compatível com os comandos que o app usa e com o 7 do compose local; não trocar a imagem
+(o template já configura a senha). Na api, usar `${{Redis.REDIS_URL}}` (privada), nunca a `REDIS_PUBLIC_URL`.
 
 ### 1.3 api
 
@@ -53,12 +55,13 @@ Projeto **goodies**, ambiente `production`. Crie os serviços nesta ordem.
 | Deploy → Healthcheck Path | `/api/v1/health` |
 | Deploy → Healthcheck Timeout | `300` (a 1ª subida roda o bootstrap) |
 | Deploy → Restart Policy | On Failure |
-| Deploy → Replicas | **1** (APScheduler no processo; 2 réplicas = crons em dobro) |
+| Scale → Replicas | **1** (APScheduler no processo; 2 réplicas = crons em dobro) |
 | Deploy → Serverless (App Sleeping) | **desligado** (dormindo, os crons não rodam) |
 | Networking | **sem** domínio público |
-| Volumes | **+ Volume** montado em `/backups` (com volume o Railway trava a api em 1 réplica, que é o que se quer) |
+| Volume | no **canvas**: clique direito na api → **Attach Volume**, Mount Path `/backups` (sem volume os backups somem a cada deploy; com volume o Railway trava a api em 1 réplica, que é o que se quer) |
 
-Variáveis (Variables). As referências `${{…}}` são digitadas literalmente, e o Railway resolve:
+Variáveis na aba **Variables da api** (não em Shared Variables; não clicar em SHARE). As referências `${{…}}` são
+digitadas literalmente, com o nome **exato** do serviço no canvas, e o Railway resolve para as URLs privadas:
 
 | Variável | Valor |
 |---|---|
@@ -66,18 +69,21 @@ Variáveis (Variables). As referências `${{…}}` são digitadas literalmente, 
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
 | `ENVIRONMENT` | `production` (cookie `secure`, `/docs` desligado) |
 | `AUTO_MIGRATE` | `true` |
-| `BACKUP_DIR` / `BACKUP_DIR_HOST` | `/backups` / `/backups` |
-| `PG_TOOLS` | `local` (já vem da imagem; explícito por clareza) |
+| `BACKUP_DIR` | `/backups` |
 | `PORT` | `8000` |
-| `HERMES_ENABLED` | `false` |
-| `CORS_ORIGINS` | `["https://<web>.up.railway.app"]` (preencher depois do 1.4) |
 | `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`, `HERMES_SERVICE_TOKEN_SECRET` | **novos**, `openssl rand -hex 32` cada; nunca os do `.env` local |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | só para a 1ª subida (bootstrap); **apagar depois** |
-| Chaves de mercado, carteiras, Liquid, RPCs, `LEDGER_SELF_IDENTIFIERS` | colar do `.env` local pelo **Raw Editor** |
+| `LEDGER_SELF_IDENTIFIERS` | do `.env` local |
+| Mercado: `BRAPI_TOKEN`, `COINGECKO_API_KEY`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`, `BINANCE_API_SECRET` | do `.env` local (Raw Editor) |
+| Carteiras: `WALLET_RABBY_ADDRESS`, `WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_NEOBANKLESS_ADDRESS`, `WALLET_SIDESWAP_ADDRESS`, `WALLET_TRUST_BTC_ADDRESS` | do `.env` local |
+| `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL` | só se usar RPC próprio (sem eles, o público) |
 
-No Raw Editor, **não** cole `DATABASE_URL`, `REDIS_URL`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `BACKUP_DIR`,
-os JWT locais, `API_HOST`, `ADMIN_*`, nem `EVALUATION_DATE` (este último só existe para gate). Segredos nunca passam
-pelo chat.
+Sem essas chaves os workers de preço e de carteira não fazem nada (sem erro). Ficam no código e **não** vão para o
+Railway: asset ids da Liquid e URLs da Blockstream (constantes públicas), TTLs do JWT/Hermes, `PG_TOOLS` (o Dockerfile já
+define `local`), `API_HOST` (só num ambiente legado só-IPv6). Também não: `BACKUP_DIR_HOST` (só do compose) e
+`EVALUATION_DATE` (só para gate). Se já criou alguma dessas (`LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQUID_BASE_URL`,
+`BTC_BASE_URL`, `PG_TOOLS`, `COINDESK_API_KEY`, `FMP_API_KEY`, `SOLSCAN_API_KEY`, `DISCORD_WEBHOOK_URL`), pode apagar. Não reaproveitar do `.env` local: `DATABASE_URL`, `REDIS_URL`, `POSTGRES_PASSWORD`,
+`REDIS_PASSWORD`, `BACKUP_DIR` e os JWT. Segredos nunca passam pelo chat.
 
 ### 1.4 web
 
@@ -88,19 +94,17 @@ pelo chat.
 | Source → Root Directory | `web` |
 | Build → Builder | Railpack (Node de `engines.node` ≥ 24 e `pnpm@11.2.2` de `packageManager`, no `package.json`) |
 | Source → Watch Paths | `/web/**` |
-| Deploy → Start Command | `pnpm start` (o `next start` lê `PORT`) |
+| Deploy → Start Command | **vazio**: o Railpack detecta pnpm (`packageManager` + `pnpm-lock.yaml`) e roda o script `start` (`next start`, que lê `PORT`) |
 | Deploy → Healthcheck Path | `/login` |
 | Networking | **Generate Domain** (este é o endereço do app) |
 
 | Variável | Valor |
 |---|---|
 | `API_INTERNAL_URL` | `http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| `NEXT_PUBLIC_API_URL` | vazio (mesma origem) |
 
-As duas são lidas **no build**. Se mudar alguma, faça **redeploy com rebuild**: só reiniciar não troca o destino do
-rewrite.
-
-Depois de gerar o domínio, volte à api e preencha `CORS_ORIGINS`.
+É a **única** variável do web, e é lida **no build**. Se mudar, faça **redeploy com rebuild**: só reiniciar não troca o
+destino do rewrite. Sem ela o build aponta para `127.0.0.1:8000` (o padrão de dev) e `/api/v1` dá 500. Não existe URL
+de api no browser (o `web/lib/api.ts` usa sempre a mesma origem), então também não há CORS a configurar.
 
 ---
 
@@ -191,9 +195,9 @@ O dump de casa (§6) resolve tudo isso.
 | Sintoma | Causa | Ação |
 |---|---|---|
 | `/api/v1/*` no web dá 500 com `ENOTFOUND` | rewrite gravado no build com outro destino, ou `API_INTERNAL_URL` ausente no build | conferir a variável no web e **rebuild** |
-| login entra e volta para `/login` | browser falando com a api por outro domínio | `NEXT_PUBLIC_API_URL` precisa estar vazio no **build** do web |
+| `/api/v1/*` no web dá 500 com `ECONNREFUSED 127.0.0.1:8000` | build do web sem `API_INTERNAL_URL` | definir a variável e **rebuild** |
 | api não conecta pela rede privada (ambiente antigo, só IPv6) | uvicorn escutando em `0.0.0.0` | `API_HOST=::` na api |
 | `db_backup` falha com erro de versão do `pg_dump` | Postgres do Railway não é 15 | §1.1 passo 2 |
-| Postgres em loop: `This image runs PostgreSQL 15 but the data directory holds major version 18` | volume inicializado pelo template antes da troca de imagem | §1.1 passo 3 (só sem dado; com dado, voltar para a 18) |
+| Postgres em loop: `This image runs PostgreSQL 15 but the data directory holds major version 18` | volume inicializado pelo template antes da troca de imagem | §1.1 passo 3, Wipe Volume (só sem dado; com dado, voltar para a 18) |
 | api não sobe: `banco vazio: defina ADMIN_EMAIL…` | 1ª subida sem credenciais do admin | §2 |
 | build do web com Node < 24 | Railpack não pegou `engines.node` | `RAILPACK_NODE_VERSION=24` no web |

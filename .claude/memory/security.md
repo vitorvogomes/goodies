@@ -45,14 +45,17 @@
 
 ## 5. Nota sobre os asset IDs e config de wallet (m4)
 
-- `LBTC_ASSET_ID` e `LUSDT_ASSET_ID` são constantes **públicas** da Liquid Network, mas
-  por escolha do Vitor são **env-managed** (`${...}` nos arquivos, valor só no `.env`) —
-  mesmo tratamento dos endereços. Ver ADR-005.
+- Desde 10/11/2026 (revisão das env vars, a pedido do Vitor) os asset ids da Liquid
+  (`settings.lbtc_asset_id`/`lusdt_asset_id`) e as URLs base da Blockstream
+  (`liquid_base_url`/`btc_base_url`) ficam **no código** (`api/config.py`): são constantes públicas
+  da rede. Ver ADR-005.
 - Os fetchers de wallet leem endereços do `.env`. Todos os endereços (`WALLET_RABBY_ADDRESS`,
   `WALLET_PHANTOM_SOL_ADDRESS`, `WALLET_SIDESWAP_ADDRESS`, `WALLET_TRUST_BTC_ADDRESS`,
   `WALLET_NEOBANKLESS_ADDRESS` — o depósito Neobankless, lido pelo scan Solana) e
-  as URLs de RPC/base (`SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `BTC_BASE_URL`,
-  `LIQUID_BASE_URL`) são `.env`-managed — mesma tier das API keys.
+  as URLs de RPC (`SOLANA_RPC_URL`, `HYPEREVM_RPC_URL` — podem embutir chave de provedor) são
+  `.env`-managed — mesma tier das API keys.
+- Regra do `.env`: só segredo, PII e o que muda por ambiente. Constante pública e política (TTLs,
+  flags com padrão) ficam em `api/config.py`; a env var homônima continua podendo sobrescrever.
 - **SideSwap** é confidencial (entrada manual): só o **endereço** é env-managed; não há
   credencial/chave de visão guardada.
 

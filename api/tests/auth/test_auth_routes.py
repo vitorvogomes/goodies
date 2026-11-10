@@ -186,17 +186,14 @@ async def test_refresh_cookie_is_lax_and_not_secure_in_localhost(test_user):
     assert "secure" not in attrs
 
 
-async def test_cors_only_allows_localhost_3000():
+async def test_cors_allows_no_external_origin():
+    # ADR-018: o browser só fala com a origem do web (rewrite /api/v1) em dev e produção; a api não
+    # libera origem externa nenhuma — nem o antigo localhost:3000 (AD-18 da v2.0).
     async with _client() as client:
-        ok = await client.options(
-            "/api/v1/health",
-            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
-        )
-        bad = await client.options(
-            "/api/v1/health",
-            headers={"Origin": "http://192.168.0.10:3000", "Access-Control-Request-Method": "GET"},
-        )
-    assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
-    assert ok.headers.get("access-control-allow-credentials") == "true"
-    assert "access-control-allow-origin" not in bad.headers
-    assert settings.cors_origins == ["http://localhost:3000"]
+        for origin in ("http://localhost:3000", "http://192.168.0.10:3000", "https://x.example"):
+            res = await client.options(
+                "/api/v1/auth/refresh",
+                headers={"Origin": origin, "Access-Control-Request-Method": "POST"},
+            )
+            assert "access-control-allow-origin" not in res.headers
+    assert settings.cors_origins == []
