@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return V1_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: false }));
   },
-  // ADR-018: /api/v1/* vai à api pela rede privada do Railway (só com API_INTERNAL_URL no build).
+  // ADR-018: /api/v1/* vai à api (Railway: API_INTERNAL_URL no build; dev: 127.0.0.1:8000).
   async rewrites() {
     return apiRewrites(process.env.API_INTERNAL_URL);
   },

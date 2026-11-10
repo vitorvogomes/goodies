@@ -1,11 +1,11 @@
 // Cliente HTTP base para o FastAPI — STORY-00-06.
 // Injeta o Authorization Bearer (access token em memória) e envia o cookie
-// httpOnly do refresh (credentials: "include"). Base URL via NEXT_PUBLIC_API_URL.
+// httpOnly do refresh (credentials: "include"). Sempre a mesma origem: o Next repassa /api/v1 à api
+// (rewrite em next.config.ts, ADR-018) — sem URL de api no browser, sem CORS.
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
 import { loginUrl } from "@/lib/next-url";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_BASE_URL = "";
 
 export class ApiError extends Error {
   constructor(

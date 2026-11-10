@@ -5,9 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiRewrites, securityHeaders } from "./deploy-config";
 
 describe("apiRewrites", () => {
-  it("sem API_INTERNAL_URL (dev local) não repassa nada", () => {
-    expect(apiRewrites(undefined)).toEqual([]);
-    expect(apiRewrites("  ")).toEqual([]);
+  it("sem API_INTERNAL_URL (dev local) repassa para a api do compose", () => {
+    const local = [
+      { source: "/api/v1/:path*", destination: "http://127.0.0.1:8000/api/v1/:path*" },
+    ];
+    expect(apiRewrites(undefined)).toEqual(local);
+    expect(apiRewrites("  ")).toEqual(local);
   });
 
   it("repassa /api/v1/* para a api interna, sem barra dupla", () => {
@@ -39,17 +42,10 @@ describe("API_BASE_URL", () => {
     vi.resetModules();
   });
 
-  it("NEXT_PUBLIC_API_URL vazio (produção) usa a mesma origem", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+  it("é sempre a mesma origem: o browser chama /api/v1 e o Next repassa", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://outro-host:9999");
     vi.resetModules();
     const { API_BASE_URL } = await import("./api");
     expect(API_BASE_URL).toBe("");
-  });
-
-  it("sem NEXT_PUBLIC_API_URL (dev) cai na api local", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", undefined);
-    vi.resetModules();
-    const { API_BASE_URL } = await import("./api");
-    expect(API_BASE_URL).toBe("http://localhost:8000");
   });
 });

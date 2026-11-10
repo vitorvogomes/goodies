@@ -1,16 +1,18 @@
 // ADR-018 — produção no Railway: o web é a única porta pública.
-// - `apiRewrites`: repassa /api/v1/* à api pela rede privada (API_INTERNAL_URL). Mesma origem → o cookie
-//   httpOnly de refresh e o `proxy.ts` funcionam como em localhost (ADR-006). Os rewrites são resolvidos
-//   no BUILD: a variável precisa existir no build do Railway. Sem ela (dev local), nada é repassado e o
-//   browser fala direto com NEXT_PUBLIC_API_URL.
+// - `apiRewrites`: o browser só fala com a própria origem (/api/v1/...) e o Next repassa à api —
+//   no Railway pela rede privada (API_INTERNAL_URL), no dev para a api do compose (127.0.0.1:8000, a porta
+//   publicada só em IPv4). Mesma origem → o cookie httpOnly de refresh e o `proxy.ts` funcionam igual nos
+//   dois (ADR-006) e não há CORS. No `next build` o destino é gravado no BUILD: a variável precisa
+//   existir no build do Railway.
 // - `securityHeaders`: cabeçalhos de segurança de todas as rotas.
 
 export type Rewrite = { source: string; destination: string };
 export type HeaderRule = { source: string; headers: Array<{ key: string; value: string }> };
 
+export const LOCAL_API_URL = "http://127.0.0.1:8000";
+
 export function apiRewrites(internalUrl: string | undefined): Rewrite[] {
-  const base = internalUrl?.trim().replace(/\/+$/, "");
-  if (!base) return [];
+  const base = internalUrl?.trim().replace(/\/+$/, "") || LOCAL_API_URL;
   return [{ source: "/api/v1/:path*", destination: `${base}/api/v1/:path*` }];
 }
 
