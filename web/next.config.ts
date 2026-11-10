@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { apiRewrites, securityHeaders } from "./lib/deploy-config";
+
 // Story 10.6 — as telas da v1 saíram; cada endereço antigo leva à aba equivalente da v2 (rota v1 →
 // substituto, registrado em docs/v2/stories/10.6-fim-das-telas-v1.md).
 const V1_REDIRECTS: Array<[string, string]> = [
@@ -23,8 +25,16 @@ const V1_REDIRECTS: Array<[string, string]> = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  poweredByHeader: false,
   async redirects() {
     return V1_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: false }));
+  },
+  // ADR-018: /api/v1/* vai à api pela rede privada do Railway (só com API_INTERNAL_URL no build).
+  async rewrites() {
+    return apiRewrites(process.env.API_INTERNAL_URL);
+  },
+  async headers() {
+    return securityHeaders();
   },
 };
 
