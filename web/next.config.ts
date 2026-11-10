@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-import { apiRewrites, securityHeaders } from "./lib/deploy-config";
+import { API_PROXY_TIMEOUT_MS, apiRewrites, securityHeaders } from "./lib/deploy-config";
 
 // Story 10.6 — as telas da v1 saíram; cada endereço antigo leva à aba equivalente da v2 (rota v1 →
 // substituto, registrado em docs/v2/stories/10.6-fim-das-telas-v1.md).
@@ -26,6 +26,7 @@ const V1_REDIRECTS: Array<[string, string]> = [
 const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
+  experimental: { proxyTimeout: API_PROXY_TIMEOUT_MS },
   async redirects() {
     return V1_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: false }));
   },

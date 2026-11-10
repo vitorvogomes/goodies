@@ -5,8 +5,6 @@
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
 import { loginUrl } from "@/lib/next-url";
 
-export const API_BASE_URL = "";
-
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -25,7 +23,7 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 export function refreshAccessToken(): Promise<boolean> {
   if (!refreshInFlight) {
-    refreshInFlight = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+    refreshInFlight = fetch("/api/v1/auth/refresh", {
       method: "POST",
       credentials: "include", // envia o cookie refresh_token (httpOnly)
     })
@@ -63,7 +61,7 @@ export async function apiFetch<T>(
   }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(path, {
     ...options,
     headers,
     credentials: "include",

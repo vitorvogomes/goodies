@@ -4,12 +4,15 @@
 //   publicada só em IPv4). Mesma origem → o cookie httpOnly de refresh e o `proxy.ts` funcionam igual nos
 //   dois (ADR-006) e não há CORS. No `next build` o destino é gravado no BUILD: a variável precisa
 //   existir no build do Railway.
+// - `API_PROXY_TIMEOUT_MS`: quanto o rewrite espera a api. O padrão do Next (30 s) corta o "Atualizar tudo"
+//   (POST /jobs/refresh roda os jobs em série, com backup e restore_check) e o browser recebe 500.
 // - `securityHeaders`: cabeçalhos de segurança de todas as rotas.
 
 export type Rewrite = { source: string; destination: string };
 export type HeaderRule = { source: string; headers: Array<{ key: string; value: string }> };
 
 export const LOCAL_API_URL = "http://127.0.0.1:8000";
+export const API_PROXY_TIMEOUT_MS = 300_000;
 
 export function apiRewrites(internalUrl: string | undefined): Rewrite[] {
   const base = internalUrl?.trim().replace(/\/+$/, "") || LOCAL_API_URL;
