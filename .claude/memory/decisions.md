@@ -6,9 +6,8 @@
 ---
 
 ## ADR-001 — Stack (LOCKED)
-FastAPI + Next.js 16 + Postgres 15 + Redis 7 (os dois no `docker compose` local).
-**Emenda 2026-10-17:** Fly.io e Vercel removidos (workflow, `fly.toml`, `DEPLOY.md`). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1. Postgres 15 e Redis 7 rodam no `docker compose` local (ADR-014); Supabase e Upstash não são usados.
-**Emenda 2026-11-10 (ADR-018):** a v2.1 roda no **Railway** (Postgres 15, Redis 7, api, web); o `docker compose` local vira ambiente de desenvolvimento.
+FastAPI + Next.js 16 + Postgres 15 + Redis 7. Produção no **Railway** (ADR-018); `docker compose` local é o
+ambiente de desenvolvimento. Supabase, Upstash, Fly e Vercel não são usados.
 **Não mudar sem ADR aprovado.** (Frontend atualizado de Next 14 → 16 / React 19 / Tailwind v4 por ADR-009.)
 
 ## ADR-002 — XIRR é a métrica de retorno
@@ -111,67 +110,13 @@ Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-sca
 
 ---
 
-## ADR-014 — v2.0 só em localhost (sem deploy, sem CI) — SUPERADO pelo ADR-018
-Decidido 2026-10-17 (commit d3748a4). Fly.io, Vercel e GitHub Actions removidos. A v2.0 roda só local
-(`docker compose` + `pnpm dev`); nenhum host de nuvem recebe dado financeiro. Backup local diário
-(`pg_dump`, fora do repo). Infra de deploy desenhada do zero na v2.1. Ver spine AD-18.
-
-## ADR-018 — v2.1 na nuvem: Railway (substitui o ADR-014)
-Decidido 2026-11-10 a pedido do Vitor (ver `docs/07_Decisoes.md`, runbook `docs/DEPLOY_RAILWAY.md`).
-- Railway, ambiente `production`: Postgres **15** (`postgres-ssl:15`), Redis 7, `api` (root `api/`), `web` (root `web/`).
-- **Só o web é público.** O Next repassa `/api/v1/*` para a api pela rede privada (`API_INTERNAL_URL`); api, Postgres e
-  Redis sem domínio público. Cookie de refresh e `proxy.ts` na mesma origem (ADR-006 intacto).
-- api com 1 réplica, sem dormir (ADR-003). `/docs` e `/openapi.json` desligados em `ENVIRONMENT=production`.
-- Migração em produção pela subida (`AUTO_MIGRATE=true`: backup → `upgrade head`); banco vazio faz bootstrap
-  `0001` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, só na 1ª subida) → `head`.
-- Backups: volume `/backups` (`db_backup` diário, `restore_check` mensal) + cópia local por `scripts/backup_railway.sh`.
-- Segredos de produção só nas variáveis do Railway, gerados novos. Banco começa vazio; dump de casa depois.
-- O gate `dados_reais`/`migrar` fica pendente até o `pinned_backup` existir nesta máquina.
+## ADR-014 — v2.0 só em localhost — SUPERADO pelo ADR-018 (detalhe em `docs/07_Decisoes.md`)
 
 ## ADR-015 — Resgate é receita (reverte o ADR-011 nesse ponto)
 Decidido no PRD v2 (2026-10-17). Resgate de caixinha/RF/corretora é receita, exibido em linha própria e
 reclassificado em todo o histórico (FR-19, migração idempotente). A taxa de poupança usa a **receita do
 trabalho** (sem resgates). O gate de 55,48% foi substituído pelo baseline por mês (ADR-016). Ver spine
 AD-6/AD-7/AD-16.
-
-## ADR-017 — Distribuição do aporte executável (lotes, troco, aportes fixos)
-Decidido 2026-10-18 a pedido do Vitor (ver `docs/07_Decisoes.md`). O sugerido por ativo é compra de fato: B3 em
-cotas inteiras, Tesouro em 0,01 título com mínimo de R$ 30 (`planning/distribution.Lot`); renda fixa, caixinhas e
-cripto ao centavo. Troco das cotas (posição do início do mês): reserva até encher → caixinha Turbo até R$ 5 mil →
-objetivos do mais perto de ser concluído ao mais longe (travado é pulado) → classes livres → sem destino. Aportes fixos (`fixed_contributions`, 0050: Flash R$ 1.000, Ana Maria
-R$ 4.000) são trava padrão do mês; a trava do mês vence. A lista de compras é o que falta do plano dentro do que
-falta na classe.
-
-## Endereços de wallet (via `.env` — NÃO hardcodar)
-
-> Valores reais ficam SÓ em `.env` (gitignored). Aqui e em todos os docs
-> usamos apenas os nomes das variáveis. Ver `.claude/memory/security.md`.
-
-| Rede / ativos | Wallet | Endereço (env) |
-|---|---|---|
-| ETH/ARB/PENDLE + HYPE (L1 spot + HyperEVM) | Rabby | `${WALLET_RABBY_ADDRESS}` |
-| SOL | Phantom | `${WALLET_PHANTOM_SOL_ADDRESS}` |
-| Liquid (L-BTC + L-USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` — confidencial → entrada manual |
-| BTC (mainchain) | Trust | `${WALLET_TRUST_BTC_ADDRESS}` |
-
-Config não-endereço no `.env`: `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`/`_SECRET`.
-No código (`config.py`, constantes públicas): asset ids da Liquid e URLs base da Blockstream (desde 10/11/2026).
-
-## TTLs de cache Redis
-
-| Dado | TTL |
-|---|---|
-| B3 (BRAPI) | 26h — 1×/dia útil 19h (free-tier) |
-| Cripto (CoinGecko) | 2h |
-| Tesouro Direto | 26h — 1×/dia útil |
-| Wallet scan | 14h — scan 3×/dia (8/14/20h), TTL > gap noturno |
-| Benchmarks (CDI/IPCA/IBOV) | 24h |
-| XIRR calculado | 1h (invalidar em nova operação) |
-
-## Chave de nomes Redis
-
-`{engine}:{type}:{identifier}`
-Ex: `price:b3:PETR4`, `price:crypto:BTC`, `wallet:binance:spot`, `xirr:consolidated`
 
 ## ADR-016 — Base completa até 16/10/2026 e gate de dados pela própria base
 Decidido 2026-10-18, a pedido do Vitor ("importar os arquivos de `files/` e fazer os cálculos com base no que temos").
@@ -190,3 +135,62 @@ Decidido 2026-10-18, a pedido do Vitor ("importar os arquivos de `files/` e faze
 - **Desde a Story 2.6** a taxa de referência é a da fórmula v2 (`ledger/calc`, AD-7), fixada em
   `tests/dados_reais/pinned_savings_v2.txt` (jun/2026 = 56,87%); XIRR, aplicado e contagens seguem iguais ao
   `pinned_baseline.txt`.
+
+## ADR-017 — Distribuição do aporte executável (lotes, troco, aportes fixos)
+Decidido 2026-10-18 a pedido do Vitor (ver `docs/07_Decisoes.md`). O sugerido por ativo é compra de fato: B3 em
+cotas inteiras, Tesouro em 0,01 título com mínimo de R$ 30 (`planning/distribution.Lot`), ao preço de hoje; renda
+fixa, caixinhas e cripto ao centavo. Base do plano = valor de hoje menos o que entrou no mês (estável a cada
+depósito, mas anda com o mercado). Troco das cotas: reserva até encher → caixinha Turbo até R$ 5 mil (só se a
+`caixinha:turbo` estiver ligada à reserva; pode passar do alvo da reserva) → objetivos do mais perto de ser
+concluído ao mais longe (travado é pulado; reserva travada pula também a Turbo) → classes livres → sem destino.
+Aportes fixos (`fixed_contributions`, 0050: Flash R$ 1.000, Ana Maria R$ 4.000) são trava padrão do mês; a trava
+do mês vence. Lista de compras por classe: primeiro os ativos de valor livre (reduzidos em proporção se passarem do
+que falta na classe), depois os de lote com o que sobra (cotas do plano − as que entraram; travado/fixo: o R$ que
+falta).
+
+## ADR-018 — v2.1 na nuvem: Railway (substitui o ADR-014)
+Decidido 2026-11-10 a pedido do Vitor (ver `docs/07_Decisoes.md`, runbook `docs/DEPLOY_RAILWAY.md`).
+- Railway, ambiente `production`: Postgres **15** (`postgres-ssl:15`), Redis 7, `api` (root `api/`), `web` (root `web/`).
+- **Só o web é público.** O Next repassa `/api/v1/*` para a api pela rede privada (`API_INTERNAL_URL`); api, Postgres e
+  Redis sem domínio público. Cookie de refresh e `proxy.ts` na mesma origem (ADR-006 intacto).
+- api com 1 réplica, sem dormir (ADR-003). `/docs` e `/openapi.json` desligados em `ENVIRONMENT=production`.
+- Migração em produção pela subida (`AUTO_MIGRATE=true`: backup → `upgrade head`); banco vazio faz bootstrap
+  `0002_refresh_token_hash` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, lidos só com banco vazio) → `head`; banco
+  parado antes do admin retoma o bootstrap.
+- Em produção a subida recusa `DATABASE_URL`/`REDIS_URL` vazias ou em localhost (referência `${{…}}` que não
+  resolveu) — nunca cai no padrão de dev em silêncio.
+- Backups: volume `/backups` (`db_backup` diário, `restore_check` mensal) + cópia local por `scripts/backup_railway.sh`
+  (usa `railway ssh`, que exige chave SSH registrada — quem roda é o Vitor).
+- Segredos de produção só nas variáveis do Railway, gerados novos. Banco começa vazio; dump de casa depois.
+- O gate `dados_reais`/`migrar` fica pendente até o `pinned_backup` existir nesta máquina.
+
+## Endereços de wallet (via `.env` — NÃO hardcodar)
+
+> Valores reais ficam SÓ em `.env` (gitignored). Aqui e em todos os docs
+> usamos apenas os nomes das variáveis. Ver `.claude/memory/security.md`.
+
+| Rede / ativos | Wallet | Endereço (env) |
+|---|---|---|
+| ETH/ARB/PENDLE + HYPE (L1 spot + HyperEVM) | Rabby | `${WALLET_RABBY_ADDRESS}` |
+| SOL | Phantom | `${WALLET_PHANTOM_SOL_ADDRESS}` |
+| Liquid (L-BTC + L-USDT) | SideSwap | `${WALLET_SIDESWAP_ADDRESS}` — confidencial → entrada manual |
+| BTC (mainchain) | Trust | `${WALLET_TRUST_BTC_ADDRESS}` |
+
+Config não-endereço no `.env`: `SOLANA_RPC_URL`, `HYPEREVM_RPC_URL`, `ETHERSCAN_API_KEY`, `BINANCE_API_KEY`/`_SECRET`.
+No código (`config.py`, constantes públicas): asset ids da Liquid e URLs base da Blockstream.
+
+## TTLs de cache Redis
+
+| Dado | TTL |
+|---|---|
+| B3 (BRAPI) | 26h — 1×/dia útil 19h (free-tier) |
+| Cripto (CoinGecko) | 2h |
+| Tesouro Direto | 26h — 1×/dia útil |
+| Wallet scan | 14h — scan 3×/dia (8/14/20h), TTL > gap noturno |
+| Benchmarks (CDI/IPCA/IBOV) | 24h |
+| XIRR calculado | 1h (invalidar em nova operação) |
+
+## Chave de nomes Redis
+
+`{engine}:{type}:{identifier}`
+Ex: `price:b3:PETR4`, `price:crypto:BTC`, `wallet:binance:spot`, `xirr:consolidated`

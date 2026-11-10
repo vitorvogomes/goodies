@@ -65,7 +65,11 @@
   (`openssl rand -hex 32`) — nunca os mesmos do `.env` local, nunca colados no chat.
 - O `.env` local é só de desenvolvimento. Para levar chaves de mercado e endereços ao Railway, o
   Vitor cola pelo Raw Editor do serviço; o agente não lê nem repassa valores.
-- `ADMIN_EMAIL`/`ADMIN_PASSWORD` só existem na 1ª subida da api (bootstrap) e são apagados depois.
+- `ADMIN_EMAIL`/`ADMIN_PASSWORD` só são lidos no bootstrap de banco vazio; apagar das variáveis não muda a
+  senha, só a tira do painel (o Vitor decide quando).
+- `railway ssh` (backup externo, `seed_admin` em produção) é do Vitor, com a chave SSH dele: o agente não
+  registra chave nem entra no container. Inspeção do agente: `railway variables`/`logs` para arquivo privado,
+  mostrando só nomes, tamanhos, hosts e linhas filtradas.
 - Postgres e Redis sem acesso público ("Add Public Access" desligado); acesso da máquina local
   só por túnel (`railway connect Postgres --tunnel-only`).
 - Logs do Railway seguem a regra de sempre: nada de valor financeiro, DSN ou segredo.

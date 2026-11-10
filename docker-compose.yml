@@ -1,4 +1,5 @@
-# Goodies local (v2.0, ADR-014) — FastAPI + Postgres 15 + Redis 7. Este compose aponta para o BANCO REAL.
+# Goodies em dev (ADR-018; produção no Railway) — FastAPI + Postgres 15 + Redis 7. Na máquina de casa o volume
+# pgdata ainda é o BANCO REAL (até o dump ir para o Railway).
 # Nunca rode `docker compose down -v`: o -v apaga o volume pgdata (os seus dados). Runbook: docs/LOCAL_DEV.md.
 services:
   api:

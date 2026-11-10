@@ -385,20 +385,23 @@ cada mês igual à do baseline fixado (jun/2026 = 57,46% na v1; desde a Story 2.
 - O sugerido de cada ativo é o que se compra de fato: B3 (ação, FII, ETF) em cotas inteiras e Tesouro em 0,01 título
   com a ordem mínima de R$ 30, ao preço de hoje, arredondado à cota mais próxima que cabe na classe
   (`planning/distribution.Lot`). Renda fixa, caixinhas e cripto seguem ao centavo.
-- O troco das cotas segue a ordem, na posição do início do mês: 1. reserva de emergência até encher; 2. caixinha
-  Turbo até R$ 5 mil (o teto dos 115% do CDI); 3. os objetivos do mais perto de ser concluído (maior % do alvo) ao mais
-  longe — o travado é pulado e o troco segue ao próximo; depois, classes de valor livre; o resto fica sem destino
-  ("fica para o próximo aporte").
+- O troco das cotas segue a ordem: 1. reserva de emergência até encher; 2. caixinha Turbo até R$ 5 mil (o teto dos
+  115% do CDI) — só quando a `caixinha:turbo` está ligada à reserva, e como a Turbo é parte da reserva esse passo
+  pode levar a reserva além do alvo; 3. os objetivos do mais perto de ser concluído (maior % do alvo) ao mais longe.
+  O travado é pulado e o troco segue ao próximo (reserva travada pula também a Turbo); depois, classes de valor
+  livre; o resto fica sem destino ("fica para o próximo aporte").
 - Aportes fixos do mês (`fixed_contributions`, revisão 0050): o valor que um objetivo ou ativo recebe todo mês (Flash
   R$ 1.000, caixinha Ana Maria R$ 4.000) é trava padrão da distribuição; a trava gravada no mês vence. Ativo fixo numa
   classe sem meta por ativo leva a classe ao valor fixo; numa classe com metas, a classe recebe ao menos os fixos dela;
   ativo fixo de um objetivo (caixinha) vira o fixo do objetivo.
-- "O que falta aplicar" (lista de compras) = o que falta do plano de cada ativo (cotas do plano − as que entraram no
-  mês), reduzido em proporção ao que falta na classe, em cotas inteiras.
+- "O que falta aplicar" (lista de compras), por classe e dentro do que falta nela: primeiro os ativos de valor livre
+  (o R$ que falta, reduzidos em proporção se passarem do que falta na classe); com o que sobra, os ativos de lote
+  (cotas do plano − as que entraram no mês; travado ou fixo: o R$ que falta), em lotes inteiros.
 
 ### Consequências
-O plano do mês é calculado na posição do início do mês (estável); a lista de compras usa o que já entrou. Metas por
-ativo menores que uma ordem mínima (ex.: Selic com 2% de uma classe de R$ 5 mil) nunca viram compra.
+A base do plano é o valor de hoje menos o que entrou no mês: o plano não muda a cada depósito, mas anda com o
+mercado (valores e lotes ao preço de hoje). A lista de compras usa o que já entrou. Uma meta por ativo abaixo de
+meia ordem mínima (no Tesouro, menos de R$ 15) nunca vira compra; de meia ordem para cima, vira a ordem mínima.
 
 ---
 
@@ -420,7 +423,7 @@ e já paga o Railway na conta da empresa, da qual é o único admin.
   (`httpOnly`, `samesite=lax`, `secure` em produção) e o `proxy.ts` seguem na mesma origem (ADR-006 intacto).
 - A api roda com **1 réplica e sem dormir** (APScheduler no processo — ADR-003).
 - **Migração em produção pela subida da api** (`AUTO_MIGRATE=true`): backup antes, depois `alembic upgrade head`.
-  Num banco vazio a subida faz o bootstrap: `0001_initial_users` → admin de `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `head`
+  Num banco vazio a subida faz o bootstrap: `0002_refresh_token_hash` → admin de `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `head`
   (as sementes por usuário das migrações caem no admin). As duas variáveis só existem na 1ª subida.
 - **Backups:** job `db_backup` diário + `restore_check` mensal num volume do Railway em `/backups`, e cópia fora do
   Railway por script local rodado à mão (`scripts/backup_railway.sh`).
@@ -436,4 +439,6 @@ e já paga o Railway na conta da empresa, da qual é o único admin.
   máquina de casa: até o dump chegar, ficam pendentes (os testes aparecem pulados). Antes de um push com migração,
   rodar a suíte local.
 - `/docs` e `/openapi.json` ficam desligados em produção. Custo: quatro serviços sempre ligados.
+- Em produção a subida da api recusa `DATABASE_URL`/`REDIS_URL` vazias ou em localhost: uma referência `${{…}}`
+  que não resolve não cai mais em silêncio no padrão de dev (aconteceu duas vezes no 1º deploy).
 - Ver `docs/DEPLOY_RAILWAY.md` (runbook) e spine AD-18.

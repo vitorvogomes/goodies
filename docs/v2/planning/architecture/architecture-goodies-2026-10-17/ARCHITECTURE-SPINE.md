@@ -468,7 +468,7 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   - Dev: `docker compose` (postgres 15, redis 7, api) + `pnpm dev`, portas só em `127.0.0.1`.
   - Api com 1 réplica, sem dormir; APScheduler no processo; catch-up ao abrir o app; Binance só via cron.
   - Produção migra na subida (`AUTO_MIGRATE=true`): backup na hora → `alembic upgrade head`; banco vazio faz o
-    bootstrap `0001_initial_users` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, só na 1ª subida) → `head`. Em dev o
+    bootstrap `0002_refresh_token_hash` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, só com banco vazio) → `head`. Em dev o
     banco real local segue só por `scripts.ops.migrar`, e o desenvolvimento usa `goodies_dev`.
   - **Backup:** job diário `db_backup` + antes de toda escrita de dado; `pg_dump` 15 em `BACKUP_DIR` (produção: volume
     `/backups`); retenção 30 diários + 12 mensais, separada dos pré-migração; `restore_check` mensal; cópia fora do
@@ -645,7 +645,7 @@ web/
 
 | Item | Por que pode esperar |
 | --- | --- |
-| Infra de deploy, CI, nuvem, RLS com policies, multiusuário | v2.1, desenhada do zero (ADR-014) |
+| CI, RLS com policies, multiusuário | v2.1+ (o deploy saiu no ADR-018: Railway, sem CI) |
 | Alertas no Discord, Hermes novo | v2.1; até lá, falha de worker é aviso in-app (AD-10) |
 | Estratégia 1MM, value averaging, valuation, benchmarks | v2.1; passos novos em `planning/distribution.py` sem mudar AD-12 |
 | Cache Redis do painel | só se passar de 3 s |

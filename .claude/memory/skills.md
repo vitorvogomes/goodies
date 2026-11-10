@@ -74,7 +74,7 @@ Trabalho novo fora do backlog (ajuste pedido no dia a dia) escolhe pela tabela A
 Áreas sem skill instalada → seguir `decisions.md` (TTLs, key naming, fallback, ADR-005) +
 `conventions.md` + TDD/`systematic-debugging`:
 **Redis cache** · **worker APScheduler** · **fetcher httpx/retry** · **scipy/XIRR numérico** ·
-**rate limiting**. (CI/CD removido; deploy volta na v2.1.)
+**rate limiting**. Deploy no Railway sem CI (ADR-018, runbook `docs/DEPLOY_RAILWAY.md`).
 
 Candidatos avaliados e **não instalados** (sem fonte de bom fit no registry):
 

@@ -28,6 +28,17 @@ endpoint e tipo da exceção antes do fail-soft.
 
 ## ⚪ MENOR (rastrear)
 
+- **Produção (Railway, ADR-018):**
+  - não há tela para trocar a senha do admin: é `seed_admin` dentro do container (`railway ssh`, runbook §3);
+  - o bloqueio de login é por e-mail e em memória: quem souber o e-mail trava o login por 15 min, e um redeploy
+    zera a contagem. 2FA e limite por IP seguem no backlog;
+  - `passlib` 1.7.4 está parado: com o bcrypt 4.3 só gera o aviso `(trapped) error reading bcrypt version` na
+    subida, mas o bcrypt 5 o quebra. Trocar por `bcrypt` direto antes de atualizar o bcrypt;
+  - banco com tabelas mas sem `alembic_version` (dump restaurado sem ela) conta como vazio: a subida tenta o
+    bootstrap e cai com `relation "users" already exists` — falha alta, sem perda de dado, mas a mensagem engana;
+  - a cópia fora do Railway (`scripts/backup_railway.sh`) depende do `railway ssh` com a chave do Vitor; até a
+    1ª cópia, os backups ficam só no volume `/backups`.
+
 - **Parser de fatura do cartão Nubank:** não existe; o Hub importa só o extrato da conta (OFX/CSV),
   a B3 (movimentação e consolidado) e o Tesouro.
 - **Trilhos amarram nomes de categoria:** `portfolio/transit.RAILS` e as caixinhas casam por chave

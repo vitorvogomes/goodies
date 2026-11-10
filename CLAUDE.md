@@ -6,9 +6,10 @@ Referências: spine `docs/v2/planning/architecture/architecture-goodies-2026-10-
 
 **Estado (18/10/2026):** v2.0 implementada — 78/78 stories, gates m1–m3 PASS. O m4 só espera as métricas de uso
 (SM-1 ≥ 30 dias desde 18/10/2026, a partir de 17/11/2026; SM-5 com o 1º extrato pelo Hub) — rodar `/gate m4` depois.
-Trabalho novo agora é ajuste/análise pedido no dia a dia: TDD do mesmo jeito, commit local, `PROGRESS.md` no log.
-**v2.1 (10/11/2026):** deploy no Railway (ADR-018) — código pronto (bootstrap de banco vazio, rewrite `/api/v1`,
-backup externo); provisionamento pelo runbook `docs/DEPLOY_RAILWAY.md`. Banco de produção começa vazio; dump de casa depois.
+Trabalho novo agora é ajuste/análise pedido no dia a dia: TDD do mesmo jeito, `PROGRESS.md` no log, commit local só
+quando o Vitor pedir.
+**v2.1 (10/11/2026):** no ar no Railway (ADR-018) — web público, api/Postgres/Redis na rede privada, runbook
+`docs/DEPLOY_RAILWAY.md`. Banco de produção começou vazio (só o admin); o dump curado de casa entra depois (§6).
 
 ---
 
@@ -35,7 +36,7 @@ backup externo); provisionamento pelo runbook `docs/DEPLOY_RAILWAY.md`. Banco de
 
 ### Encerrar story
 7. `/test` → cobertura ≥ 80% nas engines críticas
-8. `/code-review` → `/done N.M` → atualiza `PROGRESS.md` + commit local (push é manual)
+8. `/code-review` → `/done N.M` → atualiza `PROGRESS.md` + commit local quando o Vitor pedir (push é manual)
 
 ### Verificar milestone
 9. `/gate m1..m4` → antes de avançar para o próximo marco da v2
@@ -139,7 +140,7 @@ reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015
 | m3 — Investimentos e aportes | 7–8 | XIRR consolidado = baseline (salvo correção explicada); conciliação B3/carteiras nas tolerâncias da AD-13; distribuição fecha ao centavo (2.200 = 1.700 + 500); SM-1 registrada |
 | m4 — Histórico e ajustes | 9–10 | `metricas`: SM-1 ≥ 30 dias, SM-2/SM-3/SM-5 na meta; nenhuma rota v1 sem substituto; "no raw color" sem exceções |
 
-Decisões que valem para todos os gates: ADR-014 (v2.0 só em localhost — superado pelo ADR-018 na v2.1) e ADR-015 (resgate é
+Decisões que valem para todos os gates: ADR-018 (produção no Railway; substituiu o ADR-014) e ADR-015 (resgate é
 receita, em linha própria; o ADR-011 foi substituído nesse ponto). Detalhe por marco em `PROGRESS.md`.
 
 ## NÃO fazer

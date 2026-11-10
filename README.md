@@ -16,8 +16,8 @@ O app tem 4 áreas:
 - **Caixa** — Transações (importadas pelo Hub, categorias em dois níveis com regras), Orçamento
   (consumido por grupo, custos fixos, dívidas, receitas esperadas × recebidas) e Custos fixos.
 - **Investimentos** — Posições (resultado total e do período, **XIRR** nominal e real, alocação
-  × meta ± banda), Aportes (distribuição do planejado em cotas inteiras e a lista do que falta
-  aplicar), Conciliação (B3 consolidado e carteiras cripto) e Corretoras (caixa na corretora e
+  × meta ± banda), Aportes (distribuição do planejado em lotes que se compram de fato — cotas da B3,
+  0,01 título do Tesouro, o resto ao centavo — e a lista do que falta aplicar), Conciliação (B3 consolidado e carteiras cripto) e Corretoras (caixa na corretora e
   diferença de conciliação por trilho).
 - **Ajustes** — contas, categorias e regras, custos e receitas, metas e aportes fixos do mês,
   objetivos, preços manuais (inclusive cripto em US$ e saldos de renda fixa), carteiras e jobs.

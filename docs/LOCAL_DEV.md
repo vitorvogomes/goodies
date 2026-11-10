@@ -57,7 +57,7 @@ fora do `head` não sobe e a mensagem manda rodar `python -m scripts.ops.migrar`
 
 > **Banco vazio (instalação nova):** não rode `alembic upgrade head` direto — a 0016 exige um usuário. Suba a api
 > com `AUTO_MIGRATE=true` e `ADMIN_EMAIL`/`ADMIN_PASSWORD` na linha de comando (não no `.env`), por exemplo
-> `cd api && AUTO_MIGRATE=true ADMIN_EMAIL=… ADMIN_PASSWORD=… uv run python -m scripts.ops.startup`: a subida faz backup → `0001_initial_users` →
+> `cd api && AUTO_MIGRATE=true ADMIN_EMAIL=… ADMIN_PASSWORD=… uv run python -m scripts.ops.startup`: a subida faz backup → `0002_refresh_token_hash` →
 > admin → `head` (mesmo caminho da produção). Depois tire `ADMIN_PASSWORD` do ambiente.
 ```bash
 cd api && uv run python -m scripts.ops.migrar        # main limpa + dados_reais verdes + backup → upgrade
@@ -76,7 +76,6 @@ pnpm dev                                # http://localhost:3000
 Nenhuma variável é necessária. O browser chama sempre a própria origem (`/api/v1/...`) e o Next repassa à
 api em `http://127.0.0.1:8000` (rewrite em `next.config.ts`, igual à produção — ADR-018). Para apontar para outra
 api, defina `API_INTERNAL_URL` em `web/.env.local` e **reinicie o `pnpm dev`** (o destino é lido na subida).
-Uma `NEXT_PUBLIC_API_URL` antiga em `web/.env*` não tem mais efeito: pode apagar.
 
 Abra `http://localhost:3000/login`, entre com o admin seedado → cai em `/visao-geral/painel`.
 
@@ -155,7 +154,7 @@ docker compose down        # para os containers (mantém os dados em volume)
 
 ---
 
-## Backup e restauração (Story 1.2 — ADR-014, spine AD-18)
+## Backup e restauração (Story 1.2 — spine AD-18; produção: `docs/DEPLOY_RAILWAY.md` §4)
 
 **Onde:** `BACKUP_DIR` do `.env` — caminho absoluto **fora do repositório** e **fora de pasta
 sincronizada com a nuvem** (OneDrive, Dropbox, Google Drive, iCloud): a api recusa subir nesses casos.

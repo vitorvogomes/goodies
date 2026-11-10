@@ -61,7 +61,9 @@ Redis 8 (8.2 em nov/2026), compatível com os comandos que o app usa e com o 7 d
 | Volume | no **canvas**: clique direito na api → **Attach Volume**, Mount Path `/backups` (sem volume os backups somem a cada deploy; com volume o Railway trava a api em 1 réplica, que é o que se quer) |
 
 Variáveis na aba **Variables da api** (não em Shared Variables; não clicar em SHARE). As referências `${{…}}` são
-digitadas literalmente, com o nome **exato** do serviço no canvas, e o Railway resolve para as URLs privadas:
+digitadas literalmente, com o nome **exato** do serviço no canvas, e o Railway resolve para as URLs privadas. O mais
+seguro é digitar `${{` e escolher na lista. Uma referência que não casa resolve **vazia**; em produção a api então
+recusa subir (`DATABASE_URL`/`REDIS_URL vazia(s) ou em localhost`) em vez de cair no `localhost` do dev:
 
 | Variável | Valor |
 |---|---|
@@ -81,8 +83,7 @@ digitadas literalmente, com o nome **exato** do serviço no canvas, e o Railway 
 Sem essas chaves os workers de preço e de carteira não fazem nada (sem erro). Ficam no código e **não** vão para o
 Railway: asset ids da Liquid e URLs da Blockstream (constantes públicas), TTLs do JWT/Hermes, `PG_TOOLS` (o Dockerfile já
 define `local`), `API_HOST` (só num ambiente legado só-IPv6). Também não: `BACKUP_DIR_HOST` (só do compose) e
-`EVALUATION_DATE` (só para gate). Se já criou alguma dessas (`LBTC_ASSET_ID`, `LUSDT_ASSET_ID`, `LIQUID_BASE_URL`,
-`BTC_BASE_URL`, `PG_TOOLS`, `COINDESK_API_KEY`, `FMP_API_KEY`, `SOLSCAN_API_KEY`, `DISCORD_WEBHOOK_URL`), pode apagar. Não reaproveitar do `.env` local: `DATABASE_URL`, `REDIS_URL`, `POSTGRES_PASSWORD`,
+`EVALUATION_DATE` (só para gate). Não reaproveitar do `.env` local: `DATABASE_URL`, `REDIS_URL`, `POSTGRES_PASSWORD`,
 `REDIS_PASSWORD`, `BACKUP_DIR` e os JWT. Segredos nunca passam pelo chat.
 
 ### 1.4 web
@@ -112,14 +113,15 @@ de api no browser (o `web/lib/api.ts` usa sempre a mesma origem), então também
 
 1. O Vitor faz o push do `main` (deploy = push manual) ou clica Deploy nos serviços.
 2. Log da api. A subida (`scripts.ops.startup`) faz, num banco vazio:
-   backup em `/backups/pre-migracao` → `alembic upgrade 0001_initial_users` → admin de `ADMIN_EMAIL`/`ADMIN_PASSWORD`
+   backup em `/backups/pre-migracao` → `alembic upgrade 0002_refresh_token_hash` → admin de `ADMIN_EMAIL`/`ADMIN_PASSWORD`
    → `alembic upgrade head` → uvicorn. Sem `ADMIN_*`, ela recusa subir com
    `banco vazio: defina ADMIN_EMAIL e ADMIN_PASSWORD`.
    - Por que essa ordem: a 0016 exige um usuário, e as sementes por usuário (grupos, categorias, regras, metas de
-     classe) caem nele.
+     classe) caem nele. Se a 1ª subida cair antes do admin (banco parado na 0001/0002), a próxima retoma o bootstrap.
    - A linha `AttributeError: module 'bcrypt' has no attribute '__about__'` é um aviso conhecido do passlib e não
      é erro.
-3. Apagar `ADMIN_EMAIL` e `ADMIN_PASSWORD` das variáveis da api (o redeploy sobe direto: banco no head).
+3. Apagar `ADMIN_EMAIL` e `ADMIN_PASSWORD` das variáveis da api (o redeploy sobe direto: banco no head). A api só as
+   lê com o banco vazio: apagar não muda a senha, só a tira do painel.
 4. Conferir:
    - `https://<web>/visao-geral/painel` sem sessão → vai para `/login`;
    - login entra e continua logado depois de recarregar a página;
@@ -137,6 +139,13 @@ de api no browser (o `web/lib/api.ts` usa sempre a mesma origem), então também
 - O gate `dados_reais` / `scripts.ops.migrar` depende do backup fixado em `api/tests/dados_reais/pinned_backup.txt`,
   que ainda não está nesta máquina: até o dump de casa chegar (§6), esses testes aparecem pulados.
 
+- Variável nova ou alterada só vale no **próximo deploy**: depois de mexer em Variables, clicar Deploy (o container
+  em execução continua com os valores antigos).
+- Trocar a senha do admin (não há tela para isso): na api, `ADMIN_EMAIL` e `ADMIN_PASSWORD` (a nova, até 72
+  caracteres por causa do bcrypt) → Deploy → `railway ssh -s api -- python -m scripts.ops.seed_admin` (imprime
+  `admin seeded: <email>`; recusa variável vazia) → apagar as duas variáveis. A troca encerra as sessões abertas
+  (o refresh token gravado deixa de valer): é preciso entrar de novo.
+
 ## 4. Backups
 
 | O quê | Onde | Quando |
@@ -147,11 +156,13 @@ de api no browser (o `web/lib/api.ts` usa sempre a mesma origem), então também
 | nativo do Railway | painel do Postgres | só no plano Pro |
 | **cópia fora do Railway** | `$BACKUP_DIR/railway/` nesta máquina | à mão, ~1×/semana |
 
-Cópia fora do Railway (precisa de `railway login` + `railway link` no projeto e de docker):
+Cópia fora do Railway (precisa de `railway login`, `railway link` no projeto goodies, docker e uma chave SSH
+registrada no Railway — uma vez por máquina: `railway ssh keys github` ou `railway ssh keys add`; sem ela o
+`railway ssh` responde `No registered SSH keys found`):
 
 ```bash
 scripts/backup_railway.sh          # baixa o dump diário mais novo do volume
-scripts/backup_railway.sh --novo   # faz um dump na hora e baixa esse
+scripts/backup_railway.sh --novo   # faz um dump na hora, baixa e o apaga do volume
 ```
 
 O script baixa por `railway ssh` (em base64), confere o sha256 dos dois lados e valida com `pg_restore --list`
@@ -200,4 +211,8 @@ O dump de casa (§6) resolve tudo isso.
 | `db_backup` falha com erro de versão do `pg_dump` | Postgres do Railway não é 15 | §1.1 passo 2 |
 | Postgres em loop: `This image runs PostgreSQL 15 but the data directory holds major version 18` | volume inicializado pelo template antes da troca de imagem | §1.1 passo 3, Wipe Volume (só sem dado; com dado, voltar para a 18) |
 | api não sobe: `banco vazio: defina ADMIN_EMAIL…` | 1ª subida sem credenciais do admin | §2 |
+| api não sobe: `em produção DATABASE_URL… vazia(s) ou em localhost` | referência `${{…}}` com nome de serviço errado | refazer pela lista do `${{` (§1.3) e Deploy |
+| health com `redis: disconnected` logo após corrigir a variável | o container em execução é de antes da correção | Deploy da api (§3) |
+| `railway ssh`: `No registered SSH keys found` | CLI ≥ 5 exige chave registrada | `railway ssh keys github` (§4) |
+| "Atualizar tudo" dá 500 depois de ~30 s | rewrite com o timeout padrão do Next | `experimental.proxyTimeout` (5 min) no `next.config.ts` já cobre; se os jobs passarem disso, rebuild com valor maior |
 | build do web com Node < 24 | Railpack não pegou `engines.node` | `RAILPACK_NODE_VERSION=24` no web |

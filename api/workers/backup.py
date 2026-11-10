@@ -1,6 +1,6 @@
-"""Backup do banco local (Story 1.2 — AD-18, ADR-014).
+"""Backup do banco (Story 1.2 — AD-18; produção no Railway com `BACKUP_DIR=/backups`, ADR-018).
 
-O banco local é a única cópia dos dados. Este módulo concentra:
+Este módulo concentra:
 - regras puras: nome do arquivo, retenção por idade (30 diários + 12 mensais), diretório recusado
   (dentro do repo ou em pasta sincronizada com a nuvem), bancos descartáveis;
 - execução de `pg_dump`/`pg_restore`: binários locais (dentro do container, cliente 15 da imagem) ou
