@@ -56,7 +56,18 @@
 - **SideSwap** é confidencial (entrada manual): só o **endereço** é env-managed; não há
   credencial/chave de visão guardada.
 
-## 6. Dados financeiros
+## 6. Produção no Railway (ADR-018)
+
+- Segredos de produção vivem **só** nas variáveis dos serviços do Railway, gerados novos
+  (`openssl rand -hex 32`) — nunca os mesmos do `.env` local, nunca colados no chat.
+- O `.env` local é só de desenvolvimento. Para levar chaves de mercado e endereços ao Railway, o
+  Vitor cola pelo Raw Editor do serviço; o agente não lê nem repassa valores.
+- `ADMIN_EMAIL`/`ADMIN_PASSWORD` só existem na 1ª subida da api (bootstrap) e são apagados depois.
+- Postgres e Redis sem domínio/TCP proxy público; ligar o TCP proxy só durante uma carga ou cópia
+  de banco e desligar em seguida.
+- Logs do Railway seguem a regra de sempre: nada de valor financeiro, DSN ou segredo.
+
+## 7. Dados financeiros
 
 - `docs/v1/Utils/posicao.json` contém posições reais (mantido por escolha do dono).
   Se o repo for tornado público, revisar antes: posições/saldos são sensíveis.

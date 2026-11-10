@@ -7,6 +7,8 @@ Referências: spine `docs/v2/planning/architecture/architecture-goodies-2026-10-
 **Estado (18/10/2026):** v2.0 implementada — 78/78 stories, gates m1–m3 PASS. O m4 só espera as métricas de uso
 (SM-1 ≥ 30 dias desde 18/10/2026, a partir de 17/11/2026; SM-5 com o 1º extrato pelo Hub) — rodar `/gate m4` depois.
 Trabalho novo agora é ajuste/análise pedido no dia a dia: TDD do mesmo jeito, commit local, `PROGRESS.md` no log.
+**v2.1 (10/11/2026):** deploy no Railway (ADR-018) — código pronto (bootstrap de banco vazio, rewrite `/api/v1`,
+backup externo); provisionamento pelo runbook `docs/DEPLOY_RAILWAY.md`. Banco de produção começa vazio; dump de casa depois.
 
 ---
 
@@ -54,17 +56,18 @@ seguir `decisions.md` + `conventions.md` + TDD/`systematic-debugging`.
 
 ---
 
-## Stack (não mudar sem ADR) — só localhost (ADR-014)
+## Stack (não mudar sem ADR) — produção no Railway (ADR-018), dev local
 
 | Camada | Tecnologia |
 |---|---|
 | Backend | FastAPI 0.136 / Python 3.12 — `api/` (monólito modular, engines em camadas — spine AD-1/AD-2) |
 | Frontend | Next.js 16 App Router / React 19 / TypeScript — `web/` (ADR-009), shadcn/ui radix new-york |
-| Database | PostgreSQL 15 no `docker compose`, asyncpg direto (sem ORM), migrações Alembic |
-| Cache | Redis 7 no `docker compose` (`redis[asyncio]`, `common.cache`) |
+| Database | PostgreSQL 15 (Railway em produção, `docker compose` em dev), asyncpg direto (sem ORM), migrações Alembic |
+| Cache | Redis 7 (Railway em produção, `docker compose` em dev) (`redis[asyncio]`, `common.cache`) |
 | Scheduler | APScheduler no mesmo processo FastAPI (não Celery) |
-| Ambiente | `docker compose up` (postgres, redis, api) + `cd web && pnpm dev`. Sem deploy, sem CI, sem nuvem: Supabase, Upstash, Fly e Vercel não são usados. Infra de deploy do zero na v2.1 |
-| Backup | `pg_dump` diário + antes de toda migração, em `BACKUP_DIR` (fora do repo) — runbook em `docs/LOCAL_DEV.md` |
+| Produção | **Railway** (ADR-018): Postgres 15, Redis 7, `api` e `web`; só o web é público e repassa `/api/v1/*` à api pela rede privada. Deploy = push manual no `main`; sem CI. Runbook: `docs/DEPLOY_RAILWAY.md` |
+| Dev | `docker compose up` (postgres, redis, api) + `cd web && pnpm dev`. Supabase, Upstash, Fly e Vercel não são usados |
+| Backup | `pg_dump` diário + antes de toda migração, em `BACKUP_DIR` (produção: volume `/backups` + cópia local por `scripts/backup_railway.sh`) — runbooks em `docs/DEPLOY_RAILWAY.md` e `docs/LOCAL_DEV.md` |
 
 Versões travadas e invariantes: `docs/v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md`.
 
@@ -136,7 +139,7 @@ reproduzíveis — ADR-016). A receita do trabalho não inclui resgates (ADR-015
 | m3 — Investimentos e aportes | 7–8 | XIRR consolidado = baseline (salvo correção explicada); conciliação B3/carteiras nas tolerâncias da AD-13; distribuição fecha ao centavo (2.200 = 1.700 + 500); SM-1 registrada |
 | m4 — Histórico e ajustes | 9–10 | `metricas`: SM-1 ≥ 30 dias, SM-2/SM-3/SM-5 na meta; nenhuma rota v1 sem substituto; "no raw color" sem exceções |
 
-Decisões que valem para todos os gates: ADR-014 (v2.0 só em localhost, sem deploy nem CI) e ADR-015 (resgate é
+Decisões que valem para todos os gates: ADR-014 (v2.0 só em localhost — superado pelo ADR-018 na v2.1) e ADR-015 (resgate é
 receita, em linha própria; o ADR-011 foi substituído nesse ponto). Detalhe por marco em `PROGRESS.md`.
 
 ## NÃO fazer
@@ -146,7 +149,8 @@ receita, em linha própria; o ADR-011 foi substituído nesse ponto). Detalhe por
 - ❌ Chamar Binance API on-demand — cron only
 - ❌ `access_token` em localStorage
 - ❌ HTTP 5xx por falha de API externa
-- ❌ Supabase Auth para login (ADR-006) — e nenhum serviço de nuvem (ADR-014)
+- ❌ Supabase Auth para login (ADR-006) — e nenhuma nuvem além do Railway (ADR-018)
+- ❌ Segredo de produção fora das variáveis do Railway, ou igual ao do `.env` local
 - ❌ `git push` (o Vitor faz manual) e `docker compose down -v` (apaga o banco real)
 - ❌ Migrar o banco sem backup feito antes
 - ❌ Celery — APScheduler é suficiente

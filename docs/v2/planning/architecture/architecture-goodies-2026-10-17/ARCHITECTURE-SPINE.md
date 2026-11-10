@@ -454,31 +454,31 @@ Setas indicam "pode importar"; transitividade vale (camada 3 pode importar 0–2
   - Auth (ADR-006): access token em memória; 401 → refresh pelo cookie → repete a chamada; falhou
     → `/login?next=<rota+query>`.
 
-### AD-18 — Ambiente e operação: só localhost
+### AD-18 — Ambiente e operação: Railway em produção, compose em dev
 
-- **Binds:** NFR-privacidade, NFR-resiliência, ADR-003, ADR-006, ADR-014
-- **Prevents:** dado pessoal saindo da máquina; perda do único banco; worker falhando em silêncio.
+> Na v2.0 a regra era "só localhost" (ADR-014). Desde 2026-11-10 vale o ADR-018 (v2.1 no Railway).
+
+- **Binds:** NFR-privacidade, NFR-resiliência, ADR-003, ADR-006, ADR-018
+- **Prevents:** banco exposto na internet; perda do único banco; worker falhando em silêncio; sessão quebrada entre
+  domínios.
 - **Rule:**
-  - Sem deploy e sem CI na v2.0 (ADR-014). Fly.io, Vercel e GitHub Actions foram removidos;
-    nenhum host de nuvem recebe dado.
-  - Roda: `docker compose` (postgres 15, redis 7, api) + `pnpm dev`.
-  - O container da api não migra sozinho (`AUTO_MIGRATE=false`): se o banco não estiver no `head`, não sobe. O
-    banco real só migra por `scripts.ops.migrar` (main limpa, testes `dados_reais` verdes, backup na hora); o
-    desenvolvimento usa `goodies_dev`. O serviço do banco real roda sem `--reload`.
-  - **Backup:** job diário `db_backup` + antes de toda escrita de dado; `pg_dump` 15 em diretório fora do
-    repositório e fora de pasta sincronizada com a nuvem, configurado no `.env`; retenção 30 diários + 12
-    mensais, separada dos pré-migração; restauração mensal automática de conferência; runbook em
-    `docs/LOCAL_DEV.md`; criptografia (`age`) e cópia externa opcionais.
-  - APScheduler no processo da API; catch-up ao abrir o app; Binance só via cron.
-  - CORS só `http://localhost:3000`; cookie de refresh `httpOnly`, `samesite=lax`, sem `secure`
-    em localhost.
-  - Portas publicadas só em `127.0.0.1`; Postgres e Redis com senha; a api recusa subir com segredo
-    `dev-insecure-*` fora de teste; login com limite de tentativas; Hermes desligado na v2.0
-    (`HERMES_ENABLED=false`).
-  - `DATABASE_URL` e `REDIS_URL` só apontam para `localhost` ou o compose. Projetos remotos antigos
-    (Fly, Supabase, Upstash) são desativados pelo Vitor; o código não depende deles.
-  - Segredos só em `.env` (gitignored) sincronizado com `.env.example`; gitleaks no pre-commit;
-    `git push` é manual.
+  - Produção no Railway: Postgres 15 (`postgres-ssl:15`), Redis 7, `api` e `web`. Só o `web` tem domínio público;
+    ele repassa `/api/v1/*` para a api pela rede privada (`API_INTERNAL_URL`). Api, Postgres e Redis sem domínio
+    nem TCP proxy público (o TCP proxy só liga durante uma carga/cópia de banco).
+  - Dev: `docker compose` (postgres 15, redis 7, api) + `pnpm dev`, portas só em `127.0.0.1`.
+  - Api com 1 réplica, sem dormir; APScheduler no processo; catch-up ao abrir o app; Binance só via cron.
+  - Produção migra na subida (`AUTO_MIGRATE=true`): backup na hora → `alembic upgrade head`; banco vazio faz o
+    bootstrap `0001_initial_users` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, só na 1ª subida) → `head`. Em dev o
+    banco real local segue só por `scripts.ops.migrar`, e o desenvolvimento usa `goodies_dev`.
+  - **Backup:** job diário `db_backup` + antes de toda escrita de dado; `pg_dump` 15 em `BACKUP_DIR` (produção: volume
+    `/backups`); retenção 30 diários + 12 mensais, separada dos pré-migração; `restore_check` mensal; cópia fora do
+    Railway por `scripts/backup_railway.sh`; runbooks em `docs/DEPLOY_RAILWAY.md` e `docs/LOCAL_DEV.md`.
+  - Cookie de refresh `httpOnly`, `samesite=lax`, `secure` com `ENVIRONMENT=production`, sempre na origem do web.
+    `/docs` e `/openapi.json` desligados em produção.
+  - Postgres e Redis com senha; a api recusa subir com segredo `dev-insecure-*`/placeholder fora de teste; login com
+    limite de tentativas; Hermes desligado (`HERMES_ENABLED=false`).
+  - Segredos: produção só nas variáveis do Railway (gerados novos); dev em `.env` (gitignored) sincronizado com
+    `.env.example`; gitleaks no pre-commit; `git push` (= deploy) é manual.
   - Owner único: `common.owner.get_owner_id(conn)`; tabelas novas com `user_id` NOT NULL.
 
 ### AD-19 — Qualidade e testes

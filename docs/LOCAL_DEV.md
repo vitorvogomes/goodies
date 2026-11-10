@@ -1,8 +1,8 @@
 # Rodar o Goodies localmente
 
-**Docker-local-first:** a stack inteira de dev (Postgres + Redis + **API**) sobe via
-`docker compose` na porta **8000**. O front (Next.js) roda no host. Para desenvolver e validar
-o app não há serviço de nuvem (ADR-014). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1.
+**Ambiente de desenvolvimento.** A produção roda no Railway (ADR-018, runbook em `docs/DEPLOY_RAILWAY.md`).
+Aqui a stack de dev (Postgres + Redis + **API**) sobe via `docker compose` na porta **8000** e o front (Next.js)
+roda no host.
 
 > `DISCORD_WEBHOOK_URL` é da v2.1 — deixe o placeholder. `BACKUP_DIR` aponta para um diretório fora do
 > repositório e fora de pasta sincronizada com a nuvem. No compose, a API usa `postgres:5432` e `redis:6379` (rede do Docker); o front
@@ -54,6 +54,10 @@ O serviço `api` aponta para o **banco real**: roda a imagem construída, **sem*
 fora do `head` não sobe e a mensagem manda rodar `python -m scripts.ops.migrar`.
 
 ### 2. Migrations + admin (primeira vez / quando o schema mudar)
+
+> **Banco vazio (instalação nova):** não rode `alembic upgrade head` direto — a 0016 exige um usuário. Suba a api
+> com `AUTO_MIGRATE=true` e `ADMIN_EMAIL`/`ADMIN_PASSWORD` no ambiente: a subida faz backup → `0001_initial_users` →
+> admin → `head` (mesmo caminho da produção). Depois tire `ADMIN_PASSWORD` do ambiente.
 ```bash
 cd api && uv run python -m scripts.ops.migrar        # main limpa + dados_reais verdes + backup → upgrade
 

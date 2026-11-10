@@ -35,7 +35,7 @@ fallback que nunca derruba a API.
 | Cache | Redis 7 no `docker compose` — `redis[asyncio]` |
 | Scheduler | APScheduler no processo FastAPI (não Celery) |
 | Auth | JWT custom (`python-jose` + `passlib[bcrypt]`) |
-| Ambiente | Só localhost: sem deploy, sem CI, sem nuvem (ADR-014). Infra de deploy na v2.1 |
+| Ambiente | Produção no Railway (ADR-018, `docs/DEPLOY_RAILWAY.md`); dev com `docker compose` + `pnpm dev`. Sem CI |
 
 > Invariantes da v2 em
 > [`ARCHITECTURE-SPINE.md`](docs/v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md)

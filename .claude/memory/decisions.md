@@ -8,6 +8,7 @@
 ## ADR-001 — Stack (LOCKED)
 FastAPI + Next.js 16 + Postgres 15 + Redis 7 (os dois no `docker compose` local).
 **Emenda 2026-10-17:** Fly.io e Vercel removidos (workflow, `fly.toml`, `DEPLOY.md`). Sem deploy: a v2.0 roda só em localhost; a infra de deploy será desenhada do zero na v2.1. Postgres 15 e Redis 7 rodam no `docker compose` local (ADR-014); Supabase e Upstash não são usados.
+**Emenda 2026-11-10 (ADR-018):** a v2.1 roda no **Railway** (Postgres 15, Redis 7, api, web); o `docker compose` local vira ambiente de desenvolvimento.
 **Não mudar sem ADR aprovado.** (Frontend atualizado de Next 14 → 16 / React 19 / Tailwind v4 por ADR-009.)
 
 ## ADR-002 — XIRR é a métrica de retorno
@@ -110,10 +111,22 @@ Decidido no m4 (2026-06-07). Ver `docs/07_Decisoes.md` + memória `m4-wallet-sca
 
 ---
 
-## ADR-014 — v2.0 só em localhost (sem deploy, sem CI)
+## ADR-014 — v2.0 só em localhost (sem deploy, sem CI) — SUPERADO pelo ADR-018
 Decidido 2026-10-17 (commit d3748a4). Fly.io, Vercel e GitHub Actions removidos. A v2.0 roda só local
 (`docker compose` + `pnpm dev`); nenhum host de nuvem recebe dado financeiro. Backup local diário
 (`pg_dump`, fora do repo). Infra de deploy desenhada do zero na v2.1. Ver spine AD-18.
+
+## ADR-018 — v2.1 na nuvem: Railway (substitui o ADR-014)
+Decidido 2026-11-10 a pedido do Vitor (ver `docs/07_Decisoes.md`, runbook `docs/DEPLOY_RAILWAY.md`).
+- Railway, ambiente `production`: Postgres **15** (`postgres-ssl:15`), Redis 7, `api` (root `api/`), `web` (root `web/`).
+- **Só o web é público.** O Next repassa `/api/v1/*` para a api pela rede privada (`API_INTERNAL_URL`); api, Postgres e
+  Redis sem domínio público. Cookie de refresh e `proxy.ts` na mesma origem (ADR-006 intacto).
+- api com 1 réplica, sem dormir (ADR-003). `/docs` e `/openapi.json` desligados em `ENVIRONMENT=production`.
+- Migração em produção pela subida (`AUTO_MIGRATE=true`: backup → `upgrade head`); banco vazio faz bootstrap
+  `0001` → admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD`, só na 1ª subida) → `head`.
+- Backups: volume `/backups` (`db_backup` diário, `restore_check` mensal) + cópia local por `scripts/backup_railway.sh`.
+- Segredos de produção só nas variáveis do Railway, gerados novos. Banco começa vazio; dump de casa depois.
+- O gate `dados_reais`/`migrar` fica pendente até o `pinned_backup` existir nesta máquina.
 
 ## ADR-015 — Resgate é receita (reverte o ADR-011 nesse ponto)
 Decidido no PRD v2 (2026-10-17). Resgate de caixinha/RF/corretora é receita, exibido em linha própria e

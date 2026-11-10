@@ -330,7 +330,7 @@ O m4 escaneia carteiras cripto on-chain + Binance (6 fetchers) gravando `wallet_
 ## ADR-014 — v2.0 só em localhost (sem deploy, sem CI)
 
 **Data:** 2026-10-17  
-**Status:** Aceito (v2.0)
+**Status:** Superado pelo ADR-018 (2026-11-10) — valeu para a v2.0
 
 ### Decisão
 Fly.io, Vercel e GitHub Actions removidos (commit d3748a4). A v2.0 roda só local (`docker compose` com postgres 15,
@@ -399,3 +399,41 @@ cada mês igual à do baseline fixado (jun/2026 = 57,46% na v1; desde a Story 2.
 ### Consequências
 O plano do mês é calculado na posição do início do mês (estável); a lista de compras usa o que já entrou. Metas por
 ativo menores que uma ordem mínima (ex.: Selic com 2% de uma classe de R$ 5 mil) nunca viram compra.
+
+---
+
+## ADR-018 — v2.1 na nuvem: Railway (substitui o ADR-014)
+
+**Data:** 2026-11-10  
+**Status:** Aceito (pedido do Vitor)
+
+### Contexto
+Rodando só em localhost, o controle financeiro só abria na máquina de casa. O Vitor quer acessá-lo de qualquer lugar
+e já paga o Railway na conta da empresa, da qual é o único admin.
+
+### Decisão
+- O Goodies roda no **Railway**: um projeto, ambiente `production`, quatro serviços — Postgres **15** (imagem
+  `ghcr.io/railwayapp-templates/postgres-ssl:15`, igual ao `pg_dump` 15 da imagem da api e ao ADR-001), Redis 7,
+  `api` (root `api/`, `api/Dockerfile`) e `web` (root `web/`).
+- **O web é a única porta pública** (subdomínio `*.up.railway.app`). O Next repassa `/api/v1/*` para a api pela rede
+  privada (`API_INTERNAL_URL`); a api, o Postgres e o Redis não têm domínio público. Assim o cookie de refresh
+  (`httpOnly`, `samesite=lax`, `secure` em produção) e o `proxy.ts` seguem na mesma origem (ADR-006 intacto).
+- A api roda com **1 réplica e sem dormir** (APScheduler no processo — ADR-003).
+- **Migração em produção pela subida da api** (`AUTO_MIGRATE=true`): backup antes, depois `alembic upgrade head`.
+  Num banco vazio a subida faz o bootstrap: `0001_initial_users` → admin de `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `head`
+  (as sementes por usuário das migrações caem no admin). As duas variáveis só existem na 1ª subida.
+- **Backups:** job `db_backup` diário + `restore_check` mensal num volume do Railway em `/backups`, e cópia fora do
+  Railway por script local rodado à mão (`scripts/backup_railway.sh`).
+- **Segredos de produção só nas variáveis do Railway**, gerados novos (não reaproveitar os do `.env` local) e nunca
+  colados no chat. O `.env` local passa a ser só de desenvolvimento.
+- O banco de produção **começa vazio**; o dump curado da máquina de casa é restaurado numa etapa posterior.
+- `docker compose` + `pnpm dev` seguem como ambiente de **desenvolvimento**. Deploy = push manual no `main` (o
+  Railway constrói a partir do GitHub); sem CI.
+
+### Consequências
+- Supabase, Upstash, Fly e Vercel continuam fora; a nuvem é só o Railway.
+- O `scripts.ops.migrar` e o gate `dados_reais` dependem do backup fixado em `pinned_backup.txt`, que só existe na
+  máquina de casa: até o dump chegar, ficam pendentes (os testes aparecem pulados). Antes de um push com migração,
+  rodar a suíte local.
+- `/docs` e `/openapi.json` ficam desligados em produção. Custo: quatro serviços sempre ligados.
+- Ver `docs/DEPLOY_RAILWAY.md` (runbook) e spine AD-18.
