@@ -5,6 +5,7 @@
 // gravado pelo `market` com is_manual (nunca expira; o worker não sobrescreve); ativo com cotação
 // automática é recusado com "{Ativo} tem preço de mercado automático.". Token cripto: o preço se
 // informa em US$ (como nas carteiras) e o R$ segue a cotação do dólar.
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -68,7 +69,9 @@ function Row({ item, saving, onSave }: { item: ManualPrice; saving: boolean; onS
           <span className="block type-caption text-muted-foreground">sem preço ainda</span>
         )}
       </th>
-      <td className="px-4 py-2 text-right">
+      <td data-label="Preço" className="px-4 py-2 text-right">
+        {/* um filho só: no celular a célula vira rótulo | conteúdo (table-stack) */}
+        <div>
         <span className="inline-flex items-center justify-end gap-1">
           {item.is_crypto ? (
             <select
@@ -102,8 +105,9 @@ function Row({ item, saving, onSave }: { item: ManualPrice; saving: boolean; onS
         {currency === "USD" && item.price_brl != null && (
           <span className="block type-caption text-muted-foreground">≈ R$ {formatUnitPrice(item.price_brl)} hoje</span>
         )}
+        </div>
       </td>
-      <td className="px-4 py-2 text-right">
+      <td data-label="Data" className="px-4 py-2 text-right">
         <Input
           aria-label={`Data do preço de ${item.label}`}
           type="date"
@@ -157,12 +161,16 @@ function ManualPrices() {
   }
   return (
     <div className="space-y-2">
-      <p className="type-caption text-muted-foreground">
+      <p className="type-body-sm text-muted-foreground">
         Só ativos sem cotação automática. Enter grava, Esc reverte; o preço informado não expira. Token cripto em
-        US$: o R$ segue a cotação do dólar.
+        US$: o R$ segue a cotação do dólar. Token DeFi que rende (ex.: eHYUSD, PT sUSDai): informe o saldo em US$ em{" "}
+        <Link href="/ajustes/posicoes-manuais" className="text-positive underline">
+          Posições manuais
+        </Link>{" "}
+        e ele sai daqui.
       </p>
       <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-        <table className="w-full type-body-sm">
+        <table className="table-stack w-full type-body-sm">
           <caption className="sr-only">Preços manuais</caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>

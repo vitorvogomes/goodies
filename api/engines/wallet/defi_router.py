@@ -4,6 +4,7 @@ Posições DeFi (Phantom) que não vêm de scan on-chain (xSOL/hyUSD com vencime
 `/api/v1/defi/positions` (POST/GET/PUT/DELETE), escopo por usuário. Os alertas de
 vencimento (04-09) leem desta tabela.
 """
+
 import datetime
 import uuid
 from collections.abc import Callable
@@ -17,6 +18,8 @@ from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.cache import invalidate_xirr_cache
 from engines.common.numbers import as_decimal, value_of
+from engines.wallet import defi_anchors
+from engines.wallet.defi_anchors import AnchorIn, AnchorOut, FutureAnchorError, MarketPricedError
 from engines.wallet.service import prices_by_ticker
 
 router = APIRouter(prefix="/api/v1/defi", tags=["wallet:defi"])
@@ -71,11 +74,14 @@ class DefiPositionResponse(BaseModel):
     price_usd: float | None = None
     value_brl: float | None = None
     value_usd: float | None = None
+    # v2.2: o saldo em US$ informado mais recente (o preço do token sai dele)
+    anchor: AnchorOut | None = None
 
 
 def _to_response(
     row: asyncpg.Record,
     prices: dict[str, tuple[float | None, float | None]] | None = None,
+    anchors: dict[str, list[defi_anchors.Anchor]] | None = None,
 ) -> DefiPositionResponse:
     balance = float(row["balance"])
     brl, usd = (prices or {}).get(row["asset_symbol"], (None, None))
@@ -91,6 +97,7 @@ def _to_response(
         price_usd=usd,
         value_brl=value_of(balance, brl),
         value_usd=value_of(balance, usd),
+        anchor=defi_anchors.latest((anchors or {}).get(str(row["id"]), [])),
     )
 
 
@@ -108,15 +115,12 @@ async def list_positions(
         active,
     )
     prices = await prices_by_ticker(db, [r["asset_symbol"] for r in rows])
-    return [_to_response(r, prices) for r in rows]
+    anchors = await defi_anchors.anchors_by_position(db)
+    return [_to_response(r, prices, anchors) for r in rows]
 
 
-@router.post(
-    "/positions", response_model=DefiPositionResponse, status_code=status.HTTP_201_CREATED
-)
-async def create_position(
-    body: DefiPositionCreate, user: AuthUser, db: Db
-) -> DefiPositionResponse:
+@router.post("/positions", response_model=DefiPositionResponse, status_code=status.HTTP_201_CREATED)
+async def create_position(body: DefiPositionCreate, user: AuthUser, db: Db) -> DefiPositionResponse:
     row = await db.fetchrow(
         "INSERT INTO defi_positions "
         "(user_id, protocol, asset_symbol, balance, maturity_date, is_active, notes) "
@@ -177,7 +181,32 @@ async def update_position(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
     if sets:  # só invalida quando houve mudança de fato (body vazio = no-op)
         await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
-    return _to_response(row, await prices_by_ticker(db, [row["asset_symbol"]]))
+        await defi_anchors.reprice(db)  # quantidade nova: o preço do saldo informado muda
+    return _to_response(
+        row,
+        await prices_by_ticker(db, [row["asset_symbol"]]),
+        await defi_anchors.anchors_by_position(db),
+    )
+
+
+@router.put("/positions/{position_id}/balance", response_model=DefiPositionResponse)
+async def set_balance(
+    position_id: uuid.UUID, body: AnchorIn, user: AuthUser, db: Db
+) -> DefiPositionResponse:
+    """v2.2: o saldo em US$ que o protocolo mostra numa data (+ APY opcional, % a.a.)."""
+    try:
+        saved = await defi_anchors.save_anchor(db, str(position_id), user["id"], body)
+    except (FutureAnchorError, MarketPricedError) as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    if not saved:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
+    await invalidate_xirr_cache(user["id"])
+    row = await db.fetchrow(f"SELECT {_COLUMNS} FROM defi_positions WHERE id = $1", position_id)
+    return _to_response(
+        row,
+        await prices_by_ticker(db, [row["asset_symbol"]]),
+        await defi_anchors.anchors_by_position(db),
+    )
 
 
 @router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -190,3 +219,4 @@ async def delete_position(position_id: uuid.UUID, user: AuthUser, db: Db) -> Non
     if result == "DELETE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição DeFi não encontrada")
     await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
+    await defi_anchors.reprice(db)  # o saldo informado saiu com a posição: o preço é liberado

@@ -147,4 +147,8 @@ async def run_price_crypto(
         )
         # o R$ dos preços manuais em dólar segue a cotação nova
         await service.refresh_manual_usd(conn)
+        # v2.2: o saldo DeFi informado rende o APY do dia e o R$ segue a cotação
+        from engines.wallet import defi_anchors
+
+        await defi_anchors.reprice(conn)
         return stats

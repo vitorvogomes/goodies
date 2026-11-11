@@ -27,6 +27,22 @@ export interface ManualItem {
   maturity_date: string | null;
   notes: string | null;
   is_active: boolean;
+  // v2.2: valor de hoje e, no DeFi, o saldo em US$ informado (o preço do token sai dele)
+  value_brl?: number | null;
+  value_usd?: number | null;
+  anchor?: DefiAnchor | null;
+}
+
+export interface DefiAnchor {
+  as_of: string;
+  value_usd: number;
+  apy: number | null; // % a.a.
+}
+
+export interface DefiBalanceInput {
+  as_of: string;
+  value_usd: string; // decimal em texto (AD-4)
+  apy: string | null;
 }
 
 export interface DefiPositionInput {

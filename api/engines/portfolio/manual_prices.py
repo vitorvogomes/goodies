@@ -16,6 +16,7 @@ from engines.common.dates import today_brt
 from engines.common.deps import AuthUser, Db
 from engines.common.owner import get_owner_id
 from engines.market import service as market_service
+from engines.wallet import defi_anchors
 from engines.wallet import service as wallet_service
 
 router = APIRouter(prefix="/api/v1/portfolio/manual-prices", tags=["portfolio:manual-prices"])
@@ -52,6 +53,9 @@ async def candidates(conn: asyncpg.Connection, owner: str) -> list[ManualPrice]:
     for symbol in sorted(held - set(tickers)):
         if not await market_service.has_market_source(conn, symbol):
             tickers[symbol] = symbol
+    # v2.2: token DeFi com saldo em US$ informado — o saldo é a fonte, não o preço manual
+    for symbol in await defi_anchors.anchored_symbols(conn):
+        tickers.pop(symbol, None)
     rows = {
         r["ticker"]: r
         for r in await conn.fetch(

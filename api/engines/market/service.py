@@ -518,9 +518,15 @@ async def usd_brl(conn: asyncpg.Connection) -> Decimal | None:
 
 
 async def set_manual_usd(
-    conn: asyncpg.Connection, ticker: str, price_usd: Decimal, *, as_of: datetime | None = None
+    conn: asyncpg.Connection,
+    ticker: str,
+    price_usd: Decimal,
+    *,
+    as_of: datetime | None = None,
+    source: str = MANUAL_USD,
 ) -> dict[str, Any] | None:
-    """Grava o preço manual em US$ e o R$ pela cotação de agora; sem cotação → None."""
+    """Grava o preço manual em US$ e o R$ pela cotação de agora; sem cotação → None. `source`:
+    `manual_usd` (preço informado) ou `defi_anchor` (derivado do saldo DeFi informado, v2.2)."""
     fx = await usd_brl(conn)
     if fx is None:
         return None
@@ -529,7 +535,7 @@ async def set_manual_usd(
         ticker,
         (price_usd * fx).quantize(Decimal("0.00000001")),
         price_usd=float(price_usd),
-        source=MANUAL_USD,
+        source=source,
         is_manual=True,
         as_of=as_of,
     )

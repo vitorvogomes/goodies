@@ -6,6 +6,7 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { apiFetch } from "@/lib/api";
 import type {
+  DefiBalanceInput,
   DefiPositionInput,
   ManualItem,
   ManualPositionInput,
@@ -76,6 +77,19 @@ export function useDeleteDefi() {
 }
 
 // Ajustes › Posições manuais (Story 7.8): carteira manual + DeFi numa lista só.
+/** v2.2: o saldo em US$ que o protocolo mostra (+ APY opcional) — o preço do token sai dele. */
+export function useSetDefiBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & DefiBalanceInput) =>
+      apiFetch<unknown>(`/api/v1/defi/positions/${id}/balance`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => invalidateCrypto(qc),
+  });
+}
+
 export function useManualPositions() {
   return useQuery({
     queryKey: ["wallets", "manual"],

@@ -4,6 +4,7 @@
 `/api/v1/wallets/manual` (posições manuais, Story 7.8); a conciliação passou ao portfolio. Só
 leitura: a escrita é do worker `wallet_scan` (cron). Escopo por usuário.
 """
+
 from datetime import date
 from typing import Annotated
 
@@ -14,7 +15,9 @@ from pydantic import BaseModel, Field, field_validator
 from auth.dependencies import get_current_user
 from db.connection import get_db
 from engines.common.cache import invalidate_xirr_cache
-from engines.wallet import service
+from engines.common.numbers import value_of
+from engines.wallet import defi_anchors, service
+from engines.wallet.defi_anchors import AnchorOut
 from engines.wallet.service import ManualPositionConflict, ManualPositionFutureDate
 
 router = APIRouter(prefix="/api/v1/wallets", tags=["wallet"])
@@ -87,15 +90,9 @@ async def create_manual_position(
     )
 
 
-@router.delete(
-    "/positions/manual/{chain}/{asset_symbol}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_manual_position(
-    chain: str, asset_symbol: str, user: AuthUser, db: Db
-) -> None:
-    removed = await service.delete_manual_wallet_position(
-        db, user["id"], chain, asset_symbol
-    )
+@router.delete("/positions/manual/{chain}/{asset_symbol}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_manual_position(chain: str, asset_symbol: str, user: AuthUser, db: Db) -> None:
+    removed = await service.delete_manual_wallet_position(db, user["id"], chain, asset_symbol)
     if not removed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "posição manual não encontrada")
     await invalidate_xirr_cache(user["id"])  # sleeve mudou → XIRR stale (C7)
@@ -115,8 +112,28 @@ class ManualItem(BaseModel):
     maturity_date: date | None
     notes: str | None
     is_active: bool
+    # v2.2: o valor de hoje em R$ e US$ e, no DeFi, o saldo em US$ informado (+ APY)
+    value_brl: float | None = None
+    value_usd: float | None = None
+    anchor: AnchorOut | None = None
 
 
 @router.get("/manual", response_model=list[ManualItem])
 async def manual_positions(user: AuthUser, db: Db) -> list[ManualItem]:
-    return [ManualItem(**i) for i in await service.manual_positions(db, user["id"])]
+    items = await service.manual_positions(db, user["id"])
+    prices = await service.prices_by_ticker(db, [i["asset_symbol"] for i in items])
+    anchors = await defi_anchors.anchors_by_position(db)
+    out = []
+    for i in items:
+        brl, usd = prices.get(i["asset_symbol"], (None, None))
+        out.append(
+            ManualItem(
+                **i,
+                value_brl=value_of(i["quantity"], brl),
+                value_usd=value_of(i["quantity"], usd),
+                anchor=defi_anchors.latest(anchors.get(i["id"], []))
+                if i["kind"] == "defi"
+                else None,
+            )
+        )
+    return out
