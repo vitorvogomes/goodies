@@ -27,7 +27,7 @@ from db.connection import close_pool, get_pool, init_pool
 # Categoria-destino (investimento) onde as duas pernas da caixinha convivem.
 _INVEST_CATEGORY = "Caixinha/RDB Nubank"
 _RESGATE = "'Resgate'"
-# Story 10.6: a categoria é só o `category_id` (o texto da v1 saiu na revisão 0045).
+# A categoria é o `category_id`.
 _BY_NAME = "(SELECT id FROM categories WHERE name = {})"
 
 

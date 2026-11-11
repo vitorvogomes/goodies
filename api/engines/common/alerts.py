@@ -71,7 +71,7 @@ AlertData = dict[str, float | int | str]
 
 class LegacyAlert(BaseModel):
     """Formato intermediário do cálculo de gasto acima da média (`ledger.service`), que o provider
-    converte em `Alert`; as rotas v1 que o expunham saíram na Story 10.6."""
+    converte em `Alert`."""
 
     type: str
     severity: str
