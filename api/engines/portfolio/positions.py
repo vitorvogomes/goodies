@@ -68,6 +68,7 @@ class PositionAsset(BaseModel):
     # P9: quantidade e preço unitário na data (B3, Tesouro e cripto; caixinha/CDB/debênture não)
     quantidade: Decimal | None = None
     preco: Decimal | None = None
+    preco_usd: Decimal | None = None  # cripto: o preço unitário em dólar (v2.2)
     xirr_mensal: Decimal | None = None  # % a.m. do período (Story 7.3); o bloco cripto não tem
     nota: str | None = None  # RF pelo CDI: "{x}% do CDI · CDI até dd/mm/aaaa" (Story 7.4)
     # Story 8.3 (preenchidos por `planning`): % do ativo na classe × meta do ativo, desvio em p.p.
@@ -166,6 +167,11 @@ async def _crypto_assets(
             valor_usd=usd[s].quantize(_CENT) if usd.get(s) else None,
             quantidade=_plain(qty[s].quantize(Decimal("1e-8"))) if qty.get(s) else None,
             preco=_plain((v / qty[s]).quantize(Decimal("0.00000001"))) if qty.get(s) else None,
+            preco_usd=(
+                _plain((usd[s] / qty[s]).quantize(Decimal("0.00000001")))
+                if qty.get(s) and usd.get(s)
+                else None
+            ),
             manual=s in manual,
             nota=f"informado em {manual[s]:%d/%m/%Y}" if s in manual else None,
         )

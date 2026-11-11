@@ -10,11 +10,12 @@
 // período, desde o 1º aporte (marcado). No Painel, com o Seletor de leitura no cabeçalho.
 import type { ReactNode } from "react";
 
+import { MoneyDual } from "@/components/data/MoneyDual";
 import { ReadingSelector } from "@/components/data/ReadingSelector";
 import { TrendArrow } from "@/components/data/TrendArrow";
 import { Button } from "@/components/ui/button";
 import { useGrowth } from "@/lib/closing";
-import { formatBRL, formatPercent, formatSignedBRL } from "@/lib/format";
+import { formatBRL, formatPercent, formatSignedBRL, formatUSD } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { GrowthAsset } from "@/types/closing";
 
@@ -142,6 +143,7 @@ export function GrowthBlock({
                       {c.saiu !== null && c.vale !== null && (
                         <span className="block type-caption text-muted-foreground">
                           saiu {formatBRL(c.saiu)} · vale {formatBRL(c.vale)}
+                          {c.vale_usd != null && ` (${formatUSD(c.vale_usd)})`}
                           {c.desde_inicio && " · desde o 1º aporte"}
                         </span>
                       )}
@@ -161,7 +163,7 @@ export function GrowthBlock({
                       )}
                     </td>
                     <td className="py-1.5 text-right type-num-table">
-                      <Signed value={c.resultado} />
+                      <MoneyDual brl={<Signed value={c.resultado} />} usd={c.resultado_usd} />
                     </td>
                   </tr>
                 ))}

@@ -18,6 +18,14 @@ def quantize_money(value: Decimal) -> Decimal:
     return value.quantize(CENT, rounding=ROUND_HALF_EVEN)
 
 
+def to_usd(value: Decimal | None, fx: Decimal | None) -> Decimal | None:
+    """R$ → US$ pela cotação do dólar (R$ por US$), a 2 casas; sem valor ou sem cotação → None.
+    Cripto mostra R$ e US$ em todo lugar (v2.2): a conta fica na API (AD-4)."""
+    if value is None or fx is None or fx <= 0:
+        return None
+    return quantize_money(value / fx)
+
+
 def _to_decimal(value: object) -> Decimal:
     if isinstance(value, bool) or isinstance(value, float):
         raise ValueError("dinheiro/percentual não aceita float: use Decimal, int ou str")

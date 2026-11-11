@@ -85,6 +85,15 @@ export interface HistoryRow {
   var_average: number | null;
 }
 
+/** Fatia de pizza (v2.2): o % do todo vem da API. */
+export interface Slice {
+  key: string;
+  label: string;
+  value: number;
+  pct: number;
+  meta?: number | null;
+}
+
 export interface History {
   periodo: string;
   leitura: string;
@@ -95,6 +104,7 @@ export interface History {
   average_months: number;
   rows: HistoryRow[];
   groups: HistoryRow[];
+  groups_share?: Slice[]; // v2.2: pizza dos gastos do período
 }
 
 // Visão geral › Histórico — crescimento do patrimônio (Story 9.2).
@@ -125,6 +135,9 @@ export interface Growth {
     saiu: number | null;
     vale: number | null;
     desde_inicio: boolean;
+    // v2.2: cripto em R$ e US$ — valor e resultado do bloco em dólar
+    vale_usd?: number | null;
+    resultado_usd?: number | null;
   }[];
   assets: GrowthAsset[];
   best: GrowthAsset | null;
@@ -139,6 +152,7 @@ export interface SeriesPoint {
   aplicado: number | null;
   planejado: number | null;
   realizado: number;
+  taxa_poupanca?: number | null; // v2.2: % do mês
 }
 
 export interface Series {

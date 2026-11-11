@@ -18,8 +18,9 @@ from pydantic import BaseModel
 
 from engines.common.dates import add_months, month_end, resolve_period, today_brt
 from engines.common.models import Valued
-from engines.common.money import Money, Pct
+from engines.common.money import Money, Pct, to_usd
 from engines.common.owner import get_owner_id
+from engines.market import service as market_service
 from engines.portfolio import calc as portfolio_calc
 from engines.portfolio.crypto_sleeve import sleeve_cashflows
 from engines.portfolio.positions import GOALS_BLOCK, PositionClass
@@ -43,6 +44,9 @@ class ClassReturn(BaseModel):
     saiu: Money | None = None
     vale: Money | None = None
     desde_inicio: bool = False
+    # v2.2: cripto em R$ e US$ — o valor e o resultado do bloco em dólar (cotação de hoje)
+    vale_usd: Money | None = None
+    resultado_usd: Money | None = None
 
 
 class AssetReturn(BaseModel):
@@ -102,6 +106,7 @@ async def _crypto_block(
     período, quando o início tem o preço das carteiras (o XIRR do período, se houver — nunca o desde
     o início ao lado do resultado do período); senão, desde o 1º aporte, com quanto saiu e vale."""
     since_start = c.resultado is None or leitura == "inicio"
+    fx = await market_service.usd_brl(conn)
     if not since_start:
         return ClassReturn(
             key=c.key,
@@ -109,6 +114,7 @@ async def _crypto_block(
             xirr_nominal=c.xirr_nominal,
             resultado=c.resultado,
             xirr_mensal=c.xirr_mensal,
+            resultado_usd=to_usd(c.resultado, fx),
         )
     flows = [(d, a) for d, a in await sleeve_cashflows(conn) if d <= as_of]
     rate = xirr([*flows, (as_of, float(c.valor))]) if flows and c.valor > 0 else math.nan
@@ -132,6 +138,8 @@ async def _crypto_block(
         saiu=c.aplicado,
         vale=c.valor,
         desde_inicio=leitura != "inicio",
+        vale_usd=c.valor_usd if c.valor_usd is not None else to_usd(c.valor, fx),
+        resultado_usd=to_usd(c.resultado_total, fx),
     )
 
 

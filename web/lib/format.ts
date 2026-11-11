@@ -3,7 +3,7 @@
 // separável após "R$", menos tipográfico (−), percentual com 2 casas, desvio em p.p.
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const USD = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" });
 
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -40,9 +40,9 @@ export function formatSignedBRL(value: number): string {
   return !isDisplayZero(value) && value > 0 ? `+${formatBRL(value)}` : formatBRL(value);
 }
 
-// Valor em dólar (ex.: 280 -> "$280.00"). Usado nas carteiras cripto (m4).
+// Valor em dólar no padrão pt-BR (ex.: 1234.56 -> "US$ 1.234,56"): cripto mostra R$ e US$ (v2.2).
 export function formatUSD(value: number): string {
-  return USD.format(value);
+  return typographic(USD.format(isDisplayZero(value) ? 0 : value), value);
 }
 
 // Percentual já em % (Pct da API), 2 casas e sufixo de período opcional: "10,90% a.a.".

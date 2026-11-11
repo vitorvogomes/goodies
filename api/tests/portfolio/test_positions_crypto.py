@@ -121,3 +121,22 @@ class TestAllocationCryptoFold:
         assert cats["Cripto"]["pct_meta"] == 5.0
         assert cats["Cripto"]["desvio_pp"] is not None
 
+
+
+class TestCryptoUsd:
+    @pytest.mark.asyncio
+    async def test_unit_price_in_usd(self, pool: Any, portfolio_user: dict) -> None:
+        """v2.2: cripto mostra R$ e US$ — além do valor, o preço unitário em dólar."""
+        from engines.common.dates import today_brt
+        from engines.portfolio import positions
+
+        uid = portfolio_user["user_id"]
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO asset_prices (ticker, price_brl, price_usd, source, is_manual) "
+                "VALUES ('TKNU', 550, 100, 'coingecko', false)"
+            )
+            await _wallet(conn, uid, "binance", "TKNU", 2.0)
+            out = await positions._crypto_assets(conn, uid, today_brt(), live=True)
+        tkn = next(a for a in out if a.symbol == "TKNU")
+        assert tkn.valor_usd == 200 and tkn.preco == 550 and tkn.preco_usd == 100

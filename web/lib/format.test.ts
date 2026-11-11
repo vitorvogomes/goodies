@@ -9,6 +9,7 @@ import {
   formatPP,
   formatRate,
   formatSignedBRL,
+  formatUSD,
 } from "./format";
 
 const NBSP = " ";
@@ -123,5 +124,13 @@ describe("fmtWhen", () => {
   it("mostra o horário de Brasília, qualquer que seja o fuso do navegador", () => {
     expect(fmtWhen("2026-10-18T01:30:00+00:00")).toBe("17/10/2026, 22:30");
     expect(fmtWhen(null)).toBe("—");
+  });
+});
+
+describe("formatUSD", () => {
+  it("dólar no padrão pt-BR, com US$ e menos tipográfico (v2.2)", () => {
+    expect(formatUSD(1234.56)).toBe(`US$${NBSP}1.234,56`);
+    expect(formatUSD(-40)).toBe(`${MINUS}US$${NBSP}40,00`);
+    expect(formatUSD(-0.001)).toBe(`US$${NBSP}0,00`);
   });
 });

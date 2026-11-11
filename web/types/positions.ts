@@ -1,4 +1,5 @@
 // Investimentos › Posições (Story 7.1) — da rota de `closing` (AD-8).
+import type { Slice } from "@/types/closing";
 import type { Valued } from "@/types/overview";
 
 export interface PositionAsset {
@@ -9,6 +10,7 @@ export interface PositionAsset {
   manual: boolean;
   quantidade: string | null; // P9: decimal em texto (B3, Tesouro, cripto)
   preco: string | null; // preço unitário em texto, sem arredondar
+  preco_usd?: string | null; // cripto: o preço unitário em dólar (v2.2)
   xirr_mensal: number | null; // % a.m. do período (RF e cripto não têm)
   nota: string | null; // RF: "{x}% do CDI · CDI até dd/mm/aaaa"
   asset_id: string | null;
@@ -55,6 +57,9 @@ export interface PositionsReport {
   ipca_ate: string | null;
   resultado_total: number;
   xirr_mensal: number | null;
+  // v2.2 (pizza da carteira): % de cada classe (+ caixa na corretora) e de cada ativo no total
+  distribuicao?: Slice[];
+  distribuicao_ativos?: Slice[];
 }
 
 // Ajustes › Debêntures (Story 7.6).

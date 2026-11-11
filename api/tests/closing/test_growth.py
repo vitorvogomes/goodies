@@ -101,9 +101,14 @@ async def test_crypto_block_quanto_saiu_x_quanto_vale(monkeypatch) -> None:
     async def flows(_conn: Any) -> list[tuple[date, float]]:
         return [(date(2026, 1, 1), -1000.0), (date(2026, 7, 1), -500.0), (date(2027, 2, 1), -9.0)]
 
+    async def fx(_conn: Any) -> Decimal:
+        return D(6)
+
     monkeypatch.setattr(growth_service, "sleeve_cashflows", flows)
+    monkeypatch.setattr(growth_service.market_service, "usd_brl", fx)
     block = await growth_service._crypto_block(None, _crypto(None), date(2026, 12, 31))
     assert (block.saiu, block.vale, block.resultado) == (D(1500), D(1200), D(-300))
+    assert (block.vale_usd, block.resultado_usd) == (D(200), D(-50))  # v2.2: R$ e US$
     assert block.desde_inicio and block.label == "Cripto (bloco)"
     assert block.xirr_mensal is not None and block.xirr_mensal < 0  # perdeu: taxa negativa
     assert block.xirr_nominal.value is not None and block.xirr_nominal.value < block.xirr_mensal
