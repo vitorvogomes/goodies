@@ -170,25 +170,43 @@ O script baixa por `railway ssh` (em base64), confere o sha256 dos dois lados e 
 
 ## 5. Restaurar o banco de produção
 
-1. api: Settings → Replicas = 0 (ou remover o deploy ativo), para nada escrever no banco.
-2. Abrir um túnel sem expor o banco: `railway connect Postgres --tunnel-only` (num terminal à parte). Ele mostra a
-   porta local; usuário, senha e banco estão nas variáveis do serviço Postgres (`PGUSER`, `PGPASSWORD`,
-   `PGDATABASE`). Exporte o DSN no seu terminal como `DSN_TUNEL` — nunca colar no chat.
-3. Restaurar com o cliente 15, sem `psql` no host (a rede `host` deixa o container alcançar o túnel local):
-   ```bash
-   docker run --rm -i --network host -e DSN="$DSN_TUNEL" postgres:15-alpine \
-     sh -c 'pg_restore --clean --if-exists --no-owner --no-privileges -d "$DSN"' < arquivo.dump
-   ```
-4. Fechar o túnel, voltar a api para 1 réplica e conferir health, login e contagens na tela.
+Sem chave SSH: um proxy TCP do Postgres aberto só durante a restauração.
 
-## 6. Próxima etapa: dump curado da máquina de casa
+1. Parar a api, para nada gravar no banco no meio: `railway down --service api --yes` (o health pelo web passa a
+   dar 500). `railway scale ... us-west2=0` **não** para: só reinicia com 1 réplica.
+2. Abrir o proxy (o Vitor roda; o modo automático do agente bloqueia):
+   `railway tcp-proxy create --port 5432 --service Postgres`. Aparecem nas variáveis do Postgres
+   `RAILWAY_TCP_PROXY_DOMAIN` e `RAILWAY_TCP_PROXY_PORT`; o DSN é o `DATABASE_URL` do Postgres com esse host:porta
+   (`?sslmode=require`). Exportar como `DSN_ALVO` sem imprimir — nunca colar no chat.
+3. Restaurar: `DSN_ALVO=... scripts/restore_railway.sh arquivo.dump`. O script:
+   - ensaia o dump num Postgres 15 local descartável;
+   - recusa alvo em outra revisão, com mais de 1 usuário ou com transações;
+   - faz backup do alvo em `BACKUP_DIR/railway/pre-restore_*.dump`;
+   - restaura numa transação só (`--single-transaction --clean`): entra tudo ou nada;
+   - mantém o e-mail e a senha do admin de produção no usuário restaurado e zera as sessões;
+   - confere contagem e md5 de cada tabela contra o ensaio (só imprime nomes, contagens e ok/DIFERE).
+4. Fechar o proxy: `railway tcp-proxy list --service Postgres --json` → `railway tcp-proxy delete <id> --yes`.
+   Conferir: `docker run --rm postgres:15-alpine pg_isready -h <domínio> -p <porta>` → `no response`.
+5. Voltar a api com o mesmo commit que estava no ar: `railway redeploy --service api --commit <sha> --yes`. Log
+   esperado: `startup: banco no head`. Entrar de novo (a sessão anterior cai) e rodar "Atualizar tudo".
 
-1. Em casa: `cd api && uv run python -m scripts.ops.backup --tag para-railway`.
-2. Trazer o arquivo e restaurar como na §5 (o banco de produção é substituído).
-3. Conferir `alembic_version` = head (se o dump for de revisão anterior, a subida migra com backup), contagens de
-   transações e operações, poupança por mês = baseline e XIRR consolidado = baseline.
-4. Copiar `BACKUP_DIR/pre-migracao/<pinned_backup>` e `BACKUP_DIR/baseline/` de casa para o `BACKUP_DIR` desta
+Para restaurar o **backup** de produção por cima de dados já existentes, o script não serve (ele exige o banco
+vazio do bootstrap): usar `pg_restore --single-transaction --exit-on-error --clean --if-exists --no-owner
+--no-privileges` direto, pelo mesmo proxy.
+
+## 6. Dump curado da máquina de casa
+
+Dump escolhido em 11/11/2026: `goodies_20261101_163000.dump` (último uso do app em casa: 01/11; revisão 0050,
+esquema idêntico ao das migrações, sem chave de API nem segredo dentro — só os endereços de carteira e o CNPJ do
+MEI). Restaurado pela §5 em 11/11/2026: 41/41 tabelas iguais ao dump, 1.701 transações, 27 meses fechados; o login
+ficou o de produção e o de casa foi descartado. Backup do banco vazio de antes em
+`BACKUP_DIR/railway/pre-restore_20261111_171422.dump`. Depois:
+
+1. Fechar outubro/2026 pelo app (o OFX de outubro entrou em casa em 01/11, mas o mês não foi fechado).
+2. Copiar `backups/local/pre-migracao/<pinned_backup>` e `backups/local/baseline/` para o `BACKUP_DIR` desta
    máquina. Assim o gate `dados_reais` volta a rodar (`restore_dados_db`).
+3. O md5 da §5 prova só produção = dump. Poupança por mês e XIRR consolidado = baseline continuam com o gate
+   `dados_reais` (item 2) e com a conferência na tela contra o que o app mostrava em casa.
 
 ## 7. Instalação nova: o que não vem pronto
 
