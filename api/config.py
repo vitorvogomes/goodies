@@ -100,8 +100,8 @@ class Settings(BaseSettings):
         "SHYUSD": "hylo-usd",  # sHYUSD = hyUSD stakeado ~US$1 (qualquer vencimento)
     }
     # TTLs de cache de preço (segundos). Cripto=2h, XIRR=1h (CLAUDE.md).
-    # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: limite free-tier BRAPI
-    # 1.000 req/mês; Tesouro Transparente publica preço de fechamento 1x/dia útil),
+    # B3 e Tesouro = 26h: cotação buscada 1x/dia útil (B3: free-tier BRAPI, 1 ativo/req;
+    # Tesouro Transparente publica preço de fechamento 1x/dia útil),
     # então o preço do dia NÃO deve aparecer "desatualizado" durante o dia.
     ttl_b3: int = 93600
     ttl_crypto: int = 7200

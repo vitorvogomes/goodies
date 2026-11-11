@@ -13,8 +13,12 @@ from typing import Any
 import asyncpg
 from pydantic import BaseModel, Field
 
-from engines.common.money import Money, Pct
+from engines.common.assets import AssetClass
+from engines.common.dates import today_brt
+from engines.common.money import Money, Pct, to_usd
 from engines.common.owner import get_owner_id
+from engines.market import service as market_service
+from engines.portfolio import opportunity as opportunity_engine
 from engines.portfolio.positions import GOALS_BLOCK, month_units
 
 from . import allocation, goals, targets
@@ -41,6 +45,15 @@ class PreviewIn(BaseModel):
     mes: str
     planejado: Money | None = Field(default=None, ge=0)  # None = o do mês
     travas: dict[str, Money] | None = None  # None = as gravadas no mês
+    oportunidade: bool | None = None  # v2.2: None = a escolha gravada no mês
+
+
+class UsdLine(BaseModel):
+    """Cripto em US$ (v2.2): o plano, o realizado e a falta da linha pela cotação do dólar."""
+
+    sugerido: Money | None = None
+    realizado: Money | None = None
+    pendente: Money | None = None
 
 
 class AssetOut(BaseModel):
@@ -62,6 +75,15 @@ class AssetOut(BaseModel):
     # mês conta), em unidades inteiras — a lista de compras
     comprar: Money | None = None
     comprar_cotas: Decimal | None = None
+    usd: UsdLine | None = None  # só cripto (v2.2)
+    # v2.2 — oportunidade de mercado: os sinais (%; negativo = em baixa), o fator (0,75–1,25) e o
+    # sugerido sem o ajuste (só com a oportunidade ligada)
+    var_3m: Pct | None = None
+    vs_pm: Pct | None = None
+    dd_52w: Pct | None = None
+    fator: Decimal | None = None
+    sugerido_sem_ajuste: Money | None = None
+    ajuste_oportunidade: Money | None = None  # sugerido − sem o ajuste (+ ganhou, − perdeu)
 
 
 class ClassOut(BaseModel):
@@ -87,6 +109,7 @@ class ClassOut(BaseModel):
     # A comprar no mês: Σ dos ativos (cotas inteiras) ou, sem divisão por ativo, o pendente inteiro
     comprar: Money = Decimal(0)
     comprar_troco: Money = Decimal(0)  # o pendente que não compra cota inteira agora
+    usd: UsdLine | None = None  # só cripto (v2.2)
 
 
 class GoalOut(BaseModel):
@@ -138,6 +161,30 @@ class DistributionOut(BaseModel):
     andamento: Andamento
     troco: Money = Decimal(0)  # Σ do troco das cotas que teve destino (objetivos e classes livres)
     troco_destino: list[str] = Field(default_factory=list)
+    oportunidade: bool = False  # v2.2: a divisão entre os ativos pesou a variação do preço
+
+
+def _usd_line(
+    sugerido: Decimal | None, realizado: Decimal, pendente: Decimal | None, fx: Decimal
+) -> UsdLine:
+    return UsdLine(
+        sugerido=to_usd(sugerido, fx),
+        realizado=to_usd(realizado, fx),
+        pendente=to_usd(pendente, fx),
+    )
+
+
+def with_crypto_usd(classes: list[ClassOut], fx: Decimal | None) -> list[ClassOut]:
+    """A classe cripto e os ativos dela ganham as linhas em US$ (v2.2); sem cotação, nada."""
+    if fx is None:
+        return classes
+    for c in classes:
+        if c.cls != str(AssetClass.CRIPTO):
+            continue
+        c.usd = _usd_line(c.sugerido, c.realizado, c.pendente, fx)
+        for a in c.assets:
+            a.usd = _usd_line(a.sugerido, a.realizado, a.pendente, fx)
+    return classes
 
 
 _UNIT = {"b3": "cota", "td": "título"}
@@ -231,8 +278,10 @@ async def preview(
     month: date,
     planned: Decimal | None = None,
     locks: dict[str, Decimal] | None = None,
+    opportunity: bool | None = None,
 ) -> DistributionOut:
     plan = await month_plan(conn, month)
+    on = plan.oportunidade if opportunity is None else opportunity
     defined = planned is not None or plan.aporte_planejado is not None
     amount = planned if planned is not None else (plan.aporte_planejado or Decimal(0))
     month_travas = locks if locks is not None else await month_locks(conn, month)
@@ -272,12 +321,29 @@ async def preview(
     labels = dict(targets.CLASS_LABELS)
     current = await allocation.current_classes(conn, owner, month)
     asset_ids = [a.asset_id for c in current for a in c.assets if a.asset_id]
-    keys = {
-        r["id"]: r["key"]
-        for r in await conn.fetch(
-            "SELECT id::text AS id, key FROM assets WHERE id = ANY($1::uuid[])", asset_ids
-        )
+    asset_rows_db = await conn.fetch(
+        "SELECT id::text AS id, key, price_ref, valuation FROM assets WHERE id = ANY($1::uuid[])",
+        asset_ids,
+    )
+    keys = {r["id"]: r["key"] for r in asset_rows_db}
+    # v2.2: os sinais de mercado dos ativos com cotação (B3, Tesouro, cripto); os outros, neutros
+    market = {
+        r["id"]: r["price_ref"]
+        for r in asset_rows_db
+        if r["valuation"] == "mercado" and r["price_ref"]
     }
+    sig = (
+        await opportunity_engine.market_signals(
+            conn,
+            owner,
+            sorted(set(market.values())),
+            opportunity_engine.reference_day(month, today_brt()),
+        )
+        if on
+        else {}
+    )
+    asset_signals = {aid: sig[t] for aid, t in market.items() if t in sig}
+    factors = {aid: opportunity_engine.factor(sg) for aid, sg in asset_signals.items()}
     units_done = await month_units(conn, owner, month)
     lots: dict[str, Lot] = {}
     states: list[ClassState] = []
@@ -307,6 +373,7 @@ async def preview(
                         value=before(a.valor.value or Decimal(0), f"asset:{a.asset_id}"),
                         target_pct=own.get(a.asset_id or ""),
                         lot=lots.get(a.asset_id or a.symbol),
+                        opportunity=factors.get(a.asset_id or "", Decimal(1)),
                     )
                     for a in c.assets
                 ],
@@ -373,6 +440,15 @@ async def preview(
         locks.update(short)
         fixed_classes.update(k.split(":", 1)[1] for k in short)
         d = distribute(amount, needs, states, locks, sinks)
+    # v2.2: o sugerido de cada ativo sem o ajuste (mesmas travas e destinos), para mostrar o efeito
+    without: dict[str, Decimal | None] = {}
+    if factors:
+        neutral = [
+            replace(st, assets=[replace(a, opportunity=Decimal(1)) for a in st.assets])
+            for st in states
+        ]
+        base = distribute(amount, needs, neutral, locks, sinks)
+        without = {a.id: a.sugerido for c in base.classes for a in c.assets}
     progress = {g.id: g.progress for g in goal_list}
     sugerido = {f"goal:{g.id}": g.sugerido for g in d.goals}
     sugerido.update({f"class:{c.cls}": c.sugerido for c in d.classes})
@@ -416,6 +492,18 @@ async def preview(
             cotas_realizadas=done.quantize(lot.qty) if lot is not None else None,
             comprar=lot.cost(n) if lot is not None and n is not None else free,
             comprar_cotas=units(lot, n) if lot is not None and n is not None else None,
+            var_3m=sg.var_3m if (sg := asset_signals.get(a.id)) else None,
+            vs_pm=sg.vs_pm if sg else None,
+            dd_52w=sg.dd_52w if sg else None,
+            fator=factors.get(a.id),
+            sugerido_sem_ajuste=without.get(a.id) if a.id in factors else None,
+            ajuste_oportunidade=(
+                a.sugerido - w
+                if a.id in factors
+                and a.sugerido is not None
+                and (w := without.get(a.id)) is not None
+                else None
+            ),
         )
 
     return DistributionOut(
@@ -431,18 +519,21 @@ async def preview(
             )
             for g in d.goals
         ],
-        classes=[
-            ClassOut(
-                **{k: v for k, v in vars(c).items() if k != "assets"},
-                assets=[asset_line(a, c.cls) for a in c.assets],
-                realizado=line(f"class:{c.cls}")[0],
-                pendente=line(f"class:{c.cls}")[1],
-                comprar=to_buy[c.cls][2],
-                comprar_troco=to_buy[c.cls][3],
-                fixo=c.cls in fixed_classes,
-            )
-            for c in d.classes
-        ],
+        classes=with_crypto_usd(
+            [
+                ClassOut(
+                    **{k: v for k, v in vars(c).items() if k != "assets"},
+                    assets=[asset_line(a, c.cls) for a in c.assets],
+                    realizado=line(f"class:{c.cls}")[0],
+                    pendente=line(f"class:{c.cls}")[1],
+                    comprar=to_buy[c.cls][2],
+                    comprar_troco=to_buy[c.cls][3],
+                    fixo=c.cls in fixed_classes,
+                )
+                for c in d.classes
+            ],
+            await market_service.usd_brl(conn),
+        ),
         floors_reduced=d.floors_reduced,
         locks_total=d.locks_total,
         locks_over=d.locks_total > amount,
@@ -450,6 +541,7 @@ async def preview(
         unassigned=d.unassigned,
         troco=d.troco,
         troco_destino=d.troco_destino,
+        oportunidade=on,
         andamento=Andamento(
             planned=amount,
             realizado=done.realizado,

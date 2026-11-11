@@ -19,11 +19,13 @@ import { Fragment, type ReactNode, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 import { ProgressBar } from "@/components/data/ProgressBar";
+import { Section } from "@/components/data/Section";
 import { AllocationCell } from "@/components/investimentos/AllocationCell";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { fmtQty, formatBRL, formatMonth, formatPercent, normalizeMoneyInput } from "@/lib/format";
-import { useDistribution, useSetLock } from "@/lib/planning";
+import { fmtQty, formatBRL, formatMonth, formatPercent, formatUSD, normalizeMoneyInput } from "@/lib/format";
+import { useDistribution, useSetLock, useSetOportunidade } from "@/lib/planning";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
 import type { Distribution, DistributionAsset, DistributionGoal } from "@/types/planning";
 
@@ -122,7 +124,53 @@ function Goals({
   busy: boolean;
   onLock: Lock;
 }) {
+  const phone = useMedia(PHONE);
   if (!data.goals.length) return null;
+  if (phone) {
+    // celular (v2.2): um cartão por objetivo, com o sugerido editável e o que falta
+    return (
+      <ul className="space-y-2" aria-label="Objetivos">
+        {data.goals.map((g) => (
+          <li key={g.id} className="space-y-2 rounded-lg border border-border bg-card p-card-padding shadow-card">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="type-body font-medium">
+                  {g.name}
+                  {g.fixo && (
+                    <span className="ml-2">
+                      <StatusBadge tooltip="Aporte fixo do mês (Ajustes › Metas)">fixo</StatusBadge>
+                    </span>
+                  )}
+                </p>
+                <p className="type-caption text-muted-foreground">{goalNote(g)}</p>
+              </div>
+              <span className="type-num-table">{formatPercent(g.progress)}</span>
+            </div>
+            <ProgressBar label={`${g.name}: ${formatPercent(g.progress)} do alvo`} solid={Math.min(g.progress, 100)} />
+            <p className="type-caption text-muted-foreground">
+              {formatBRL(g.current)} de {formatBRL(g.target)}
+            </p>
+            <PlanGrid
+              plan={
+                <LockCell
+                  key={`${g.id}-${g.sugerido}-${g.locked}`}
+                  lockKey={`goal:${g.id}`}
+                  label={g.name}
+                  value={g.sugerido}
+                  locked={g.locked}
+                  readOnly={readOnly}
+                  busy={busy}
+                  onLock={onLock}
+                />
+              }
+              done={formatBRL(g.realizado)}
+              missing={formatBRL(g.pendente)}
+            />
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
     <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
@@ -279,10 +327,9 @@ function Classes({
   busy: boolean;
   onLock: Lock;
 }) {
-  // as classes com divisão por ativo começam abertas: o plano é por ativo
-  const [open, setOpen] = useState<Set<string>>(
-    () => new Set(data.classes.filter((c) => c.assets.some((a) => a.sugerido != null)).map((c) => c.cls)),
-  );
+  // todas começam recolhidas (v2.2): a linha da classe já traz plano, realizado e falta; os ativos
+  // abrem no clique
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
   const toggle = (cls: string) =>
     setOpen((cur) => {
       const next = new Set(cur);
@@ -290,8 +337,104 @@ function Classes({
       else next.add(cls);
       return next;
     });
+  const phone = useMedia(PHONE);
   const head = "px-3 py-2 text-right font-medium";
   const cell = "px-3 py-2 text-right type-num-table align-top";
+  if (phone) {
+    // celular (v2.2): um cartão recolhível por classe (plano, realizado, falta e a régua da meta);
+    // aberto, os ativos com os sinais da oportunidade e o plano de cada um
+    return (
+      <div className="space-y-2">
+        {data.classes.map((c) => (
+          <Section
+            key={c.cls}
+            title={
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {c.label}
+                {c.floor_only && <StatusBadge>piso</StatusBadge>}
+                {c.fixo && <StatusBadge>fixo</StatusBadge>}
+              </span>
+            }
+            summary={<span className="type-num-table text-foreground">{formatBRL(c.sugerido)}</span>}
+          >
+            <AllocationCell alocacao={c.atual} meta={c.meta} banda={c.banda} desvio={c.desvio} fora={c.out_of_band} />
+            <PlanGrid
+              plan={
+                <>
+                  <LockCell
+                    key={`${c.cls}-${c.sugerido}-${c.locked}`}
+                    lockKey={`class:${c.cls}`}
+                    label={c.label}
+                    value={c.sugerido}
+                    locked={c.locked}
+                    readOnly={readOnly}
+                    busy={busy}
+                    onLock={onLock}
+                  />
+                  <UsdBelow v={c.usd?.sugerido} />
+                </>
+              }
+              done={
+                <>
+                  {formatBRL(c.realizado)}
+                  <UsdBelow v={c.usd?.realizado} />
+                </>
+              }
+              missing={<Falta pendente={c.pendente} comprar={c.comprar} />}
+            />
+            {c.troco > 0 && (
+              <p className="mt-1 type-caption text-muted-foreground">
+                troco {formatBRL(c.troco)} → {data.troco_destino.join(", ") || "sem destino"}
+              </p>
+            )}
+            {c.assets.length > 0 && (
+              <ul className="mt-3 divide-y divide-border border-t border-border">
+                {c.assets.map((a) => (
+                  <li key={a.id} className="space-y-1.5 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="type-num-table">{a.label}</span>
+                        {a.fixo && (
+                          <span className="ml-2">
+                            <StatusBadge>fixo</StatusBadge>
+                          </span>
+                        )}
+                        {data.oportunidade && <Signals a={a} />}
+                      </span>
+                      <span className="shrink-0 text-right type-caption text-muted-foreground">
+                        {formatPercent(a.atual)}
+                        {a.meta != null && ` · meta ${formatPercent(a.meta)}`}
+                        {priceText(a) && <span className="block">{priceText(a)}</span>}
+                      </span>
+                    </div>
+                    <PlanGrid
+                      plan={<AssetPlan a={a} readOnly={readOnly} busy={busy} onLock={onLock} />}
+                      done={<AssetDone a={a} />}
+                      missing={<AssetMissing a={a} />}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        ))}
+        <div className="space-y-1 rounded-lg border border-border bg-card p-card-padding shadow-card type-body-sm">
+          <p className="flex justify-between gap-2">
+            <span className="text-muted-foreground">Plano do mês</span>
+            <span className="type-num-table">{formatBRL(data.andamento.sugerido_linhas)}</span>
+          </p>
+          <p className="flex justify-between gap-2">
+            <span className="text-muted-foreground">Realizado em ativo</span>
+            <span className="type-num-table">{formatBRL(data.andamento.em_ativo)}</span>
+          </p>
+          <p className="flex justify-between gap-2 font-semibold">
+            <span>Falta aplicar</span>
+            <span className="type-num-table">{formatBRL(data.andamento.pendente_linhas)}</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full type-body-sm">
@@ -351,6 +494,10 @@ function Classes({
                       busy={busy}
                       onLock={onLock}
                     />
+                    <UsdBelow v={c.usd?.sugerido} />
+                    {data.oportunidade && c.assets.some((a) => Math.abs(a.ajuste_oportunidade ?? 0) >= 0.01) && (
+                      <span className="block type-caption font-normal text-positive">ajustado pela oportunidade</span>
+                    )}
                     {c.troco > 0 && (
                       <span className="block type-caption font-normal text-muted-foreground">
                         troco {formatBRL(c.troco)} → {data.troco_destino.join(", ") || "sem destino"}
@@ -362,9 +509,13 @@ function Classes({
                       </span>
                     )}
                   </td>
-                  <td className={cell}>{formatBRL(c.realizado)}</td>
+                  <td className={cell}>
+                    {formatBRL(c.realizado)}
+                    <UsdBelow v={c.usd?.realizado} />
+                  </td>
                   <td className={cell}>
                     <Falta pendente={c.pendente} comprar={c.comprar} />
+                    {c.pendente > 0 && <UsdBelow v={c.usd?.pendente} />}
                   </td>
                 </tr>
                 {open.has(c.cls) &&
@@ -377,67 +528,20 @@ function Classes({
                             <StatusBadge tooltip="Aporte fixo do mês (Ajustes › Metas)">fixo</StatusBadge>
                           </span>
                         )}
+                        {data.oportunidade && <Signals a={a} />}
                       </th>
                       <td className={cn(cell, "py-1.5")}>
                         <AllocationCell alocacao={a.atual} meta={a.meta} banda={null} desvio={null} fora={false} compact />
                       </td>
                       <td className={cn(cell, "py-1.5")}>{priceText(a) ?? "—"}</td>
                       <td className={cn(cell, "py-1.5")}>
-                        {a.sugerido != null && (a.sugerido > 0 || a.locked) ? (
-                          <>
-                            <LockCell
-                              key={`${a.id}-${a.sugerido}-${a.locked}`}
-                              lockKey={`asset:${a.id}`}
-                              label={a.label}
-                              value={a.sugerido}
-                              locked={a.locked}
-                              readOnly={readOnly}
-                              busy={busy}
-                              onLock={onLock}
-                            />
-                            {a.cotas != null && Number(a.cotas) > 0 && (
-                              <span className="block type-caption">{unitsText(a.cotas, a.unidade)}</span>
-                            )}
-                          </>
-                        ) : a.sugerido != null && !readOnly ? (
-                          <ZeroPlan label={a.label}>
-                            <LockCell
-                              lockKey={`asset:${a.id}`}
-                              label={a.label}
-                              value={0}
-                              locked={false}
-                              readOnly={readOnly}
-                              busy={busy}
-                              onLock={onLock}
-                            />
-                          </ZeroPlan>
-                        ) : (
-                          "—"
-                        )}
+                        <AssetPlan a={a} readOnly={readOnly} busy={busy} onLock={onLock} />
                       </td>
                       <td className={cn(cell, "py-1.5")}>
-                        {formatBRL(a.realizado)}
-                        {a.cotas_realizadas != null && Number(a.cotas_realizadas) > 0 && (
-                          <span className="block type-caption">{unitsText(a.cotas_realizadas, a.unidade)}</span>
-                        )}
+                        <AssetDone a={a} />
                       </td>
                       <td className={cn(cell, "py-1.5")}>
-                        {a.comprar_cotas != null ? (
-                          Number(a.comprar_cotas) > 0 ? (
-                            <span className="text-foreground">
-                              {unitsText(a.comprar_cotas, a.unidade)}
-                              <span className="block type-caption text-muted-foreground">{formatBRL(a.comprar ?? 0)}</span>
-                            </span>
-                          ) : a.pendente != null && a.pendente < 0 ? (
-                            <span className="type-caption">acima do plano {formatBRL(-a.pendente)}</span>
-                          ) : (
-                            "—"
-                          )
-                        ) : a.pendente != null && a.pendente !== 0 ? (
-                          <Falta pendente={a.pendente} comprar={Math.max(a.pendente, 0)} />
-                        ) : (
-                          "—"
-                        )}
+                        <AssetMissing a={a} />
                       </td>
                     </tr>
                   ))}
@@ -448,6 +552,105 @@ function Classes({
         <Reconciliation data={data} />
       </table>
     </div>
+  );
+}
+
+// Três números lado a lado no cartão do celular: plano (editável), realizado e o que falta.
+function PlanGrid({ plan, done, missing }: { plan: ReactNode; done: ReactNode; missing: ReactNode }) {
+  return (
+    <dl className="grid grid-cols-[1.3fr_1fr_1fr] gap-2 type-num-table">
+      <div className="min-w-0">
+        <dt className="type-caption text-muted-foreground">Plano</dt>
+        <dd className="[&_input]:w-full">{plan}</dd>
+      </div>
+      <div className="min-w-0 text-right">
+        <dt className="type-caption text-muted-foreground">Realizado</dt>
+        <dd>{done}</dd>
+      </div>
+      <div className="min-w-0 text-right">
+        <dt className="type-caption text-muted-foreground">Falta</dt>
+        <dd>{missing}</dd>
+      </div>
+    </dl>
+  );
+}
+
+// Plano, realizado e o que falta de um ativo: na tabela e no cartão do celular (v2.2).
+function AssetPlan({ a, readOnly, busy, onLock }: { a: DistributionAsset; readOnly: boolean; busy: boolean; onLock: Lock }) {
+  return (
+    <>
+    {a.sugerido != null && (a.sugerido > 0 || a.locked) ? (
+      <>
+        <LockCell
+          key={`${a.id}-${a.sugerido}-${a.locked}`}
+          lockKey={`asset:${a.id}`}
+          label={a.label}
+          value={a.sugerido}
+          locked={a.locked}
+          readOnly={readOnly}
+          busy={busy}
+          onLock={onLock}
+        />
+        {a.cotas != null && Number(a.cotas) > 0 && (
+          <span className="block type-caption">{unitsText(a.cotas, a.unidade)}</span>
+        )}
+        <UsdBelow v={a.usd?.sugerido} />
+        <TiltNote v={a.ajuste_oportunidade} />
+      </>
+    ) : a.sugerido != null && !readOnly ? (
+      <ZeroPlan label={a.label}>
+        <LockCell
+          lockKey={`asset:${a.id}`}
+          label={a.label}
+          value={0}
+          locked={false}
+          readOnly={readOnly}
+          busy={busy}
+          onLock={onLock}
+        />
+      </ZeroPlan>
+    ) : (
+      "—"
+    )}
+    </>
+  );
+}
+
+function AssetDone({ a }: { a: DistributionAsset }) {
+  return (
+    <>
+    {formatBRL(a.realizado)}
+    <UsdBelow v={a.usd?.realizado} />
+    {a.cotas_realizadas != null && Number(a.cotas_realizadas) > 0 && (
+      <span className="block type-caption">{unitsText(a.cotas_realizadas, a.unidade)}</span>
+    )}
+    </>
+  );
+}
+
+function AssetMissing({ a }: { a: DistributionAsset }) {
+  return (
+    <>
+    {a.comprar_cotas != null ? (
+      Number(a.comprar_cotas) > 0 ? (
+        <span className="text-foreground">
+          {unitsText(a.comprar_cotas, a.unidade)}
+          <span className="block type-caption text-muted-foreground">{formatBRL(a.comprar ?? 0)}</span>
+        </span>
+      ) : a.pendente != null && a.pendente < 0 ? (
+        <span className="type-caption">acima do plano {formatBRL(-a.pendente)}</span>
+      ) : (
+        "—"
+      )
+    ) : a.pendente != null && a.pendente !== 0 ? (
+      <>
+        <Falta pendente={a.pendente} comprar={Math.max(a.pendente, 0)} />
+        {a.pendente > 0 && <UsdBelow v={a.usd?.pendente} />}
+      </>
+    ) : (
+      "—"
+    )}
+    </>
   );
 }
 
@@ -469,6 +672,49 @@ function ZeroPlan({ label, children }: { label: string; children: ReactNode }) {
 }
 
 // O que falta na linha: o a comprar (R$) ou, quando o realizado passou do plano, quanto passou.
+// Oportunidade (v2.2): os três sinais do ativo em selos curtos — em baixa (negativo) puxa o aporte
+// para ele, nas máximas puxa para longe. Sem dado, o sinal não aparece.
+function Signals({ a }: { a: DistributionAsset }) {
+  const items = [
+    a.var_3m != null && { v: a.var_3m, label: "3m", tip: "Variação do preço nos últimos 3 meses" },
+    a.vs_pm != null && { v: a.vs_pm, label: "do PM", tip: "Preço de hoje × seu preço médio de compra" },
+    a.dd_52w != null && { v: a.dd_52w, label: "da máx", tip: "Distância da máxima das últimas 52 semanas" },
+  ].filter(Boolean) as { v: number; label: string; tip: string }[];
+  if (items.length === 0) return null;
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-1">
+      {items.map((i) => (
+        <span
+          key={i.label}
+          title={i.tip}
+          className={cn(
+            "type-tag rounded-full px-1.5 font-normal",
+            // verde só numa queda que conta (−5% ou mais): a distância da máxima nunca é positiva
+            i.v <= -5 ? "bg-positive-tint text-positive" : "bg-secondary text-secondary-foreground",
+          )}
+        >
+          {formatPercent(i.v)} {i.label}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function TiltNote({ v }: { v: number | null | undefined }) {
+  if (v == null || Math.abs(v) < 0.01) return null;
+  return (
+    <span className={cn("block type-caption font-normal", v > 0 ? "text-positive" : "text-muted-foreground")}>
+      {v > 0 ? "+" : "−"}
+      {formatBRL(Math.abs(v))} pela oportunidade
+    </span>
+  );
+}
+
+function UsdBelow({ v }: { v: number | null | undefined }) {
+  if (v == null) return null;
+  return <span className="block type-num-table font-normal text-muted-foreground">{formatUSD(v)}</span>;
+}
+
 function Falta({ pendente, comprar }: { pendente: number; comprar: number }) {
   if (pendente < 0) return <span className="type-caption font-normal text-muted-foreground">acima do plano {formatBRL(-pendente)}</span>;
   return <>{formatBRL(comprar)}</>;
@@ -555,6 +801,7 @@ export function DistributionTable({
 }) {
   const query = useDistribution(periodo, enabled);
   const setLock = useSetLock(periodo);
+  const setOportunidade = useSetOportunidade(periodo);
   const [announce, setAnnounce] = useState("");
   if (!enabled) return null;
   if (query.isError && !query.data) {
@@ -584,6 +831,39 @@ export function DistributionTable({
           Distribuição do aporte
         </h2>
         <span className="type-caption text-muted-foreground">total = aporte planejado · {formatBRL(data.planned)}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-card-padding shadow-card">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={Boolean(data.oportunidade)}
+          disabled={readOnly || setOportunidade.isPending}
+          onClick={() => setOportunidade.mutate(!data.oportunidade)}
+          className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-input transition-colors disabled:opacity-50",
+            data.oportunidade ? "bg-positive" : "bg-muted",
+          )}
+        >
+          <span className="sr-only">Considerar oportunidade</span>
+          <span
+            aria-hidden
+            className={cn(
+              "inline-block size-4 rounded-full bg-background shadow-xs transition-transform",
+              data.oportunidade ? "translate-x-6" : "translate-x-1",
+            )}
+          />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="type-body font-medium">Considerar oportunidade</p>
+          <p className="type-body-sm text-muted-foreground">
+            Dentro de cada classe, o ativo em baixa ganha até 25% mais peso e o que está nas máximas, até 25% menos.
+            <span className="hidden sm:inline">
+              {" "}
+              Sinais no 1º dia do mês (a divisão não muda a cada pregão): variação em 3 meses, preço × seu preço médio e
+              distância da máxima de 52 semanas. A divisão entre as classes não muda.
+            </span>
+          </p>
+        </div>
       </div>
       <p role="status" aria-live="polite" className="sr-only">
         {announce}

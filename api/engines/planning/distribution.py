@@ -8,7 +8,9 @@ positions, locks)`, pura, em ordem fixa:
    proporcional ao déficit (monotônico: maior déficit, maior sugestão); acima da banda, só o piso;
    déficits cobertos, a sobra segue a meta das classes que não estão acima da banda.
 4. **Ativos**: dentro da classe, pelo déficit em relação à meta do ativo (cripto pelo valor atual);
-   classe sem meta por ativo não divide.
+   classe sem meta por ativo não divide. Com a oportunidade ligada (v2.2), o déficit de cada ativo
+   é multiplicado pelo fator dele (0,75 nas máximas a 1,25 em baixa — `portfolio.opportunity`):
+   continua monotônico no déficit para o mesmo fator, e o total da classe não muda.
 5. **Lotes**: ativo com `Lot` (B3: cota inteira; Tesouro: 0,01 título com ordem mínima de R$ 30) só
    recebe o que se compra de fato — o valor vira cotas inteiras, arredondadas à mais próxima
    enquanto cabem na classe. O troco das classes segue os destinos em ordem (`troco_sinks`: a
@@ -98,6 +100,9 @@ class AssetState:
     value: Decimal
     target_pct: Decimal | None  # meta dentro da classe (None = sem meta)
     lot: Lot | None = None  # None = valor livre (renda fixa, cripto): o sugerido segue ao centavo
+    # v2.2: oportunidade de mercado — multiplica o peso do ativo na divisão da classe (0,75 nas
+    # máximas a 1,25 em baixa; 1 = neutro). O total da classe não muda.
+    opportunity: Decimal = Decimal(1)
 
 
 @dataclass(frozen=True)
@@ -412,10 +417,12 @@ def _assets(
     left = max(_ZERO, amount - sum(raw.values(), _ZERO))
     after = class_value + amount
     free = [a for a in with_target if a.id not in raw]
+    # o déficit (e o peso da sobra) de cada ativo vezes o fator de oportunidade (1 = neutro)
     deficits = {
-        a.id: max(_ZERO, (a.target_pct or _ZERO) / _HUNDRED * after - a.value) for a in free
+        a.id: max(_ZERO, (a.target_pct or _ZERO) / _HUNDRED * after - a.value) * a.opportunity
+        for a in free
     }
-    raw.update(_fill(left, deficits, {a.id: a.target_pct or _ZERO for a in free}))
+    raw.update(_fill(left, deficits, {a.id: (a.target_pct or _ZERO) * a.opportunity for a in free}))
     lotted = [a for a in free if a.lot is not None and a.lot.price > 0]
     if not lotted:
         # com ativos livres com meta, a classe fecha ao centavo; tudo travado → as travas, exatas

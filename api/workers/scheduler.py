@@ -3,12 +3,12 @@
 `build_scheduler()` registra os jobs cron (db_backup e restore_check desde a Story 1.2):
 - price_b3: **1x/dia útil, 19:00 America/Sao_Paulo** (após o fechamento da B3) — B3+Tesouro.
 - price_crypto: a cada 2h, todo dia.
+- price_history: dia 2 de cada mês, 04:00 — um ano de preço diário (ADR-019).
 
-**Free-tier (importante):** o BRAPI grátis permite **1.000 requisições/mês** e **1 ativo por
-requisição** (sem batch). Com ~16 tickers, 1x/dia útil ≈ 350/mês (folgado); 3x/dia estouraria
-o limite. Por isso a cadência B3 é diária (preço de fechamento basta p/ XIRR/posições) — o
-`ttl_b3` (≈26h) é dimensionado p/ a janela diária. CoinGecko demo: 10k/mês, 1 call/run (batch
-de ids) → */2h é trivial. Desvia do default "4h" do CLAUDE.md por causa do limite do free-tier.
+**Free-tier (importante):** o BRAPI grátis é **1 ativo por requisição** (sem batch; 15.000/mês e
+3 meses de histórico em 11/2026, eram 1.000/mês). A cadência B3 é diária (preço de fechamento
+basta p/ XIRR/posições) — o `ttl_b3` (≈26h) é dimensionado p/ a janela diária. CoinGecko demo:
+10k/mês, 1 call/run (batch de ids) → */2h é trivial.
 
 Os jobs pegam o pool vivo via `get_pool()` no disparo (pool aberto no lifespan antes do
 `scheduler.start()`). `coalesce/max_instances=1` evitam empilhar; com a idempotência dos
@@ -42,6 +42,7 @@ CRON_JOB_SPEC = {
     "rf_cdi": "rf_cdi",
     "db_backup": "db_backup",
     "restore_check": "restore_check",
+    "price_history": "price_history",
 }
 
 
@@ -78,12 +79,16 @@ async def _job_restore_check() -> None:
     await _run("restore_check")
 
 
+async def _job_price_history() -> None:
+    await _run("price_history")
+
+
 def build_scheduler() -> AsyncIOScheduler:
     """Cria o scheduler com os jobs registrados (não inicia — o lifespan faz start)."""
     scheduler = AsyncIOScheduler(job_defaults=_JOB_DEFAULTS)
     scheduler.add_job(
         _job_price_b3,
-        # 1x/dia útil após o fechamento (free-tier BRAPI: 1.000 req/mês, 1 ativo/req).
+        # 1x/dia útil após o fechamento (free-tier BRAPI: 1 ativo/req, sem batch).
         CronTrigger(day_of_week="mon-fri", hour=19, minute=0, timezone="America/Sao_Paulo"),
         id="price_b3",
         name="price_b3",
@@ -129,6 +134,14 @@ def build_scheduler() -> AsyncIOScheduler:
         id="restore_check",
         name="restore_check",
     )
+    scheduler.add_job(
+        _job_price_history,
+        # v2.2: dia 2 de cada mês, de madrugada — um ano de preço diário (COTAHIST B3, Tesouro,
+        # CoinGecko), só os dias que faltam; a oportunidade nos aportes lê daqui.
+        CronTrigger(day=2, hour=4, minute=0, timezone="America/Sao_Paulo"),
+        id="price_history",
+        name="price_history",
+    )
     return scheduler
 
 
@@ -148,6 +161,7 @@ def next_runs(now: datetime) -> dict[str, datetime]:
         "rf_cdi",
         "db_backup",
         "restore_check",
+        "price_history",
     ):
         job = jobs.get(_SCHEDULER_ID.get(name, name))
         fire = job.trigger.get_next_fire_time(None, now) if job is not None else None

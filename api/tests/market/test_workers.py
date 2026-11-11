@@ -275,6 +275,7 @@ def test_scheduler_registers_jobs_with_cadence() -> None:
         "db_backup",
         "restore_check",
         "rf_cdi",  # Story 7.4: renda fixa pelo CDI real, depois do benchmark das 22h
+        "price_history",  # v2.2: um ano de preço diário, dia 2 de cada mês (ADR-019)
     }
     # inspeciona os triggers sem iniciar o scheduler (não viaja no tempo)
     b3 = str(jobs["price_b3"].trigger)

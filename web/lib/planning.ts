@@ -202,6 +202,25 @@ export function useSetLock(periodo: string) {
   });
 }
 
+// ---- Oportunidade de mercado (v2.2) ----
+
+// Liga/desliga, no mês, o peso da variação de preço na divisão entre os ativos de cada classe.
+export function useSetOportunidade(periodo: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ativo: boolean) =>
+      apiFetch<unknown>(`/api/v1/planning/months/${periodo}/oportunidade`, {
+        method: "PUT",
+        body: JSON.stringify({ ativo }),
+      }),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["planning", "distribution", periodo] }),
+        queryClient.invalidateQueries({ queryKey: ["planning", "aporte-resumo", periodo] }),
+      ]),
+  });
+}
+
 // ---- Resumo do aporte no Painel (Story 8.8) ----
 
 export function useAporteSummary(periodo: string) {

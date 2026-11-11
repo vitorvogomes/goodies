@@ -36,8 +36,12 @@ JOB_LABELS = {
     "rf_cdi": "Renda fixa pelo CDI",
     "db_backup": "Backup do banco",
     "restore_check": "Conferência do backup",
+    "price_history": "Histórico de preços (oportunidade)",
 }
-JOB_NOTES = {"wallet_scan": "a Binance só entra no horário agendado (não no Atualizar tudo)"}
+JOB_NOTES = {
+    "wallet_scan": "a Binance só entra no horário agendado (não no Atualizar tudo)",
+    "price_history": "1x por mês: um ano de preço diário (B3, Tesouro, cripto)",
+}
 
 
 class JobStatus(BaseModel):

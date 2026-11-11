@@ -112,6 +112,31 @@ def test_assets_by_deficit_inside_class() -> None:
     assert no_targets == []
 
 
+def _tilted(factors: dict[str, Decimal]) -> list[ClassState]:
+    out = []
+    for c in _classes():
+        assets = tuple(
+            AssetState(a.id, a.label, a.value, a.target_pct, opportunity=factors.get(a.id, D(1)))
+            for a in c.assets
+        )
+        out.append(ClassState(c.cls, c.label, c.value, c.target_pct, c.band_pp, c.floor, assets))
+    return out
+
+
+def test_opportunity_tilts_assets_but_not_the_class() -> None:
+    """v2.2: o fator de oportunidade pesa a divisão entre os ativos da classe; o total da classe
+    e todo o resto ficam iguais. Fator 1 em todos = a distribuição de sempre."""
+    base = _by(distribute(D(4500), GOALS, _classes()))[1]["acoes_br"]
+    neutral = _by(distribute(D(4500), GOALS, _tilted({})))[1]["acoes_br"]
+    assert [a.sugerido for a in neutral.assets] == [a.sugerido for a in base.assets]
+    tilted = _by(distribute(D(4500), GOALS, _tilted({"taee11": D("1.25"), "bbas3": D("0.75")})))
+    t = {a.id: a.sugerido for a in tilted[1]["acoes_br"].assets}
+    b = {a.id: a.sugerido for a in base.assets}
+    assert tilted[1]["acoes_br"].sugerido == base.sugerido
+    assert sum(t.values()) == base.sugerido
+    assert t["taee11"] > b["taee11"] and t["bbas3"] < b["bbas3"]
+
+
 def test_without_targets_has_no_class_base() -> None:
     flat = [ClassState(c.cls, c.label, c.value, D(0), D(3), D(0)) for c in _classes()]
     d = distribute(D(1000), GOALS, flat)
@@ -256,3 +281,32 @@ def test_review_e8_rounding_and_targetless_classes() -> None:
     assert d.goals[0].sugerido + d.unassigned == D(1000)
     assert d.unassigned == d.unassigned.quantize(D("0.01"))
     assert not d.classes[0].out_of_band and not d.classes[0].floor_only
+
+
+@pytest.mark.asyncio
+async def test_opportunity_toggle_saved_per_month(api, auth_headers, pool) -> None:
+    """v2.2: a oportunidade liga/desliga por mês (month_plans.oportunidade) e a prévia segue a
+    escolha gravada, ou a do corpo quando vier; desligada, nenhum ativo traz fator."""
+    from datetime import date as _d
+
+    import main  # noqa: F401
+
+    mes = "2093-06"
+    url = "/api/v1/planning/distribution/preview"
+    try:
+        off = (await api.post(url, json={"mes": mes}, headers=auth_headers)).json()
+        assert off["oportunidade"] is False
+        assert all(a["fator"] is None for c in off["classes"] for a in c["assets"])
+        r = await api.put(
+            f"/api/v1/planning/months/{mes}/oportunidade",
+            json={"ativo": True},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200 and r.json()["oportunidade"] is True
+        on = (await api.post(url, json={"mes": mes}, headers=auth_headers)).json()
+        assert on["oportunidade"] is True
+        forced = await api.post(url, json={"mes": mes, "oportunidade": False}, headers=auth_headers)
+        assert forced.json()["oportunidade"] is False
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM month_plans WHERE month = $1", _d(2093, 6, 1))

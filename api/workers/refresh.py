@@ -148,6 +148,14 @@ async def _job_rf_cdi(pool: asyncpg.Pool) -> dict[str, Any]:
     return await run_rf_cdi(pool)
 
 
+async def _job_price_history(pool: asyncpg.Pool) -> dict[str, Any]:
+    """v2.2: um ano de preço diário dos ativos em carteira (só os dias que faltam) — a variação de
+    3 meses e a máxima de 52 semanas da oportunidade nos aportes."""
+    from engines.market import history_backfill
+
+    return await history_backfill.run(pool)
+
+
 def stats_partial(stats: Any) -> bool:
     """Run "ok" cujo conteúdo indica falha de fonte: o fail-soft dos workers engole
     exceções e grava ok=true, então `partial` é derivado dos stats — failed>0, fonte
@@ -198,6 +206,15 @@ def default_jobs() -> list[JobSpec]:
         JobSpec(
             "restore_check",
             _job_restore_check,
+            31 * 24 * 3600,
+            is_due=monthly_due,
+            forceable=False,
+        ),
+        # v2.2: o histórico de preço da oportunidade — 1x/mês (o diário segue pelo price_b3);
+        # baixa os COTAHIST da B3, então não roda a cada "Atualizar tudo"
+        JobSpec(
+            "price_history",
+            _job_price_history,
             31 * 24 * 3600,
             is_due=monthly_due,
             forceable=False,

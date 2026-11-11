@@ -11,7 +11,7 @@ from engines.common.dates import parse_periodo
 from engines.common.deps import AuthUser, Db
 
 from . import distribution_service, fixed, goals, service, summary, targets
-from .models import AporteIn, DividasIn, MonthPlanOut
+from .models import AporteIn, DividasIn, MonthPlanOut, OportunidadeIn
 
 router = APIRouter(prefix="/api/v1/planning", tags=["planning"])
 
@@ -48,6 +48,15 @@ async def set_aporte(mes: str, body: AporteIn, user: AuthUser, db: Db) -> MonthP
         return await service.set_aporte(db, _month(mes), body.valor)
     except service.MonthClosedError:
         raise _closed("o aporte planejado") from None
+
+
+@router.put("/months/{mes}/oportunidade", response_model=MonthPlanOut)
+async def set_oportunidade(mes: str, body: OportunidadeIn, user: AuthUser, db: Db) -> MonthPlanOut:
+    """v2.2: a divisão entre os ativos de cada classe pesa a variação do preço (liga/desliga)."""
+    try:
+        return await service.set_oportunidade(db, _month(mes), body.ativo)
+    except service.MonthClosedError:
+        raise _closed("a oportunidade") from None
 
 
 # ---- Objetivos (Story 8.1) ----
@@ -197,7 +206,9 @@ async def delete_lock(mes: str, key: str, user: AuthUser, db: Db) -> dict[str, s
 async def distribution_preview(
     body: distribution_service.PreviewIn, user: AuthUser, db: Db
 ) -> distribution_service.DistributionOut:
-    return await distribution_service.preview(db, _month(body.mes), body.planejado, body.travas)
+    return await distribution_service.preview(
+        db, _month(body.mes), body.planejado, body.travas, body.oportunidade
+    )
 
 
 # ---- Resumo do aporte no Painel (Story 8.8) ----
