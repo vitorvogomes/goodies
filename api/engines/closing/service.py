@@ -27,6 +27,7 @@ from engines.common.dates import (
 from engines.common.models import Valued
 from engines.common.month_status import MonthState as PortState
 from engines.common.owner import get_owner_id
+from engines.common.shares import slices
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
 from engines.planning import allocation as planning_allocation
@@ -248,9 +249,9 @@ _LABELS = {
     "rentabilidade_mes": "Rentabilidade do mês (% a.a.)",
     "rentabilidade_mes_real": "Rentabilidade real do mês (% a.a.)",
     "consumido": "Consumido",
-    "disponivel": "Disponível para consumo",
-    "restante": "Restante",
-    "restante_sem_resgates": "Restante sem os resgates",
+    "disponivel": "Livre para gastos",
+    "restante": "Sobra do mês",
+    "restante_sem_resgates": "Sobra sem os resgates",
     "consumo_financiado": "Consumo financiado por resgate",
     "realizado": "Aporte realizado",
     "pendente": "Aporte pendente",
@@ -870,9 +871,12 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         return budget
     frozen, _ = await _frozen(conn, month, close["version"])
     if frozen["budget"] is not None:  # a Conta inteira congelada
-        return MonthBudget.model_validate(
+        out = MonthBudget.model_validate(
             {**json.loads(frozen["budget"]), "source": "snapshot", "closed": True}
         )
+        # v2.2: o fluxo do Painel sai dos termos congelados, nunca do caixa de hoje
+        out.fluxo = planning_service.flow_of(out)
+        return out
     # snapshot anterior ao orçamento: só os totais congelados; o detalhe não existia
     reasons = dict(json.loads(frozen["unavailable"]))
     update: dict[str, Any] = {"source": "snapshot", "as_of": frozen["as_of"]}
@@ -897,6 +901,7 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         trabalho_por_pagador=[],
         resgates_itens=[],
         consumido_por_grupo=[],
+        fluxo=None,  # sem os custos fixos congelados não há barra (nunca a do caixa de hoje)
     )
     return budget.model_copy(update=update)
 
@@ -1005,6 +1010,16 @@ async def positions(conn: asyncpg.Connection, periodo: str, leitura: str) -> Pos
             (c.resultado_total for c in classes if c.resultado_total is not None), Decimal(0)
         ),
         xirr_mensal=_monthly_pct(ret.nominal),
+        distribuicao=slices(
+            [(c.key, "Cripto" if c.is_bucket else c.label, c.valor, None) for c in classes]
+            + [("caixa", "Caixa na corretora", cash, None)]
+        ),
+        distribuicao_ativos=slices(
+            (f"{c.key}:{a.symbol}", a.symbol, a.valor.value, None)
+            for c in classes
+            for a in c.assets
+            if a.valor.value is not None
+        ),
     )
 
 
@@ -1205,16 +1220,18 @@ async def real_since_start(
     conn: asyncpg.Connection, nominal_pct: Decimal | None, month: date
 ) -> Valued[Decimal]:
     """Rentabilidade real desde o início (Painel): a nominal desde o início descontada do IPCA
-    anualizado de jul/2024 até o último mês publicado. Sem o IPCA do mês anterior ao período →
-    `aguardando_ipca`; o `as_of` é o mês do IPCA (o carimbo do cartão)."""
+    anualizado de jul/2024 até o mês anterior ao período. Desde a v2.2 o mês sem IPCA usa o último
+    publicado (`estimated`, como em Posições); o `as_of` é o fim do último mês publicado (o carimbo
+    do cartão). Sem IPCA nenhum → `aguardando_ipca`."""
     if nominal_pct is None:
         return Valued[Decimal](unavailable_reason="sem_preco")
     months = [m for m in months_between(MIN_MONTH, add_months(month, -1))]
     if not months:
         return Valued[Decimal](unavailable_reason="antes_do_primeiro_fechamento")
-    factor, last = await _ipca(conn, months)
+    factor, last = await _ipca(conn, months, estimate=True)
     if factor is None:
         return Valued[Decimal](unavailable_reason="aguardando_ipca", as_of=last, source="ipca")
     days = (month_end(months[-1]) - MIN_MONTH).days + 1
     real = portfolio_calc.real_rate(float(nominal_pct) / 100, factor, days)
-    return Valued[Decimal](value=_pct(real), as_of=last, source="ipca")
+    estimated = last is not None and last < month_end(months[-1])
+    return Valued[Decimal](value=_pct(real), as_of=last, source="ipca", estimated=estimated)

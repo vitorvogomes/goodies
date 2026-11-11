@@ -89,6 +89,9 @@ async def test_budget_route_matches_golden(api, auth_headers, seeded) -> None:
     )
     assert [p["payer"] for p in b["trabalho_por_pagador"]] == ["Flash", "Betuel"]
     assert b["dividas_informadas"] is True and b["source"] == "live"
+    # v2.2: o fluxo do Painel usa os mesmos termos — a sobra é o restante
+    assert Decimal(str(b["fluxo"]["sobra"])) == Decimal(exp["restante"])
+    assert sum(Decimal(str(p["pct"])) for p in b["fluxo"]["parts"]) == Decimal(100)
 
 
 @pytest.mark.asyncio
@@ -153,6 +156,9 @@ async def test_closed_month_budget_is_frozen_whole(api, auth_headers, pool, seed
     for key in ("consumido_por_grupo", "custos_fixos_pagos", "gastos", "dividas"):
         assert frozen[key] == live[key], key
     assert frozen["disponivel"]["value"] == live["disponivel"]["value"]
+    # review v2.2: o fluxo do mês fechado sai dos termos congelados (a transação nova não entra)
+    sobra = Decimal(str(frozen["fluxo"]["sobra"]))
+    assert sobra == Decimal(str(frozen["restante"]["value"]))
 
 
 @pytest.mark.asyncio

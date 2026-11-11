@@ -1,7 +1,8 @@
 """Termos do orçamento do mês (Story 6.5 — AD-7): funções puras, uma por termo.
 
-- disponível para consumo = trabalho + resgates − custos fixos − aporte planejado − dívidas do mês
-- restante = disponível − consumido; restante sem os resgates = restante − resgates
+- disponível ("Livre para gastos" na tela) = trabalho + resgates − custos fixos − aporte planejado −
+  dívidas do mês
+- restante ("Sobra do mês") = disponível − consumido; restante sem os resgates = restante − resgates
 - consumo financiado por resgate = mín(resgates, máx(0, consumido − disponível sem resgates))
 - custos fixos do mês: pago → o valor pago; pendente → o cadastrado
 - dívidas do mês: o informado; sem valor, o pré-preenchido (Σ role `divida` não casada)
@@ -12,6 +13,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+
+from engines.common.shares import pcts
 
 _HUNDRED = Decimal(100)
 
@@ -95,6 +98,91 @@ def budget(i: BudgetInput) -> Budget:
         restante=rest,
         consumo_financiado=consumo_financiado(i.resgates, i.consumido, disp),
         restante_sem_resgates=restante_sem_resgates(rest, i.resgates),
+    )
+
+
+# --------------------------------------------------------------------------------------------
+# Fluxo do mês (v2.2 — Painel): para onde foram as entradas, em fatias que somam 100%
+# --------------------------------------------------------------------------------------------
+
+_FLOW_LABELS = {
+    "custos_fixos": "Custos fixos",
+    "aporte": "Aporte planejado",
+    "dividas": "Dívidas",
+    "gastos": "Gastos do mês",
+    "sobra": "Sobra",
+}
+
+
+@dataclass(frozen=True)
+class FlowPart:
+    key: str
+    label: str
+    value: Decimal
+    pct: Decimal  # % da barra (2 casas; as fatias somam 100)
+
+
+@dataclass(frozen=True)
+class MonthFlow:
+    entradas: Decimal  # trabalho + resgates
+    sobra: Decimal  # o restante do orçamento: > 0 sobra, < 0 falta
+    parts: list[FlowPart]
+    # onde as entradas acabam na barra (100 quando sobra; < 100 quando as saídas passaram)
+    limite_pct: Decimal | None
+
+
+def month_flow(b: Budget) -> MonthFlow:
+    """A barra do fluxo do mês a partir dos termos do orçamento (`flow_terms`)."""
+    return flow_terms(
+        trabalho=b.trabalho,
+        resgates=b.resgates_considerados,
+        custos_fixos=b.custos_fixos,
+        aporte=b.aporte_planejado,
+        dividas=b.dividas,
+        consumido=b.consumido,
+        restante=b.restante,
+    )
+
+
+def flow_terms(
+    *,
+    trabalho: Decimal,
+    resgates: Decimal,
+    custos_fixos: Decimal,
+    aporte: Decimal,
+    dividas: Decimal,
+    consumido: Decimal,
+    restante: Decimal,
+) -> MonthFlow:
+    """custos fixos | aporte planejado | dívidas | gastos | sobra. Com sobra, a base é o que
+    entrou; com falta, a base é o que saiu e `limite_pct` marca onde as entradas acabaram. Termo
+    negativo (ex.: devoluções acima dos gastos) fica fora da barra. Nenhuma conta nova: sobra =
+    restante — também num mês fechado, pelos termos congelados."""
+    entradas = trabalho + resgates
+    saidas = [
+        ("custos_fixos", custos_fixos),
+        ("aporte", aporte),
+        ("dividas", dividas),
+        ("gastos", consumido),
+    ]
+    if restante > 0:
+        saidas.append(("sobra", restante))
+    items = [(k, v) for k, v in saidas if v > 0]
+    base = sum((v for _, v in items), Decimal(0))
+    if base <= 0:
+        return MonthFlow(entradas, restante, [], None)
+    shares = pcts([v for _, v in items])
+    # sem falta, as entradas cobrem a barra inteira (mesmo com um termo negativo fora dela)
+    limite = (
+        _HUNDRED
+        if restante >= 0
+        else min(entradas / base * _HUNDRED, _HUNDRED).quantize(Decimal("0.01"))
+    )
+    return MonthFlow(
+        entradas=entradas,
+        sobra=restante,
+        parts=[FlowPart(k, _FLOW_LABELS[k], v, p) for (k, v), p in zip(items, shares, strict=True)],
+        limite_pct=limite.quantize(Decimal("0.01")),
     )
 
 

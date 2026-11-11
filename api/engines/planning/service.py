@@ -17,7 +17,9 @@ from . import calc, goals
 from .models import (
     ConsumedGroup,
     ConsumedSub,
+    FlowPartOut,
     MonthBudget,
+    MonthFlowOut,
     MonthPlanOut,
     PayerAmount,
     ResgateItem,
@@ -32,13 +34,13 @@ class MonthClosedError(Exception):
 
 
 async def month_plan(conn: asyncpg.Connection, month: date) -> MonthPlanOut:
-    row = await conn.fetchrow(
-        "SELECT dividas, aporte_planejado FROM month_plans WHERE month = $1", month
-    )
+    # SELECT *: a base que ainda não migrou a 0052 (dados_reais passo a passo) não tem a coluna
+    row = await conn.fetchrow("SELECT * FROM month_plans WHERE month = $1", month)
     return MonthPlanOut(
         month=month,
         dividas=row["dividas"] if row else None,
         aporte_planejado=row["aporte_planejado"] if row else None,
+        oportunidade=bool(row.get("oportunidade")) if row else False,
     )
 
 
@@ -64,6 +66,19 @@ async def set_aporte(conn: asyncpg.Connection, month: date, value: Decimal | Non
         "DO UPDATE SET aporte_planejado = EXCLUDED.aporte_planejado, updated_at = now()",
         month,
         value,
+    )
+    return await month_plan(conn, month)
+
+
+async def set_oportunidade(conn: asyncpg.Connection, month: date, on: bool) -> MonthPlanOut:
+    """v2.2: liga/desliga a oportunidade de mercado na distribuição do mês (recusa mês fechado)."""
+    if await month_status().is_closed(conn, month):
+        raise MonthClosedError(f"{month:%Y-%m}")
+    await conn.execute(
+        "INSERT INTO month_plans (month, oportunidade) VALUES ($1, $2) ON CONFLICT (month) "
+        "DO UPDATE SET oportunidade = EXCLUDED.oportunidade, updated_at = now()",
+        month,
+        on,
     )
     return await month_plan(conn, month)
 
@@ -146,6 +161,35 @@ def _groups(facts: ledger_service.BudgetFacts, total: Decimal) -> list[ConsumedG
         for g, subs in groups.items()
     ]
     return sorted(out, key=lambda g: (-g.value, -g.fixos, g.group))
+
+
+def _flow(f: calc.MonthFlow) -> MonthFlowOut:
+    return MonthFlowOut(
+        entradas=f.entradas,
+        sobra=f.sobra,
+        parts=[FlowPartOut(key=p.key, label=p.label, value=p.value, pct=p.pct) for p in f.parts],
+        limite_pct=f.limite_pct,
+    )
+
+
+def flow_of(b: MonthBudget) -> MonthFlowOut | None:
+    """O fluxo do mês a partir de um orçamento já montado (o congelado de um mês fechado, v2.2);
+    sem algum dos termos, sem barra."""
+    terms = (b.trabalho.value, b.resgates.value, b.custos_fixos.value, b.consumido.value)
+    if any(t is None for t in terms) or b.restante.value is None:
+        return None
+    trabalho, resgates, custos, consumido = (Decimal(t) for t in terms)  # type: ignore[arg-type]
+    return _flow(
+        calc.flow_terms(
+            trabalho=trabalho,
+            resgates=resgates,
+            custos_fixos=custos,
+            aporte=b.aporte_planejado,
+            dividas=b.dividas,
+            consumido=consumido,
+            restante=b.restante.value,
+        )
+    )
 
 
 async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
@@ -242,4 +286,5 @@ async def month_budget(conn: asyncpg.Connection, month: date) -> MonthBudget:
         receita_planejada=planned_total,
         receita_a_receber=a_receber,
         disponivel_com_a_receber=v(b.disponivel + a_receber),
+        fluxo=_flow(calc.month_flow(b)),
     )

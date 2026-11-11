@@ -46,6 +46,22 @@ class ConsumedGroup(BaseModel):
     dividas: Money = Decimal(0)
 
 
+class FlowPartOut(BaseModel):
+    key: str  # custos_fixos | aporte | dividas | gastos | sobra
+    label: str
+    value: Money
+    pct: Pct  # % da barra (as fatias somam 100)
+
+
+class MonthFlowOut(BaseModel):
+    """Fluxo do mês do Painel (v2.2): para onde foram as entradas; `sobra` = o restante."""
+
+    entradas: Money
+    sobra: Money
+    parts: list[FlowPartOut]
+    limite_pct: Pct | None  # onde as entradas acabam na barra (< 100 = as saídas passaram)
+
+
 class MonthBudget(BaseModel):
     month: date
     as_of: date | None
@@ -92,6 +108,11 @@ class MonthBudget(BaseModel):
     receita_planejada: Money = Decimal(0)
     receita_a_receber: Money = Decimal(0)
     disponivel_com_a_receber: Valued[Decimal] = Field(default_factory=_out_of_summary)
+    fluxo: MonthFlowOut | None = None  # v2.2; resumo congelado antes dele: sem barra
+
+
+class OportunidadeIn(BaseModel):
+    ativo: bool
 
 
 class DividasIn(BaseModel):
@@ -106,3 +127,4 @@ class MonthPlanOut(BaseModel):
     month: date
     dividas: Money | None
     aporte_planejado: Money | None
+    oportunidade: bool = False  # v2.2: a divisão entre os ativos pesa a variação do preço

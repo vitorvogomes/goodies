@@ -39,3 +39,5 @@ class Valued[T](BaseModel):
     as_of: date | None = None
     source: str | None = None
     stale: bool = False
+    # Valor com um insumo estimado (ex.: o IPCA do mês ainda não saiu e vale o último publicado).
+    estimated: bool = False

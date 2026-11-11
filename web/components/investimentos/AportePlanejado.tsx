@@ -1,7 +1,7 @@
 "use client";
 
 // Aporte planejado do mês (Story 8.4 — FR-28): o campo (Enter grava, Esc reverte) e, logo abaixo,
-// "Disponível para consumo depois do aporte" recalculado pela API. Sem valor: "Defina o aporte
+// "Livre para gastos depois do aporte" (v2.2; era "Disponível para consumo") recalculado pela API. Sem valor: "Defina o aporte
 // planejado de {mês} para ver a distribuição." Mês fechado: só leitura até reabrir.
 import { useState } from "react";
 
@@ -82,7 +82,7 @@ export function AportePlanejado({
         </p>
       )}
       <p role="status" aria-live="polite" className="flex justify-between gap-4 border-t border-border pt-2 type-body-sm">
-        <span>Disponível para consumo depois do aporte</span>
+        <span>Livre para gastos depois do aporte</span>
         <span className={cn("type-num-body", disponivel !== null && disponivel < 0 && "text-negative")}>
           {disponivel !== null ? formatBRL(disponivel) : "—"}
         </span>

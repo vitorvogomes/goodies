@@ -3,7 +3,7 @@
 // Conta do orçamento (Story 6.6 — DESIGN › budget-ledger, EXPERIENCE › Conta do orçamento): conta
 // vertical com o operador em coluna própria; valores da API (AD-4). Receita do trabalho expande por
 // pagador; Dívidas do mês é input inline (Enter grava, Esc reverte, anuncia o disponível novo);
-// disponível ou restante negativo em vermelho com "−" e ▼ e a nota; abaixo, o consumo financiado
+// livre para gastos ou sobra do mês negativos em vermelho (nomes da v2.2, iguais ao Painel) com "−" e ▼ e a nota; abaixo, o consumo financiado
 // por resgate (dividido em por objetivo × por resgate da carteira — Story 8.1) e o restante sem os
 // resgates. Abaixo, o aporte planejado × realizado e as receitas esperadas (Ajustes ›
 // Custos e receitas) × recebidas; o que falta receber dá um disponível à parte (a conta não muda).
@@ -170,7 +170,7 @@ function PlannedIncomes({ budget }: { budget: MonthBudget }) {
       </table>
       <p className="flex justify-between gap-4">
         <span>
-          Disponível se receber o que falta{" "}
+          Livre para gastos se receber o que falta{" "}
           <span className="text-muted-foreground">· + {formatBRL(budget.receita_a_receber)} a receber</span>
         </span>
         <span className={cn("type-num-body", comAReceber !== null && comAReceber < 0 && "text-negative")}>
@@ -268,7 +268,7 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
           />
           <Row
             op="="
-            label="Disponível para consumo"
+            label="Livre para gastos"
             value={money(budget.disponivel)}
             total
             negative={disponivel !== null && disponivel < 0}
@@ -288,18 +288,18 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
           </Row>
           <Row
             op="="
-            label="Restante"
+            label="Sobra do mês"
             value={money(budget.restante)}
             total
             negative={restante !== null && restante < 0}
           >
-            {restante !== null && restante < 0 && `Gasto acima do disponível em ${formatBRL(-restante)}.`}
+            {restante !== null && restante < 0 && `Faltam ${formatBRL(-restante)}: os gastos passaram do que estava livre.`}
           </Row>
         </tbody>
       </table>
       {budget.receitas_planejadas.length > 0 && <PlannedIncomes budget={budget} />}
       <p className="sr-only" role="status" aria-live="polite">
-        {saved && disponivel !== null ? `Disponível: ${formatBRL(disponivel)}` : ""}
+        {saved && disponivel !== null ? `Livre para gastos: ${formatBRL(disponivel)}` : ""}
       </p>
       <div className="space-y-1 border-t border-border pt-3 type-body-sm">
         <p className="flex justify-between gap-4">
@@ -323,7 +323,7 @@ export function BudgetLedger({ budget, periodo }: { budget: MonthBudget; periodo
           </>
         )}
         <p className="flex justify-between gap-4 text-muted-foreground">
-          <span>Restante sem os resgates</span>
+          <span>Sobra sem os resgates</span>
           <span className="type-num-body">{money(budget.restante_sem_resgates)}</span>
         </p>
       </div>

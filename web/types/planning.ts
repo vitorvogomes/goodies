@@ -29,6 +29,21 @@ export interface PlannedIncome {
   status: "recebido" | "parcial" | "a_receber" | "atrasado";
 }
 
+/** Fluxo do mês do Painel (v2.2): fatias da barra (somam 100) e a sobra (= restante). */
+export interface FlowPart {
+  key: "custos_fixos" | "aporte" | "dividas" | "gastos" | "sobra";
+  label: string;
+  value: number;
+  pct: number;
+}
+
+export interface MonthFlow {
+  entradas: number;
+  sobra: number;
+  parts: FlowPart[];
+  limite_pct: number | null;
+}
+
 export interface MonthBudget {
   month: string;
   as_of: string | null;
@@ -69,6 +84,7 @@ export interface MonthBudget {
   receita_planejada: number;
   receita_a_receber: number;
   disponivel_com_a_receber: Valued;
+  fluxo?: MonthFlow | null;
 }
 
 // Ajustes › Objetivos (Story 8.1).
@@ -169,6 +185,21 @@ export interface DistributionAsset {
   cotas_realizadas: string | null;
   comprar: number | null; // a comprar agora (R$) — o que falta do plano, dentro do que falta na classe
   comprar_cotas: string | null;
+  usd?: UsdLine | null; // só cripto (v2.2)
+  // v2.2 — oportunidade: sinais em % (negativo = em baixa), fator 0,75–1,25, sugerido sem o ajuste
+  var_3m?: number | null;
+  vs_pm?: number | null;
+  dd_52w?: number | null;
+  fator?: string | null;
+  sugerido_sem_ajuste?: number | null;
+  ajuste_oportunidade?: number | null; // sugerido − sem o ajuste
+}
+
+/** Cripto em US$ (v2.2): plano, realizado e falta pela cotação do dólar. */
+export interface UsdLine {
+  sugerido: number | null;
+  realizado: number | null;
+  pendente: number | null;
 }
 
 export interface DistributionClass {
@@ -191,6 +222,7 @@ export interface DistributionClass {
   comprar: number; // a comprar agora: Σ dos ativos em cotas inteiras, ou o pendente inteiro
   comprar_troco: number; // pendente que não compra cota inteira agora
   fixo: boolean; // o valor da classe é o dos aportes fixos dela
+  usd?: UsdLine | null; // só cripto (v2.2)
 }
 
 export interface DistributionGoal {
@@ -227,6 +259,7 @@ export interface Andamento {
 export interface Distribution {
   month: string;
   aporte_definido: boolean;
+  oportunidade?: boolean; // v2.2
   planned: number;
   goals: DistributionGoal[];
   classes: DistributionClass[];

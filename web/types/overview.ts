@@ -15,6 +15,8 @@ export interface Valued {
   as_of: string | null;
   source: string | null;
   stale: boolean;
+  /** Um insumo estimado (ex.: IPCA do mês que ainda não saiu = o último publicado). */
+  estimated?: boolean;
 }
 
 export interface Painel {

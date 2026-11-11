@@ -1,28 +1,33 @@
 "use client";
 
-// Visão geral › Painel (Story 4.1 — FR-13): KPIs datados na grade do DESIGN.md. Resultado do mês
-// (Disponível para consumo chega no Épico 6); Patrimônio | Resultado dos investimentos |
-// Rentabilidade nominal × real (7.3, descontado o IPCA). Cada bloco carrega, falha e tenta de novo
-// sozinho; durante a carga, Esqueleto com a geometria final. O Assistente de recuperação (5.8) fica
-// acima de tudo enquanto a base estiver incompleta. O Crescimento do patrimônio (9.2) fica logo abaixo
-// dos KPIs de investimento, com o próprio Seletor de leitura.
+// Visão geral › Painel (Story 4.1 — FR-13): KPIs datados na grade do DESIGN.md. Desde a v2.2 abre
+// com o Saldo em caixa (o saldo conferido do extrato) e o Fluxo do mês (no lugar de "disponível para
+// consumo × restante"); abaixo, Resultado do mês | Patrimônio | Resultado dos investimentos |
+// Rentabilidade nominal × real (o IPCA que falta é estimado pelo último publicado). Cada bloco
+// carrega, falha e tenta de novo sozinho. O Assistente de recuperação (5.8) fica acima de tudo
+// enquanto a base estiver incompleta; o Crescimento do patrimônio (9.2) vem logo abaixo dos KPIs; as
+// Fontes ficam no fim, recolhidas.
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import { useLeitura } from "@/components/data/ReadingSelector";
+import { Section } from "@/components/data/Section";
 import { SourcesBlock } from "@/components/ingest/SourcesBlock";
 import { AlertsStrip } from "@/components/overview/AlertsStrip";
 import { AporteSummary } from "@/components/overview/AporteSummary";
+import { CashCard } from "@/components/overview/CashCard";
 import { FixedCostsSummary } from "@/components/overview/FixedCostsSummary";
 import { GrowthBlock } from "@/components/overview/GrowthBlock";
 import { KpiCard, KpiSkeleton } from "@/components/overview/KpiCard";
+import { MonthFlowCard } from "@/components/overview/MonthFlowCard";
 import { RecoveryWizard } from "@/components/overview/RecoveryWizard";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatMonth, formatPercent, formatSignedBRL } from "@/lib/format";
 import { useOverviewSources, usePainel } from "@/lib/overview";
-import { useMonthBudget } from "@/lib/planning";
+import { shiftMonth } from "@/lib/period";
 import { usePeriodo } from "@/lib/use-periodo";
+import type { Valued } from "@/types/overview";
 
 function Fontes() {
   const fontes = useOverviewSources();
@@ -35,10 +40,11 @@ function Fontes() {
     router.push(`${pathname}?${next}`);
   };
   return (
-    <section aria-labelledby="fontes" className="space-y-2">
-      <h2 id="fontes" className="type-section-title">
-        Fontes
-      </h2>
+    <Section
+      title="Fontes"
+      summary={fontes.data ? `${fontes.data.filter((f) => f.stale).length || "nenhuma"} desatualizada${fontes.data.filter((f) => f.stale).length > 1 ? "s" : ""}` : undefined}
+      className="overflow-hidden"
+    >
       {fontes.isError ? (
         <p className="type-body-sm text-negative">
           Não foi possível carregar as fontes.{" "}
@@ -47,18 +53,17 @@ function Fontes() {
           </button>
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+        <div className="-mx-card-padding -mb-card-padding overflow-x-auto border-t border-border">
           <SourcesBlock sources={fontes.data ?? []} loading={fontes.isLoading} onOpenSource={openHub} />
         </div>
       )}
-    </section>
+    </Section>
   );
 }
 
 function Painel() {
   const { periodo } = usePeriodo();
   const painel = usePainel(periodo);
-  const budget = useMonthBudget(periodo);
   const leitura = useLeitura();
 
   if (painel.isError) {
@@ -89,39 +94,27 @@ function Painel() {
           </Link>
         </p>
       )}
-      <div className="grid gap-card-gap lg:grid-cols-2">
-        {data ? (
-          <KpiCard
-            label="Resultado do mês"
-            help="Receitas − gastos − investimentos do mês: quanto o saldo das contas variou. Não é o saldo da conta (esse fica em Fontes › Nubank PF)."
-            valued={data.resultado_mes}
-            format={formatSignedBRL}
-            signed
-            support={variation}
-            href={`/caixa/transacoes?periodo=${periodo}`}
-          />
-        ) : (
-          <KpiSkeleton />
-        )}
-        {budget.data ? (
-          <KpiCard
-            label="Disponível para consumo"
-            help="Receita do trabalho + resgates − custos fixos − aporte planejado − dívidas: quanto dá para gastar no mês sem furar o plano. O restante é o disponível − o já consumido."
-            valued={budget.data.disponivel}
-            format={formatSignedBRL}
-            signed
-            support={
-              budget.data.restante.value !== null ? `restante ${formatSignedBRL(budget.data.restante.value)}` : undefined
-            }
-            href={`/caixa/orcamento?periodo=${periodo}`}
-          />
-        ) : (
-          <KpiSkeleton />
-        )}
+      {/* v2.2: o saldo conferido abre a página; o fluxo do mês substitui "disponível × restante" */}
+      <div className="grid gap-card-gap lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          <CashCard periodo={periodo} />
+        </div>
+        <div className="lg:col-span-3">
+          <MonthFlowCard periodo={periodo} />
+        </div>
       </div>
-      <div className="grid gap-card-gap md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-card-gap sm:grid-cols-2 xl:grid-cols-5">
         {data ? (
           <>
+            <KpiCard
+              label="Resultado do mês"
+              help="Receitas − gastos − investimentos do mês: quanto o saldo das contas variou no mês."
+              valued={data.resultado_mes}
+              format={formatSignedBRL}
+              signed
+              support={variation}
+              href={`/caixa/transacoes?periodo=${periodo}`}
+            />
             <KpiCard
               label="Patrimônio"
             help="Valor de hoje de tudo que você tem investido (B3, Tesouro, renda fixa, debêntures, cripto) + o caixa parado na corretora."
@@ -151,16 +144,13 @@ function Painel() {
               valued={data.rentabilidade_real}
               format={(v) => formatPercent(v)}
               suffix="a.a."
-              support={
-                data.rentabilidade_real.as_of
-                  ? `descontado o IPCA até ${formatMonth(data.rentabilidade_real.as_of.slice(0, 7))}`
-                  : "descontado o IPCA"
-              }
+              support={realSupport(data.rentabilidade_real, periodo)}
               href="/investimentos/posicoes"
             />
           </>
         ) : (
           <>
+            <KpiSkeleton />
             <KpiSkeleton />
             <KpiSkeleton />
             <KpiSkeleton />
@@ -177,6 +167,14 @@ function Painel() {
       <Fontes />
     </div>
   );
+}
+
+// O IPCA sai no meio do mês seguinte: até lá o mês que falta usa o último publicado (v2.2).
+function realSupport(real: Valued, periodo: string): string | undefined {
+  if (real.value === null || !real.as_of) return undefined;
+  const published = formatMonth(real.as_of.slice(0, 7));
+  if (!real.estimated) return `descontado o IPCA até ${published}`;
+  return `IPCA até ${published}; ${formatMonth(shiftMonth(periodo, -1))} estimado pelo último`;
 }
 
 export default function PainelPage() {

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from engines.common.models import Valued
 from engines.common.money import Money, Pct
+from engines.common.shares import Slice
 from engines.planning.models import MonthBudget
 from engines.portfolio.positions import PositionClass
 
@@ -206,3 +207,6 @@ class PositionsReport(BaseModel):
     ipca_ate: date | None  # último mês com IPCA publicado
     resultado_total: Money = Decimal(0)  # desde o primeiro aporte
     xirr_mensal: Pct | None = None  # o XIRR nominal consolidado ao mês
+    # v2.2 (pizza da carteira): % de cada classe (e do caixa na corretora) e de cada ativo no total
+    distribuicao: list[Slice] = Field(default_factory=list)
+    distribuicao_ativos: list[Slice] = Field(default_factory=list)

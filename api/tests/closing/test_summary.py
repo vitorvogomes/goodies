@@ -126,3 +126,31 @@ async def test_frozen_month_gets_real_return_once_ipca_is_out(pool) -> None:
     assert waiting.unavailable["rentabilidade_mes_real"] == "aguardando_ipca"
     assert out.rentabilidade_mes_real is not None and out.rentabilidade_mes_real < Decimal(12)
     assert "rentabilidade_mes_real" not in out.unavailable
+
+
+@pytest.mark.asyncio
+async def test_real_since_start_estimates_missing_ipca_with_last_published(pool) -> None:
+    """v2.2: o Painel não fica em "Aguardando o IPCA" — o mês sem IPCA usa o último publicado,
+    marcado `estimated`; o Carimbo é o fim do último mês publicado. Com o IPCA do mês, sai exato."""
+    month = date(2097, 2, 1)
+    async with pool.acquire() as conn:
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('IPCA', '2096-12-01', 0.4, 'bcb')"
+            )
+            estimated = await closing.real_since_start(conn, Decimal(12), month)
+            await conn.execute(
+                "INSERT INTO benchmark_data (series, ref_date, value, source) "
+                "VALUES ('IPCA', '2097-01-01', 0.4, 'bcb')"
+            )
+            exact = await closing.real_since_start(conn, Decimal(12), month)
+        finally:
+            await tx.rollback()
+    assert estimated.value is not None and estimated.estimated
+    assert estimated.unavailable_reason is None
+    assert estimated.as_of == date(2096, 12, 31)
+    assert exact.value is not None and not exact.estimated
+    assert exact.as_of == date(2097, 1, 31)

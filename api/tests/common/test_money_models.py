@@ -33,6 +33,7 @@ def test_money_and_pct_serialize_as_numbers_with_two_places_half_even() -> None:
         "as_of": "2026-10-14",
         "source": "live",
         "stale": False,
+        "estimated": False,  # v2.2: insumo estimado (ex.: IPCA do mês pelo último publicado)
     }
 
 
