@@ -537,7 +537,8 @@ Regras:
 
 - **≥ `{spacing.viewport-target}` (1280px): alvo.** Tudo na grade abaixo, sem rolagem horizontal.
 - **1024–1279px: degradação graciosa.** A fileira de 4 Cartões KPI vira 2×2 (container query: conteúdo abaixo de ~1040px). Pares lado a lado empilham quando cada metade fica estreita demais para os números.
-- **< `{spacing.viewport-floor}` (1024px), inclusive zoom de 200%: reflui para uma coluna, best-effort.** Grades e pares empilham; painéis laterais ocupam a largura toda; tabelas rolam na horizontal. Nada é cortado nem some. Mobile segue não-objetivo da v2.0.
+- **< `{spacing.viewport-floor}` (1024px), inclusive zoom de 200%: reflui para uma coluna.** Grades e pares empilham; painéis laterais ocupam a largura toda. A barra lateral dá lugar à **navegação inferior** (as 4 áreas, ao alcance do polegar, com a área segura do iPhone) e o Importar vai para a barra superior.
+- **< 640px — celular (alvo desde a v2.2):** margem lateral de 16px; texto de corpo pequeno e número de tabela sobem a 14px; campos em 16px (o iOS não amplia ao focar). A Tabela de dados vira **cartões** (título, valor ao lado, metadados sob o título, demais colunas como rótulo/valor); Posições, Objetivos e Classes do aporte têm cartão próprio; filtros e seções longas ficam recolhidos (`Section`). Item de grade nunca cresce além da coluna (`min-width: 0`): a tabela rola dentro do card.
 
 **Tabelas nunca cortam.** Se não cabem, rolam na horizontal dentro do próprio card, com pista visível (sombra/fade na borda com conteúdo escondido) e a primeira coluna fixa. No modo Resumo, colunas de baixa prioridade (Alvo, Prazo, % do consumido) saem antes de rolar. Valor monetário nunca é truncado nem quebrado.
 
@@ -546,10 +547,10 @@ Regras:
 **Grade do Painel principal** ([`mockups/key-painel.html`](mockups/key-painel.html)); a ordem de leitura é a ordem de prioridade:
 
 1. Linha de aviso (até 3) + "Ver todos ({n})", largura total. O Sino de avisos conta todos.
-2. Cartões KPI **Resultado do mês** | **Disponível para consumo**, metade da largura cada.
-3. Cartões KPI **Patrimônio** | **Resultado dos investimentos** | **Rentabilidade nominal** | **Rentabilidade real**, 4 colunas (2×2 abaixo de 1280px).
+2. **Saldo em caixa** (o saldo do extrato, conferido ao centavo) | **Fluxo do mês** (barra das entradas: custos fixos, aporte, dívidas, gastos, sobra; frase "Sobram/Faltam R$ x"), 2/5 e 3/5 — desde a v2.2, no lugar de "Disponível para consumo × restante".
+3. Cartões KPI **Resultado do mês** | **Patrimônio** | **Resultado dos investimentos** | **Rentabilidade nominal** | **Rentabilidade real**, 5 colunas (2 abaixo de 1280px). A real usa o último IPCA publicado para o mês que ainda não saiu, marcado como estimado.
 4. **Resumo do aporte** | **Resumo de custos fixos**, metade cada, alinhados ao topo (sem esticar para a altura do vizinho).
-5. **Bloco Fontes**, largura total.
+5. **Bloco Fontes**, largura total, recolhido.
 
 O Assistente de recuperação, quando existe, fica acima de tudo. Sem gráfico no Painel. Tabelas de área (Transações, Posições, Distribuição do aporte, Conciliação) ocupam a largura total; blocos-resumo (Resumo de custos fixos, Consumido por grupo ao lado da Conta do orçamento) podem ocupar meia largura.
 
@@ -635,7 +636,7 @@ Base no shadcn; a coluna "Visual" registra só o que muda. Comportamento, conte�
 | Variação e resultado: "+" e ▲ em `{colors.positive}`, "−" e ▼ em `{colors.negative}`; transação e saldo: só o sinal | Cor como único sinal de positivo ou negativo |
 | Números em mono tabular, à direita, completos; anotações em coluna ou slot próprio | "R$ 68,7 mil", "68.7k", número em sans, anotação colada ao número |
 | Tags e selos escritos em minúscula | `text-transform: uppercase` em tag, selo, data ou mês |
-| Três gráficos, neutros + um verde | Pizza, cor por categoria, gradiente |
+| Gráficos neutros + um verde; **pizza (v2.2) só em tons do verde principal** (`--pie-1..8`, claro e escuro alternados), uma fatia por item, sempre com legenda de nome, % e valor | Cor por categoria, gradiente, pizza sem legenda |
 | Separar com espaço e bordas de 1px | Sombras empilhadas, cards dentro de cards |
 | Testar cada tela no claro e no escuro (theme-showcase) | Ajustar um modo e "ver depois" o outro |
 | Herdar o shadcn quando não há motivo para mudar | Recriar Dialog, Sheet ou Combobox do zero |

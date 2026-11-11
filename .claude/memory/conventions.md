@@ -1,4 +1,4 @@
-# Convenções de Código — Goodies (v2.0)
+# Convenções de Código — Goodies (v2.2)
 
 Invariantes completos no spine: `docs/v2/planning/architecture/architecture-goodies-2026-10-17/ARCHITECTURE-SPINE.md`
 (AD-1..AD-19). Em conflito, o spine vence este arquivo.
@@ -133,6 +133,16 @@ def test_taxa_poupanca_junho_2026() -> None:
 - **Tipografia em classe:** `type-page-title`, `type-section-title`, `type-body(-sm)`, `type-label`,
   `type-caption`, `type-num-display|lg|body|table`, `type-tag` (escala do DESIGN.md)
 - **Auth (ADR-006):** access token em memória; 401 → refresh pelo cookie → repete; falhou → `/login?next=`
+- **Celular é alvo (v2.2, ADR-019):** abaixo de 1024px a navegação é a `BottomNav` (Importar na barra superior);
+  abaixo de 640px (`useMedia(PHONE)` de `@/lib/use-media`) o `DataTable` vira cartão — marque as colunas com
+  `mobile: "title" | "aside" | "meta" | "block" | "hide"` (o resto vira rótulo/valor); tabela crua ganha
+  `className="table-stack"` + `data-label` em cada `<td>` (uma linha vira bloco); página com layout próprio decide
+  por `useMedia(PHONE)` (Posições, Objetivos/Classes do aporte). Seção longa ou detalhe vai em `Section`
+  (`components/data/Section`, recolhível). Alvo de toque ≥ 44px; campo de formulário em 16px no celular.
+- **Conta é da API (AD-4), inclusive o que parece "só de tela":** US$ (`to_usd`), % de fatia de pizza
+  (`common.shares`, soma 100,00), larguras de barra (fluxo do mês) — o web só formata e desenha.
+- **Gráficos:** recharts; pizza só com `PieBreakdown` (tons `--pie-1..8`, legenda com nome, % e valor, "Ver como
+  tabela"); cor de gráfico só por variável CSS (`var(--pie-N)`, `--color-chart-N`), nunca literal
 
 ## Git
 

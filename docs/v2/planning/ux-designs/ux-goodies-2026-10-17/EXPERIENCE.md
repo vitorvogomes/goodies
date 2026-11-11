@@ -19,7 +19,7 @@ Web app desktop de uma superfície só (Next.js App Router + shadcn/ui + Radix +
 - **Postura:** o app informa e sugere, nunca executa. Nenhum botão move dinheiro; o texto diz "sugerido"/"planejado", nunca "comprar"/"executar".
 - **Densidade:** resumo primeiro; a visão detalhada, com tudo à vista, fica a um clique.
 - **Tema:** segue o sistema, com Switch de tema manual.
-- **Plataforma:** alvo ≥ 1280px; 1024–1279px degrada com graça; abaixo de 1024px (ou com zoom de 200%) reflui para uma coluna, best-effort, sem cortar nada. Mobile não é objetivo da v2.0. Regras em `DESIGN.md` › Layout & Spacing.
+- **Plataforma:** alvo ≥ 1280px; 1024–1279px degrada com graça; abaixo de 1024px reflui para uma coluna. **Desde a v2.2 (11/11/2026) o celular (≥ 360px) é alvo**: o Vitor usa muito pelo navegador do celular — navegação inferior com as 4 áreas, abas que rolam na horizontal, tabelas viram cartões abaixo de 640px, seções longas recolhidas, alvos de toque ≥ 44px. Regras em `DESIGN.md` › Layout & Spacing.
 - **Login:** a tela da v1 (JWT próprio), mesmo fluxo, com o visual novo.
 - **Mockups aprovados** em `mockups/`, citados nas seções que ilustram. Em conflito, os spines prevalecem.
 

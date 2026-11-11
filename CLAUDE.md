@@ -9,7 +9,9 @@ Referências: spine `docs/v2/planning/architecture/architecture-goodies-2026-10-
 Trabalho novo agora é ajuste/análise pedido no dia a dia: TDD do mesmo jeito, `PROGRESS.md` no log, commit local só
 quando o Vitor pedir.
 **v2.1 (10/11/2026):** no ar no Railway (ADR-018) — web público, api/Postgres/Redis na rede privada, runbook
-`docs/DEPLOY_RAILWAY.md`. Banco de produção começou vazio (só o admin); o dump curado de casa entra depois (§6).
+`docs/DEPLOY_RAILWAY.md`. Dump de casa restaurado em produção em 11/11/2026 (runbook §5/§6).
+**v2.2 (11/11/2026, ADR-019):** oportunidade nos aportes, histórico de preço de 1 ano, DeFi por saldo em US$,
+cripto em R$ e US$, pizzas em tons do verde, Painel com saldo conferido e fluxo do mês, **celular como alvo**.
 
 ---
 
@@ -116,9 +118,11 @@ Proibido reutilizar fetcher Bitcoin mainchain. Endereço SideSwap é confidencia
 ```
 Keys: {engine}:{type}:{identifier}  →  price:b3:PETR4 | price:crypto:BTC | xirr:consolidated
 TTLs: B3=26h | Cripto=2h | Tesouro=26h | Wallet=14h | Benchmark=24h | XIRR=1h
-      (B3/Tesouro = cadência DIÁRIA por causa do free-tier: BRAPI grátis 1.000 req/mês [1
-       ativo/req, sem batch] → price_b3 1×/dia útil 19h BRT; Tesouro publica 1×/dia útil.
-       Preço manual: is_manual=true → nunca expira/stale; worker não sobrescreve. ADR-012.)
+      (B3/Tesouro = cadência DIÁRIA: BRAPI grátis 1 ativo/req, sem batch, histórico de 3 meses →
+       price_b3 1×/dia útil 19h BRT; Tesouro publica 1×/dia útil. Histórico de 1 ano pelo job
+       mensal price_history (COTAHIST B3, CSV do Tesouro, CoinGecko — ADR-019).
+       Preço manual: is_manual=true → nunca expira/stale; worker não sobrescreve. ADR-012.
+       DeFi por saldo em US$: source=defi_anchor (preço por token do saldo informado).)
 Fallback: Redis → Postgres (asset_prices) → manual → {"value": null, "stale": true}
 NUNCA retornar HTTP 5xx por falha de API externa.
 ```

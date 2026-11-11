@@ -39,6 +39,17 @@ endpoint e tipo da exceção antes do fail-soft.
   - a cópia fora do Railway (`scripts/backup_railway.sh`) depende do `railway ssh` com a chave do Vitor; até a
     1ª cópia, os backups ficam só no volume `/backups`.
 
+- **v2.2 (ADR-019):**
+  - a oportunidade muda o peso dentro da classe, mas com aporte pequeno e cotas inteiras (B3) o
+    arredondamento costuma levar tudo ao mesmo ativo, e o ajuste não aparece; o efeito é maior em classe de
+    valor livre (cripto) e com aporte maior;
+  - o histórico depende do COTAHIST no site da B3 (sem contrato); se o endereço mudar, `price_history` fica
+    `partial` e a máxima de 52 semanas some dos sinais (o resto segue);
+  - a máxima de 52 semanas só vale com 6 meses de histórico do ativo; ativo novo fica só com 3 meses e preço
+    médio;
+  - as telas de celular não têm teste automatizado (só o vitest de utilitários): a conferência é por captura em
+    390px.
+
 - **Parser de fatura do cartão Nubank:** não existe; o Hub importa só o extrato da conta (OFX/CSV),
   a B3 (movimentação e consolidado) e o Tesouro.
 - **Trilhos amarram nomes de categoria:** `portfolio/transit.RAILS` e as caixinhas casam por chave

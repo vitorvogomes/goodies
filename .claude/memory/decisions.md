@@ -82,8 +82,8 @@ Decidido no m3 (2026-06-06). Ver `docs/v1/12_Gate_M3_Market.md`.
   **`is_manual`**: worker (`is_manual=false`) NUNCA sobrescreve linha manual (Flash/RF/caixinhas/
   DeFi — sem fonte de mercado); manual sempre vence. Invalida o cache de XIRR (ADR-008) **e** o
   cache Redis de preço dentro do fluxo de escrita. `is_manual=true` ⇒ preço nunca fica `stale`.
-- **Fontes free-tier (cadência DIÁRIA p/ B3/Tesouro):** BRAPI grátis = **1.000 req/mês, 1 ativo/
-  req** (sem batch) → `price_b3` 1×/dia útil 19h BRT (~350/mês). **Tesouro via Tesouro Transparente
+- **Fontes free-tier (cadência DIÁRIA p/ B3/Tesouro):** BRAPI grátis = **1 ativo/req** (sem batch;
+  15.000 req/mês e 3 meses de histórico em 11/2026 — era 1.000/mês) → `price_b3` 1×/dia útil 19h BRT. **Tesouro via Tesouro Transparente
   CSV** (open data CKAN, sem auth/WAF/quota) — a API oficial do Tesouro Direto está atrás de
   Cloudflare (403 headless) e o brapi v2/treasury é Pro-only. CoinGecko demo = 10k/mês (*/2h).
   `ttl_b3=ttl_tesouro=26h` p/ o preço do dia não aparecer "desatualizado". `EVALUATION_DATE` (§3.1)
@@ -163,6 +163,17 @@ Decidido 2026-11-10 a pedido do Vitor (ver `docs/07_Decisoes.md`, runbook `docs/
   (usa `railway ssh`, que exige chave SSH registrada — quem roda é o Vitor).
 - Segredos de produção só nas variáveis do Railway, gerados novos. Banco começa vazio; dump de casa depois.
 - O gate `dados_reais`/`migrar` fica pendente até o `pinned_backup` existir nesta máquina.
+
+## ADR-019 — v2.2: oportunidade, histórico de preço, DeFi por saldo, pizza e celular
+Decidido 2026-11-11 (ver `docs/07_Decisoes.md`).
+- Oportunidade (`portfolio.opportunity`): sinais 3m / preço médio / máxima 52 semanas no **1º dia do mês**;
+  fator 0,75–1,25 só no peso **dentro da classe**; `month_plans.oportunidade` (0052), desligado por padrão.
+- Histórico (`market.history_backfill`, job mensal `price_history`): COTAHIST da B3 + CSV do Tesouro + CoinGecko,
+  só dias que faltam. Fim de mês **aberto** passa a valer pelo fechamento real do dia.
+- DeFi: `defi_balance_anchors` (0051) — saldo US$ + quantidade + APY; preço por token `defi_anchor`; token com
+  cotação de mercado recusa.
+- US$ e % das pizzas calculados na API (`to_usd`, `common.shares`); pizza em tons do verde com legenda.
+- Celular é alvo: `BottomNav`, `DataTable` em cartão (`mobile`), `table-stack`, `Section` recolhível.
 
 ## Endereços de wallet (via `.env` — NÃO hardcodar)
 

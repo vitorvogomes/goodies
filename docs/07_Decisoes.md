@@ -294,7 +294,7 @@ O m3 automatizou preços (BRAPI/CoinGecko/Tesouro) com workers APScheduler, reus
 ### Decisão
 - **Preços sob `/api/v1/market/*`** (contrato Pydantic `PriceOut`); o antigo `PUT /portfolio/prices` foi **removido**.
 - **`market.service.upsert_price` é o chokepoint único de escrita** (na v1 ficava em `portfolio.service`), com precedência **`is_manual`** (worker nunca sobrescreve manual) e invalidação do cache de XIRR (ADR-008) + cache Redis de preço dentro do fluxo. `is_manual=true` ⇒ nunca `stale`.
-- **Free-tier (cadência diária B3/Tesouro):** BRAPI grátis = 1.000 req/mês (1 ativo/req) → `price_b3` 1×/dia útil 19h; **Tesouro via Tesouro Transparente CSV** (open data, sem WAF). `ttl_b3=ttl_tesouro=26h`.
+- **Free-tier (cadência diária B3/Tesouro):** BRAPI grátis = 1 ativo/req (1.000 req/mês na época; 15.000 e 3 meses de histórico em 11/2026) → `price_b3` 1×/dia útil 19h; **Tesouro via Tesouro Transparente CSV** (open data, sem WAF). `ttl_b3=ttl_tesouro=26h`.
 
 ### Consequências
 - `EVALUATION_DATE` única threada por service + seeds + validador. **Cripto/Binance só via cron (m4).** Ver `docs/v1/12_Gate_M3_Market.md`.
@@ -442,3 +442,45 @@ e já paga o Railway na conta da empresa, da qual é o único admin.
 - Em produção a subida da api recusa `DATABASE_URL`/`REDIS_URL` vazias ou em localhost: uma referência `${{…}}`
   que não resolve não cai mais em silêncio no padrão de dev (aconteceu duas vezes no 1º deploy).
 - Ver `docs/DEPLOY_RAILWAY.md` (runbook) e spine AD-18.
+
+## ADR-019 — v2.2: oportunidade nos aportes, histórico de preço, DeFi por saldo, pizza e celular
+
+**Data:** 2026-11-11  
+**Status:** Aceito (pedido do Vitor; plano aprovado)
+
+**Contexto:** com a produção no ar, o Vitor pediu melhorias de uso diário: a variação de preço
+influenciando a sugestão de aportes, cripto em R$ e US$ em todo lugar, DeFi sem preço manual, gráficos
+de pizza, um Painel mais claro e o app usável no navegador do celular.
+
+**Decisões:**
+- **Oportunidade de mercado** (`portfolio.opportunity`): três sinais por ativo com cotação — variação em
+  3 meses, preço × preço médio de compra, distância da máxima de 52 semanas —, no **1º dia do mês**
+  (a divisão não muda a cada pregão; mês passado não é refeito com o mercado de hoje). Fator
+  `1 + 0,25·s`, entre **0,75 e 1,25**, multiplica o peso do ativo **dentro da classe** (o déficit e a
+  sobra); a divisão entre as classes, as travas, os aportes fixos e o "só o piso" não mudam. Ligado por
+  mês em `month_plans.oportunidade` (0052), **desligado por padrão** — os goldens da distribuição seguem.
+- **Histórico de preço** (`market.history_backfill`, job mensal `price_history`): um ano de preço diário
+  dos ativos em carteira — **COTAHIST anual da B3** (o BRAPI grátis só dá 3 meses), CSV do Tesouro
+  Transparente com todas as datas, CoinGecko `market_chart`. Só grava os dias que faltam; o parse do
+  COTAHIST roda numa thread (não trava a api). Efeito colateral aceito: a valoração de um fim de mês
+  **aberto** passa a usar o fechamento real daquele dia em vez do último dia em que o app abriu (meses
+  fechados são snapshot e não mudam).
+- **DeFi por saldo em US$** (`defi_balance_anchors`, 0051): o saldo que o protocolo mostra numa data,
+  a quantidade de tokens dessa data e o APY opcional; o **preço por token** (saldo ÷ quantidade) rende
+  por dia e vai ao chokepoint como manual em dólar (`source='defi_anchor'`). Só para token sem cotação de
+  mercado (SOL/USDC recusam). Token que perde o saldo volta a `manual_usd` com o último preço.
+- **Cripto em R$ e US$**: a conversão é da API (`common.money.to_usd`, AD-4); o web só formata
+  (`formatUSD` pt-BR, "US$ 1.234,56").
+- **Pizza** permitida (emenda o DESIGN.md): uma fatia por item, em tons do verde principal
+  (`--pie-1..8`), sempre com legenda de nome, % e valor; as fatias e os % vêm da API
+  (`common.shares`, somam 100,00). Nada de gráfico no Painel continua valendo.
+- **Painel**: Saldo em caixa (conferido) no topo e Fluxo do mês (`planning.calc.flow_terms`) no lugar de
+  "disponível × restante"; num mês fechado, o fluxo sai dos termos congelados. Nomes na tela: "Livre
+  para gastos" (disponível) e "Sobra do mês" (restante); a conta não mudou.
+- **Celular é alvo** (emenda EXPERIENCE/DESIGN): navegação inferior abaixo de 1024px, `DataTable` vira
+  cartão abaixo de 640px (papéis `mobile`), tabelas cruas usam `table-stack` + `data-label`, seções
+  longas recolhidas (`Section`).
+
+**Consequências:** duas migrações (0051, 0052) entram pela subida com backup; o primeiro `price_history`
+roda no catch-up depois do deploy (~1 min). A real do Painel usa o último IPCA publicado para o mês que
+falta (`Valued.estimated`).

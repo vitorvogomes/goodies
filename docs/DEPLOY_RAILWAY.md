@@ -139,6 +139,11 @@ de api no browser (o `web/lib/api.ts` usa sempre a mesma origem), então também
 - O gate `dados_reais` / `scripts.ops.migrar` depende do backup fixado em `api/tests/dados_reais/pinned_backup.txt`,
   que ainda não está nesta máquina: até o dump de casa chegar (§6), esses testes aparecem pulados.
 
+- **v2.2 (ADR-019):** as migrações 0051 (`defi_balance_anchors`) e 0052 (`month_plans.oportunidade`) entram pela
+  subida, com backup antes. O job `price_history` (um ano de preço diário: COTAHIST da B3, CSV do Tesouro,
+  CoinGecko) roda no primeiro catch-up depois do deploy e no dia 2 de cada mês; leva cerca de 1 min e grava só os
+  dias que faltam. Depois dele, o fim de outubro (mês aberto) passa a valer pelo fechamento real de 30/10.
+
 - Variável nova ou alterada só vale no **próximo deploy**: depois de mexer em Variables, clicar Deploy (o container
   em execução continua com os valores antigos).
 - Trocar a senha do admin (não há tela para isso): na api, `ADMIN_EMAIL` e `ADMIN_PASSWORD` (a nova, até 72
@@ -234,3 +239,4 @@ O dump de casa (§6) resolve tudo isso.
 | `railway ssh`: `No registered SSH keys found` | CLI ≥ 5 exige chave registrada | `railway ssh keys github` (§4) |
 | "Atualizar tudo" dá 500 depois de ~30 s | rewrite com o timeout padrão do Next | `experimental.proxyTimeout` (5 min) no `next.config.ts` já cobre; se os jobs passarem disso, rebuild com valor maior |
 | build do web com Node < 24 | Railpack não pegou `engines.node` | `RAILPACK_NODE_VERSION=24` no web |
+| `price_history` parcial (`b3.fetched` 0) | o site da B3 recusou ou demorou no COTAHIST | roda de novo no próximo mês; os sinais da oportunidade ficam sem a máxima de 52 semanas até lá |
