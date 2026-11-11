@@ -228,9 +228,9 @@ export default function CustosFixosPage() {
 
   const columns: DataColumn<FixedCost>[] = [
     { id: "nome", header: "Custo", value: (c) => c.name },
-    { id: "valor", header: "Valor", value: (c) => c.amount, numeric: true, cell: (c) => <InlineAmount cost={c} /> },
-    { id: "vencimento", header: "Vencimento", value: (c) => c.due_day, cell: (c) => `dia ${c.due_day}` },
-    { id: "categoria", header: "Categoria", value: (c) => c.category_label },
+    { id: "valor", header: "Valor", value: (c) => c.amount, numeric: true, cell: (c) => <InlineAmount cost={c} />, mobile: "aside" },
+    { id: "vencimento", header: "Vencimento", value: (c) => c.due_day, cell: (c) => `dia ${c.due_day}`, mobile: "meta" },
+    { id: "categoria", header: "Categoria", value: (c) => c.category_label, mobile: "meta" },
     {
       id: "acoes",
       header: "Ações",

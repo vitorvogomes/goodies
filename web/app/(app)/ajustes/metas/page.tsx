@@ -98,7 +98,7 @@ function Editor({ data, onDone }: { data: TargetsOut; onDone: () => void }) {
       }}
     >
       <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-        <table className="w-full type-body-sm">
+        <table className="table-stack w-full type-body-sm">
           <caption className="sr-only">Metas por classe e por ativo</caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>
@@ -173,13 +173,13 @@ function ClassRows({
           </button>
           {error && <span className="ml-2 type-caption text-negative">{error}</span>}
         </th>
-        <td className={cell}>
+        <td data-label="Meta (%)" className={cell}>
           <Input aria-label={`Meta de ${row.label} (%)`} inputMode="decimal" className={input} value={row.pct} onChange={(e) => onChange({ pct: e.target.value })} />
         </td>
-        <td className={cell}>
+        <td data-label="Banda (p.p.)" className={cell}>
           <Input aria-label={`Banda de ${row.label} (p.p.)`} inputMode="decimal" className={input} value={row.band} onChange={(e) => onChange({ band: e.target.value })} />
         </td>
-        <td className={cell}>
+        <td data-label="Piso (R$)" className={cell}>
           <Input aria-label={`Piso de ${row.label} (R$)`} inputMode="decimal" className={input} value={row.floor} onChange={(e) => onChange({ floor: e.target.value })} />
         </td>
       </tr>
@@ -189,7 +189,7 @@ function ClassRows({
             <th scope="row" className="py-1.5 pr-4 pl-10 text-left font-normal">
               {a.label}
             </th>
-            <td className={cell}>
+            <td data-label="Meta na classe (%)" className={cell}>
               <Input aria-label={`Meta de ${a.label} em ${row.label} (%)`} inputMode="decimal" className={input} value={a.pct} onChange={(e) => onAsset(j, e.target.value)} />
             </td>
             <td colSpan={2} className="px-4 py-1.5 type-caption text-muted-foreground">
@@ -230,7 +230,7 @@ export default function MetasPage() {
           <Button onClick={() => setEditing(true)}>Editar metas</Button>
         </div>
         <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-          <table className="w-full type-body-sm">
+          <table className="table-stack w-full type-body-sm">
             <caption className="sr-only">Metas de alocação</caption>
             <thead className="bg-muted text-muted-foreground">
               <tr>
@@ -247,10 +247,10 @@ export default function MetasPage() {
                 return (
                   <tr key={c.cls} className="border-t border-border">
                     <th scope="row" className="px-4 py-2 text-left font-normal">{c.label}</th>
-                    <td className="px-4 py-2 text-right type-num-table">{text(c.pct)}%</td>
-                    <td className="px-4 py-2 text-right type-num-table">± {text(c.band_pp)} p.p.</td>
-                    <td className="px-4 py-2 text-right type-num-table">{formatBRL(c.floor)}</td>
-                    <td className="px-4 py-2 type-caption text-muted-foreground">
+                    <td data-label="Meta" className="px-4 py-2 text-right type-num-table">{text(c.pct)}%</td>
+                    <td data-label="Banda" className="px-4 py-2 text-right type-num-table">± {text(c.band_pp)} p.p.</td>
+                    <td data-label="Piso" className="px-4 py-2 text-right type-num-table">{formatBRL(c.floor)}</td>
+                    <td data-label="Por ativo" className="px-4 py-2 type-caption text-muted-foreground">
                       {withTarget.length ? withTarget.map((a) => `${a.label} ${text(a.pct)}%`).join(" · ") : "—"}
                     </td>
                   </tr>

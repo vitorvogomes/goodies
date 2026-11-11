@@ -108,7 +108,10 @@ export function PeriodSelector() {
       </Popover>
       {nav(next, "Próximo mês", ChevronRightIcon)}
     </div>
-      <MonthStatusBadge periodo={periodo} />
+      {/* no celular o selo sai: a barra não cabe (o estado do mês aparece no Histórico) */}
+      <span className="hidden sm:contents">
+        <MonthStatusBadge periodo={periodo} />
+      </span>
     </div>
   );
 }

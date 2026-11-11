@@ -67,7 +67,7 @@ export default function AtualizacaoPage() {
         <div className="h-48 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />
       ) : (
         <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-          <table className="w-full type-body-sm">
+          <table className="table-stack w-full type-body-sm">
             <caption className="sr-only">Atualizações automáticas</caption>
             <thead className="bg-muted text-muted-foreground">
               <tr>
@@ -86,12 +86,12 @@ export default function AtualizacaoPage() {
                     {j.note && <span className="block type-caption text-muted-foreground">{j.note}</span>}
                     {j.error && <span className="block type-caption text-negative">{j.error}</span>}
                   </th>
-                  <td className="px-4 py-2">
+                  <td data-label="Estado" className="px-4 py-2">
                     <StatusBadge tone={STATE[j.status].tone}>{STATE[j.status].text}</StatusBadge>
                   </td>
-                  <td className="px-4 py-2 text-right type-num-table">{fmtWhen(j.last_run)}</td>
-                  <td className="px-4 py-2 text-right type-num-table">{fmtWhen(j.last_success_at)}</td>
-                  <td className="px-4 py-2 text-right type-num-table">{fmtWhen(j.next_run)}</td>
+                  <td data-label="Última execução" className="px-4 py-2 text-right type-num-table">{fmtWhen(j.last_run)}</td>
+                  <td data-label="Último sucesso" className="px-4 py-2 text-right type-num-table">{fmtWhen(j.last_success_at)}</td>
+                  <td data-label="Próxima" className="px-4 py-2 text-right type-num-table">{fmtWhen(j.next_run)}</td>
                 </tr>
               ))}
             </tbody>

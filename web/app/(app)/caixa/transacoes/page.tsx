@@ -16,6 +16,7 @@ import { CategoryCombobox } from "@/components/caixa/CategoryCombobox";
 import { RuleProposalStrip } from "@/components/caixa/RuleProposalStrip";
 import { TransactionForm } from "@/components/caixa/TransactionForm";
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { Section } from "@/components/data/Section";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import {
   AlertDialog,
@@ -44,6 +45,7 @@ import {
   useSetTransactionCategory,
   useUpdateRule,
 } from "@/lib/ledger";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { usePeriodo } from "@/lib/use-periodo";
 import type { CategoryOption, LedgerTransaction } from "@/types/ledger";
 
@@ -208,7 +210,7 @@ function SelectionBar({ items, onClear }: { items: LedgerTransaction[]; onClear:
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-card px-4 py-2 type-body-sm shadow-card"
+      className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 lg:bottom-4 z-40 flex -translate-x-1/2 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-card px-4 py-2 type-body-sm shadow-card"
     >
       <span className="font-semibold">
         {items.length} {items.length === 1 ? "selecionada" : "selecionadas"}
@@ -259,6 +261,7 @@ function Transacoes() {
     (options.data ?? []).filter((o) => o.group_key === groupFilter).map((o) => o.id),
   );
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const phone = useMedia(PHONE); // no celular os filtros ficam recolhidos (v2.2)
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   // a seleção é do mês: trocar o período começa sem nada selecionado
   const [selectedIn, setSelectedIn] = useState(periodo);
@@ -367,21 +370,23 @@ function Transacoes() {
     );
 
   const columns: DataColumn<LedgerTransaction>[] = [
-    { id: "date", header: "Data", value: (t) => t.date, cell: (t) => formatDate(t.date), className: "type-num-table" },
+    { id: "date", header: "Data", value: (t) => t.date, cell: (t) => formatDate(t.date), className: "type-num-table", mobile: "meta" },
     {
       id: "description",
       header: "Descrição",
       value: (t) => t.description,
       cell: (t) => <span className="line-clamp-2 block max-w-96">{t.description ?? "—"}</span>,
       priority: 1,
+      mobile: "title",
     },
-    { id: "amount", header: "Valor", value: (t) => t.amount, cell: (t) => formatBRL(t.amount), numeric: true, priority: 1 },
-    { id: "kind", header: "Tipo", value: (t) => t.kind_label, priority: 3 },
+    { id: "amount", header: "Valor", value: (t) => t.amount, cell: (t) => formatBRL(t.amount), numeric: true, priority: 1, mobile: "aside" },
+    { id: "kind", header: "Tipo", value: (t) => t.kind_label, priority: 3, mobile: "meta" },
     {
       id: "category",
       header: "Categoria",
       value: categoryLabel,
       priority: 1,
+      mobile: "block",
       cell: (t) => (
         <CategoryCombobox
           options={options.data ?? NO_OPTIONS}
@@ -398,6 +403,7 @@ function Transacoes() {
       header: "Origem",
       value: (t) => ORIGEM[t.category_source],
       priority: 3,
+      mobile: "meta",
       cell: (t) => (
         <span className="inline-flex gap-1">
           <StatusBadge>{ORIGEM[t.category_source]}</StatusBadge>
@@ -423,7 +429,17 @@ function Transacoes() {
           </button>
         </p>
       )}
-      <FilterBar items={linked} filters={filters} onChange={setFilters} />
+      {phone ? (
+        <Section
+          title="Filtros"
+          summary={Object.values(filters).some(Boolean) ? "ativos" : undefined}
+          defaultOpen={Object.values(filters).some(Boolean)}
+        >
+          <FilterBar items={linked} filters={filters} onChange={setFilters} />
+        </Section>
+      ) : (
+        <FilterBar items={linked} filters={filters} onChange={setFilters} />
+      )}
       <div className="flex items-center justify-between gap-2">
         <p className="type-caption text-muted-foreground" aria-live="polite">
           {shown.length === linked.length

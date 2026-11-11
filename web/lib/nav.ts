@@ -1,6 +1,6 @@
 // Navegação em 4 áreas (Story 1.7 — FR36, AD-17, EXPERIENCE › Information Architecture).
-// Áreas e abas viram rotas `/(area)/(aba)`. As telas v1 saíram na Story 10.6 (os endereços antigos
-// redirecionam para a aba equivalente — `next.config.ts`).
+// Áreas e abas viram rotas `/(area)/(aba)`; endereços antigos redirecionam para a aba equivalente
+// (`next.config.ts`). No celular as áreas vão para a navegação inferior (`BottomNav`, v2.2).
 
 export type AreaKey = "visao-geral" | "caixa" | "investimentos" | "ajustes";
 

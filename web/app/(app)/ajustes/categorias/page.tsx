@@ -305,14 +305,10 @@ export default function CategoriasPage() {
                 ]}
               />
             </div>
-            <table className="w-full table-fixed type-body-sm">
+            {/* no celular o papel vai para baixo do nome e as ações ficam estreitas (v2.2): a
+                largura fixa por % cortava os botões */}
+            <table className="w-full type-body-sm">
               <caption className="sr-only">Subcategorias de {g.name}</caption>
-              <colgroup>
-                <col className="w-[50%]" />
-                <col className="w-[25%]" />
-                <col className="w-[10%]" />
-                <col className="w-[15%]" />
-              </colgroup>
               <thead className="sr-only">
                 <tr>
                   <th scope="col">Subcategoria</th>
@@ -327,12 +323,13 @@ export default function CategoriasPage() {
                     key={c.id}
                     className={cn("border-t border-border first:border-t-0 hover:bg-row-highlight", !c.is_active && "text-muted-foreground")}
                   >
-                    <td className="truncate px-4 py-2">
+                    <td className="px-4 py-2 break-words">
                       {c.name} {!c.is_active && <StatusBadge>arquivada</StatusBadge>}
+                      <span className="block type-caption text-muted-foreground sm:hidden">{c.role_label}</span>
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">{c.role_label}</td>
-                    <td className="px-4 py-2 text-right type-num-table">{c.transaction_count}</td>
-                    <td className="px-2 py-1 text-right whitespace-nowrap">
+                    <td className="hidden px-4 py-2 text-muted-foreground sm:table-cell">{c.role_label}</td>
+                    <td className="w-px px-2 py-2 text-right type-num-table sm:px-4">{c.transaction_count}</td>
+                    <td className="w-px px-2 py-1 text-right whitespace-nowrap">
                       <RowActions
                         subject={c.name}
                         onEdit={() => setEditing({ type: "category", node: c })}

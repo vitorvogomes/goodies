@@ -219,7 +219,7 @@ export function ImportHub({ compact = false }: { compact?: boolean }) {
   return (
     <Sheet open={isOpen} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
-        <Button className="w-full lg:w-full" size={compact ? "icon" : "default"} aria-label="Importar" title={compact ? "Importar" : undefined}>
+        <Button className={compact ? undefined : "w-full"} size={compact ? "icon" : "default"} aria-label="Importar" title={compact ? "Importar" : undefined}>
           <UploadIcon aria-hidden />
           {!compact && "Importar"}
         </Button>

@@ -7,7 +7,9 @@
 //   nunca) e, se ainda não couber, as colunas de menor prioridade saem primeiro; o que sobrar rola
 //   com a borda esmaecida indicando o conteúdo escondido;
 // - ordenação por coluna (cabeçalho é botão, `aria-sort`), linhas expansíveis por clique ou →/←
-//   (↑/↓ andam entre linhas); filtro de texto acima de 20 linhas; `<th scope="col">`.
+//   (↑/↓ andam entre linhas); filtro de texto acima de 20 linhas; `<th scope="col">`;
+// - no celular (< 640px) cada linha vira um cartão: a 1ª coluna é o título, as ações ficam no canto
+//   e as demais colunas visíveis viram pares rótulo/valor (v2.2 — F0).
 import {
   createSortedRowModel,
   type RowData,
@@ -29,6 +31,7 @@ import {
 } from "react";
 
 import { Input } from "@/components/ui/input";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
 
 export interface DataColumn<T extends RowData> {
@@ -45,6 +48,10 @@ export interface DataColumn<T extends RowData> {
   priority?: 1 | 2 | 3;
   /** Coluna de ações da linha: estreita, à direita, sem cabeçalho visível. */
   actions?: boolean;
+  /** No cartão do celular: título (padrão: a 1ª coluna), valor ao lado do título, linha de
+   * metadados sob o título, largura toda sem rótulo (`block`), ou fora do cartão. As demais
+   * viram pares rótulo/valor. */
+  mobile?: "title" | "aside" | "meta" | "block" | "hide";
   className?: string;
 }
 
@@ -106,6 +113,7 @@ export function DataTable<T extends RowData>({
   const [dropped, setDropped] = useState<string[]>([]);
   const [edge, setEdge] = useState({ left: false, right: false });
   const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const phone = useMedia(PHONE);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const changeDensity = (d: Density) => {
@@ -122,9 +130,10 @@ export function DataTable<T extends RowData>({
   const visible = useMemo(
     () =>
       columns.filter(
-        (c) => (density === "detalhado" || !c.detailOnly) && !dropped.includes(c.id),
+        (c) =>
+          (density === "detalhado" || !c.detailOnly) && (phone || !dropped.includes(c.id)),
       ),
-    [columns, density, dropped],
+    [columns, density, dropped, phone],
   );
   const hiddenCount = columns.length - visible.length;
   const filtered = useMemo(() => {
@@ -170,7 +179,7 @@ export function DataTable<T extends RowData>({
   // Não cabe? Sai a coluna de menor prioridade (Resumo); cabe com folga? Volta tudo e mede de novo.
   const measure = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || phone) return;
     const overflow = el.scrollWidth - el.clientWidth;
     setEdge({ left: el.scrollLeft > 1, right: overflow - el.scrollLeft > 1 });
     if (density !== "resumo" || overflow <= 1) return;
@@ -182,7 +191,7 @@ export function DataTable<T extends RowData>({
     if (candidates.length === 0) return;
     const worst = candidates.reduce((a, b) => (b.p >= a.p ? b : a));
     setDropped((prev) => (prev.includes(worst.id) ? prev : [...prev, worst.id]));
-  }, [density, visible]);
+  }, [density, visible, phone]);
 
   useLayoutEffect(() => {
     measure();
@@ -262,7 +271,7 @@ export function DataTable<T extends RowData>({
           <span />
         )}
         <div className="flex items-center gap-3">
-          {hiddenCount > 0 && density === "resumo" && (
+          {hiddenCount > 0 && density === "resumo" && !phone && (
             <span className="type-caption text-muted-foreground">
               {hiddenCount} coluna{hiddenCount > 1 ? "s" : ""} no Detalhado
             </span>
@@ -289,6 +298,104 @@ export function DataTable<T extends RowData>({
           </div>
         </div>
       </div>
+      {phone ? (
+        <ul aria-label={caption} className="space-y-2">
+          {table.getRowModel().rows.length === 0 && (
+            <li className="rounded-lg border border-border bg-card px-4 py-8 text-center text-muted-foreground shadow-card">
+              {query ? "Nenhuma linha com esse filtro." : empty}
+            </li>
+          )}
+          {table.getRowModel().rows.map((row) => {
+            const open = isOpen(row.id);
+            const cols = visible.filter((c) => !c.actions && c.mobile !== "hide");
+            const first = cols.find((c) => c.mobile === "title") ?? cols.find((c) => !c.mobile);
+            const aside = cols.filter((c) => c.mobile === "aside");
+            const meta = cols.filter((c) => c.mobile === "meta");
+            const blocks = cols.filter((c) => c.mobile === "block");
+            const rest = cols.filter((c) => c !== first && !c.mobile);
+            const actions = visible.find((c) => c.actions);
+            const render = (c: DataColumn<T>) =>
+              c.cell ? c.cell(row.original) : String(c.value(row.original) ?? "");
+            const below = renderBelow?.(row.original);
+            const selected = selection?.selected.has(row.id) ?? false;
+            return (
+              <li
+                key={row.id}
+                data-selected={selected || undefined}
+                className="rounded-lg border border-border bg-card p-card-padding shadow-card data-selected:bg-row-highlight"
+              >
+                <div className="flex items-start gap-3">
+                  {selection && (
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar linha"
+                      checked={selected}
+                      onChange={() => selectRow(row.id, false)}
+                      className="mt-0.5 size-5 shrink-0 accent-primary"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="type-body font-medium break-words">{first && render(first)}</div>
+                    {meta.length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap gap-x-2 type-caption text-muted-foreground">
+                        {meta.map((c, i) => (
+                          <span key={c.id}>
+                            {i > 0 && <span aria-hidden>· </span>}
+                            {render(c)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {aside.map((c) => (
+                    <div key={c.id} className={cn("shrink-0 text-right", c.numeric && "type-num-body whitespace-nowrap")}>
+                      {render(c)}
+                    </div>
+                  ))}
+                  {actions && <div className="shrink-0">{render(actions)}</div>}
+                </div>
+                {blocks.map((c) => (
+                  <div key={c.id} className="mt-2 min-w-0 [&_button]:max-w-full">
+                    {render(c)}
+                  </div>
+                ))}
+                {rest.length > 0 && (
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+                    {rest.map((c) => (
+                      <div key={c.id} className="col-span-2 grid grid-cols-subgrid items-baseline">
+                        <dt className="type-caption text-muted-foreground">{c.header}</dt>
+                        <dd
+                          className={cn(
+                            "min-w-0 text-right break-words",
+                            c.numeric ? "type-num-table whitespace-nowrap" : "type-body-sm",
+                          )}
+                        >
+                          {render(c)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {renderExpanded && (
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => toggle(row.id)}
+                    className="mt-1 inline-flex min-h-10 items-center gap-1 type-body-sm text-muted-foreground"
+                  >
+                    {open ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
+                    {open ? "Recolher detalhes" : "Ver detalhes"}
+                  </button>
+                )}
+                {open && renderExpanded && (
+                  <div className="mt-2 border-t border-border pt-3">{renderExpanded(row.original)}</div>
+                )}
+                {below && <div className="mt-2">{below}</div>}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
       <div className="relative">
         <div
           ref={scrollRef}
@@ -495,6 +602,7 @@ export function DataTable<T extends RowData>({
           <div aria-hidden className="pointer-events-none absolute inset-y-px left-px w-4 rounded-l-lg bg-linear-to-r from-card/60 to-transparent" />
         )}
       </div>
+      )}
     </div>
   );
 }

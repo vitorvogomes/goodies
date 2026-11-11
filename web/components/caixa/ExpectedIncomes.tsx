@@ -154,9 +154,9 @@ export function ExpectedIncomes() {
 
   const columns: DataColumn<ExpectedIncome>[] = [
     { id: "nome", header: "Receita", value: (i) => i.name },
-    { id: "valor", header: "Valor", value: (i) => i.amount, numeric: true, cell: (i) => formatBRL(i.amount) },
-    { id: "dia", header: "Dia", value: (i) => i.due_day, cell: (i) => `dia ${i.due_day}` },
-    { id: "pagador", header: "Pagador", value: (i) => i.payer ?? "—" },
+    { id: "valor", header: "Valor", value: (i) => i.amount, numeric: true, cell: (i) => formatBRL(i.amount), mobile: "aside" },
+    { id: "dia", header: "Dia", value: (i) => i.due_day, cell: (i) => `dia ${i.due_day}`, mobile: "meta" },
+    { id: "pagador", header: "Pagador", value: (i) => i.payer ?? "—", mobile: "meta" },
     {
       id: "vigencia",
       header: "Quando",

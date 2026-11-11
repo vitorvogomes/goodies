@@ -1,8 +1,8 @@
 "use client";
 
 // Barra lateral (DESIGN.md › sidebar, EXPERIENCE › Information Architecture): as 4 áreas e o botão
-// Importar fixo. Item ativo = área da rota. Abaixo de 1024px empilha acima do conteúdo. A partir de
-// 1024px recolhe para uma faixa de ícones (mais espaço para as tabelas) — a escolha fica lembrada
+// Importar fixo. Item ativo = área da rota. Abaixo de 1024px some: as áreas vão para a navegação
+// inferior e o Importar para a barra superior (v2.2). A partir de 1024px recolhe para uma faixa de ícones (mais espaço para as tabelas) — a escolha fica lembrada
 // no navegador.
 import {
   LayoutDashboardIcon,
@@ -22,7 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AREAS, type AreaKey, areaOf, tabHref } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<AreaKey, LucideIcon> = {
+export const AREA_ICONS: Record<AreaKey, LucideIcon> = {
   "visao-geral": LayoutDashboardIcon,
   caixa: WalletIcon,
   investimentos: TrendingUpIcon,
@@ -59,7 +59,7 @@ export function Sidebar() {
     <aside
       data-collapsed={collapsed || undefined}
       className={cn(
-        "flex shrink-0 flex-col gap-4 border-b border-sidebar-border bg-sidebar p-4 text-sidebar-foreground transition-[width] lg:sticky lg:top-0 lg:h-screen lg:border-r lg:border-b-0",
+        "hidden shrink-0 flex-col gap-4 border-sidebar-border bg-sidebar p-4 text-sidebar-foreground transition-[width] lg:sticky lg:top-0 lg:flex lg:h-screen lg:border-r",
         collapsed ? "lg:w-16 lg:items-center lg:px-2" : "lg:w-sidebar",
       )}
     >
@@ -88,9 +88,9 @@ export function Sidebar() {
         </Tooltip>
       </div>
       <ImportHub compact={collapsed} />
-      <nav aria-label="Áreas" className="flex flex-wrap gap-1 lg:flex-col">
+      <nav aria-label="Áreas" className="flex flex-col gap-1">
         {AREAS.map((area) => {
-          const Icon = ICONS[area.key];
+          const Icon = AREA_ICONS[area.key];
           const isActive = active === area.key;
           const link = (
             <Link

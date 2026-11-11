@@ -74,27 +74,27 @@ function Row({ item, saving, onSave }: { item: RfBalance; saving: boolean; onSav
             : "Sem saldo informado: rende desde o primeiro aporte"}
         </span>
       </th>
-      <td className="px-4 py-2">
+      <td data-label="% do CDI" className="px-4 py-2">
         <Input aria-label={`% do CDI de ${item.label}`} inputMode="decimal" value={form.pct}
           readOnly={saving} onChange={set("pct")} onKeyDown={keys} className={`ml-auto w-20 ${input}`} />
       </td>
-      <td className="px-4 py-2">
+      <td data-label="Saldo (R$)" className="px-4 py-2">
         <Input aria-label={`Saldo de ${item.label} (R$)`} inputMode="decimal" placeholder="saldo"
           value={form.value} readOnly={saving} onChange={set("value")} onKeyDown={keys}
           className={`ml-auto w-32 ${input}`} />
       </td>
-      <td className="px-4 py-2">
+      <td data-label="ou cotas × cota" className="px-4 py-2">
         <div className="flex items-center justify-end gap-1">
           <Input aria-label={`Cotas de ${item.label}`} inputMode="decimal" placeholder="cotas"
             value={form.quotas} readOnly={saving} onChange={set("quotas")} onKeyDown={keys}
-            className={`w-28 ${input}`} />
+            className={`w-24 sm:w-28 ${input}`} />
           <span className="text-muted-foreground" aria-hidden>×</span>
           <Input aria-label={`Valor da cota de ${item.label} (R$)`} inputMode="decimal" placeholder="valor da cota"
             value={form.quotaValue} readOnly={saving} onChange={set("quotaValue")} onKeyDown={keys}
-            className={`w-28 ${input}`} />
+            className={`w-24 sm:w-28 ${input}`} />
         </div>
       </td>
-      <td className="px-4 py-2 text-right">
+      <td data-label="Data" className="px-4 py-2 text-right">
         <Input aria-label={`Data do saldo de ${item.label}`} type="date" max={currentDayBRT()}
           value={form.day} readOnly={saving} onChange={set("day")} onKeyDown={keys} className="ml-auto h-8 w-40" />
         {error && (
@@ -127,7 +127,7 @@ export function RfBalances() {
         % do CDI sobre esse saldo. Enter grava, Esc reverte.
       </p>
       <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-        <table className="w-full type-body-sm">
+        <table className="table-stack w-full type-body-sm">
           <caption className="sr-only">Saldo informado da renda fixa pelo CDI</caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>

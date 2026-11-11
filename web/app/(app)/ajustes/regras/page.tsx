@@ -226,13 +226,14 @@ export default function RegrasPage() {
         </span>
       ),
     },
-    { id: "direcao", header: "Direção", value: (r) => DIRECTION_LABEL[r.direction] },
-    { id: "categoria", header: "Categoria", value: (r) => r.category_label },
+    { id: "direcao", header: "Direção", value: (r) => DIRECTION_LABEL[r.direction], mobile: "meta" },
+    { id: "categoria", header: "Categoria", value: (r) => r.category_label, mobile: "meta" },
     {
       id: "estado",
       header: "Estado",
       value: (r) => (r.is_active ? "ativa" : "inativa"),
       cell: (r) => <StatusBadge tone={r.is_active ? undefined : "warning"}>{r.is_active ? "ativa" : "inativa"}</StatusBadge>,
+      mobile: "meta",
     },
     { id: "origem", header: "Origem", value: (r) => r.origin, detailOnly: true },
     {

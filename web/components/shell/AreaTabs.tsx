@@ -17,13 +17,20 @@ export function AreaTabs({ area }: { area: AreaKey }) {
     <div className="space-y-3">
       <h1 className="type-page-title">{def.label}</h1>
       <Tabs value={current} onValueChange={(slug) => router.push(tabHref(area, slug, search))}>
-        <TabsList variant="line" aria-label={`Abas de ${def.label}`} className="h-auto flex-wrap justify-start">
-          {def.tabs.map((t) => (
-            <TabsTrigger key={t.slug} value={t.slug} className="flex-none">
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* No celular as abas rolam na horizontal (Ajustes tem 10), sem quebrar em várias linhas. */}
+        <div className="-mx-page-gutter overflow-x-auto px-page-gutter [scrollbar-width:none] sm:mx-0 sm:overflow-visible sm:px-0">
+          <TabsList
+            variant="line"
+            aria-label={`Abas de ${def.label}`}
+            className="h-auto justify-start sm:flex-wrap"
+          >
+            {def.tabs.map((t) => (
+              <TabsTrigger key={t.slug} value={t.slug} className="min-h-11 flex-none sm:min-h-0">
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
       </Tabs>
     </div>
   );

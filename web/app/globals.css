@@ -52,6 +52,15 @@
   --chart-1: #047745;
   --chart-2: #6b7280;
   --chart-3: #8f8f8f;
+  /* Pizza (v2.2): tons do verde principal, claro e escuro alternados pela ordem das fatias. */
+  --pie-1: oklch(0.5 0.13 155);
+  --pie-2: oklch(0.82 0.11 155);
+  --pie-3: oklch(0.37 0.09 155);
+  --pie-4: oklch(0.66 0.15 155);
+  --pie-5: oklch(0.91 0.06 155);
+  --pie-6: oklch(0.29 0.06 155);
+  --pie-7: oklch(0.58 0.1 155);
+  --pie-8: oklch(0.74 0.07 155);
   --shadow-card: 0 1px 4px hsl(0 0% 0% / 0.05);
   --radius: 0.75rem;
 }
@@ -96,6 +105,14 @@
   --chart-1: #4ade80;
   --chart-2: #888888;
   --chart-3: #636363;
+  --pie-1: oklch(0.8 0.18 155);
+  --pie-2: oklch(0.5 0.12 155);
+  --pie-3: oklch(0.92 0.09 155);
+  --pie-4: oklch(0.62 0.16 155);
+  --pie-5: oklch(0.38 0.08 155);
+  --pie-6: oklch(0.72 0.11 155);
+  --pie-7: oklch(0.86 0.13 155);
+  --pie-8: oklch(0.45 0.05 155);
   --shadow-card: none;
 }
 
@@ -190,6 +207,9 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 1.45;
+  @media (max-width: 639.98px) {
+    font-size: 14px;
+  }
 }
 @utility type-label {
   font-family: var(--font-sans);
@@ -233,6 +253,9 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 1.45;
+  @media (max-width: 639.98px) {
+    font-size: 14px;
+  }
 }
 @utility type-tag {
   font-family: var(--font-mono);
@@ -241,6 +264,13 @@
   font-weight: 600;
   line-height: 1.5;
   letter-spacing: 0.02em;
+}
+
+/* Celular (v2.2 — F0): margem lateral de 16px e texto de tabela/corpo pequeno um ponto maior. */
+@media (max-width: 639.98px) {
+  :root {
+    --spacing-page-gutter: 16px;
+  }
 }
 
 @layer base {
@@ -252,9 +282,68 @@
     /* Todo número alinha em coluna (tabular-nums), também fora das utilidades type-num-*. */
     font-variant-numeric: tabular-nums;
   }
+  /* Item de grade não cresce além da coluna por causa de uma tabela larga (no celular a página
+     passava da tela): a tabela rola dentro do card (v2.2). */
+  .grid > * {
+    min-width: 0;
+  }
+  /* iOS amplia a tela ao focar campo com fonte < 16px: no celular, campos ficam em 16px. */
+  @media (max-width: 639.98px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
   /* Foco pelo teclado: anel de 2px `ring` com offset de 2px (UX-DR19). */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+}
+
+/* Tabela empilhada no celular (v2.2 — `table-stack`): cada linha vira um bloco; a 1ª célula
+   (th de linha) é o título e cada td mostra o rótulo do `data-label` à esquerda e o valor à direita.
+   Fora de @layer de propósito: vence o padding/alinhamento das utilidades só abaixo de 640px. */
+@media (max-width: 639.98px) {
+  .table-stack thead {
+    display: none;
+  }
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tfoot {
+    display: block;
+    width: 100%;
+  }
+  .table-stack tr {
+    display: block;
+    padding: 0.625rem 1rem;
+  }
+  .table-stack tr + tr {
+    border-top: 1px solid var(--border);
+  }
+  .table-stack th[scope="row"] {
+    display: block;
+    padding: 0 0 0.25rem;
+    text-align: left;
+  }
+  .table-stack td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.25rem 0;
+    text-align: right;
+  }
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--muted-foreground);
+    text-align: left;
+  }
+  .table-stack td:empty {
+    display: none;
   }
 }
