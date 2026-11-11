@@ -14,6 +14,7 @@ from engines.ledger.calc import (
     TxCandidate,
     due_date,
     match_fixed_costs,
+    paid_difference,
 )
 
 D = Decimal
@@ -180,3 +181,12 @@ def test_expected_income_by_payer_and_name() -> None:
     assert (m["c"].received, m["c"].status, m["c"].pending) == (D(0), "a_receber", D("1200"))
     late = match_expected_incomes(expected[2:], [], date(2026, 10, 26))[0]
     assert late.status == "atrasado"
+
+
+def test_paid_difference_is_expected_minus_paid() -> None:
+    """v2.2: pago a menos = economia (positivo); a mais = negativo; manual (sem transação) = None.
+    A transação de pagamento vem com sinal de saída."""
+    assert paid_difference(D("310.00"), D("-287.00")) == D("23.00")
+    assert paid_difference(D("294.11"), D("-334.11")) == D("-40.00")
+    assert paid_difference(D("400.00"), D("-400.00")) == D("0.00")
+    assert paid_difference(D("400.00"), None) is None

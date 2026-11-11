@@ -68,6 +68,11 @@ async def test_month_list_and_decisions(api, auth_headers, pool, account) -> Non
     assert [i.status for i in view.items] == ["atrasado", "vencendo", "pago"]
     assert (view.paid_count, view.count) == (1, 3)
     assert view.paid_total == Decimal("201.00") and view.total == Decimal("750.00")
+    # v2.2: pago × previsto — luz previa 200 e saiu 201 (R$ 1 a mais); só os pagos com transação
+    luz = by[ids["luz"]]
+    assert (luz.paid_amount, luz.difference) == (Decimal("201.00"), Decimal("-1.00"))
+    assert by[ids["net"]].paid_amount is None and by[ids["net"]].difference is None
+    assert (view.paid_expected, view.difference_total) == (Decimal("200"), Decimal("-1.00"))
 
     mes = "2097-05"
     r = await api.post(

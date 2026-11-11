@@ -240,6 +240,9 @@ export interface FixedCostMonthItem {
   source: "decisao" | "auto" | null;
   transaction: FixedCostTx | null;
   candidates: FixedCostTx[];
+  /** v2.2: o que saiu de fato e previsto − pago (+ economia, − a mais); null sem transação. */
+  paid_amount: number | null;
+  difference: number | null;
 }
 
 export interface FixedCostMonth {
@@ -251,6 +254,9 @@ export interface FixedCostMonth {
   total: number;
   paid_total: number;
   pending_total: number;
+  /** Σ previsto dos pagos com transação e Σ previsto − pago deles (v2.2). */
+  paid_expected: number;
+  difference_total: number;
   as_of: string | null;
 }
 

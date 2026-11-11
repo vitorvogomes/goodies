@@ -189,6 +189,15 @@ def computed_balance(
 # Casamento de custo fixo (Story 6.1 — AD-7, AD-9)
 # --------------------------------------------------------------------------------------------
 
+def paid_difference(expected: Decimal, paid_tx_amount: Decimal | None) -> Decimal | None:
+    """Pago × previsto de um custo fixo (v2.2, só indicativo): previsto − pago, com a transação de
+    pagamento no sinal de saída. Positivo = economia, negativo = gasto a mais; sem transação
+    (marcado pago à mão) não há valor pago para comparar → None."""
+    if paid_tx_amount is None:
+        return None
+    return (expected - (-paid_tx_amount)).quantize(Decimal("0.01"))
+
+
 MATCH_VALUE_TOLERANCE = Decimal("0.10")  # ±10% do valor cadastrado
 MATCH_DAYS_BEFORE = 5  # até 5 dias antes do vencimento
 MATCH_DAYS_AFTER = 5  # até 5 dias depois

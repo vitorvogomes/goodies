@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -379,6 +380,10 @@ class FixedCostMonthItem(BaseModel):
     source: str | None  # decisao | auto
     transaction: FixedCostTx | None
     candidates: list[FixedCostTx]  # "2 candidatas": nada pago até escolher
+    # v2.2, só indicativo: o valor que saiu e previsto − pago (+ economia, − a mais); só com
+    # transação casada (manual = sem valor pago)
+    paid_amount: Money | None = None
+    difference: Money | None = None
 
 
 class FixedCostMonth(BaseModel):
@@ -390,6 +395,8 @@ class FixedCostMonth(BaseModel):
     total: Money  # Σ valores cadastrados
     paid_total: Money  # Σ pago (transação casada; manual = valor cadastrado)
     pending_total: Money  # Σ cadastrado do que falta pagar
+    paid_expected: Money = Decimal(0)  # Σ cadastrado dos pagos com transação
+    difference_total: Money = Decimal(0)  # Σ previsto − pago (+ economia, − a mais)
     as_of: dt.date | None = None  # dados até: último lançamento até o fim do mês
 
 

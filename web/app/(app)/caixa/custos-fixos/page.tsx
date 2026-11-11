@@ -11,6 +11,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { type DataColumn, DataTable } from "@/components/data/DataTable";
+import { PaidDiff, paidDiffText } from "@/components/data/PaidDiff";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { SAVE_FAILED } from "@/components/forms/SideForm";
 import { Button } from "@/components/ui/button";
@@ -163,10 +164,26 @@ export default function CustosFixosMesPage() {
 
   const columns: DataColumn<FixedCostMonthItem>[] = [
     { id: "custo", header: "Custo", value: (i) => i.name },
-    { id: "valor", header: "Valor", value: (i) => i.amount, numeric: true, cell: (i) => formatBRL(i.amount) },
-    { id: "vencimento", header: "Vencimento", value: (i) => i.due_date, cell: (i) => formatDate(i.due_date) },
+    { id: "valor", header: "Previsto", value: (i) => i.amount, numeric: true, cell: (i) => formatBRL(i.amount), mobile: "aside" },
+    {
+      id: "pago",
+      header: "Pago",
+      value: (i) => i.paid_amount,
+      numeric: true,
+      cell: (i) =>
+        i.paid_amount === null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span className="inline-flex flex-col items-end gap-0.5">
+            {formatBRL(i.paid_amount)}
+            <PaidDiff difference={i.difference} />
+          </span>
+        ),
+    },
+    { id: "vencimento", header: "Vencimento", value: (i) => i.due_date, cell: (i) => formatDate(i.due_date), mobile: "meta" },
     {
       id: "estado",
+      mobile: "meta",
       header: "Estado",
       value: (i) => i.status,
       cell: (i) => (
@@ -182,11 +199,13 @@ export default function CustosFixosMesPage() {
     },
     {
       id: "transacao",
+      mobile: "block",
       header: "Transação casada",
       value: (i) => i.transaction?.description ?? null,
       cell: (i) =>
         i.transaction ? (
-          <span className="type-body-sm">
+          // no cartão do celular, a descrição longa do Pix fica em 2 linhas
+          <span className="line-clamp-2 type-body-sm text-muted-foreground sm:line-clamp-none sm:text-foreground">
             {txLabel(i.transaction)}
             {i.source === "auto" && <span className="text-muted-foreground"> · automático</span>}
           </span>
@@ -267,6 +286,12 @@ export default function CustosFixosMesPage() {
             · {data.paid_count} {data.paid_count === 1 ? "pago" : "pagos"} · {data.count - data.paid_count}{" "}
             {data.count - data.paid_count === 1 ? "pendente" : "pendentes"} ({formatBRL(data.pending_total)})
           </span>
+          {paidDiffText(data.difference_total) && (
+            <span className={data.difference_total > 0 ? "text-positive" : "text-warning"}>
+              {" "}
+              · {paidDiffText(data.difference_total)}
+            </span>
+          )}
           {readOnly && (
             <span className="text-muted-foreground"> · {formatMonth(periodo)} fechado: só leitura até reabrir.</span>
           )}

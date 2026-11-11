@@ -52,6 +52,7 @@ from .calc import (
     month_checked,
     month_result,
     opening_balance,
+    paid_difference,
     resgates,
     savings_rate,
     work_income,
@@ -1763,6 +1764,8 @@ async def fixed_cost_month(
     for m in matches:
         row = costs[m.cost_id]
         due = due_date(month, row["due_day"])
+        tx = txs.get(m.transaction_id) if m.transaction_id else None
+        settled = m.transaction_id is not None and _cost_status(m, due, today) == "pago"
         items.append(
             FixedCostMonthItem(
                 id=m.cost_id,
@@ -1772,8 +1775,12 @@ async def fixed_cost_month(
                 category_label=row["category_label"],
                 status=_cost_status(m, due, today),
                 source=m.source,
-                transaction=txs.get(m.transaction_id) if m.transaction_id else None,
+                transaction=tx,
                 candidates=[txs[t] for t in m.candidates if t in txs],
+                paid_amount=-tx.amount if settled and tx else None,
+                difference=(
+                    paid_difference(row["amount"], tx.amount) if settled and tx else None
+                ),
             )
         )
     items.sort(key=lambda i: (_STATUS_ORDER[i.status], i.due_date, i.name))
@@ -1791,6 +1798,10 @@ async def fixed_cost_month(
         total=total,
         paid_total=paid_total,
         pending_total=sum((i.amount for i in items if i not in paid), Decimal(0)),
+        paid_expected=sum((i.amount for i in paid if i.difference is not None), Decimal(0)),
+        difference_total=sum(
+            (i.difference for i in paid if i.difference is not None), Decimal(0)
+        ),
         as_of=await conn.fetchval(
             "SELECT max(date) FROM transactions WHERE date <= $1", month_end(month)
         ),
