@@ -13,7 +13,7 @@ import asyncpg
 from pydantic import BaseModel
 
 from engines.common.dates import add_months, month_end, today_brt
-from engines.common.money import Money
+from engines.common.money import Money, Pct
 from engines.common.owner import get_owner_id
 from engines.ledger import service as ledger_service
 from engines.planning.service import month_plan
@@ -33,6 +33,7 @@ class SeriesPoint(BaseModel):
     aplicado: Money | None
     planejado: Money | None  # None = não definido
     realizado: Money
+    taxa_poupanca: Pct | None = None  # v2.2: a taxa de poupança do mês (%), linha no Histórico
 
 
 class Series(BaseModel):
@@ -60,6 +61,7 @@ async def _point(conn: asyncpg.Connection, owner: str, month: date) -> SeriesPoi
             planejado=_frozen_planned(t["budget"]),
             # antes do andamento do aporte (8.7), o realizado do mês é o investimento do mês
             realizado=t["realizado"] if t["realizado"] is not None else t["investido"] or 0,
+            taxa_poupanca=t["taxa_poupanca"],
         )
     as_of = min(month_end(month), today_brt())
     valuation = await valuation_as_of(conn, owner, as_of)
@@ -73,6 +75,11 @@ async def _point(conn: asyncpg.Connection, owner: str, month: date) -> SeriesPoi
         aplicado=valuation.contributed,
         planejado=plan.aporte_planejado,
         realizado=ledger.investido,
+        taxa_poupanca=(
+            (ledger.taxa_poupanca * 100).quantize(_CENT)
+            if ledger.taxa_poupanca is not None
+            else None
+        ),
     )
 
 

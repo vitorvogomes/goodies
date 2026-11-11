@@ -95,6 +95,10 @@ async def test_positions_by_reading(pool: Any) -> None:
     assert all(m.source in ("live", "snapshot") for m in inicio.months)
     if real is not None:  # revisão do Épico 7: a real desde o início é a do Painel
         assert inicio.xirr_real == real
+    # v2.2: a pizza da carteira — fatias somam 100% e o ativo semeado aparece com o valor dele
+    assert sum(sl.pct for sl in mes.distribuicao) == D("100.00")
+    assert sum(sl.pct for sl in mes.distribuicao_ativos) == D("100.00")
+    assert any(sl.label == t and sl.value == D("180.00") for sl in mes.distribuicao_ativos)
     order = [c.key for c in mes.classes]
     assert order == ["acoes_br", "etfs", "fiis", "renda_fixa", "aposentadoria", "cripto"]
     crypto = mes.classes[-1]

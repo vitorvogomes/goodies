@@ -36,10 +36,11 @@ async def test_series_route_and_gap(api, auth_headers, pool) -> None:
             )
             await conn.execute(
                 "INSERT INTO month_summary_totals (month, version, as_of, patrimonio, aplicado, "
-                "investido) VALUES ($1, 1, '2097-03-31', 1000, 900, 50)",
+                "investido, taxa_poupanca) VALUES ($1, 1, '2097-03-31', 1000, 900, 50, 41.5)",
                 month,
             )
             point = await series_service._point(conn, "x", month)
         finally:
             await tx.rollback()
     assert (point.patrimonio, point.aplicado, point.realizado) == (None, None, D(50))
+    assert point.taxa_poupanca == D("41.50")  # v2.2: a linha da taxa de poupança

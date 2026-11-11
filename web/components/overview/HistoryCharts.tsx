@@ -24,9 +24,10 @@ import {
   YAxis,
 } from "recharts";
 
+import { PieBreakdown } from "@/components/charts/PieBreakdown";
 import { Button } from "@/components/ui/button";
 import { useHistory, useSeries } from "@/lib/closing";
-import { formatBRL, formatMonth } from "@/lib/format";
+import { formatBRL, formatMonth, formatPercent } from "@/lib/format";
 import type { HistoryRow, SeriesPoint } from "@/types/closing";
 
 const C1 = "var(--color-chart-1)";
@@ -137,6 +138,41 @@ function NetWorth({ points }: { points: SeriesPoint[] }) {
               strokeWidth={2}
               strokeDasharray="6 4"
               dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartCard>
+  );
+}
+
+// Taxa de poupança por mês (v2.2): quanto da receita sobrou para investir, mês a mês — linha
+// chart-1, % no eixo; mês sem receita vira lacuna.
+function SavingsRate({ points }: { points: SeriesPoint[] }) {
+  const data = points.map((p) => ({ mes: formatMonth(p.month.slice(0, 7)), taxa: p.taxa_poupanca ?? null }));
+  if (data.every((d) => d.taxa === null)) return null;
+  const pct = (v: number | null | undefined) => (v == null ? "—" : formatPercent(v));
+  return (
+    <ChartCard
+      id="grafico-poupanca"
+      title="Taxa de poupança"
+      table={<SimpleTable head={["Mês", "Taxa de poupança"]} rows={data.map((d) => [d.mes, pct(d.taxa)])} />}
+    >
+      <div className="h-56" role="img" aria-label="Gráfico da taxa de poupança por mês">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke="var(--color-border)" />
+            <XAxis dataKey="mes" tick={AXIS} />
+            <YAxis tick={AXIS} tickFormatter={(v: number) => `${v}%`} width={48} />
+            <Tooltip formatter={(v) => pct(Number(v))} isAnimationActive={false} />
+            <Line
+              name="Taxa de poupança"
+              dataKey="taxa"
+              stroke={C1}
+              strokeWidth={2}
+              dot={{ r: 2 }}
               connectNulls={false}
               isAnimationActive={false}
             />
@@ -283,8 +319,16 @@ export function HistoryCharts({ periodo, leitura }: { periodo: string; leitura: 
         </p>
       )}
       {history.data.groups.length > 0 && (
-        <Spending groups={history.data.groups} periodo={periodo} clickable={leitura === "mes"} />
+        <div className="grid gap-card-gap xl:grid-cols-2">
+          <Spending groups={history.data.groups} periodo={periodo} clickable={leitura === "mes"} />
+          <PieBreakdown
+            id="pizza-gastos-periodo"
+            title="Gastos por grupo · % do total"
+            slices={history.data.groups_share ?? []}
+          />
+        </div>
       )}
+      {points.length > 0 && <SavingsRate points={points} />}
       {points.length > 0 && <Contribution points={points} media={series.data.realizado_media12} />}
     </div>
   );

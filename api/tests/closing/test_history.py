@@ -54,6 +54,10 @@ async def test_history_route(api, auth_headers) -> None:
     assert [m["month"][:7] for m in body["months"]] == [mes]  # nunca mês depois do período
     assert {row["key"] for row in body["rows"]} >= {"receitas", "gastos", "taxa_poupanca"}
     assert body["previous_label"] is not None and body["average_months"] == 12
+    # v2.2: a pizza dos gastos — um item por grupo com gasto, somando 100%
+    share = body["groups_share"]
+    assert all(s["value"] > 0 for s in share)
+    assert not share or round(sum(s["pct"] for s in share), 2) == 100
     start = (
         await api.get(f"/api/v1/closing/history?periodo={mes}&leitura=inicio", headers=auth_headers)
     ).json()

@@ -12,6 +12,8 @@
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, Suspense, useState } from "react";
 
+import { PieBreakdown } from "@/components/charts/PieBreakdown";
+import { Section } from "@/components/data/Section";
 import { ReadingSelector, useLeitura } from "@/components/data/ReadingSelector";
 import { AllocationCell } from "@/components/investimentos/AllocationCell";
 import { OperationsBlock } from "@/components/investimentos/OperationsBlock";
@@ -31,9 +33,10 @@ import {
 } from "@/lib/format";
 import { usePositions } from "@/lib/positions";
 import { usePeriodo } from "@/lib/use-periodo";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
 import type { Valued } from "@/types/overview";
-import type { PositionAsset } from "@/types/positions";
+import type { PositionAsset, PositionsReport } from "@/types/positions";
 
 const LEITURA_LABEL = { mes: "do mês", tri: "do trimestre", ano: "do ano", inicio: "desde o início" };
 
@@ -123,7 +126,7 @@ function AssetValue({ a }: { a: PositionAsset }) {
   return (
     <span className="inline-flex flex-col items-end">
       <span>{formatBRL(a.valor.value)}</span>
-      {a.valor_usd != null && <span className="type-caption text-muted-foreground">{formatUSD(a.valor_usd)}</span>}
+      {a.valor_usd != null && <span className="type-num-table text-muted-foreground">{formatUSD(a.valor_usd)}</span>}
       {a.valor.stale && a.valor.as_of && (
         <span className="inline-flex items-center gap-1 type-caption text-muted-foreground">
           <span aria-hidden className="size-1.5 rounded-full bg-warning-dot" />
@@ -151,6 +154,7 @@ function Posicoes() {
   const byPeriod = leitura !== "inicio"; // desde o início, o resultado do período é o total
   const short = leitura === "mes" || leitura === "tri";
   const note = ipcaNote(periodo);
+  const phone = useMedia(PHONE);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -171,6 +175,8 @@ function Posicoes() {
         </div>
       ) : !data ? (
         <div className="h-80 animate-pulse rounded-lg border border-border bg-card shadow-card" aria-hidden />
+      ) : phone ? (
+        <PhonePositions data={data} byPeriod={byPeriod} short={short} note={note} leitura={leitura} />
       ) : (
         <div className="relative overflow-x-auto rounded-lg border border-border bg-card shadow-card" tabIndex={0} role="region" aria-label="Posições">
           <table className="w-full type-body-sm">
@@ -232,7 +238,7 @@ function Posicoes() {
                       <span className="inline-flex flex-col items-end">
                         {formatBRL(c.valor)}
                         {c.valor_usd != null && (
-                          <span className="type-caption font-normal text-muted-foreground">{formatUSD(c.valor_usd)}</span>
+                          <span className="type-num-table font-normal text-muted-foreground">{formatUSD(c.valor_usd)}</span>
                         )}
                       </span>
                     </td>
@@ -266,6 +272,7 @@ function Posicoes() {
                             <span className="block type-caption text-muted-foreground type-num-table">
                               {fmtQty(Number(a.quantidade))}
                               {a.preco !== null && ` × R$ ${formatUnitPrice(String(a.preco))}`}
+                              {a.preco_usd != null && ` · US$ ${formatUnitPrice(String(a.preco_usd))}`}
                             </span>
                           )}
                           {a.nota && <span className="block type-caption text-muted-foreground">{a.nota}</span>}
@@ -340,8 +347,156 @@ function Posicoes() {
           </table>
         </div>
       )}
+      {data && <PortfolioPie report={data} />}
       <OperationsBlock />
     </div>
+  );
+}
+
+// Celular (v2.2): um cartão por classe — valor, resultado, rentabilidade e alocação × meta; os
+// ativos abrem no toque, com valor, quantidade × preço e resultado. O total fecha a lista.
+function PhonePositions({
+  data,
+  byPeriod,
+  short,
+  note,
+  leitura,
+}: {
+  data: PositionsReport;
+  byPeriod: boolean;
+  short: boolean;
+  note: string;
+  leitura: keyof typeof LEITURA_LABEL;
+}) {
+  return (
+    <div className="space-y-2">
+      {data.classes.map((c) => (
+        <Section
+          key={c.key}
+          title={c.is_bucket ? "Cripto" : c.label}
+          summary={<span className="type-num-body text-foreground">{formatBRL(c.valor)}</span>}
+        >
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 type-body-sm">
+            <div>
+              <dt className="type-caption text-muted-foreground">Resultado total</dt>
+              <dd className="type-num-table">
+                <Result value={c.resultado_total} />
+              </dd>
+            </div>
+            {byPeriod && (
+              <div>
+                <dt className="type-caption text-muted-foreground">Resultado {LEITURA_LABEL[leitura]}</dt>
+                <dd className="type-num-table">
+                  <Result value={c.resultado} />
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="type-caption text-muted-foreground">Aplicado</dt>
+              <dd className="type-num-table">{money(c.aplicado)}</dd>
+            </div>
+            {c.valor_usd != null && (
+              <div>
+                <dt className="type-caption text-muted-foreground">Em dólar</dt>
+                <dd className="type-num-table">{formatUSD(c.valor_usd)}</dd>
+              </div>
+            )}
+            <div>
+              <dt className="type-caption text-muted-foreground">XIRR</dt>
+              <dd className="type-num-table [&>span]:items-start">
+                <Rate v={c.xirr_nominal} monthly={c.xirr_mensal} short={short} ipcaNote={note} />
+              </dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="type-caption text-muted-foreground">Alocação × meta</dt>
+              <dd>
+                <AllocationCell alocacao={c.alocacao} meta={c.meta} banda={c.banda} desvio={c.desvio_pp} fora={c.fora_banda} />
+              </dd>
+            </div>
+          </dl>
+          {c.assets.length > 0 && (
+            <ul className="mt-3 divide-y divide-border border-t border-border">
+              {c.assets.map((a) => (
+                <li key={a.symbol} className="flex items-start justify-between gap-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block type-num-table">{a.symbol}</span>
+                    {a.quantidade !== null && (
+                      <span className="block type-caption text-muted-foreground">
+                        {fmtQty(Number(a.quantidade))}
+                        {a.preco !== null && ` × R$ ${formatUnitPrice(String(a.preco))}`}
+                        {a.preco_usd != null && ` · US$ ${formatUnitPrice(String(a.preco_usd))}`}
+                      </span>
+                    )}
+                    {a.nota && <span className="block type-caption text-muted-foreground">{a.nota}</span>}
+                  </span>
+                  <span className="flex flex-col items-end text-right type-num-table">
+                    <AssetValue a={a} />
+                    <Result value={a.resultado_total} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      ))}
+      <div className="space-y-1 rounded-lg border border-border bg-card p-card-padding shadow-card type-body-sm">
+        <p className="flex justify-between gap-2">
+          <span className="text-muted-foreground">Caixa em corretora</span>
+          <span className="type-num-table">{formatBRL(data.caixa_corretora)}</span>
+        </p>
+        {data.a_caminho.map((w) => (
+          <p key={w.broker} className="flex justify-between gap-2 text-muted-foreground">
+            <span>A caminho da {w.broker} (fora do patrimônio)</span>
+            <span className="type-num-table">{formatBRL(w.value)}</span>
+          </p>
+        ))}
+        <p className="flex justify-between gap-2 border-t border-border pt-2 font-semibold">
+          <span>Total</span>
+          <span className="type-num-body">{formatBRL(data.total)}</span>
+        </p>
+        <p className="flex justify-between gap-2">
+          <span className="text-muted-foreground">Resultado total</span>
+          <span className="type-num-table">
+            <Result value={data.resultado_total} />
+          </span>
+        </p>
+        <p className="flex justify-between gap-2">
+          <span className="text-muted-foreground">XIRR</span>
+          <span className="type-num-table">
+            <Rate v={data.xirr_nominal} monthly={data.xirr_mensal} short={short} ipcaNote={note} />
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Pizza da carteira (v2.2): % de cada classe (e do caixa na corretora) ou de cada ativo no total.
+function PortfolioPie({ report }: { report: PositionsReport }) {
+  const [by, setBy] = useState<"classes" | "ativos">("classes");
+  const slices = (by === "classes" ? report.distribuicao : report.distribuicao_ativos) ?? [];
+  return (
+    <PieBreakdown
+      id="pizza-carteira"
+      title="Distribuição da carteira"
+      slices={slices}
+      center={{ label: "total", value: formatBRL(report.total) }}
+      actions={
+        <div role="group" aria-label="Ver por" className="flex rounded-md bg-muted p-0.5 type-body-sm">
+          {(["classes", "ativos"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={by === k}
+              onClick={() => setBy(k)}
+              className={cn("min-h-8 rounded-sm px-2 text-foreground", by === k && "bg-background font-semibold shadow-xs")}
+            >
+              {k === "classes" ? "Classes" : "Ativos"}
+            </button>
+          ))}
+        </div>
+      }
+    />
   );
 }
 

@@ -15,7 +15,7 @@ from datetime import date
 from decimal import Decimal
 
 import asyncpg
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from engines.common.dates import (
     MIN_MONTH,
@@ -26,6 +26,7 @@ from engines.common.dates import (
     today_brt,
 )
 from engines.common.money import Money, Pct
+from engines.common.shares import Slice, slices
 from engines.ingest import service as ingest_service
 from engines.ledger import service as ledger_service
 from engines.planning.service import month_plan
@@ -103,6 +104,8 @@ class History(BaseModel):
     average_months: int  # quantos meses entram na média 12m (0 = sem média)
     rows: list[HistoryRow]
     groups: list[HistoryRow]  # gastos por grupo, do maior para o menor no período
+    # v2.2 (pizza): os gastos do período por grupo, com o % do total
+    groups_share: list[Slice] = Field(default_factory=list)
 
 
 def _var(kind: str, current: Decimal | None, ref: Decimal | None) -> Decimal | None:
@@ -342,6 +345,15 @@ async def history(conn: asyncpg.Connection, periodo: str, leitura: str) -> Histo
         average_months=average.months if average else 0,
         rows=rows,
         groups=group_rows,
+        groups_share=slices(
+            (
+                f"grupo:{n}",
+                group_names.get(n, "Sem grupo"),
+                current.por_grupo.get(n, Decimal(0)),
+                None,
+            )
+            for n in names
+        ),
     )
 
 
